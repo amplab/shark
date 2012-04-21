@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="chrome=1">
-    <title>Shark by amplab</title>
+    <title>Shark - Lighting Fast Data Warehouse System</title>
     
     <link rel="stylesheet" href="stylesheets/styles.css">
     <link rel="stylesheet" href="stylesheets/pygment_trac.css">
@@ -15,44 +15,46 @@
   <body>
     <div class="wrapper">
       <header>
-        <h1>Shark</h1>
+        <h1>Shark (Hive on Spark)</h1>
         <p>Hive on Spark</p>
         <p class="view"><a href="https://github.com/amplab/shark">View the Project on GitHub <small>amplab/shark</small></a></p>
-        <ul>
-          <li><a href="https://github.com/amplab/shark/zipball/master">Download <strong>ZIP File</strong></a></li>
-          <li><a href="https://github.com/amplab/shark/tarball/master">Download <strong>TAR Ball</strong></a></li>
-          <li><a href="https://github.com/amplab/shark">Fork On <strong>GitHub</strong></a></li>
-        </ul>
+		<!--
+		        <ul>
+		          <li><a href="https://github.com/amplab/shark/zipball/master">Download <strong>ZIP File</strong></a></li>
+		          <li><a href="https://github.com/amplab/shark/tarball/master">Download <strong>TAR Ball</strong></a></li>
+		          <li><a href="https://github.com/amplab/shark">Fork On <strong>GitHub</strong></a></li>
+		        </ul>
+		-->
       </header>
       <section>
-        <h3>Shark</h3>
 
-<p>We have ported Apache Hive, the large-scale Hadoop data warehouse solution, to run queries on Spark. The resulting system, Shark (Hive on Spark), can answer Hive QL queries 30 times faster than Hive without modification to the existing data. It is backward-compatible with the Hive QL language, metastore, and user-defined functions. We will cover the architecture and implementation of Shark, including our additions to Hive QL that allow users to cache data in memory, and a new column-oriented format we have designed for storing Hive data efficiently in memory on the JVM as arrays of primitive types.</p>
+		<p>We have ported Apache Hive, the large-scale Hadoop data warehouse solution, to run queries on Spark. The resulting system, Shark (Hive on Spark), can answer Hive QL queries 30 times faster than Hive without modification to the existing data. It is backward-compatible with the Hive QL language, metastore, and user-defined functions. We will cover the architecture and implementation of Shark, including our additions to Hive QL that allow users to cache data in memory, and a new column-oriented format we have designed for storing Hive data efficiently in memory on the JVM as arrays of primitive types.</p>
 
-<p>Additionally, we are working on integrating SQL processing with machine learning, which we see as a natural future direction for Shark due to Spark's inherent efficiency at iterative algorithms. In Shark, we allow users to express their machine learning algorithms as Scala-based "distributed UDFs", which then run in the same execution engine as the SQL query processor. This enables much more efficient data pipelines, and provides a unified system for data analysis using both SQL and sophisticated statistical learning functions.</p>
+		<p>Additionally, we are working on integrating SQL processing with machine learning, which we see as a natural future direction for Shark due to Spark's inherent efficiency at iterative algorithms. In Shark, we allow users to express their machine learning algorithms as Scala-based "distributed UDFs", which then run in the same execution engine as the SQL query processor. This enables much more efficient data pipelines, and provides a unified system for data analysis using both SQL and sophisticated statistical learning functions.</p>
 
-<h3>Getting Started</h3>
+		<h3>Getting Started</h3>
 
-<p>BLah blah blah blah.</p>
+		<p>BLah blah blah blah.</p>
 
-<h3>References</h3>
+		<h3>References</h3>
 
-<ul>
-<li><a href="http://amplab.cs.berkeley.edu/publication/shark-fast-data-analysis-using-coarse-grained-distributed-memory-demonstration-paper/">Shark's SIGMOD 2012 demo submission</a></li>
-<li><a href="https://cwiki.apache.org/confluence/display/Hive/GettingStarted">Getting Started with Apache Hive</a></li>
-<li><a href="http://www.spark-project.org/">Spark Project</a></li>
-<li><a href="http://incubator.apache.org/mesos/">Apache Mesos</a></li>
-</ul><h3>Authors and Contributors</h3>
+		<ul>
+		<li><a href="http://amplab.cs.berkeley.edu/publication/shark-fast-data-analysis-using-coarse-grained-distributed-memory-demonstration-paper/">Shark's SIGMOD 2012 demo submission</a></li>
+		<li><a href="https://cwiki.apache.org/confluence/display/Hive/GettingStarted">Getting Started with Apache Hive</a></li>
+		<li><a href="http://www.spark-project.org/">Spark Project</a></li>
+		<li><a href="http://incubator.apache.org/mesos/">Apache Mesos</a></li>
+		</ul><h3>Authors and Contributors</h3>
 
-<p>Shark is developed in the <a href="http://amplab.cs.berkeley.edu/">UC Berkeley AMP Lab</a> by Cliff Engle, Antonio Lupher, and <a href="http://www.cs.berkeley.edu/%7Erxin">Reynold Xin</a>.</p>
+		<p>Shark is developed in the <a href="http://amplab.cs.berkeley.edu/">UC Berkeley AMP Lab</a> by Cliff Engle, Antonio Lupher, and <a href="http://www.cs.berkeley.edu/%7Erxin">Reynold Xin</a>. The research and development is supported in part by an NSF CISE Expeditions award,  gifts from Google, SAP, Amazon Web Services, Blue Goji, Cisco, Cloudera, Ericsson, General Electric, Hewlett Packard, Huawei, Intel, MarkLogic, Microsoft, NetApp, Oracle, Quanta, Splunk, VMware and by DARPA (contract #FA8650-11-C-7136).</p>
 
-<h3>Support or Contact</h3>
+		<h3>Support or Contact</h3>
 
-<p>We are looking for users (ideally with existing Hive warehouses) to try out Shark and help us improve it. Please use <a href="http://groups.google.com/group/shark-users">shark-users</a> mailing list for support.</p>
+		<p>If you are interested in trying out Shark in your Hive warehouse, please contact <a href="mailto:rxin@cs.berkeley.edu">Reynold</a>. You are also welcomed to use the <a href="http://groups.google.com/group/shark-users">shark-users</a> mailing list for support.</p>
+
+
       </section>
       <footer>
-        <p>This project is maintained by <a href="https://github.com/amplab">amplab</a></p>
-        <p><small>Hosted on GitHub Pages &mdash; Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
+        <p><small>page theme modified from <a href="https://github.com/orderedlist">orderedlist</a></small></p>
       </footer>
     </div>
     <script src="javascripts/scale.fix.js"></script>
@@ -66,6 +68,5 @@
             pageTracker._trackPageview();
             } catch(err) {}
           </script>
-
   </body>
 </html>
