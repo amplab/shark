@@ -1,0 +1,4 @@
+#!/bin/sh
+BINDIR="`dirname $0`"
+FWDIR="`dirname $BINDIR`"
+exec $FWDIR/run shark.repl.Main "$@"

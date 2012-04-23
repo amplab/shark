@@ -1,0 +1,36 @@
+target/
+build/
+metastore_db/
+project/boot
+lib_managed/
+TempStatsStore
+
+# Compiled Source
+*.class
+
+# Packages
+#*.jar
+
+# Log Files
+*.log
+
+# Eclipse project files
+.classpath
+.project
+.settings
+
+# emacs backup
+*~
+
+# tmp files
+*.swp
+.cache
+
+# mac os file
+*.DS_Store
+
+# latex files
+paper.pdf
+paper.blg
+paper.bbl
+paper.aux

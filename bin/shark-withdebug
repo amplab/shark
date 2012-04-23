@@ -1,0 +1,8 @@
+#!/bin/sh
+
+# This is really just a wrapper around bin/shark to pipe INFO log to console.
+# Very handy for debugging.
+
+BINDIR="`dirname $0`"
+exec $BINDIR/shark -hiveconf hive.root.logger=DEBUG,console "$@"
+
