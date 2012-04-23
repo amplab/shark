@@ -62,7 +62,9 @@ shark.explain.mode = hive | shark (default)
 Testing
 -------
 This requires the development package of Hive. Download it from github:
-https://github.com/apache/hive/zipball/release-0.7.0
+https://github.com/amplab/hive/tree/shark-0.7.0
+
+(This is a patched version of Hive that fixed some bugs.)
 
 Then set $HIVE_HOME and $HIVE_DEV_HOME in conf/shark-env.sh
 
