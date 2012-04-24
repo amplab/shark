@@ -79,7 +79,8 @@ if you have a table named "test", you can create a cached version of it as follo
 ## Testing
 
 This requires the development package of Hive. Download it from github:
-https://github.com/apache/hive/zipball/release-0.7.0
+
+    $ git clone git@github.com:amplab/hive.git -b shark-0.7.0
 
 Then set `$HIVE_HOME` and `$HIVE_DEV_HOME` in `conf/shark-env.sh`
 
