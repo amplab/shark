@@ -15,7 +15,7 @@ Get Hive from Apache:
     $ export HIVE_HOME=/path/to/hive
     $ wget http://archive.apache.org/dist/hive/hive-0.7.0/hive-0.7.0-bin.tar.gz
     $ tar xvzf hive-0.7.0-bin.tar.gz
-    $ mv hive-0.7.0-bin.tar.gz $HIVE_HOME
+    $ mv hive-0.7.0-bin $HIVE_HOME
 
 Get Spark from Github and compile:
 
