@@ -55,16 +55,21 @@ We also include a few Shark-specific configuration parameters that can be set
 in the same way as you would set configuration parameters in Hive (e.g. from the 
 Shark CLI):
 
-shark.exec.mode = hive | shark (default)
-shark.explain.mode = hive | shark (default)
+shark> shark.exec.mode = [hive | shark (default)]
+shark> shark.explain.mode = [hive | shark (default)]
 
+Caching
+----------------------
+
+Shark caches tables in memory as long as their name ends in "_cached". For example, 
+if you have a table named "test", you can create a cached version of it as follows:
+
+shark> CREATE TABLE test_cached AS SELECT * FROM test;
 
 Testing
 -------
 This requires the development package of Hive. Download it from github:
-https://github.com/amplab/hive/tree/shark-0.7.0
-
-(This is a patched version of Hive that fixed some bugs.)
+https://github.com/apache/hive/zipball/release-0.7.0
 
 Then set $HIVE_HOME and $HIVE_DEV_HOME in conf/shark-env.sh
 
@@ -83,7 +88,15 @@ Then run the test with
 
 # TEST=down ./bin/test
 
-You can control what tests to run by changing TEST.
+You can control what tests to run by changing the TEST environmental variable.
+If specified, only tests that match the TEST regex will be run. You can only
+specify a whitelist of test suite to run using TEST_FILE. For example, to run
+our regression test, you can do
+
+# TEST_FILE=src/test/tests_pass.txt ./bin/test
+
+You can also combine both TEST and TEST_FILE, in which case only tests that
+satisfy both filters will be executed.
 
 
 References
@@ -93,4 +106,5 @@ https://cwiki.apache.org/confluence/display/Hive/GettingStarted
 
 For information on Spark, please read:
 https://github.com/mesos/spark
+
 
