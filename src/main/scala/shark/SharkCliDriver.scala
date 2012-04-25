@@ -12,6 +12,7 @@ import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.{FieldSchema, Schema}
 import org.apache.hadoop.hive.ql.Driver
 import org.apache.hadoop.hive.ql.exec.{FunctionRegistry, Utilities}
+import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.hadoop.hive.ql.parse.ParseDriver
 import org.apache.hadoop.hive.ql.processors.CommandProcessorFactory
 import org.apache.hadoop.hive.ql.session.SessionState
@@ -64,6 +65,18 @@ object SharkCliDriver {
     ss.cmdProperties.entrySet().foreach { item: java.util.Map.Entry[Object, Object] =>
       conf.set(item.getKey().asInstanceOf[String], item.getValue().asInstanceOf[String])
     }
+
+    // Drop cached tables from the metastore after we exit
+    Runtime.getRuntime().addShutdownHook(
+      new Thread() {
+        override def run() {
+          val db = Hive.get(conf.asInstanceOf[HiveConf])
+          SharkEnv.cache.getAllKeyStrings foreach { key =>
+            db.dropTable("default", key, false, true)
+          }
+        }
+      }
+    )
 
     if (!ShimLoader.getHadoopShims().usesJobShell()) {
       // hadoop-20 and above - we need to augment classpath using hiveconf
