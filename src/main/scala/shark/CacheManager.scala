@@ -35,5 +35,13 @@ class CacheManager {
       case None => None
     }
   }
+  
+  /**
+   * Find all keys that are strings. Used to drop tables after exiting.
+   */
+  def getAllKeyStrings(): Seq[String] = {
+    keyToRdd.keys.map { _.key } collect { case k: String => k} toSeq
+  }
+
 }
 
