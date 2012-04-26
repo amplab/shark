@@ -35,23 +35,23 @@ with java.io.Serializable with LogHelper {
 
   override def execute(driverContext: DriverContext): Int = {
     logInfo("Executing " + this.getClass.getName)
-    
+
     Operator.hconf = conf
 
     // Replace Hive physical plan with Shark plan.
     val terminalOp = work.terminalOperator
     val tableScanOps = terminalOp.returnTopOperators().asInstanceOf[Seq[TableScanOperator]]
-    
+
     //ExplainTaskHelper.outputPlan(terminalOp, Console.out, true, 2)
     //ExplainTaskHelper.outputPlan(hiveTopOps.head, Console.out, true, 2)
-    
+
     initializeTableScanTableDesc(tableScanOps)
-    
+
     // Initialize the Hive query plan. This gives us all the object inspectors.
-    initializeAllHiveTopOperators(terminalOp)
-    
+    initializeAllHiveOperators(terminalOp)
+
     terminalOp.initializeMasterOnAll()
-    
+
     val sinkRdd = terminalOp.execute().asInstanceOf[RDD[Any]]
 
     _tableRdd = new TableRDD(sinkRdd, work.resultSchema, terminalOp.objectInspector)
@@ -80,10 +80,9 @@ with java.io.Serializable with LogHelper {
     }}
   }
 
-  def initializeAllHiveTopOperators(terminalOp: TerminalAbstractOperator[_]) {
+  def initializeAllHiveOperators(terminalOp: TerminalAbstractOperator[_]) {
     // Need to guarantee all parents are initialized before the child.
     val topOpList = new scala.collection.mutable.MutableList[HiveTopOperator]
-    val terminalOpList = new scala.collection.mutable.MutableList[ReduceSinkOperator]
     val queue = new scala.collection.mutable.Queue[Operator[_]]
     queue.enqueue(terminalOp)
 
@@ -91,25 +90,9 @@ with java.io.Serializable with LogHelper {
       val current = queue.dequeue()
       current match {
         case op: HiveTopOperator => topOpList += op
-        case op: ReduceSinkOperator => terminalOpList += op
         case _ => Unit
       }
       queue ++= current.parentOperators
-    }
-    
-    // Break the Hive operator tree into multiple stages, separated by Hive
-    // ReduceSink. This is necessary because the Hive operators after ReduceSink
-    // cannot be initialized using ReduceSink's output object inspector. We
-    // craft the struct object inspector (that has both KEY and VALUE) in Shark
-    // ReduceSinkOperator.initializeDownStreamHiveOperators().
-    terminalOpList.foreach { op =>
-      val hiveOp = op.asInstanceOf[Operator[HiveOperator]].hiveOp
-      if (hiveOp.getChildOperators() != null) {
-        hiveOp.getChildOperators().foreach { child =>
-          logInfo("Removing child %s from %s".format(child, hiveOp))
-          hiveOp.removeChild(child)
-        }
-      }
     }
 
     // Run the initialization. This guarantees that upstream operators are

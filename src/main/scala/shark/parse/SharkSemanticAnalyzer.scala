@@ -7,7 +7,7 @@ import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.Warehouse
 import org.apache.hadoop.hive.metastore.api.{FieldSchema, MetaException}
-import org.apache.hadoop.hive.ql.exec._
+import org.apache.hadoop.hive.ql.exec.{DDLTask, FetchTask, MoveTask, TaskFactory}
 import org.apache.hadoop.hive.ql.metadata.HiveException
 import org.apache.hadoop.hive.ql.optimizer.Optimizer
 import org.apache.hadoop.hive.ql.parse._
@@ -18,7 +18,8 @@ import scala.collection.JavaConversions._
 import scala.collection.mutable.Stack
 
 import shark.LogHelper
-import shark.exec.{HiveOperator, OperatorFactory, SparkWork, TerminalOperator}
+import shark.exec.{HiveOperator, Operator, OperatorFactory, SparkWork, ReduceSinkOperator,
+  TerminalAbstractOperator, TerminalOperator}
 
 
 /**
@@ -31,7 +32,7 @@ import shark.exec.{HiveOperator, OperatorFactory, SparkWork, TerminalOperator}
 class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with LogHelper {
 
   var _resSchema: JavaList[FieldSchema] = null
-  
+
   /**
    * This is used in driver to get the result schema.
    */
@@ -67,7 +68,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
             Unit
         }
       }
-      
+
       // If the table descriptor can be null if the CTAS has an
       // "if not exists" condition.
       val td = getParseContext.getQB.getTableDesc
@@ -89,7 +90,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     if (astTokenType == HiveParser.TOK_CREATEVIEW || astTokenType == HiveParser.TOK_ANALYZE) {
       return super.analyzeInternal(ast)
     }
-    
+
     // continue analyzing from the child ASTNode.
     doPhase1(child, qb, initPhase1Ctx())
     logInfo("Completed phase 1 of Shark Semantic Analysis")
@@ -100,7 +101,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     // by genPlan.  This has the correct column names, which clients
     // such as JDBC would prefer instead of the c0, c1 we'll end
     // up with later.
-    val hiveSinkOp = genPlan(qb).asInstanceOf[FileSinkOperator]
+    val hiveSinkOp = genPlan(qb).asInstanceOf[org.apache.hadoop.hive.ql.exec.FileSinkOperator]
     
     // Use reflection to invoke convertRowSchemaToViewSchema.
     _resSchema = SharkSemanticAnalyzer.convertRowSchemaToViewSchemaMethod.invoke(
@@ -131,14 +132,16 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       } else {
         terminalOp.useFileSink()
       }
-      
+
+      SharkSemanticAnalyzer.breakHivePlanByStages(Seq(terminalOp))
       genMapRedTasks(qb, pctx, Seq(terminalOp))
 
     } else {
       // If there are multiple file outputs, we always use file outputs.
       val terminalOps = hiveSinkOps.map(OperatorFactory.createSharkPlan(_))
       terminalOps.foreach(_.useFileSink())
-
+      
+      SharkSemanticAnalyzer.breakHivePlanByStages(terminalOps)
       genMapRedTasks(qb, pctx, terminalOps)
     }
 
@@ -252,7 +255,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
 }
 
 
-object SharkSemanticAnalyzer {
+object SharkSemanticAnalyzer extends LogHelper {
   
   /**
    * The reflection object used to invoke convertRowSchemaToViewSchema.
@@ -273,5 +276,40 @@ object SharkSemanticAnalyzer {
     }
   }
 
+  /**
+   * Break the Hive operator tree into multiple stages, separated by Hive
+   * ReduceSink. This is necessary because the Hive operators after ReduceSink
+   * cannot be initialized using ReduceSink's output object inspector. We
+   * craft the struct object inspector (that has both KEY and VALUE) in Shark
+   * ReduceSinkOperator.initializeDownStreamHiveOperators().
+   */
+  def breakHivePlanByStages(terminalOps: Seq[TerminalAbstractOperator[_]]) = {
+    val reduceSinks = new scala.collection.mutable.HashSet[ReduceSinkOperator]
+    val queue = new scala.collection.mutable.Queue[Operator[_]]
+    queue ++= terminalOps
+
+    while (!queue.isEmpty) {
+      val current = queue.dequeue()
+      current match {
+        case op: ReduceSinkOperator => reduceSinks += op
+        case _ => Unit
+      }
+      // This is not optimal because operators can be added twice. But the
+      // operator tree should not be too big...
+      queue ++= current.parentOperators
+    }
+
+    logInfo("Found %d ReduceSinkOperator's.".format(reduceSinks.size))
+
+    reduceSinks.foreach { op =>
+      val hiveOp = op.asInstanceOf[Operator[HiveOperator]].hiveOp
+      if (hiveOp.getChildOperators() != null) {
+        hiveOp.getChildOperators().foreach { child =>
+          logInfo("Removing child %s from %s".format(child, hiveOp))
+          hiveOp.removeChild(child)
+        }
+      }
+    }
+  }
 }
 
