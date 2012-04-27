@@ -38,8 +38,6 @@ class TerminalOperator extends TerminalAbstractOperator[HiveFileSinkOperator] wi
   }
 
   override def initializeOnSlave() {
-    println("HCONF: " + localHconf.get("mapred.task.id"))
-    println("HIVE: " + org.apache.hadoop.hive.ql.exec.Utilities.getTaskId(localHconf))
     localHiveOp.initialize(localHconf, Array(objectInspector))
   }
 
@@ -50,7 +48,6 @@ class TerminalOperator extends TerminalAbstractOperator[HiveFileSinkOperator] wi
 class FileSinkOperator extends TerminalOperator with Serializable {
 
   def initializeOnSlave(context: TaskContext) {
-    println("hereherhehrehre")
     setConfParams(localHconf, context)
     initializeOnSlave()
   }
