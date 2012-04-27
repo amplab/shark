@@ -21,6 +21,22 @@ object OperatorFactory extends LogHelper {
     _createOperatorTree(hiveTerminalOp).asInstanceOf[TerminalOperator]
   }
 
+  def createSharkCacheOutputPlan(hiveTerminalOp: HiveOperator, tableName: String): TerminalOperator = {
+    val terminalOp = _newOperatorInstance(classOf[CacheSinkOperator], hiveTerminalOp).asInstanceOf[CacheSinkOperator]
+    terminalOp.tableName = tableName
+    _createAndSetParents(terminalOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
+  }
+  
+  def createSharkFileOutputPlan(hiveTerminalOp: HiveOperator): TerminalOperator = {
+    val terminalOp = _newOperatorInstance(classOf[FileSinkOperator], hiveTerminalOp)
+    _createAndSetParents(terminalOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
+  }
+
+  def createSharkRddOutputPlan(hiveTerminalOp: HiveOperator): TerminalOperator = {
+    val terminalOp = _newOperatorInstance(classOf[TableRddSinkOperator], hiveTerminalOp)
+    _createAndSetParents(terminalOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
+  }
+  
   /** Create a Shark operator given the Hive operator. */
   private def createSingleOperator(hiveOp: HiveOperator): Operator[_] = {
     // This is kind of annoying, but it works with strong typing ...
@@ -77,18 +93,28 @@ object OperatorFactory extends LogHelper {
     op
   }
 
+  private def _createAndSetParents(op: Operator[_], parents: Seq[HiveOperator]) = {
+    if (parents != null) {
+      parents foreach { parent =>
+        _createOperatorTree(parent).addChild(op)
+      }
+    }
+    op
+  }
+  
   /**
    * Given a terminal operator in Hive, create the plan that uses Shark physical
    * operators.
    */
   private def _createOperatorTree(hiveOp: HiveOperator): Operator[_] = {
     val current = createSingleOperator(hiveOp)
-    if (hiveOp.getParentOperators != null) {
-      hiveOp.getParentOperators foreach { parent =>
-        _createOperatorTree(parent).addChild(current)
-      }
+    val parents = hiveOp.getParentOperators
+    if (parents != null) {
+      _createAndSetParents(current, parents.toSeq)
     }
-    current
+    else {
+      current
+    }
   }
   
   private def _findHiveTerminalOperator(hiveOp: HiveOperator): HiveOperator = {
