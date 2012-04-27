@@ -54,9 +54,8 @@ class FileSinkOperator extends TerminalOperator with Serializable {
   def setConfParams(conf: HiveConf, context: TaskContext) {
     val jobID = context.stageId
     val splitID = context.splitId 
-    val attemptID = context.attemptId
     val jID = HadoopWriter.createJobID(now, jobID)
-    val taID = new TaskAttemptID(new TaskID(jID, true, splitID), attemptID)
+    val taID = new TaskAttemptID(new TaskID(jID, true, splitID), 0)
     conf.set("mapred.job.id", jID.toString)
     conf.set("mapred.tip.id", taID.getTaskID.toString) 
     conf.set("mapred.task.id", taID.toString)
