@@ -1,6 +1,7 @@
 package shark.exec
 
 import java.util.ArrayList
+import java.util.Random
 
 import org.apache.hadoop.hive.ql.exec.{ReduceSinkOperator => HiveReduceSinkOperator}
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory}
@@ -95,13 +96,27 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] with Seri
   override def processPartition[T](iter: Iterator[T]) = {
     if (conf.getDistinctColumnIndices().size() == 0) { 
       // Normal case with no distinct columns
+      val rng = new Random(13)
       iter.map { row =>
+        // TODO: we don't need partition code for group-by or join
+        // Partition code is used for distribute/cluster by
+        var partitionCode = 0
+        for (i <- 0 until partitionEval.size) {
+          val o = partitionEval(i).evaluate(row)
+          partitionCode = partitionCode * 31 +
+            ObjectInspectorUtils.hashCode(o, partitionObjInspectors(i))
+        }
+        if  (partitionEval.size == 0) {
+          partitionCode = rng.nextInt()
+        }
+
         // Note: we currently only support BinarySerDe's (not Text)
         val key = keySer.serialize(keyEval.map(_.evaluate(row)), keyObjInspector)
           .asInstanceOf[BytesWritable]
         val value = valueSer.serialize(valueEval.map(_.evaluate(row)), valObjInspector)
           .asInstanceOf[BytesWritable]
         val keyArr = new ReduceKey(new Array[Byte](key.getLength))
+        keyArr.partitionCode = partitionCode
         val valueArr = new Array[Byte](value.getLength)
         Array.copy(key.getBytes, 0, keyArr.bytes, 0, key.getLength)
         Array.copy(value.getBytes, 0, valueArr, 0, value.getLength)
@@ -113,13 +128,6 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] with Seri
       iter.flatMap {  row =>
         val value = valueSer.serialize(valueEval.map(_.evaluate(row)), valObjInspector)
           .asInstanceOf[BytesWritable]
-
-        var partitionCode = 0
-        for (i <- 0 until partitionEval.size) {
-          val o = partitionEval(i).evaluate(row)
-          partitionCode = partitionCode * 31 +
-            ObjectInspectorUtils.hashCode(o, partitionObjInspectors(i))
-        }
         
         val numDistributionKeys = conf.getNumDistributionKeys
         val allKeys = keyEval.map(_.evaluate(row)) // The key without distinct cols
