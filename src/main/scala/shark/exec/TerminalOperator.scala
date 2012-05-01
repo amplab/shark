@@ -14,6 +14,7 @@ import scala.reflect.BeanProperty
 import shark.{CacheKey, RDDUtils, SharkEnv}
 import spark.{RDD, TaskContext}
 
+import java.util.Date
 
 /**
  * File sink operator. It can accomplish one of the three things:
@@ -106,8 +107,7 @@ object FileSinkOperator {
  * Cache the RDD and force evaluate it (so the cache is filled). We avoid
  * using anonymous class here for easier debugging ...
  */
-class CacheSinkOperator(@BeanProperty var tableName: String)
-    extends TerminalOperator with Serializable {
+class CacheSinkOperator(@BeanProperty var tableName: String) extends TerminalOperator {
 
   def this() = this(null)
  
@@ -130,5 +130,5 @@ class CacheSinkOperator(@BeanProperty var tableName: String)
 /**
  * Collect the output as a TableRDD.
  */
-class TableRddSinkOperator extends TerminalOperator with Serializable {}
+class TableRddSinkOperator extends TerminalOperator {}
 
