@@ -10,7 +10,7 @@ import scala.collection.Iterator
 import scala.reflect.BeanProperty
 
 
-class FilterOperator extends UnaryOperator[HiveFilterOperator] with Serializable {
+class FilterOperator extends UnaryOperator[HiveFilterOperator] {
   
   @transient var conditionEvaluator: ExprNodeEvaluator = _
 

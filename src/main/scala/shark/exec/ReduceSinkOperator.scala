@@ -22,7 +22,7 @@ import shark.operators.ReduceSinkWrapper
  * Converts a collection of rows into key, value pairs. This is usually the
  * upstream operator for joins and groupbys.
  */
-class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] with Serializable {
+class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
 
   @BeanProperty var conf: ReduceSinkDesc = _
 

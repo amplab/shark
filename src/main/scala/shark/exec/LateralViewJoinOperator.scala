@@ -21,11 +21,9 @@ import spark.RDD
  * Hive handles this by having two branches in its plan, then joining their ouptut (see diagram in 
  * LateralViewJoinOperator.java). We put all the explode logic here instead.
  */
-class LateralViewJoinOperator extends NaryOperator[HiveLateralViewJoinOperator]
-with Serializable {
+class LateralViewJoinOperator extends NaryOperator[HiveLateralViewJoinOperator] {
 
   @BeanProperty var conf: SelectDesc = _
-  @BeanProperty var serializedObjectInspectors: Array[Byte] = _
   @BeanProperty var udtfOp: UDTFOperator = _
   @BeanProperty var lvfOp: LateralViewForwardOperator = _
   
@@ -36,7 +34,6 @@ with Serializable {
     // Get conf from Select operator beyond UDTF Op to get eval()
     conf = parentOperators.filter(_.isInstanceOf[UDTFOperator]).head
       .parentOperators.head.asInstanceOf[SelectOperator].hiveOp.getConf()
-    serializedObjectInspectors = Operator.kryoSer.newInstance().serialize(objectInspectors.head)
 
     udtfOp = parentOperators.filter(_.isInstanceOf[UDTFOperator]).head.asInstanceOf[UDTFOperator]
     lvfOp = parentOperators.filter(_.isInstanceOf[SelectOperator]).head.parentOperators.head
@@ -44,15 +41,12 @@ with Serializable {
   }
   
   override def initializeOnSlave() {
-    val objectInspector = Operator.kryoSer.newInstance()
-      .deserialize(serializedObjectInspectors).asInstanceOf[ObjectInspector]
-
     // Get eval(), which will return array that needs to be exploded 
     // eval doesn't exist when getColList() is null, but this happens only on select *'s, 
     // which are not allowed within explode
     eval = conf.getColList().map(ExprNodeEvaluatorFactory.get(_)).toArray
-    eval.foreach(_.initialize(objectInspector))
-    
+    eval.foreach(_.initialize(objectInspectors.head))
+
     // Initialize UDTF operator so that we can call explode() later
     udtfOp.initializeOnSlave()
   }

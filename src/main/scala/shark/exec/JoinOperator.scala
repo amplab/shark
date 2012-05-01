@@ -13,13 +13,12 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
-import shark.SharkUtilities
 import spark.{UnionRDD, RDD}
 import spark.SparkContext._
 
 
 class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
-  with HiveTopOperator with Serializable {
+  with HiveTopOperator {
 
   @BeanProperty var valueTableDescMap: JavaHashMap[Int, TableDesc] = _
 
@@ -71,9 +70,8 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
     }
     val union = new UnionRDD(rddsInJoinOrder.head.context, labeledRdds)
 
-    val serializedOp = SharkUtilities.xmlSerialize(this)
+    val op = OperatorSerializationWrapper(this)
     union.groupByKey(numReduceTasks).mapPartitions { part =>
-      val op = SharkUtilities.xmlDeserialize(serializedOp).asInstanceOf[JoinOperator]
       op.initializeOnSlave()
 
       val bufs = new Array[ArrayBuffer[Any]](op.numTables)

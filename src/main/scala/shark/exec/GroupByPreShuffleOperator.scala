@@ -21,8 +21,7 @@ import spark.RDD
 import spark.SparkContext._
 
 
-class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator]
-with Serializable {
+class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
   
   @BeanProperty var conf: GroupByDesc = _
 

@@ -14,7 +14,6 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
-import shark.SharkUtilities
 import spark.{UnionRDD, RDD}
 
 
@@ -22,7 +21,7 @@ import spark.{UnionRDD, RDD}
  * A union operator. If the incoming data are of different type, the union
  * operator transforms the incoming data into the same type.
  */
-class UnionOperator extends NaryOperator[HiveUnionOperator] with Serializable {
+class UnionOperator extends NaryOperator[HiveUnionOperator] {
 
   @transient var parentFields: ArrayBuffer[JavaList[_ <: StructField]] = _
   @transient var parentObjInspectors: ArrayBuffer[StructObjectInspector] = _
@@ -102,10 +101,9 @@ class UnionOperator extends NaryOperator[HiveUnionOperator] with Serializable {
   def transformRdd(rdd: RDD[_], tag: Int) = {
     // Since Union does not rely on the general Operator structure, we need
     // to serialize the object inspectors ourselves.
-    val serializedOp = SharkUtilities.xmlSerialize(this)
+    val op = OperatorSerializationWrapper(this)
 
     rdd.mapPartitions { part =>
-      val op = SharkUtilities.xmlDeserialize(serializedOp).asInstanceOf[UnionOperator]
       op.initializeOnSlave()
 
       val columns = op.parentFields.head.size()

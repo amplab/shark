@@ -3,8 +3,7 @@ import spark.RDD
 
 import org.apache.hadoop.hive.ql.exec.{ForwardOperator => HiveForwardOperator}
 
-class ForwardOperator extends UnaryOperator[HiveForwardOperator]
-with Serializable {
+class ForwardOperator extends UnaryOperator[HiveForwardOperator] {
   
   override def execute(): RDD[_] = executeParents().head._2
 

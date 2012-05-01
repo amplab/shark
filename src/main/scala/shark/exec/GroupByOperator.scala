@@ -5,6 +5,11 @@ import org.apache.hadoop.hive.ql.exec.{ReduceSinkOperator => HiveReduceSinkOpera
 import org.apache.hadoop.hive.ql.plan.GroupByDesc
 
 
+/**
+ * Unlike Hive, group by in Shark is split into two different operators:
+ * GroupByPostShuffleOperator and GroupByPreShuffleOperator. The pre-shuffle one
+ * serves as a combiner on each map partition.
+ */
 object GroupByOperator {
   
   def isPostShuffle(op: HiveGroupByOperator): Boolean = {

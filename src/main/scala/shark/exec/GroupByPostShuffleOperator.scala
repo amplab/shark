@@ -25,7 +25,7 @@ import spark.SparkContext._
 
 
 class GroupByPostShuffleOperator extends GroupByPreShuffleOperator 
-with HiveTopOperator with Serializable {
+with HiveTopOperator {
 
   @BeanProperty var keyTableDesc: TableDesc = _
   @BeanProperty var valueTableDesc: TableDesc = _

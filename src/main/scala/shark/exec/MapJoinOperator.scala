@@ -12,7 +12,7 @@ import org.apache.hadoop.io.BytesWritable
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
-import shark.{SharkEnv, SharkUtilities}
+import shark.SharkEnv
 import shark.collections.Conversions._
 import spark.RDD
 import spark.broadcast.Broadcast
@@ -26,8 +26,7 @@ import spark.broadcast.Broadcast
  * Different from Hive, we don't spill the hash tables to disk. If the "small"
  * tables are too big to fit in memory, the normal join should be used anyway.
  */
-class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperator]
-  with Serializable {
+class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperator] {
 
   @BeanProperty var posBigTable: Int = _
   @BeanProperty var bigTableAlias: Int = _
@@ -68,7 +67,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
   override def combineMultipleRdds(rdds: Seq[(Int, RDD[_])]): RDD[_] = {
     logInfo("%d small tables to map join a large table (%d)".format(rdds.size - 1, posBigTable))
 
-    val serializedOp = SharkUtilities.xmlSerialize(this)
+    val op1 = OperatorSerializationWrapper(this)
 
     // Build hash tables for the small tables.
     val hashtables = rdds.zipWithIndex.filter(_._2 != bigTableAlias).map { case ((_, rdd), pos) =>
@@ -83,10 +82,9 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
       // Create a local reference for the serialized arrays, otherwise the
       // following mapParititons will fail because it tries to include the
       // outer closure, which references "this".
-      val serializedOp1 = serializedOp
+      val op = op1
       val rddForHash: RDD[(AbstractMapJoinKey, Array[java.lang.Object])] =
         rdd.mapPartitions { partition =>
-          val op = SharkUtilities.xmlDeserialize(serializedOp1).asInstanceOf[MapJoinOperator]
           op.initializeOnSlave()
           op.computeJoinKeyValuesOnPartition(partition, posByte)
         }
@@ -107,9 +105,8 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
 
     val fetcher = new MapJoinHashTablesBroadcast(hashtables)
 
+    val op = op1
     rdds(bigTableAlias)._2.mapPartitions { partition =>
-      val op = SharkUtilities.xmlDeserialize(serializedOp).asInstanceOf[MapJoinOperator]
-
       op.logDebug("Started executing mapPartitions for operator: " + op)
       op.logDebug("Input object inspectors: " + op.objectInspectors)
 

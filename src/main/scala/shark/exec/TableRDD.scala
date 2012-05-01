@@ -1,6 +1,6 @@
 package shark.exec
 
-import spark.{KryoSerializer, OneToOneDependency, RDD, Serializer, Split}
+import spark.{OneToOneDependency, RDD, Serializer, Split}
 
 import org.apache.hadoop.hive.metastore.api.FieldSchema
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, StructObjectInspector}
@@ -90,8 +90,7 @@ case class TableRDD(
    * and save it as a byte array. On slave nodes, we deserialize this byte
    * array to obtain the ObjectInspector object.
    */
-  private val serializedObjectInspector: Array[Byte] =
-    Operator.kryoSer.newInstance().serialize(oi)
+  private val serializedObjectInspector: Array[Byte] = KryoSerializer.serialize(oi)
   @transient var structOi: StructObjectInspector = null
 
   /**
@@ -125,8 +124,7 @@ case class TableRDD(
    * Initialize object inspector from the serializedObjectInspector.
    */
   private def initObjectInspector() {
-    oi = Operator.kryoSer.newInstance().deserialize[ObjectInspector](
-        serializedObjectInspector)
+    oi = KryoSerializer.deserialize[ObjectInspector](serializedObjectInspector)
     structOi = oi match {
       case soi: StructObjectInspector => soi
       case _ => throw new Exception("Only basic StructObjectInspector is supposed.")

@@ -16,9 +16,7 @@ import scala.collection.JavaConversions._
 import scala.io.Source
 import scala.reflect.BeanProperty
 
-import shark.SharkUtilities
 import spark.{OneToOneDependency, RDD, SparkEnv, Split}
-import shark.SharkUtilities
 
 
 /**
@@ -43,13 +41,11 @@ class ScriptOperator extends UnaryOperator[HiveScriptOperator] {
     // First run parent.
     val inputRdd = executeParents().head._2
 
-    val serializedOp = SharkUtilities.xmlSerialize(this)
-
+    val op = OperatorSerializationWrapper(this)
     // Serialize the data so it is recognizable by the script.
     val rdd = inputRdd.mapPartitions { part =>
-      val opClosure = SharkUtilities.xmlDeserialize(serializedOp).asInstanceOf[ScriptOperator]
-      opClosure.initializeOnSlave()
-      opClosure.serializeForScript(part)
+      op.initializeOnSlave()
+      op.serializeForScript(part)
     }
 
     val outRecordReaderClass = hiveOp.getConf().getOutRecordReaderClass()
@@ -65,14 +61,13 @@ class ScriptOperator extends UnaryOperator[HiveScriptOperator] {
         envs,
         outRecordReaderClass,
         inRecordWriterClass,
-        SharkUtilities.xmlSerialize(hconf),
+        XmlSerializer.serialize(hconf),
         hiveOp.getConf().getScriptOutputInfo().getProperties())
 
     // Deserialize the output from script back to what Hive understands.
     piped.mapPartitions { part =>
-      val opClosure = SharkUtilities.xmlDeserialize(serializedOp).asInstanceOf[ScriptOperator]
-      opClosure.initializeOnSlave()
-      opClosure.deserializeFromScript(part)
+      op.initializeOnSlave()
+      op.deserializeFromScript(part)
     }
   }
   
@@ -205,7 +200,7 @@ class CustomPipedRdd(
     val proc = pb.start()
     val env = SparkEnv.get
 
-    val hconf = SharkUtilities.xmlDeserialize(hconfSerialized).asInstanceOf[HiveConf]
+    val hconf = XmlSerializer.deserialize[HiveConf](hconfSerialized)
 
     // Start a thread to print the process's stderr to ours
     new Thread("stderr reader for " + command) {

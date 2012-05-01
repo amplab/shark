@@ -16,12 +16,12 @@ import org.apache.hadoop.io.Writable
 
 import scala.reflect.BeanProperty
 
-import shark.{CacheKey, SharkEnv, SharkUtilities}
+import shark.{CacheKey, SharkEnv}
 import spark.RDD
 
 
 class TableScanOperator extends TopOperator[HiveTableScanOperator]
-with HiveTopOperator with Serializable {
+with HiveTopOperator {
 
   @transient var table: Table = _
 
@@ -127,10 +127,10 @@ with HiveTopOperator with Serializable {
       val parts = SharkEnv.sc.hadoopFile(
         tablePath, ifc, classOf[Writable], classOf[Writable]).map(_._2)
 
-      val serializedHconf = SharkUtilities.xmlSerialize(localHconf)
+      val serializedHconf = XmlSerializer.serialize(localHconf)
       val partRDD = parts.mapPartitions { iter =>
         // Map each tuple to a row object
-        val hconf = SharkUtilities.xmlDeserialize(serializedHconf).asInstanceOf[HiveConf]
+        val hconf = XmlSerializer.deserialize(serializedHconf).asInstanceOf[HiveConf]
         val deserializer = partDesc.getDeserializerClass().newInstance()
         deserializer.initialize(hconf, partDesc.getProperties())
 

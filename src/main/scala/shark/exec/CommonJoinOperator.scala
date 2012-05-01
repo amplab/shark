@@ -13,13 +13,12 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
-import shark.SharkUtilities
 import spark.{CoGroupedRDD, UnionRDD, RDD}
 import spark.SparkContext.rddToPairRDDFunctions
 
 
 abstract class CommonJoinOperator[JOINDESCTYPE <: JoinDesc, T <: HiveCommonJoinOperator[JOINDESCTYPE]]
-  extends NaryOperator[T] with Serializable {
+  extends NaryOperator[T] {
 
   @BeanProperty var conf: JOINDESCTYPE = _
   // Order in which the results should be output.

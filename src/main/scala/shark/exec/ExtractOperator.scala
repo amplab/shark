@@ -18,7 +18,7 @@ import spark.SparkContext._
 
 
 class ExtractOperator extends UnaryOperator[HiveExtractOperator]
-with HiveTopOperator with Serializable {
+with HiveTopOperator {
 
   @BeanProperty var conf: ExtractDesc = _
   @BeanProperty var valueTableDesc: TableDesc = _

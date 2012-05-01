@@ -11,7 +11,7 @@ import scala.reflect.BeanProperty
  * An operator that does projection, i.e. selecting certain columns and
  * filtering out others.
  */
-class SelectOperator extends UnaryOperator[HiveSelectOperator] with Serializable {
+class SelectOperator extends UnaryOperator[HiveSelectOperator] {
 
   @BeanProperty var conf: SelectDesc = _
   

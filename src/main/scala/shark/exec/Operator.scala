@@ -1,6 +1,5 @@
 package shark.exec
 
-import java.io.{ObjectOutput, ObjectInput}
 import java.util.{List => JavaList}
 
 import org.apache.hadoop.hive.conf.HiveConf
@@ -10,11 +9,11 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
-import shark.{LogHelper, SharkUtilities}
-import spark.{KryoSerializer, RDD}
+import shark.LogHelper
+import spark.RDD
 
 
-abstract class Operator[T <: HiveOperator] extends Serializable with LogHelper {
+abstract class Operator[T <: HiveOperator] extends LogHelper with Serializable {
 
   /**
    * Initialize the operator on master node. This can have dependency on other
@@ -46,8 +45,6 @@ abstract class Operator[T <: HiveOperator] extends Serializable with LogHelper {
     objectInspectors ++= hiveOp.getInputObjInspectors()
     initializeOnMaster()
   }
-
-  @BeanProperty var objectInspectors = KryoSerializationWrapper(new ArrayBuffer[ObjectInspector])
 
   /**
    * Return the join tag. This is usually just 0. ReduceSink might set it to
@@ -92,6 +89,7 @@ abstract class Operator[T <: HiveOperator] extends Serializable with LogHelper {
   @transient var hiveOp: T = _
   @transient private val _childOperators = new ArrayBuffer[Operator[_]]()
   @transient private val _parentOperators = new ArrayBuffer[Operator[_]]()
+  @transient var objectInspectors = new ArrayBuffer[ObjectInspector]
 
   protected def executeParents(): Seq[(Int, RDD[_])] = {
     parentOperators.map(p => (p.getTag, p.execute()))
@@ -186,9 +184,6 @@ abstract class TerminalAbstractOperator[T <: HiveOperator] extends UnaryOperator
 
 object Operator extends LogHelper {
 
-  /** Kryo is used to serialize object inspectors. */
-  @transient val kryoSer: KryoSerializer = new KryoSerializer
-
   /** A reference to HiveConf for convenience. */
   @transient var hconf: HiveConf = _
 
@@ -197,15 +192,13 @@ object Operator extends LogHelper {
    * to do logging, but calling logging automatically adds a reference to the
    * operator (which is not serializable by Java) in the Spark closure.
    */
-  def executeProcessPartition(op: Operator[_], rdd: RDD[_]): RDD[_] = {
+  def executeProcessPartition(operator: Operator[_ <: HiveOperator], rdd: RDD[_]): RDD[_] = {
     // Serialize the operator and the object inspectors.
     // Object inspectors can only be serialized with Kryo.
     // The operator can only be serialized using XML Serializer.
-    val serializedOp = SharkUtilities.xmlSerialize(op)
+    val op = OperatorSerializationWrapper(operator)
 
     rdd.mapPartitions { partition =>
-      val op = SharkUtilities.xmlDeserialize(serializedOp).asInstanceOf[Operator[_]]
-
       op.logDebug("Started executing mapPartitions for operator: " + op)
       op.logDebug("Input object inspectors: " + op.objectInspectors)
 

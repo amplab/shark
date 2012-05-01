@@ -13,7 +13,7 @@ import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
 
-class UDTFOperator extends UnaryOperator[HiveUDTFOperator] with Serializable {
+class UDTFOperator extends UnaryOperator[HiveUDTFOperator] {
 
   @BeanProperty var conf: UDTFDesc = _
 

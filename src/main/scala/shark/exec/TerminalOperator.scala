@@ -19,7 +19,7 @@ import spark.RDD
  * - cache query output
  * - return query as RDD directly (without materializing it)
  */
-class TerminalOperator extends TerminalAbstractOperator[HiveFileSinkOperator] with Serializable {
+class TerminalOperator extends TerminalAbstractOperator[HiveFileSinkOperator] {
 
   @BeanProperty var sink: Sink = _
 
