@@ -119,25 +119,25 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     // Hive optimization.
     val hiveSinkOps = SharkSemanticAnalyzer.findAllHiveFileSinkOperators(
         pCtx.getTopOps().values().head)
-
+    
     if (hiveSinkOps.size == 1) {
       // For a single output, we have the option of choosing the output
       // destination (e.g. CTAS with _cached).
-      val terminalOp = OperatorFactory.createSharkPlan(hiveSinkOps.head)
-      if (isCTAS && qb.getTableDesc != null && qb.getTableDesc.getTableName.endsWith("_cached")) {
-        terminalOp.useCacheSink(qb.getTableDesc.getTableName)
-      } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink) {
-        terminalOp.useTableRddSink()
-      } else {
-        terminalOp.useFileSink()
+      val terminalOp = {
+        if (isCTAS && qb.getTableDesc != null && qb.getTableDesc.getTableName.endsWith("_cached")) {
+          OperatorFactory.createSharkCacheOutputPlan(hiveSinkOps.head, 
+                                                     qb.getTableDesc.getTableName)
+        } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink) {
+          OperatorFactory.createSharkRddOutputPlan(hiveSinkOps.head)
+        } else {
+          OperatorFactory.createSharkFileOutputPlan(hiveSinkOps.head)
+        }
       }
-      
       genMapRedTasks(qb, pctx, Seq(terminalOp))
 
     } else {
       // If there are multiple file outputs, we always use file outputs.
-      val terminalOps = hiveSinkOps.map(OperatorFactory.createSharkPlan(_))
-      terminalOps.foreach(_.useFileSink())
+      val terminalOps = hiveSinkOps.map(OperatorFactory.createSharkFileOutputPlan(_))
 
       genMapRedTasks(qb, pctx, terminalOps)
     }
