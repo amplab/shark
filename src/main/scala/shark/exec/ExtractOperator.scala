@@ -43,7 +43,14 @@ with HiveTopOperator {
   override def preprocessRdd[T](rdd: RDD[T]): RDD[_] = {
     // TODO: hasOrder and limit should really be made by optimizer.
     val hasOrder = parentOperator match {
-      case op: ReduceSinkOperator => op.getConf.getOrder != null
+      case op: ReduceSinkOperator => 
+        op.getConf.getOrder != null && !op.getConf.getOrder.isEmpty
+      case _ => false
+    }
+
+    
+    val isTotalOrder = parentOperator match {
+      case op: ReduceSinkOperator => op.getConf.getNumReducers == 1
       case _ => false
     }
 
@@ -61,24 +68,38 @@ with HiveTopOperator {
       limit match {
         case Some(l) => {
           logInfo("Pushing limit (%d) down to sorting".format(l))
-          RDDUtils.sortLeastKByKey(rdd.asInstanceOf[RDD[(ReduceKey, Any)]], l)
+          if (isTotalOrder) { 
+            logInfo("Performing Order By Limit")
+            RDDUtils.sortLeastKByKey(rdd.asInstanceOf[RDD[(ReduceKey, Any)]], l)
+          } else {
+            logInfo("Performing Sort By Limit")
+            RDDUtils.partialSortLeastKByKey(rdd.asInstanceOf[RDD[(ReduceKey, Any)]], l)
+          }
         }
-        case None => processOrderedRDD(rdd)
+        case None => {
+          if (isTotalOrder) {
+            logInfo("Performing Order By")
+            processOrderedRDD(rdd)
+          } else {
+            logInfo("Performing Distribute By Sort By")
+            val clusteredRdd = rdd.asInstanceOf[RDD[(ReduceKey, Any)]].partitionBy(new ReduceKeyPartitioner(rdd.splits.size))
+            clusteredRdd.mapPartitions { partition => partition.toSeq.sortWith(_._1 < _._1).iterator }
+            // Not sure if toSeq is better than toArray
+          }
+        }
       }
     } else {
-      rdd
+      logInfo("Performing Distribute By")
+      rdd.asInstanceOf[RDD[(ReduceKey, Any)]].partitionBy(new ReduceKeyPartitioner(rdd.splits.size))
     }
   }
 
   override def processPartition[T](iter: Iterator[T]) = {
     val bytes = new BytesWritable()
-    iter map { row =>
-      row match {
-        case (key, value: Array[Byte]) => {
-          bytes.set(value)
-          valueDeser.deserialize(bytes)
-        }
-        case other => throw new Exception("error with: " + other)
+    iter map { 
+      case (key, value: Array[Byte]) => {
+        bytes.set(value)
+        valueDeser.deserialize(bytes)
       }
     }
   }

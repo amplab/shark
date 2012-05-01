@@ -3,12 +3,16 @@ package shark.exec
 import java.util.Arrays
 import org.apache.hadoop.io.WritableComparator
 import scala.collection.mutable.StringBuilder
+import spark.HashPartitioner
 
 class ReduceKey(val bytes: Array[Byte]) extends Serializable with Ordered[ReduceKey] {
 
   override def hashCode(): Int = {
     Arrays.hashCode(bytes)
   }
+
+  @transient
+  var partitionCode = 0
 
   override def equals(other: Any): Boolean  = {
     other match {
@@ -31,5 +35,22 @@ class ReduceKey(val bytes: Array[Byte]) extends Serializable with Ordered[Reduce
     var s = StringBuilder.newBuilder
     bytes.foreach { b => s.append(" " + String.valueOf(b.toInt) + " ") }
     s.toString
+  }
+}
+
+class ReduceKeyPartitioner(partitions: Int) extends HashPartitioner(partitions) {
+  override def getPartition(key: Any) = {
+    key match {
+      case k: ReduceKey => {
+        val mod = k.partitionCode % partitions
+        if (mod < 0) {
+          mod + partitions
+        } else {
+          mod
+        }
+      }
+      case other =>
+        throw new Exception("ReduceKeyPartitioner expects object of class ReduceKey, but got: " + other.getClass.getName)
+    }
   }
 }

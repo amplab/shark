@@ -193,11 +193,7 @@ object Operator extends LogHelper {
    * operator (which is not serializable by Java) in the Spark closure.
    */
   def executeProcessPartition(operator: Operator[_ <: HiveOperator], rdd: RDD[_]): RDD[_] = {
-    // Serialize the operator and the object inspectors.
-    // Object inspectors can only be serialized with Kryo.
-    // The operator can only be serialized using XML Serializer.
     val op = OperatorSerializationWrapper(operator)
-
     rdd.mapPartitions { partition =>
       op.logDebug("Started executing mapPartitions for operator: " + op)
       op.logDebug("Input object inspectors: " + op.objectInspectors)
