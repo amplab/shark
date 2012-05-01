@@ -4,8 +4,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.scalatest.FunSuite
 import scala.collection.mutable.ArrayBuffer
-import shark.exec.KryoSerializationWrapper
-import shark.exec.serializationWrapper2Object
+import shark.exec.{KryoSerializationWrapper, kryoWrapper2object}
 import spark.JavaSerializer
 
 class SerializationSuite extends FunSuite {
@@ -23,19 +22,6 @@ class SerializationSuite extends FunSuite {
 
     assert(desered.head.getTypeName() === oi.getTypeName())
   }
-
-  test("XML serializing ObjectInspectorsWrapper") {
-    
-    val oi = PrimitiveObjectInspectorFactory.javaStringObjectInspector
-    val ois = KryoSerializationWrapper(new ArrayBuffer[ObjectInspector])
-    ois.value += oi
-
-    val bytes = SharkUtilities.xmlSerialize(ois)
-    val desered = SharkUtilities.xmlDeserialize(
-      bytes).asInstanceOf[KryoSerializationWrapper[ArrayBuffer[ObjectInspector]]]
-    assert(desered.head.getTypeName() === oi.getTypeName())
-  }
-
 }
 
 

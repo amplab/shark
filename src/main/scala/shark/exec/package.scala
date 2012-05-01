@@ -11,5 +11,7 @@ package object exec {
 
   implicit def opSerWrapper2op[T <: Operator[_ <: HiveOperator]](
       wrapper: OperatorSerializationWrapper[T]): T = wrapper.value
+
+  implicit def kryoWrapper2object[T](wrapper: KryoSerializationWrapper[T]): T = wrapper.value
 }
 
