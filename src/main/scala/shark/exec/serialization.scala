@@ -18,36 +18,29 @@ import shark.LogHelper
  * Use OperatorSerializationWrapper(operator) to create a wrapper.
  */
 class OperatorSerializationWrapper[T <: Operator[_ <: HiveOperator]]
-extends java.io.Externalizable with shark.LogHelper {
+  extends Serializable with shark.LogHelper {
 
-  var value: T = _
+  @transient var _value: T = _
 
-  override def readExternal(in: ObjectInput) {
-    val start: Long = System.currentTimeMillis()
-    val opSize = in.readInt()
-    val objectInspectorsSize = in.readInt()
-    val serializedOp = new Array[Byte](opSize)
-    val serializedObjectInspectors = new Array[Byte](objectInspectorsSize)
-    in.readFully(serializedOp)
-    in.readFully(serializedObjectInspectors)
-    value = XmlSerializer.deserialize[T](serializedOp)
-    value.objectInspectors = KryoSerializer.deserialize(serializedObjectInspectors)
-    val timeTaken = System.currentTimeMillis() - start
-    logDebug("Deserializing %s took %d ms (%d bytes op, %d bytes object inspectors)".format(
-      value.getClass.getName, timeTaken, opSize, objectInspectorsSize))
+  var opSerialized: Array[Byte] = _
+  var objectInspectorsSerialized: Array[Byte] = _
+
+  def value: T = {
+    if (_value == null) {
+      assert(opSerialized != null)
+      assert(opSerialized.length > 0)
+      assert(objectInspectorsSerialized != null)
+      assert(objectInspectorsSerialized.length > 0)
+      _value = XmlSerializer.deserialize[T](opSerialized)
+      _value.objectInspectors = KryoSerializer.deserialize(objectInspectorsSerialized)
+    }
+    _value
   }
 
-  override def writeExternal(out: ObjectOutput) {
-    val start: Long = System.currentTimeMillis()
-    val serializedOp: Array[Byte] = XmlSerializer.serialize(value)
-    val serializedObjectInspectors: Array[Byte] = KryoSerializer.serialize(value.objectInspectors)
-    out.writeInt(serializedOp.length)
-    out.writeInt(serializedObjectInspectors.length)
-    out.write(serializedOp)
-    out.write(serializedObjectInspectors)
-    val timeTaken = System.currentTimeMillis() - start
-    logDebug("Serializing %s took %d ms (%d bytes op, %d bytes object inspectors)".format(
-      value.getClass.getName, timeTaken, serializedOp.length, serializedObjectInspectors.length))
+  def value_= (v: T):Unit = {
+    _value = v
+    opSerialized = XmlSerializer.serialize(value)
+    objectInspectorsSerialized = KryoSerializer.serialize(value.objectInspectors)
   }
 
   override def toString(): String = {
