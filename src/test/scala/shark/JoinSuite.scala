@@ -6,7 +6,7 @@ import shark.exec.CommonJoinOperator
 import spark.{RDD, SparkContext}
 import spark.SparkContext._
 
-
+/*
 class JoinSuite extends FunSuite {
   
   test("basic pair join") {
@@ -139,4 +139,4 @@ class JoinSuite extends FunSuite {
   }
 
 }
-
+*/
