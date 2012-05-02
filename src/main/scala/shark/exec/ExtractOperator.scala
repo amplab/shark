@@ -47,7 +47,6 @@ with HiveTopOperator {
         op.getConf.getOrder != null && !op.getConf.getOrder.isEmpty
       case _ => false
     }
-
     
     val isTotalOrder = parentOperator match {
       case op: ReduceSinkOperator => op.getConf.getNumReducers == 1
@@ -72,8 +71,10 @@ with HiveTopOperator {
             logInfo("Performing Order By Limit")
             RDDUtils.sortLeastKByKey(rdd.asInstanceOf[RDD[(ReduceKey, Any)]], l)
           } else {
+            // We always do a distribute by. I'm not sure if we need to if there are no distribution keys.
+            val distributedRdd = rdd.asInstanceOf[RDD[(ReduceKey, Any)]].partitionBy(new ReduceKeyPartitioner(rdd.splits.size))
             logInfo("Performing Sort By Limit")
-            RDDUtils.partialSortLeastKByKey(rdd.asInstanceOf[RDD[(ReduceKey, Any)]], l)
+            RDDUtils.partialSortLeastKByKey(distributedRdd, l)
           }
         }
         case None => {
@@ -81,6 +82,7 @@ with HiveTopOperator {
             logInfo("Performing Order By")
             processOrderedRDD(rdd)
           } else {
+            // We always do a distribute by. I'm not sure if we need to if there are no distribution keys.
             logInfo("Performing Distribute By Sort By")
             val clusteredRdd = rdd.asInstanceOf[RDD[(ReduceKey, Any)]].partitionBy(new ReduceKeyPartitioner(rdd.splits.size))
             clusteredRdd.mapPartitions { partition => partition.toSeq.sortWith(_._1 < _._1).iterator }
@@ -89,8 +91,13 @@ with HiveTopOperator {
         }
       }
     } else {
-      logInfo("Performing Distribute By")
-      rdd.asInstanceOf[RDD[(ReduceKey, Any)]].partitionBy(new ReduceKeyPartitioner(rdd.splits.size))
+      if (isTotalOrder) {
+        logInfo("Partitioning data to a single reducer")
+        rdd.asInstanceOf[RDD[(ReduceKey, Any)]].partitionBy(new ReduceKeyPartitioner(1))
+      } else {
+        logInfo("Performing Distribute By")
+        rdd.asInstanceOf[RDD[(ReduceKey, Any)]].partitionBy(new ReduceKeyPartitioner(rdd.splits.size))
+      }
     }
   }
 
