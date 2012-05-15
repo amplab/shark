@@ -17,7 +17,7 @@ import org.apache.hadoop.io.Writable
 import scala.reflect.BeanProperty
 
 import shark.{CacheKey, SharkEnv}
-import spark.RDD
+import spark.{RDD, UnionRDD}
 
 
 class TableScanOperator extends TopOperator[HiveTableScanOperator]
@@ -25,7 +25,7 @@ with HiveTopOperator {
 
   @transient var table: Table = _
 
-  @BeanProperty var parts: Array[Object] = _
+  @transient var parts: Array[Object] = _
   @BeanProperty var firstConfPartDesc: PartitionDesc  = _
   @BeanProperty var tableDesc: TableDesc = _
   @BeanProperty var localHconf: HiveConf = _
@@ -113,9 +113,10 @@ with HiveTopOperator {
   }
   
   def makePartitionRDD[T](rdd: RDD[T]): RDD[_] = {
-    var rowsRDD: RDD[Object] = null
     val partitions = parts
-
+    val rdds = new Array[RDD[Any]](partitions.size)
+    
+    var i = 0
     partitions.foreach { part =>
       val partition = part.asInstanceOf[Partition]
       val partDesc = Utilities.getPartitionDesc(partition)
@@ -158,17 +159,14 @@ with HiveTopOperator {
           rowWithPartArr.asInstanceOf[Object]
         }
       }
-
-      rowsRDD = rowsRDD match  {
-        case null => partRDD
-        case _ => rowsRDD.union(partRDD)
-      }
+      rdds(i) = partRDD.asInstanceOf[RDD[Any]]
+      i += 1
     }
     // Even if we don't use any partitions, we still need an empty RDD
-    if (rowsRDD == null) {
+    if (rdds.size == 0) {
       SharkEnv.sc.makeRDD(Seq[Object]())
     } else {
-      rowsRDD
+      new UnionRDD(rdds(0).context, rdds)
     }
   }
 
