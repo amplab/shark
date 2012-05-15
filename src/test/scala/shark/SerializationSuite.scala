@@ -9,7 +9,7 @@ import spark.JavaSerializer
 
 class SerializationSuite extends FunSuite {
 
-  test("Java serializing ObjectInspectorsWrapper") {
+  test("Java serializing object inspectors") {
     
     val oi = PrimitiveObjectInspectorFactory.javaStringObjectInspector
     val ois = KryoSerializationWrapper(new ArrayBuffer[ObjectInspector])
@@ -21,6 +21,22 @@ class SerializationSuite extends FunSuite {
       .deserialize[KryoSerializationWrapper[ArrayBuffer[ObjectInspector]]](bytes)
 
     assert(desered.head.getTypeName() === oi.getTypeName())
+  }
+
+  test("Java serializing operators") {
+    val operator = new shark.exec.FileSinkOperator
+    operator.localHconf = new org.apache.hadoop.hive.conf.HiveConf
+    operator.localHiveOp = new org.apache.hadoop.hive.ql.exec.FileSinkOperator
+    val opWrapped = shark.exec.OperatorSerializationWrapper(operator)
+
+    val ser = new JavaSerializer
+    val bytes = ser.newInstance().serialize(opWrapped)
+    val desered = ser.newInstance()
+      .deserialize[shark.exec.OperatorSerializationWrapper[shark.exec.FileSinkOperator]](bytes)
+
+    assert(desered.value != null)
+    assert(desered.value.localHconf != null)
+    assert(desered.value.localHiveOp != null)
   }
 }
 

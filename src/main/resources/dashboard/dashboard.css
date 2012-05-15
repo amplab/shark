@@ -1,0 +1,29 @@
+
+body {
+  background-color : #ffffff;
+  font-family : sans-serif;
+}
+
+th {
+  padding-bottom : 10px;
+  padding-top : 10px;
+	padding-left : 10px;
+	padding-right : 10px;
+}
+
+td.node {
+  padding-bottom : 8px;
+  padding-top : 8px;
+	padding-left : 8px;
+	padding-right : 8px;
+}
+
+table.percent_bar {
+  width: 200px;
+  height: 15px;
+}
+
+td.percent_used {
+  background: #AAAAFF;
+}
+
