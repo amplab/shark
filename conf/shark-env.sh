@@ -9,7 +9,7 @@
 # - SPARK_MEM, to change the amount of memory used per node (this should
 #   be in the same format as the JVM's -Xmx option, e.g. 300m or 1g).
 # - SPARK_LIBRARY_PATH, to add extra search paths for native libraries.
-# - HIVE_CONF_DIR, to specify the directory of Hive configuration files.
+# - HIVE_CONF_DIR, to specify the path of Hive configuration files.
 
 export MESOS_HOME=/Users/harveyfeng/mesos-spark
 export SPARK_HOME=/Users/harveyfeng/spark
