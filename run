@@ -25,7 +25,6 @@ if [ "x$HIVE_CONF_DIR" == "x" ] ; then
     HIVE_CONF_DIR="$HIVE_HOME/conf"
 fi
 
-
 if [ -f "${HIVE_CONF_DIR}/hive-env.sh" ]; then
   . "${HIVE_CONF_DIR}/hive-env.sh"
 fi
