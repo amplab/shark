@@ -20,7 +20,7 @@ if [ "x$HIVE_HOME" == "x" ] ; then
     exit 1
 fi
 
-# Check for specified configs
+# Check for optionally specified configuration file path
 if [ "x$HIVE_CONF_DIR" == "x" ] ; then
     HIVE_CONF_DIR="$HIVE_HOME/conf"
 fi
