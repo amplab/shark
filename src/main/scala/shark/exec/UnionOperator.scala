@@ -64,8 +64,10 @@ class UnionOperator extends NaryOperator[HiveUnionOperator] {
     }
 
     val outputFieldOIs = columnTypeResolvers.map(_.get())
-    val outputObjInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
+    val outputObjInspector = Operator.objectInspectorLock.synchronized {
+      ObjectInspectorFactory.getStandardStructObjectInspector(
         columnNames, outputFieldOIs.toList)
+    }
 
     // whether we need to do transformation for each parent
     // We reuse needsTransform from Hive because the comparison of object

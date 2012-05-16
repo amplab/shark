@@ -187,6 +187,8 @@ object Operator extends LogHelper {
   /** A reference to HiveConf for convenience. */
   @transient var hconf: HiveConf = _
 
+  val objectInspectorLock: AnyRef = new Object()
+
   /**
    * Calls the code to process the partitions. It is placed here because we want
    * to do logging, but calling logging automatically adds a reference to the

@@ -172,17 +172,19 @@ object ReduceSinkOperator {
     val valueSer = valueTableDesc.getDeserializerClass().newInstance().asInstanceOf[SerDe]
     valueSer.initialize(null, valueTableDesc.getProperties())
     
-    val keyObjInspector = ReduceSinkWrapper.initEvaluatorsAndReturnStruct(
-      keyEval,
-      distinctColIndices,
-      conf.getOutputKeyColumnNames,
-      numDistributionKeys,
-      rowInspector)
-
+    val keyObjInspector = Operator.objectInspectorLock.synchronized {
+      ReduceSinkWrapper.initEvaluatorsAndReturnStruct(
+        keyEval,
+        distinctColIndices,
+        conf.getOutputKeyColumnNames,
+        numDistributionKeys,
+        rowInspector)
+    }
     val valFieldInspectors = valueEval.map(eval => eval.initialize(rowInspector)).toList
-    val valObjInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
-      conf.getOutputValueColumnNames(), valFieldInspectors)
-      
+    val valObjInspector = Operator.objectInspectorLock.synchronized {
+      ObjectInspectorFactory.getStandardStructObjectInspector(
+        conf.getOutputValueColumnNames(), valFieldInspectors)
+    }
 
     val partitionEval = conf.getPartitionCols.map(ExprNodeEvaluatorFactory.get(_)).toArray
     val partitionObjInspectors = partitionEval.map(_.initialize(rowInspector)).toArray

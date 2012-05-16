@@ -50,8 +50,10 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
     rowInspector = objectInspector.asInstanceOf[StructObjectInspector]
     keyFields = conf.getKeys().map(k => ExprNodeEvaluatorFactory.get(k)).toArray
     keyObjectInspectors = keyFields.map(k => k.initialize(rowInspector))
-    val currentKeyObjectInspectors = keyObjectInspectors.map { k => 
-      ObjectInspectorUtils.getStandardObjectInspector(k, ObjectInspectorCopyOption.WRITABLE)
+    val currentKeyObjectInspectors = Operator.objectInspectorLock.synchronized {
+      keyObjectInspectors.map { k => 
+        ObjectInspectorUtils.getStandardObjectInspector(k, ObjectInspectorCopyOption.WRITABLE)
+      }
     }
 
     aggregationParameterFields = conf.getAggregators.toArray.map { aggr => 
@@ -74,9 +76,11 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
     val totalFields = keyFields.length + aggregationEvals.length
     val keyois = new ArrayList[ObjectInspector](totalFields)
     keyObjectInspectors.foreach(keyois.add(_))
-    keyObjectInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
-      keyFieldNames, keyois)
 
+    keyObjectInspector = Operator.objectInspectorLock.synchronized {
+      ObjectInspectorFactory.getStandardStructObjectInspector(
+        keyFieldNames, keyois)
+    }
     // Initialize unionExpr. KEY has union field as the last field if there are distinct aggrs.
     unionExprEvaluator = initializeUnionExprEvaluator(rowInspector)
     
