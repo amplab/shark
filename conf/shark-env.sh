@@ -2,15 +2,21 @@
 
 # Set Spark environment variables for your site in this file. Some useful
 # variables to set are:
-# - MESOS_HOME, to point to your Mesos installation
-# - SCALA_HOME, to point to your Scala installation
-# - SPARK_CLASSPATH, to add elements to Spark's classpath
-# - SPARK_JAVA_OPTS, to add JVM options
+# - MESOS_HOME, to point to your Mesos installation.
+# - SCALA_HOME, to point to your Scala installation.
+# - SPARK_CLASSPATH, to add elements to Spark's classpath.
+# - SPARK_JAVA_OPTS, to add JVM options.
 # - SPARK_MEM, to change the amount of memory used per node (this should
 #   be in the same format as the JVM's -Xmx option, e.g. 300m or 1g).
 # - SPARK_LIBRARY_PATH, to add extra search paths for native libraries.
+# - HIVE_CONF_DIR, to specify the directory of Hive configuration files.
 
+export MESOS_HOME=/Users/harveyfeng/mesos-spark
+export SPARK_HOME=/Users/harveyfeng/spark
 export SCALA_VERSION=2.9.1
+export HIVE_HOME=/Users/harveyfeng/hive/build/dist
+export HIVE_DEV_HOME=/Users/harveyfeng/hive
+export HIVE_CONF_DIR=/Users/harveyfeng/hive-0.7.0-bin/conf
 
 # Default EC2 settings
 # export SCALA_HOME=/root/scala-$SCALA_VERSION.final
