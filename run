@@ -91,5 +91,4 @@ else
   SCALA=scala
 fi
 
-echo $SCALA
 exec $SCALA -cp $CLASSPATH "$@"
