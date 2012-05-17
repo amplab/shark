@@ -77,7 +77,7 @@ object RDDUtils {
       var i1 = 0
       var i2 = 0
       for (i <- 0 until size) {
-        if (i2 >= b2.size || b1(i1)._1 <= b2(i2)._1) {
+        if (i1 < b1.size && (i2 >= b2.size || b1(i1)._1 <= b2(i2)._1)) {
           out += b1(i1)
           i1 += 1
         }
