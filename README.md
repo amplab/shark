@@ -19,7 +19,7 @@ Get Hive from Apache:
 
 Get Spark from Github, compile, and publish to local ivy:
 
-    $ git clone git://github.com/mesos/spark.git spark 
+    $ git clone https://github.com/rxin/spark.git spark 
     $ cd spark 
     $ sbt/sbt publish-local
 
@@ -32,9 +32,9 @@ Before building Shark, first modify the config file:
 
     $ conf/shark-env.sh 
 
-Compile Shark (make sure `$HIVE_HOME` is either set in config file or environmental variable):
+Compile Shark (make sure `$HIVE_HOME` is set in `conf/shark-env.sh`):
 
-    $ sbt/sbt compile
+    $ sbt/sbt products
 
 
 ## Execution
