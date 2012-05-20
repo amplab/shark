@@ -2,6 +2,7 @@ package shark.exec
 
 import java.util.ArrayList
 
+import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{GroupByOperator => HiveGroupByOperator}
 import org.apache.hadoop.hive.ql.exec.Utilities
 import org.apache.hadoop.hive.ql.plan.TableDesc
@@ -130,22 +131,22 @@ with HiveTopOperator {
   }
 
   override def preprocessRdd[T](rdd: RDD[T]): RDD[_] = {
-    var numReduceTasks = -1
-    try {
-      numReduceTasks = java.lang.Integer.parseInt(hconf.get("mapred.reduce.tasks").trim)
-    } catch {
-      case e: Exception => println("Invalid mapred.reduce.tasks: " + hconf.get("mapred.reduce.tasks").trim)
-    }
-    if (numReduceTasks < 1 || conf.getKeys.size == 0) numReduceTasks = 1 // Hive conf defaults to -1
+    var numReduceTasks = hconf.getIntVar(HiveConf.ConfVars.HADOOPNUMREDUCERS)
+    // If we have no keys, it needs a total aggregation with 1 reducer.
+    if (numReduceTasks < 1 || conf.getKeys.size == 0) numReduceTasks = 1 
     rdd.asInstanceOf[RDD[(Any, Any)]].groupByKey(numReduceTasks)
   }
   
   override def processPartition[T](iter: Iterator[T]) = {
-    //TODO: we should support outputs besides BytesWritable in case a different SerDe is used
+    //TODO: we should support outputs besides BytesWritable in case a different SerDe is used for intermediate data
     val bytes = new BytesWritable()
     logInfo("Running Post Shuffle Group-By")
     val outputCache = new Array[Object](keyFields.length + aggregationEvals.length)
+    // The reusedRow is used to conform to Hive's expected row format.
+    // It is an array of [key, value] that is reused across rows
+    val reusedRow = new Array[Any](2) 
     val keys = keyFactory.getKeyWrapper()
+    val aggrs = newAggregations()
     val newIter = iter.map(pair => {
       pair match {
         case (key: ReduceKey,
@@ -153,19 +154,15 @@ with HiveTopOperator {
           
           bytes.set(key.bytes)
           val deserializedKey = deserializeKey(bytes)
-          val aggrs = newAggregations()
+          reusedRow(0) = deserializedKey
+          resetAggregations(aggrs)
           values.foreach(v => {
             v match {
               case v: Array[Byte] => {
                 bytes.set(v)
                 val deserializedValue = deserializeValue(bytes)
-                keys match {
-                  case k: KeyWrapperFactory#ListKeyWrapper => 
-                    k.getNewKey(Array(deserializedKey,deserializedValue), rowInspector)
-                  case k: KeyWrapperFactory#TextKeyWrapper => 
-                    k.getNewKey(Array(deserializedKey,deserializedValue), rowInspector)
-                }
-                aggregate(Array(deserializedKey, deserializedValue), aggrs, false)
+                reusedRow(1) = deserializedValue
+                aggregate(reusedRow, aggrs, false)
               }
               case (key: Array[Byte], value: Array[Byte]) => {
                 bytes.set(key)
@@ -218,23 +215,22 @@ with HiveTopOperator {
               }
             }
           })
-          val arr = keys match {
-            case k: KeyWrapperFactory#ListKeyWrapper => 
-              k.getKeyArray
-            case k: KeyWrapperFactory#TextKeyWrapper => 
-              k.getKeyArray
-          }
           // Reset hash sets for next group-by key
-          distinctHashSets.values.foreach { hashes =>
-            for (i <- 0 until hashes.size) {
-              hashes(i).clear()
-            }
+          distinctHashSets.values.foreach { hashSet =>
+              hashSet.foreach { _.clear() }
           }
-          arr.zipWithIndex foreach { case(key, i) => outputCache(i) = key }
-          aggrs.zipWithIndex.foreach { case(aggr, i) => 
-            outputCache(i + arr.length) = aggregationEvals(i).evaluate(aggr)
+
+          // Copy output keys and values to our reused output cache
+          var i = 0
+          var numKeys = keyFields.length
+          while (i < numKeys) {
+            outputCache(i) = keyFields(i).evaluate(reusedRow)
+            i += 1
           }
-          
+          while (i < numKeys + aggrs.length) {
+            outputCache(i) = aggregationEvals(i - numKeys).evaluate(aggrs(i - numKeys))
+            i += 1
+          }
           outputCache
         }
       }
@@ -268,5 +264,13 @@ with HiveTopOperator {
     valueSer.asInstanceOf[Deserializer].deserialize(bytes)
   }
 
+  def resetAggregations(aggs: Array[AggregationBuffer]) {
+    var i = 0
+    while (i < aggs.length) {
+      aggregationEvals(i).reset(aggs(i))
+      i += 1
+    }
+  }
+  
 }
 

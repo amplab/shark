@@ -117,9 +117,9 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
   override def processPartition[T](iter: Iterator[T]) = {
     logInfo("Pre-Shuffle Group-By")
     val hashAggregations = new java.util.HashMap[KeyWrapperFactory#KeyWrapper, Array[AggregationBuffer]]()
+    val newKeys = keyFactory.getKeyWrapper()
     iter.foreach { case row: AnyRef =>
       
-      val newKeys = keyFactory.getKeyWrapper()
       newKeys match {
         case k: KeyWrapperFactory#ListKeyWrapper => {
           k.getNewKey(row, rowInspector)
@@ -157,6 +157,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
         case k: KeyWrapperFactory#TextKeyWrapper => 
           k.getKeyArray
       }
+                                     
       arr.zipWithIndex foreach { case(key, i) => outputCache(i) = key }
       aggrs.zipWithIndex foreach { case(aggr, i) => outputCache(i + arr.length) = aggregationEvals(i).evaluate(aggr) }
       outputCache
@@ -164,10 +165,14 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
   }
 
   def aggregate(row: AnyRef, aggregations: Array[AggregationBuffer], isNewKey: Boolean) {
-    for (i <- 0 until aggregations.size) {
+    var i = 0
+    while (i < aggregations.length) {
       if (!aggregationIsDistinct(i) || isNewKey) {
-        aggregationEvals(i).aggregate(aggregations(i), aggregationParameterFields(i).map(_.evaluate(row)))
+        //TODO: remove .map and reuse aggregationParameterFields array
+        aggregationEvals(i).aggregate(aggregations(i), 
+                                      aggregationParameterFields(i).map(_.evaluate(row)))
       }
+      i += 1
     }
   }
   

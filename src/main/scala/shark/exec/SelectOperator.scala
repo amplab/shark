@@ -15,7 +15,7 @@ class SelectOperator extends UnaryOperator[HiveSelectOperator] {
 
   @BeanProperty var conf: SelectDesc = _
   
-  @transient var eval: Array[ExprNodeEvaluator] = _
+  @transient var evals: Array[ExprNodeEvaluator] = _
   
   override def initializeOnMaster() {
     conf = hiveOp.getConf()
@@ -23,8 +23,8 @@ class SelectOperator extends UnaryOperator[HiveSelectOperator] {
   
   override def initializeOnSlave() {
     if (!conf.isSelStarNoCompute) {
-      eval = conf.getColList().map(ExprNodeEvaluatorFactory.get(_)).toArray
-      eval.foreach(_.initialize(objectInspector))
+      evals = conf.getColList().map(ExprNodeEvaluatorFactory.get(_)).toArray
+      evals.foreach(_.initialize(objectInspector))
     }
   }
 
@@ -32,8 +32,14 @@ class SelectOperator extends UnaryOperator[HiveSelectOperator] {
     if (conf.isSelStarNoCompute) {
       iter
     } else {
+      val reusedRow = new Array[Object](evals.length)
       iter.map { row =>
-        eval.map(x => x.evaluate(row))
+        var i = 0
+        while (i < evals.length) {
+          reusedRow(i) = evals(i).evaluate(row)
+          i += 1
+        }
+        reusedRow
       }
     }
   }

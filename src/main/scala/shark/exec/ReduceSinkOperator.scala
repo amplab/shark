@@ -97,6 +97,9 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
     if (conf.getDistinctColumnIndices().size() == 0) { 
       // Normal case with no distinct columns
       val rng = new Random(13)
+      val evaluatedKey = new Array[Object](keyEval.length)
+      val evaluatedValue = new Array[Object](valueEval.length)
+      
       iter.map { row =>
         // TODO: we don't need partition code for group-by or join
         // Partition code is used for distribute/cluster by
@@ -109,15 +112,28 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
         if  (partitionEval.size == 0) {
           partitionCode = rng.nextInt()
         }
+                
+        var i = 0
+        while (i < keyEval.length) {
+          evaluatedKey(i) = keyEval(i).evaluate(row)
+          i += 1
+        }
+
+        i = 0
+        while (i < valueEval.length) {
+          evaluatedValue(i) = valueEval(i).evaluate(row)
+          i += 1
+        }
 
         // Note: we currently only support BinarySerDe's (not Text)
-        val key = keySer.serialize(keyEval.map(_.evaluate(row)), keyObjInspector)
+        val key = keySer.serialize(evaluatedKey, keyObjInspector)
           .asInstanceOf[BytesWritable]
-        val value = valueSer.serialize(valueEval.map(_.evaluate(row)), valObjInspector)
+        val value = valueSer.serialize(evaluatedValue, valObjInspector)
           .asInstanceOf[BytesWritable]
         val keyArr = new ReduceKey(new Array[Byte](key.getLength))
         keyArr.partitionCode = partitionCode
         val valueArr = new Array[Byte](value.getLength)
+        //TODO we don't need to copy bytes if combiners are removed
         Array.copy(key.getBytes, 0, keyArr.bytes, 0, key.getLength)
         Array.copy(value.getBytes, 0, valueArr, 0, value.getLength)
         (keyArr, valueArr)
