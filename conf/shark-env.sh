@@ -32,3 +32,4 @@ export MESOS_HOME=/root/mesos
 export HIVE_DEV_HOME=/root/hive
 export HIVE_HOME=$HIVE_DEV_HOME/build/dist
 export MASTER=`cat /root/mesos-ec2/cluster-url`
+export HADOOP_HOME=/root/ephemeral-hdfs
