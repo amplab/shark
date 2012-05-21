@@ -1,0 +1,104 @@
+body {
+  font-family: "Helvetica Neue";
+  font-size: 18px;
+  color: #666;
+  padding: 10px;
+  padding-top: 100px;
+  text-align: center;
+}
+#grid {
+  display: inline-block; 
+  text-align: center;
+  background: #f3f3f3 url(/static/shark-light.png) no-repeat 75px 20px;
+  padding: 10px;
+  /*max-width: 75%;*/
+  width: 730px;
+}
+#grid h2 {
+  text-align: center;
+  color: #999;
+}
+#grid h3 {
+  text-align: center;
+  color: #999;
+}
+.grid_elem {
+  float: left;
+  overflow: auto;
+}
+.grid_elem_active, .grid_elem_inactive, .grid_elem_mem_bar {
+  width: 50px;
+  height: 50px;
+  color: #000;
+  /*border-radius: 3px; */
+  float: left;
+  margin: 5px;
+  text-align: center;
+  color: #999;
+  font-weight: bold;
+  line-height: 50px;
+  text-decoration: none;
+}
+.grid_elem_active:hover, .grid_elem_inactive:hover {
+  border-color: #000;
+}
+.grid_elem_active {
+  border: 1px solid #3c3;
+  background: #ADEBAD;
+}
+.grid_elem_inactive {
+  border: 1px solid #ccc;
+  background: #eee;
+}
+.grid_elem_mem_bar {
+  width: 5px;
+  margin-left: -2px;
+  background: #fff;
+  position: relative;
+  border: 1px solid #999;
+}
+.grid_elem_mem_bar div {
+  width: 100%;
+  height: 0;
+  background: #CC66FF;
+  position: absolute;
+  bottom: 0;
+}
+.tooltip {
+  display:none;
+  background:transparent url(/static/black_arrow.png) no-repeat;
+  font-size:12px;
+  height:70px;
+  width:180px;
+  padding: 15px 25px 25px 15px;
+  color:#eee;
+  text-align: left;
+  font-family: "Helvetic Neue"
+  font-size: 12px;
+  line-height: 18px;
+}
+#grid_status {
+  margin-top: 25px;
+  width: 500px;
+  text-align: center;
+  color: #ccc;
+  margin: auto; 
+  clear: both;
+}
+.prog_bar_active {
+  background: url(/static/progress.gif) no-repeat;
+}
+.prog_bar_inactive {
+  background: url(/static/progress-static.png) no-repeat;
+}
+#status_bar { 
+  width: 220px;
+  height: 20px;
+  margin: auto;
+}
+#status_msg, #mem_status {
+  color: #999;
+  margin-top: 10px;
+  text-align: center;
+  clear: both;
+}

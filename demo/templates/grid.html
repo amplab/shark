@@ -1,0 +1,24 @@
+<html>
+<head>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
+<script src="http://cdn.jquerytools.org/1.2.7/full/jquery.tools.min.js"></script>
+<script src="static/main.js"></script>
+<link rel="stylesheet" type="text/css" href="static/main.css" />
+</head>
+<body>
+<div id="grid">
+  <h2>Shark Cluster</h2>
+  <h3>Tasks/CPUs</h3>
+</div>
+<div id="grid_status">
+<div id="status_bar" class="prog_bar_active"></div>
+<div id="status_msg">[ Contacting master... ]</div>
+<div id="mem_status"></div>
+</div>
+</body>
+<script>
+// Refresh every 2s
+var tid = setInterval(loadGrid, 2000)
+loadGrid()
+</script>
+</html>
