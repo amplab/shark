@@ -21,6 +21,7 @@ class SharkILoop extends SparkILoop(None, new PrintWriter(Console.out, true), No
         spark.repl.Main.interp.out.println("Shark context available as sc.");
         shark.SharkEnv.sc = sc;
         import sc._;
+        def s = sql2console _;
         spark.repl.Main.interp.out.flush();
         """)
       command("import spark.SparkContext._");

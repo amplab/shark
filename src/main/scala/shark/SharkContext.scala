@@ -4,7 +4,9 @@ import java.io.PrintStream
 import java.util.ArrayList
 
 import org.apache.hadoop.hive.conf.HiveConf
+import org.apache.hadoop.hive.ql.Driver
 import org.apache.hadoop.hive.ql.session.SessionState
+import org.apache.hadoop.hive.ql.processors.CommandProcessorFactory
 
 import scala.collection.JavaConversions._
 
@@ -25,20 +27,37 @@ class SharkContext(
   val sessionState = new SessionState(hiveconf)
   sessionState.out = new PrintStream(System.out, true, "UTF-8")
   sessionState.err = new PrintStream(System.out, true, "UTF-8")
-  
-  val driver = new SharkDriver(hiveconf)
-  driver.init()
 
   /**
    * Execute the command and return the results as a sequence. Each element
    * in the sequence is one row.
    */
   def sql(cmd: String): Seq[String] = {
-    val results = new ArrayList[String]()
+
+    val cmd_trimmed: String = cmd.trim()
+    val tokens: Array[String] = cmd_trimmed.split("\\s+")
+    val cmd_1: String = cmd_trimmed.substring(tokens(0).length()).trim()
+    val proc = CommandProcessorFactory.get(tokens(0), hiveconf)
+
     SessionState.start(sessionState)
-    driver.run(cmd)
-    driver.getResults(results)
-    results
+    
+    if (proc.isInstanceOf[Driver]) {
+      val driver: Driver =
+        if (SharkConfVars.getVar(hiveconf, SharkConfVars.EXEC_MODE) == "shark") {
+          new SharkDriver(hiveconf)
+        } else {
+          proc.asInstanceOf[Driver]
+        }
+      driver.init()
+
+      val results = new ArrayList[String]()
+      driver.run(cmd)
+      driver.getResults(results)
+      results
+    } else {
+      sessionState.out.println(tokens(0) + " " + cmd_1)
+      Seq(proc.run(cmd_1).getResponseCode().toString)
+    }
   }
   
   /**
@@ -46,6 +65,8 @@ class SharkContext(
    */
   def sql2rdd(cmd: String): TableRDD = {
     SessionState.start(sessionState)
+    val driver = new SharkDriver(hiveconf)
+    driver.init()
     driver.tableRdd(cmd)
   }
 
