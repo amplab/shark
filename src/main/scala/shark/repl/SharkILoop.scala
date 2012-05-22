@@ -1,7 +1,7 @@
 package shark.repl
 
 import java.io.PrintWriter
-import shark.SharkContext
+import shark.{SharkContext, SharkEnv}
 import spark.SparkContext
 import spark.repl.SparkILoop
 
@@ -9,6 +9,8 @@ import spark.repl.SparkILoop
  * Add more Shark specific initializations.
  */
 class SharkILoop extends SparkILoop(None, new PrintWriter(Console.out, true), None) {
+  
+  SharkEnv.init()
 
   override def initializeSpark() {
     intp.beQuietDuring {

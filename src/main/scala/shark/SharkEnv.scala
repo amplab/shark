@@ -4,6 +4,10 @@ import spark.SparkContext
 
 object SharkEnv {
 
+  def init() {
+    println("SharkEnv initialized")
+  }
+
   System.setProperty("spark.serializer", classOf[spark.KryoSerializer].getName)
   System.setProperty("spark.kryo.registrator", classOf[KryoRegistrator].getName)
 
