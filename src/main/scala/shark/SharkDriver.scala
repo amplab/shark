@@ -43,8 +43,8 @@ object SharkDriver extends LogHelper {
     new TaskFactory.taskTuple(classOf[SparkWork], classOf[SparkTask]),
     new TaskFactory.taskTuple(classOf[SharkExplainWork], classOf[SharkExplainTask])))
 
-  // Start the dashboard for cache tracker status.
-  Dashboard.start()
+  // Start the dashboard.
+  dashboard.Dashboard.start()
 }
 
 

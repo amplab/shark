@@ -137,6 +137,9 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       SharkSemanticAnalyzer.breakHivePlanByStages(Seq(terminalOp))
       genMapRedTasks(qb, pctx, Seq(terminalOp))
 
+      // A hack for the query plan dashboard to get the query plan.
+      shark.dashboard.QueryPlanDashboardHandler.terminalOperator = terminalOp
+
     } else {
       // If there are multiple file outputs, we always use file outputs.
       val terminalOps = hiveSinkOps.map(OperatorFactory.createSharkFileOutputPlan(_))

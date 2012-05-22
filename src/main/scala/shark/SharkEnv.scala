@@ -2,10 +2,14 @@ package shark
 
 import spark.SparkContext
 
-object SharkEnv {
+object SharkEnv extends LogHelper {
 
+  /**
+   * A dummy static method so we can make sure the following static code are
+   * executed.
+   */
   def init() {
-    println("SharkEnv initialized")
+    logInfo("Initializing object SharkEnv")
   }
 
   System.setProperty("spark.serializer", classOf[spark.KryoSerializer].getName)

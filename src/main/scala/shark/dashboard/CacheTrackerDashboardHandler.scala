@@ -1,47 +1,18 @@
-package shark
+package shark.dashboard
 
 import javax.servlet.http.{HttpServletRequest, HttpServletResponse}
 
-import org.eclipse.jetty.server.handler.{AbstractHandler, ContextHandler, HandlerList, ResourceHandler}
-import org.eclipse.jetty.server.{Request, Server}
+import org.eclipse.jetty.server.handler.AbstractHandler
+import org.eclipse.jetty.server.Request
 
 import spark.{CacheTracker, SparkEnv, Utils}
 
-
-object Dashboard extends LogHelper {
-
-  private var server: Server = null
-  private var port: Int = -1
-
-  def start() {
-
-    val staticFileBaseUrl = getClass.getResource("/dashboard")
-    println(staticFileBaseUrl)
-    val staticFileBase = staticFileBaseUrl.toString
-    logInfo("Starting Jetty with static file base: %s".format(staticFileBase))
-
-    port = System.getProperty("spark.dashboard.port", "8088").toInt
-    server = new Server(port)
-
-    // A resource handler for static files.
-    val staticFileHandler = new ResourceHandler
-    staticFileHandler.setResourceBase(staticFileBase)
-    val contextHandler = new ContextHandler("/dashboard")
-    contextHandler.setHandler(staticFileHandler)
-
-    // DashboardHandler for dynamic dashboard.
-    val dynamicHandler = new DashboardHandler(SparkEnv.get.cacheTracker)
-
-    // Set the hanlders and start the http server.
-    val handlerList = new HandlerList
-    handlerList.setHandlers(Array(contextHandler, dynamicHandler))
-    server.setHandler(handlerList)
-    server.start()
-  }
-}
-
-
-class DashboardHandler(val cacheTracker: CacheTracker) extends AbstractHandler {
+/**
+ * A dashboard to view the cache status on each slave nodes.
+ */
+class CacheTrackerDashboardHandler(
+  val cacheTracker: CacheTracker = SparkEnv.get.cacheTracker)
+  extends AbstractHandler {
 
   override def handle(
     target: String,
@@ -59,11 +30,11 @@ class DashboardHandler(val cacheTracker: CacheTracker) extends AbstractHandler {
     response.getWriter().println(
       <html>
         <head>
-          <title>Shark Dashboard</title>
-          <link rel="stylesheet" type="text/css" href="/dashboard/dashboard.css" />
+          <title>Shark Dashboard - Cache Status</title>
+          <link rel="stylesheet" type="text/css" href="/static/dashboard.css" />
         </head>
         <body>
-          <h1>Shark Dashboard</h1>
+          <h1>Shark Cache Status</h1>
           <p>Master node: { System.getProperty("spark.master.host") }</p>
           <table border="1" cellspacing="0">
           <tr><th>Host</th><th>Capacity</th><th>Used</th><th>Used (%)</th></tr>
