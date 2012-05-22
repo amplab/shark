@@ -86,6 +86,14 @@ public class ExplainTaskHelper {
       }
       return;
     }
+    
+    outputWork(work, out, extended, indent);
+  }
+    
+  public static void outputWork(Serializable work, PrintStream out, boolean extended,
+        int indent) throws Exception {
+    // Check if work has an explain annotation
+    Annotation note = work.getClass().getAnnotation(Explain.class);
 
     // We look at all methods that generate values for explain
     Method[] methods = work.getClass().getMethods();

@@ -22,8 +22,7 @@ object SharkBuild extends Build {
     retrieveManaged := true,
     resolvers ++= Seq(
       "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
-      "JBoss Repository" at "http://repository.jboss.org/nexus/content/repositories/releases/",
-      "Twitter Repository" at "http://maven.twttr.com/"
+      "JBoss Repository" at "http://repository.jboss.org/nexus/content/repositories/releases/"
     ),
 
     unmanagedJars in Compile <++= baseDirectory map { base =>
@@ -41,7 +40,6 @@ object SharkBuild extends Build {
     libraryDependencies ++= Seq(
       "org.spark-project" %% "spark-core" % "0.4-SNAPSHOT",
       "org.spark-project" %% "spark-repl" % "0.4-SNAPSHOT",
-      "com.twitter" %% "json" % "2.1.7",
       "com.google.guava" % "guava" % "11.0.1",
       "org.apache.hadoop" % "hadoop-core" % "0.20.2",
       "it.unimi.dsi" % "fastutil" % "6.4.2",
