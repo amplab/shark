@@ -5,11 +5,10 @@ import spark.SparkContext
 object SharkEnv extends LogHelper {
 
   /**
-   * A dummy static method so we can make sure the following static code are
-   * executed.
+   * A dummy method so we can make sure the following static code are executed.
    */
   def init() {
-    logInfo("Initializing object SharkEnv")
+    logDebug("Initializing object SharkEnv")
   }
 
   System.setProperty("spark.serializer", classOf[spark.KryoSerializer].getName)

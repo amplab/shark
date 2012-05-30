@@ -10,6 +10,9 @@ import spark.repl.SparkILoop
  */
 class SharkILoop extends SparkILoop(None, new PrintWriter(Console.out, true), None) {
   
+  // Forces initializing the Kryo register. If we don't make the call explicit,
+  // there is no guarantee that SharkEnv's static section is executed before
+  // the Kryo serializer is initialized by Spark.
   SharkEnv.init()
 
   override def initializeSpark() {

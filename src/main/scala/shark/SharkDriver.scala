@@ -43,8 +43,9 @@ object SharkDriver extends LogHelper {
     new TaskFactory.taskTuple(classOf[SparkWork], classOf[SparkTask]),
     new TaskFactory.taskTuple(classOf[SharkExplainWork], classOf[SharkExplainTask])))
 
-  // Start the dashboard.
-  dashboard.Dashboard.start()
+  // Start the dashboard. Disabled by default. This was developed for the demo
+  // at SIGMOD. We might turn it on later for general consumption.
+  //dashboard.Dashboard.start()
 }
 
 
