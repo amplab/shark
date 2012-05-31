@@ -2,31 +2,31 @@ package shark.exec
 
 import java.util.{HashMap => JavaHashMap, List => JavaList}
 
-import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, JoinUtil}
-import org.apache.hadoop.hive.ql.exec.{MapJoinOperator => HiveMapJoinOperator}
-import org.apache.hadoop.hive.ql.exec.persistence.AbstractMapJoinKey
-import org.apache.hadoop.hive.ql.plan.MapJoinDesc
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.io.BytesWritable
-import org.apache.hadoop.hive.ql.plan.{PartitionDesc, TableDesc}
+
+import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, JoinUtil}
 import org.apache.hadoop.hive.ql.exec.HashTableSinkOperator.{HashTableSinkObjectCtx => MapJoinObjectCtx}
 import org.apache.hadoop.hive.ql.exec.MapJoinMetaData
+import org.apache.hadoop.hive.ql.exec.{MapJoinOperator => HiveMapJoinOperator}
+import org.apache.hadoop.hive.ql.exec.persistence.AbstractMapJoinKey
 import org.apache.hadoop.hive.ql.exec.persistence.MapJoinObjectValue
 import org.apache.hadoop.hive.ql.exec.persistence.MapJoinRowContainer
-import org.apache.hadoop.hive.serde2.SerDe
+import org.apache.hadoop.hive.ql.plan.MapJoinDesc
+import org.apache.hadoop.hive.ql.plan.{PartitionDesc, TableDesc}
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
+import org.apache.hadoop.hive.serde2.SerDe
 
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
-import shark.SharkEnv
+import spark.broadcast.Broadcast
 import shark.collections.Conversions._
 import spark.RDD
-import spark.broadcast.Broadcast
-
+import shark.SharkEnv
 
 /**
  * A join operator optimized for joining a large table with a number of small
