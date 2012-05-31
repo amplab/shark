@@ -2,21 +2,31 @@ package shark.exec
 
 import java.util.{HashMap => JavaHashMap, List => JavaList}
 
+import org.apache.hadoop.io.BytesWritable
+
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, JoinUtil}
+import org.apache.hadoop.hive.ql.exec.HashTableSinkOperator.{HashTableSinkObjectCtx => MapJoinObjectCtx}
+import org.apache.hadoop.hive.ql.exec.MapJoinMetaData
 import org.apache.hadoop.hive.ql.exec.{MapJoinOperator => HiveMapJoinOperator}
 import org.apache.hadoop.hive.ql.exec.persistence.AbstractMapJoinKey
+import org.apache.hadoop.hive.ql.exec.persistence.MapJoinObjectValue
+import org.apache.hadoop.hive.ql.exec.persistence.MapJoinRowContainer
 import org.apache.hadoop.hive.ql.plan.MapJoinDesc
+import org.apache.hadoop.hive.ql.plan.{PartitionDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
-import org.apache.hadoop.io.BytesWritable
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
+import org.apache.hadoop.hive.serde2.SerDe
 
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
-import shark.SharkEnv
+import spark.broadcast.Broadcast
 import shark.collections.Conversions._
 import spark.RDD
-import spark.broadcast.Broadcast
-
+import shark.SharkEnv
 
 /**
  * A join operator optimized for joining a large table with a number of small
@@ -34,6 +44,9 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
 
   @transient var joinKeys: JavaHashMap[java.lang.Byte, JavaList[ExprNodeEvaluator]] = _
   @transient var joinKeysObjectInspectors: JavaHashMap[java.lang.Byte, JavaList[ObjectInspector]] = _
+
+  @transient val metadataKeyTag = -1
+  @transient var joinValues: JavaHashMap[java.lang.Byte, JavaList[ExprNodeEvaluator]] = _
 
   override def initializeOnMaster() {
     super.initializeOnMaster()
@@ -83,23 +96,27 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
       // following mapParititons will fail because it tries to include the
       // outer closure, which references "this".
       val op = op1
-      val rddForHash: RDD[(AbstractMapJoinKey, Array[java.lang.Object])] =
+      val rddForHash: RDD[(AbstractMapJoinKey, MapJoinObjectValue)] =
         rdd.mapPartitions { partition =>
           op.initializeOnSlave()
           op.computeJoinKeyValuesOnPartition(partition, posByte)
         }
-
+      
       // Collect the RDD and build a hash table.
       val startCollect = System.currentTimeMillis()
-      val rows: Array[(AbstractMapJoinKey, Array[java.lang.Object])] = rddForHash.collect()
+      val wrappedRows: Array[(AbstractMapJoinKey, MapJoinObjectValue)] = rddForHash.collect()
       val collectTime = System.currentTimeMillis() - startCollect
 
+      val rows = wrappedRows.map { case (joinKey, wrappedValue) => 
+        (joinKey, wrappedValue.getObj().getList().get(0))
+      }
+      
       val startHash = System.currentTimeMillis()
       val hashtable = rows.toSeq.groupByKey()
       val hashTime = System.currentTimeMillis() - startHash
       logInfo("Input %d (%d rows) took %d ms to collect and %s ms to build hash table.".format(
         pos, rows.size, collectTime, hashTime))
-
+            
       (pos, hashtable)
     }.toMap
 
@@ -119,7 +136,8 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
   }
 
   def computeJoinKeyValuesOnPartition[T](iter: Iterator[T], posByte: Byte)
-  : Iterator[(AbstractMapJoinKey, Array[java.lang.Object])] = {
+  : Iterator[(AbstractMapJoinKey, MapJoinObjectValue )] = {
+    setKeyMetaData()    
     iter.map { row =>
       val key = JoinUtil.computeMapJoinKeys(
         row,
@@ -131,9 +149,45 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
         joinValuesObjectInspectors(posByte),
         joinFilters(posByte),
         joinFilterObjectInspectors(posByte),
-        noOuterJoin)
-      (key, value)
+        noOuterJoin) 
+      setValueMetaData(posByte)
+      val rowContainer = new MapJoinRowContainer[Array[Object]]()
+      rowContainer.add(value)      
+      val objValue: MapJoinObjectValue = new MapJoinObjectValue(posByte, rowContainer)
+
+      (key, objValue)
     }
+  }
+
+  def setKeyMetaData() {
+    MapJoinMetaData.clear()
+
+    val keyTableDesc = conf.getKeyTblDesc()
+    val keySerializer = keyTableDesc.getDeserializerClass().newInstance().asInstanceOf[SerDe]
+    keySerializer.initialize(null, keyTableDesc.getProperties())
+ 
+    val standardOI = ObjectInspectorUtils.getStandardObjectInspector(
+      keySerializer.getObjectInspector(), ObjectInspectorCopyOption.WRITABLE)
+    MapJoinMetaData.put(Integer.valueOf(metadataKeyTag), new MapJoinObjectCtx(
+      standardOI, keySerializer, keyTableDesc, hconf))
+  }
+ 
+  
+  def setValueMetaData(pos: Byte) {
+    val valueTableDesc = conf.getValueFilteredTblDescs().get(pos)
+    val valueSerDe = valueTableDesc.getDeserializerClass().newInstance.asInstanceOf[SerDe]
+
+    valueSerDe.initialize(null, valueTableDesc.getProperties())
+
+    val newFields = joinValuesStandardObjectInspectors.get(pos)
+    val length = newFields.size()
+    val newNames = new java.util.ArrayList[String](length)
+
+    for (i <- 0 until length) newNames.add(new String("tmp_" + i))
+    val standardOI = ObjectInspectorFactory.getStandardStructObjectInspector(newNames, newFields)
+
+    MapJoinMetaData.put(Integer.valueOf(pos), new MapJoinObjectCtx(
+      standardOI, valueSerDe, valueTableDesc, hconf))
   }
 
   /**
