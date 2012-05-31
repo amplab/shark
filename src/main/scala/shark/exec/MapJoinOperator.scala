@@ -153,7 +153,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
       setValueMetaData(posByte)
       val rowContainer = new MapJoinRowContainer[Array[Object]]()
       rowContainer.add(value)      
-      val objValue: MapJoinObjectValue = new MapJoinObjectValue(posByte,rowContainer)
+      val objValue: MapJoinObjectValue = new MapJoinObjectValue(posByte, rowContainer)
 
       (key, objValue)
     }

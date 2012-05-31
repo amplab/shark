@@ -74,7 +74,7 @@ with java.io.Serializable with LogHelper {
           work.pctx.getConf(), "",
           work.pctx.getPrunedPartitions())
         op.parts = ppl.getConfirmedPartns.toArray ++ ppl.getUnknownPartns.toArray
-        val allParts = op.parts ++ ppl.getDeniedPartns.toArray
+	val allParts = op.parts ++ ppl.getDeniedPartns.toArray
         if (allParts.size == 0) {
 	  op.firstConfPartDesc = new PartitionDesc(op.tableDesc, null)
         } else {
