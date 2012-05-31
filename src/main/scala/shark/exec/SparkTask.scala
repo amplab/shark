@@ -3,13 +3,14 @@ package shark.exec
 import java.util.{List => JavaList}
 
 import org.apache.hadoop.hive.metastore.api.FieldSchema
-import org.apache.hadoop.hive.ql.exec.{TableScanOperator => HiveTableScanOperator, Utilities}
 import org.apache.hadoop.hive.ql.{Context, DriverContext}
+import org.apache.hadoop.hive.ql.exec.{TableScanOperator => HiveTableScanOperator, Utilities}
 import org.apache.hadoop.hive.ql.metadata.{Partition, Table}
 import org.apache.hadoop.hive.ql.optimizer.ppr.PartitionPruner
 import org.apache.hadoop.hive.ql.parse._
-import org.apache.hadoop.hive.ql.plan.CreateTableDesc
 import org.apache.hadoop.hive.ql.plan.api.StageType
+import org.apache.hadoop.hive.ql.plan.CreateTableDesc
+import org.apache.hadoop.hive.ql.plan.PartitionDesc
 
 import scala.collection.JavaConversions._
 
@@ -74,9 +75,12 @@ with java.io.Serializable with LogHelper {
           work.pctx.getPrunedPartitions())
         op.parts = ppl.getConfirmedPartns.toArray ++ ppl.getUnknownPartns.toArray
         val allParts = op.parts ++ ppl.getDeniedPartns.toArray
-        op.firstConfPartDesc = Utilities.getPartitionDesc(
-          allParts(0).asInstanceOf[Partition])
-      }
+        if (allParts.size == 0) {
+          op.firstConfPartDesc = new PartitionDesc(op.tableDesc, null)
+        } else {
+          op.firstConfPartDesc = Utilities.getPartitionDesc(allParts(0).asInstanceOf[Partition])
+        }
+       }
     }}
   }
 
