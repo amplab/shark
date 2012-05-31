@@ -17,8 +17,7 @@ import org.apache.hadoop.hive.serde2.SerDe
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
-import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
@@ -27,7 +26,6 @@ import shark.SharkEnv
 import shark.collections.Conversions._
 import spark.RDD
 import spark.broadcast.Broadcast
-import scala.collection.mutable.ArrayBuffer
 
 
 /**
@@ -110,8 +108,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
       val collectTime = System.currentTimeMillis() - startCollect
 
       val rows = wrappedRows.map { case (joinKey, wrappedValue) => 
-            val unwrapped = wrappedValue.getObj().getList()       
-            (joinKey, wrappedValue.getObj().getList().get(0))
+        (joinKey, wrappedValue.getObj().getList().get(0))
       }
       
       val startHash = System.currentTimeMillis()
@@ -119,9 +116,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
       val hashTime = System.currentTimeMillis() - startHash
       logInfo("Input %d (%d rows) took %d ms to collect and %s ms to build hash table.".format(
         pos, rows.size, collectTime, hashTime))
-      
-      logInfo("...hashtable size: " + hashtable.size + "...")
-      
+            
       (pos, hashtable)
     }.toMap
 
@@ -140,7 +135,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
     }
   }
 
-def computeJoinKeyValuesOnPartition[T](iter: Iterator[T], posByte: Byte)
+  def computeJoinKeyValuesOnPartition[T](iter: Iterator[T], posByte: Byte)
   : Iterator[(AbstractMapJoinKey, MapJoinObjectValue )] = {
     setKeyMetaData()    
     iter.map { row =>
@@ -154,31 +149,27 @@ def computeJoinKeyValuesOnPartition[T](iter: Iterator[T], posByte: Byte)
         joinValuesObjectInspectors(posByte),
         joinFilters(posByte),
         joinFilterObjectInspectors(posByte),
-        noOuterJoin)
-                      
+        noOuterJoin) 
       setValueMetaData(posByte)
       val rowContainer = new MapJoinRowContainer[Array[Object]]()
       rowContainer.add(value)      
-      val objValue: MapJoinObjectValue = new MapJoinObjectValue(posByte,
-    		  													rowWrapper)
+      val objValue: MapJoinObjectValue = new MapJoinObjectValue(posByte,rowContainer)
+
       (key, objValue)
     }
   }
 
   def setKeyMetaData() {
-    val keyTableDesc: TableDesc = conf.getKeyTblDesc()
-    val keySerializer: SerDe = keyTableDesc.getDeserializerClass().newInstance().asInstanceOf[SerDe]
-    
-    keySerializer.initialize(null, keyTableDesc.getProperties())
-    
     MapJoinMetaData.clear()
-    MapJoinMetaData.put(Integer.valueOf(metadataKeyTag), 
-        new MapJoinObjectCtx(
-        	ObjectInspectorUtils.getStandardObjectInspector(keySerializer.getObjectInspector(),
-        	ObjectInspectorCopyOption.WRITABLE), 
-       		keySerializer, 
-       		keyTableDesc, 
-       		hconf))
+
+    val keyTableDesc = conf.getKeyTblDesc()
+    val keySerializer = keyTableDesc.getDeserializerClass().newInstance().asInstanceOf[SerDe]
+    keySerializer.initialize(null, keyTableDesc.getProperties())
+ 
+    val standardOI = ObjectInspectorUtils.getStandardObjectInspector(
+      keySerializer.getObjectInspector(), ObjectInspectorCopyOption.WRITABLE)
+    MapJoinMetaData.put(Integer.valueOf(metadataKeyTag), new MapJoinObjectCtx(
+      standardOI, keySerializer, keyTableDesc, hconf))
   }
  
   
@@ -196,7 +187,7 @@ def computeJoinKeyValuesOnPartition[T](iter: Iterator[T], posByte: Byte)
     val standardOI = ObjectInspectorFactory.getStandardStructObjectInspector(newNames, newFields)
 
     MapJoinMetaData.put(Integer.valueOf(pos), new MapJoinObjectCtx(
-        standardOI, valueSerDe, valueTableDesc, hconf))
+      standardOI, valueSerDe, valueTableDesc, hconf))
   }
 
   /**
