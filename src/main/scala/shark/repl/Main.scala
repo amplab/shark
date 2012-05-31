@@ -1,10 +1,5 @@
 package shark.repl
 
-// Note that InterpAccessor is a hack to get write access to spark.repl.Main.interp.
-import spark.repl.InterpAccessor
-import spark.repl.SparkILoop
-
-
 /**
  * Shark's REPL entry point.
  */
@@ -22,7 +17,7 @@ object Main {
 
     // We need to set spark.repl.InterpAccessor.interp since it is used
     // everywhere in spark.repl code.
-    spark.repl.InterpAccessor.interp = _interp
+    spark.repl.Main.interp = _interp
 
     // Start an infinite loop ...
     _interp.process(args)
