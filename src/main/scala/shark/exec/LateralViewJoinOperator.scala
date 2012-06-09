@@ -5,10 +5,7 @@ import java.util.ArrayList
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory, LateralViewJoinOperator => HiveLateralViewJoinOperator}
 import org.apache.hadoop.hive.ql.plan.SelectDesc
 import org.apache.hadoop.hive.serde2.objectinspector.{ ObjectInspector, StructObjectInspector }
-import org.apache.hadoop.hive.serde2.`lazy`.LazyStruct
-import org.apache.hadoop.hive.serde2.`lazy`.LazyArray
 
-import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
@@ -18,31 +15,38 @@ import spark.RDD
 /**
  * LateralViewJoin is used only for LATERAL VIEW explode, which adds a new row per array element 
  * in the array to be exploded. Each new row contains one of the array elements in a new field.
- * Hive handles this by having two branches in its plan, then joining their ouptut (see diagram in 
+ * Hive handles this by having two branches in its plan, then joining their output (see diagram in 
  * LateralViewJoinOperator.java). We put all the explode logic here instead.
  */
 class LateralViewJoinOperator extends NaryOperator[HiveLateralViewJoinOperator] {
 
   @BeanProperty var conf: SelectDesc = _
-  @BeanProperty var udtfOp: UDTFOperator = _
   @BeanProperty var lvfOp: LateralViewForwardOperator = _
+  @BeanProperty var lvfOIString: String = _
+  @BeanProperty var udtfOp: UDTFOperator = _
+  @BeanProperty var udtfOIString: String = _
   
   @transient var eval: Array[ExprNodeEvaluator] = _
   @transient var fieldOis: StructObjectInspector = _
- 
+
   override def initializeOnMaster() {
     // Get conf from Select operator beyond UDTF Op to get eval()
     conf = parentOperators.filter(_.isInstanceOf[UDTFOperator]).head
       .parentOperators.head.asInstanceOf[SelectOperator].hiveOp.getConf()
 
     udtfOp = parentOperators.filter(_.isInstanceOf[UDTFOperator]).head.asInstanceOf[UDTFOperator]
+    udtfOIString = KryoSerializerToString.serialize(udtfOp.objectInspectors)
     lvfOp = parentOperators.filter(_.isInstanceOf[SelectOperator]).head.parentOperators.head
       .asInstanceOf[LateralViewForwardOperator]
+    lvfOIString = KryoSerializerToString.serialize(lvfOp.objectInspectors)
   }
-  
+
   override def initializeOnSlave() {
-    // Get eval(), which will return array that needs to be exploded 
-    // eval doesn't exist when getColList() is null, but this happens only on select *'s, 
+    lvfOp.objectInspectors = KryoSerializerToString.deserialize(lvfOIString)
+    udtfOp.objectInspectors = KryoSerializerToString.deserialize(udtfOIString)
+
+    // Get eval(), which will return array that needs to be exploded
+    // eval doesn't exist when getColList() is null, but this happens only on select *'s,
     // which are not allowed within explode
     eval = conf.getColList().map(ExprNodeEvaluatorFactory.get(_)).toArray
     eval.foreach(_.initialize(objectInspectors.head))
@@ -53,7 +57,8 @@ class LateralViewJoinOperator extends NaryOperator[HiveLateralViewJoinOperator] 
 
   override def execute: RDD[_] = {
     // Execute LateralViewForwardOperator, bypassing Select / UDTF - Select
-    // branches (see diagram in Hive's). 
+    // branches (see diagram in Hive's).
+
     val inputRDD = lvfOp.execute()
 
     Operator.executeProcessPartition(this, inputRDD)
@@ -69,7 +74,7 @@ class LateralViewJoinOperator extends NaryOperator[HiveLateralViewJoinOperator] 
     val lvfSoi = lvfOp.objectInspectors.head.asInstanceOf[StructObjectInspector]
     val lvfFields = lvfSoi.getAllStructFieldRefs()
 
-    iter.flatMap { row => 
+    iter.flatMap { row =>
       var arrToExplode = eval.map(x => x.evaluate(row))
       val explodedRows = udtfOp.explode(arrToExplode)
 
@@ -95,3 +100,22 @@ class LateralViewJoinOperator extends NaryOperator[HiveLateralViewJoinOperator] 
   }
 }
 
+
+/*
+ * Use Kryo to serialize udtfOp and lvfOp ObjectInspectors, then convert the Array[Byte]
+ * to a String, since XML serialization of Bytes (for @BeanProperty keyword) is inefficient.
+ */
+object KryoSerializerToString extends shark.LogHelper {
+
+  @transient val kryoSer = new spark.KryoSerializer
+
+  def serialize[T](o: T): String = {
+    val bytes = kryoSer.newInstance().serialize(o)
+    new String(bytes.map(_.toChar))
+    }
+
+  def deserialize[T](byteString: String): T  = {
+    val bytes = byteString.toCharArray.map(_.toByte)
+    kryoSer.newInstance().deserialize[T](bytes)
+  }
+}
