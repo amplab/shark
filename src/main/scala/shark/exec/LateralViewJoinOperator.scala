@@ -58,7 +58,6 @@ class LateralViewJoinOperator extends NaryOperator[HiveLateralViewJoinOperator] 
   override def execute: RDD[_] = {
     // Execute LateralViewForwardOperator, bypassing Select / UDTF - Select
     // branches (see diagram in Hive's).
-
     val inputRDD = lvfOp.execute()
 
     Operator.executeProcessPartition(this, inputRDD)
