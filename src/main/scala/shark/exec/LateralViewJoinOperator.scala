@@ -2,6 +2,7 @@ package shark.exec
 
 import java.util.ArrayList
 
+import org.apache.commons.codec.binary.Base64
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory, LateralViewJoinOperator => HiveLateralViewJoinOperator}
 import org.apache.hadoop.hive.ql.plan.SelectDesc
 import org.apache.hadoop.hive.serde2.objectinspector.{ ObjectInspector, StructObjectInspector }
@@ -110,11 +111,11 @@ object KryoSerializerToString extends shark.LogHelper {
 
   def serialize[T](o: T): String = {
     val bytes = kryoSer.newInstance().serialize(o)
-    new String(bytes, "ISO-8859-1")
+    new String(Base64.encodeBase64(bytes))
     }
 
   def deserialize[T](byteString: String): T  = {
-    val bytes = byteString.getBytes("ISO-8859-1")
+    val bytes = Base64.decodeBase64(byteString.getBytes())
     kryoSer.newInstance().deserialize[T](bytes)
   }
 }
