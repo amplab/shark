@@ -110,11 +110,11 @@ object KryoSerializerToString extends shark.LogHelper {
 
   def serialize[T](o: T): String = {
     val bytes = kryoSer.newInstance().serialize(o)
-    new String(bytes.map(_.toChar))
+    new String(bytes, "ISO-8859-1")
     }
 
   def deserialize[T](byteString: String): T  = {
-    val bytes = byteString.toCharArray.map(_.toByte)
+    val bytes = byteString.getBytes("ISO-8859-1")
     kryoSer.newInstance().deserialize[T](bytes)
   }
 }
