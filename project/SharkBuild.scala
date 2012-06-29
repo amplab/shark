@@ -42,8 +42,8 @@ object SharkBuild extends Build {
     ),
 
     libraryDependencies ++= Seq(
-      "org.spark-project" %% "spark-core" % "0.4-SNAPSHOT",
-      "org.spark-project" %% "spark-repl" % "0.4-SNAPSHOT",
+      "org.spark-project" %% "spark-core" % "0.5.0",
+      "org.spark-project" %% "spark-repl" % "0.5.0",
       "com.google.guava" % "guava" % "11.0.1",
       "org.apache.hadoop" % "hadoop-core" % HADOOP_VERSION,
       "it.unimi.dsi" % "fastutil" % "6.4.2",

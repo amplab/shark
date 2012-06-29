@@ -15,12 +15,6 @@
 
 export SCALA_VERSION=2.9.1
 
-# Default EC2 settings
-# export SCALA_HOME=/root/scala-$SCALA_VERSION.final
-# export MESOS_NATIVE_LIBRARY=/root/mesos
-# export HIVE_HOME=/root/hive-0.7.0-bin
-# export MASTER=`cat /root/mesos-ec2/cluster-url`
-
 # Set Spark's memory per machine -- you might want to increase this
 export SPARK_MEM=3g
 
@@ -28,6 +22,11 @@ export SPARK_MEM=3g
 export SPARK_JAVA_OPTS="-Dspark.local.dir=/tmp -Dspark.kryoserializer.buffer.mb=10  -verbose:gc -XX:-PrintGCDetails -XX:+PrintGCTimeStamps"
 
 # This is only needed for development (SBT test uses this).
-export HIVE_DEV_HOME="/Users/rxin/Documents/shark/hive"
-export HIVE_HOME=$HIVE_DEV_HOME/build/dist
+#export HIVE_DEV_HOME="/root/hive"
+#export HIVE_HOME=$HIVE_DEV_HOME/build/dist
 
+# Set these options when running through spark-ec2 scripts
+#export MASTER=`cat /root/mesos-ec2/cluster-url`
+#export HADOOP_HOME=/root/ephemeral-hdfs
+#export MESOS_NATIVE_LIBRARY=/usr/local/lib/libmesos.so
+# export SCALA_HOME=/root/scala-$SCALA_VERSION.final
