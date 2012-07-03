@@ -51,11 +51,24 @@ object SharkConfVars {
     conf.set(variable.varname, value)
   }
 
-  def getIntVar(conf: Configuration, variable: HiveConf.ConfVars) = HiveConf.getIntVar _
-  def getLongVar(conf: Configuration, variable: HiveConf.ConfVars) = HiveConf.getLongVar _
-  def getFloatVar(conf: Configuration, variable: HiveConf.ConfVars) = HiveConf.getFloatVar _
-  def getBoolVar(conf: Configuration, variable: HiveConf.ConfVars) = HiveConf.getBoolVar _
-  def getVar(conf: Configuration, variable: HiveConf.ConfVars) = HiveConf.getVar _
+  def getIntVar(conf: Configuration, variable: HiveConf.ConfVars) 
+    = HiveConf.getIntVar _
+  def getLongVar(conf: Configuration, variable: HiveConf.ConfVars) 
+    = HiveConf.getLongVar(conf, variable)
+  def getLongVar(conf: Configuration, variable: HiveConf.ConfVars, defaultVal: Long) 
+    = HiveConf.getLongVar(conf, variable, defaultVal)
+  def getFloatVar(conf: Configuration, variable: HiveConf.ConfVars) 
+    = HiveConf.getFloatVar(conf, variable)
+  def getFloatVar(conf: Configuration, variable: HiveConf.ConfVars, defaultVal: Float) 
+    = HiveConf.getFloatVar(conf, variable, defaultVal)
+  def getBoolVar(conf: Configuration, variable: HiveConf.ConfVars) 
+    = HiveConf.getBoolVar(conf, variable)
+  def getBoolVar(conf: Configuration, variable: HiveConf.ConfVars, defaultVal: Boolean) 
+    = HiveConf.getBoolVar(conf, variable, defaultVal)
+  def getVar(conf: Configuration, variable: HiveConf.ConfVars) 
+    = HiveConf.getVar(conf, variable)
+  def getVar(conf: Configuration, variable: HiveConf.ConfVars, defaultVal: String) 
+    = HiveConf.getVar(conf, variable, defaultVal)
   
 }
 
