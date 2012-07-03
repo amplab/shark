@@ -8,6 +8,7 @@ import org.apache.commons.lang.StringUtils
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hive.cli.{CliDriver, CliSessionState, OptionsProcessor}
+import org.apache.hadoop.hive.common.LogUtils
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.{FieldSchema, Schema}
 import org.apache.hadoop.hive.ql.Driver
@@ -17,6 +18,7 @@ import org.apache.hadoop.hive.ql.parse.ParseDriver
 import org.apache.hadoop.hive.ql.processors.CommandProcessorFactory
 import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hadoop.hive.shims.ShimLoader
+
 
 import java.io.{File, FileNotFoundException, IOException, PrintStream, UnsupportedEncodingException}
 import java.util.ArrayList
@@ -45,7 +47,7 @@ object SharkCliDriver {
 
     // NOTE: It is critical to do this here so that log4j is reinitialized
     // before any of the other core hive classes are loaded
-    SessionState.initHiveLog4j()
+    LogUtils.initHiveLog4j()
 
     var ss = new CliSessionState(new HiveConf(classOf[SessionState]))
     ss.in = System.in

@@ -38,9 +38,9 @@ object SharkBuild extends Build {
     },
     unmanagedJars in Test ++= Seq(
       file(System.getenv("HIVE_DEV_HOME")) / "build" / "ql" / "test" / "classes",
-      file(System.getenv("HIVE_DEV_HOME")) / "build/hadoopcore/hadoop-0.20.1/hadoop-0.20.1-test.jar"
+      file(System.getenv("HIVE_DEV_HOME")) / "build/ivy/lib/test/hadoop-test-0.20.2.jar"
     ),
-
+    
     libraryDependencies ++= Seq(
       "org.spark-project" %% "spark-core" % "0.5.0",
       "org.spark-project" %% "spark-repl" % "0.5.0",

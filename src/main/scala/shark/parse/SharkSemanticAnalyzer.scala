@@ -196,7 +196,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
             try {
               val dumpTable = db.newTable(qb.getTableDesc.getTableName)
               val wh = new Warehouse(conf)
-              location = wh.getDefaultTablePath(dumpTable.getDbName,
+              location = wh.getTablePath(dumpTable.getDbName,
                   dumpTable.getTableName).toString
             } catch {
               case e: HiveException => throw new SemanticException(e)

@@ -12,6 +12,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import junit.framework.Test;
+import junit.framework.TestCase;
 import junit.framework.TestSuite;
 
 import org.apache.hadoop.hive.cli.TestCliDriver;
@@ -61,7 +62,7 @@ public class TestSharkCliDriver extends TestCliDriver {
     TestSuite hiveSuite = (TestSuite) TestCliDriver.suite();
     
     @SuppressWarnings("unchecked")
-    Enumeration<TestCliDriver> tests = (Enumeration<TestCliDriver>) hiveSuite.tests();
+    Enumeration<Test> tests = (Enumeration<Test>) hiveSuite.tests();
     
     String fileName = System.getenv("TEST_FILE");
     Set<String> regTestsFromFile = new HashSet<String>();
@@ -94,7 +95,8 @@ public class TestSharkCliDriver extends TestCliDriver {
     System.out.println(TestSharkCliDriver.class.getName());
 
     while (tests.hasMoreElements()) {
-      TestCliDriver test = tests.nextElement();
+      @SuppressWarnings("unchecked")
+      TestCase test = (TestCase) tests.nextElement();
       
       boolean passRegex = (regexPattern == null);
       boolean passFile = (regTestsFromFile.size() == 0);

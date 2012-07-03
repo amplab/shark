@@ -6,7 +6,7 @@ import java.util.Properties
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.Writable
-import org.apache.hadoop.hive.serde2.{ByteStream, SerDe, SerDeException}
+import org.apache.hadoop.hive.serde2.{ByteStream, SerDe, SerDeStats, SerDeException}
 import org.apache.hadoop.hive.serde2.`lazy`.{LazyFactory, LazySimpleSerDe}
 import org.apache.hadoop.hive.serde2.`lazy`.LazySimpleSerDe.SerDeParameters
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
@@ -24,9 +24,12 @@ class ColumnarSerDe extends SerDe {
   var cachedWritable: ColumnarWritable = _
   var cachedStruct: ColumnarStruct = _
   var serDeParams: SerDeParameters = _
+  var stats : SerDeStats = _
   val serializeStream = new ByteStream.Output()
+  
 
   def initialize(job: Configuration, tbl: Properties) {
+    stats = new SerDeStats
     serDeParams = LazySimpleSerDe.initSerdeParams(job, tbl, getClass().getName())
     // create oi & writable
     cachedObjectInspector = ColumnarStructObjectInspector(serDeParams)
@@ -45,6 +48,11 @@ class ColumnarSerDe extends SerDe {
 
   def getSerializedClass(): Class[_ <: Writable] = {
     return classOf[ColumnarWritable]
+  }
+  
+  def getSerDeStats(): SerDeStats = {
+    // TODO: Stats are not collected yet.
+    return new SerDeStats
   }
   
   def serialize(obj: Object, objInspector: ObjectInspector): Writable = {
@@ -195,9 +203,12 @@ object ColumnarStructObjectInspector {
 
 
 class IDStructField(
-  val fieldID: Int, val fieldName: String, val fieldObjectInspector: ObjectInspector)
+  val fieldID: Int, val fieldName: String, val fieldObjectInspector: ObjectInspector, val fieldComment: String)
 extends StructField {
-
+  
+  def this(fieldID: Int, fieldName: String, fieldObjectInspector: ObjectInspector) 
+    = this(fieldID, fieldName, fieldObjectInspector, null)
+  
   def getFieldID(): Int = {
     return fieldID
   }
@@ -212,6 +223,10 @@ extends StructField {
 
   override def toString(): String =  {
     return "" + fieldID + ":" + fieldName
+  }
+  
+  override def getFieldComment() : String = {
+    return fieldComment
   }
 }
 
