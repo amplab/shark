@@ -83,7 +83,7 @@ class SharkServerHandler extends HiveServerHandler {
     val cmd_trimmed = cmd.trim()
     val tokens = cmd_trimmed.split("\\s")
     val cmd_1 = cmd_trimmed.substring(tokens.apply(0).length()).trim()
-    println("Executing command:  "+ cmd)
+    
 
 
     val proc = CommandProcessorFactory.get(tokens.apply(0))
