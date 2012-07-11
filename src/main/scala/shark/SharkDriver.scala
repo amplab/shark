@@ -66,7 +66,7 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
     "doAuthorization", classOf[BaseSemanticAnalyzer])
   doAuthMethod.setAccessible(true)
   val saHooksMethod = this.getClass.getSuperclass.getDeclaredMethod(
-    "getSemanticAnalyzerHooks")
+    "getHooks", classOf[HiveConf.ConfVars], classOf[Class[_]])
   saHooksMethod.setAccessible(true)
   
   // Helper methods to access the private members made accessible using reflection.
@@ -123,7 +123,8 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
       val sem = SharkSemanticAnalyzerFactory.get(conf, tree)
       
       // Do semantic analysis and plan generation
-      val saHooks = saHooksMethod.invoke(this).asInstanceOf[JavaList[AbstractSemanticAnalyzerHook]]
+      val saHooks = saHooksMethod.invoke(this, HiveConf.ConfVars.SEMANTIC_ANALYZER_HOOK,
+        classOf[AbstractSemanticAnalyzerHook]).asInstanceOf[JavaList[AbstractSemanticAnalyzerHook]]
       if (saHooks != null) {
         val hookCtx = new HiveSemanticAnalyzerHookContextImpl()
         hookCtx.setConf(conf);
