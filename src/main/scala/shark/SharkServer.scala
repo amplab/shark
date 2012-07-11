@@ -2,7 +2,7 @@ package shark
 
 import shark.{SharkEnv, SharkDriver}
 
-import org.apache.hadoop.hive.service.ThriftHive
+import org.apache.hadoop.hive.service.{HiveServerException, ThriftHive}
 import org.apache.hadoop.hive.service.HiveServer.{ThriftHiveProcessorFactory, HiveServerHandler}
 import org.apache.thrift.transport.{TTransport, TTransportFactory, TServerSocket}
 import org.apache.thrift.server.TThreadPoolServer
@@ -12,21 +12,11 @@ import org.apache.thrift.TProcessor
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hive.ql.Driver
-import org.apache.hadoop.hive.ql.processors.CommandProcessorFactory
+import org.apache.hadoop.hive.ql.processors.{CommandProcessorResponse, CommandProcessorFactory}
 import org.apache.hadoop.hive.conf.HiveConf
 import spark.SparkContext
 import java.util.ArrayList
 import org.apache.hadoop.hive.metastore.api.Schema
-
-/**
- * Created with IntelliJ IDEA.
- * User: harsha
- * Date: 7/5/12
- * Time: 10:23 PM
- * To change this template use File | Settings | File Templates.
- */
-
-
 
 object SharkServer {
 
@@ -84,19 +74,25 @@ class SharkServerHandler extends HiveServerHandler {
     val tokens = cmd_trimmed.split("\\s")
     val cmd_1 = cmd_trimmed.substring(tokens.apply(0).length()).trim()
     
-
+    var response: Option[CommandProcessorResponse]  = None
 
     val proc = CommandProcessorFactory.get(tokens.apply(0))
     if (proc != null) {
       if (proc.isInstanceOf[Driver]) {
         isSharkQuery = true
         proc.asInstanceOf[Driver].destroy()
-        driver.run(cmd)
+        response = Option(driver.run(cmd) )
       } else {
         isSharkQuery = false
-        proc.run(cmd_1)
+        response = Option(proc.run(cmd_1))
       }
 
+    }
+
+    throw response match {
+      case None => new HiveServerException
+      case Some(error) => val responseCode = error.getResponseCode ; new HiveServerException("Query returned non-zero code: " + responseCode
+        + ", cause: " + error.getErrorMessage, responseCode, error.getSQLState)
     }
   }
 
