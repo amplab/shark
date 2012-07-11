@@ -200,6 +200,8 @@ testCliDriver_join8
 testCliDriver_join9
 testCliDriver_join_hive_626
 testCliDriver_join_rc
+testCliDriver_lateral_view
+testCliDriver_lateral_view_ppd
 testCliDriver_lineage1
 testCliDriver_load_dyn_part1
 testCliDriver_load_dyn_part10
@@ -494,6 +496,8 @@ testCliDriver_udf_xpath_int
 testCliDriver_udf_xpath_long
 testCliDriver_udf_xpath_short
 testCliDriver_udf_xpath_string
+testCliDriver_udtf_parse_url_tuple
+testCliDriver_udtf_json_tuple
 testCliDriver_union
 testCliDriver_union10
 testCliDriver_union11
