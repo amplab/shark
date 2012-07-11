@@ -3,7 +3,8 @@ package shark.exec
 import java.util.ArrayList
 
 import org.apache.commons.codec.binary.Base64
-import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory, LateralViewJoinOperator => HiveLateralViewJoinOperator}
+import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory}
+import org.apache.hadoop.hive.ql.exec.{LateralViewJoinOperator => HiveLateralViewJoinOperator}
 import org.apache.hadoop.hive.ql.plan.SelectDesc
 import org.apache.hadoop.hive.serde2.objectinspector.{ ObjectInspector, StructObjectInspector }
 
@@ -101,18 +102,18 @@ class LateralViewJoinOperator extends NaryOperator[HiveLateralViewJoinOperator] 
 }
 
 
-/*
+/**
  * Use Kryo to serialize udtfOp and lvfOp ObjectInspectors, then convert the Array[Byte]
  * to a String, since XML serialization of Bytes (for @BeanProperty keyword) is inefficient.
  */
-object KryoSerializerToString extends shark.LogHelper {
+object KryoSerializerToString {
 
   @transient val kryoSer = new spark.KryoSerializer
 
   def serialize[T](o: T): String = {
     val bytes = kryoSer.newInstance().serialize(o)
     new String(Base64.encodeBase64(bytes))
-    }
+  }
 
   def deserialize[T](byteString: String): T  = {
     val bytes = Base64.decodeBase64(byteString.getBytes())
