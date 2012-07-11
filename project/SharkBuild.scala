@@ -7,7 +7,10 @@ object SharkBuild extends Build {
 
   // Hadoop version to build against. For example, "0.20.2", "0.20.205.0", or
   // "1.0.1" for Apache releases, or "0.20.2-cdh3u3" for Cloudera Hadoop.
-  val HADOOP_VERSION = "0.20.205.0"  
+  val HADOOP_VERSION = "0.20.205.0"
+
+  // Spark version to build against.
+  val SPARK_VERSION = "0.5.1-SNAPSHOT"
 
   lazy val root = Project(
     id = "root",
@@ -42,8 +45,8 @@ object SharkBuild extends Build {
     ),
     
     libraryDependencies ++= Seq(
-      "org.spark-project" %% "spark-core" % "0.5.0",
-      "org.spark-project" %% "spark-repl" % "0.5.0",
+      "org.spark-project" %% "spark-core" % SPARK_VERSION,
+      "org.spark-project" %% "spark-repl" % SPARK_VERSION,
       "com.google.guava" % "guava" % "11.0.1",
       "org.apache.hadoop" % "hadoop-core" % HADOOP_VERSION,
       "it.unimi.dsi" % "fastutil" % "6.4.2",

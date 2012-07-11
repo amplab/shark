@@ -19,7 +19,7 @@ Get Hive from Apache:
 
 Get Spark from Github, compile, and publish to local ivy:
 
-    $ git clone https://github.com/rxin/spark.git spark 
+    $ git clone https://github.com/mesos/spark.git spark 
     $ cd spark 
     $ sbt/sbt publish-local
 
