@@ -73,7 +73,7 @@ class SharkServerHandler extends HiveServerHandler {
     val cmd_trimmed = cmd.trim()
     val tokens = cmd_trimmed.split("\\s")
     val cmd_1 = cmd_trimmed.substring(tokens.apply(0).length()).trim()
-    
+
     var response: Option[CommandProcessorResponse]  = None
 
     val proc = CommandProcessorFactory.get(tokens.apply(0))
@@ -89,10 +89,12 @@ class SharkServerHandler extends HiveServerHandler {
 
     }
 
-    throw response match {
-      case None => new HiveServerException
-      case Some(error) => val responseCode = error.getResponseCode ; new HiveServerException("Query returned non-zero code: " + responseCode
-        + ", cause: " + error.getErrorMessage, responseCode, error.getSQLState)
+    response match {
+      case None => throw new HiveServerException
+      case Some(resp) => {
+        val responseCode = resp.getResponseCode
+        if (responseCode != 0) throw new HiveServerException("Query returned non-zero code: " + responseCode
+        + ", cause: " + resp.getErrorMessage, responseCode, resp.getSQLState)   }
     }
   }
 
