@@ -39,7 +39,7 @@ class ColumnarSerDe extends SerDe with LogHelper {
 
   def initialize(conf: Configuration, tbl: Properties) {
     stats = new SerDeStats
-    serDeParams = LazySimpleSerDe.initSerdeParams(job, tbl, getClass().getName())
+    serDeParams = LazySimpleSerDe.initSerdeParams(conf, tbl, getClass().getName())
     // Create oi & writable.
     cachedObjectInspector = ColumnarStructObjectInspector(serDeParams)
 
