@@ -32,6 +32,9 @@ object SharkBuild extends Build {
       "JBoss Repository" at "http://repository.jboss.org/nexus/content/repositories/releases/"
     ),
 
+    testListeners <<= target.map(
+      t => Seq(new eu.henkelmann.sbt.JUnitXmlTestsListener(t.getAbsolutePath))),
+
     unmanagedJars in Compile <++= baseDirectory map { base =>
       val hiveFile = file(System.getenv("HIVE_HOME")) / "lib"
       val baseDirectories = (base / "lib") +++ (hiveFile)
