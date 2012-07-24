@@ -1,4 +1,53 @@
 #!/bin/sh
-BINDIR="`dirname $0`"
-FWDIR="`dirname $BINDIR`"
-exec $FWDIR/run shark.SharkCliDriver "$@"
+bin="`dirname $0`"
+FWDIR="`dirname $bin`"
+bin=`cd "$bin"; pwd`
+
+
+SERVICE=""
+HELP=""
+while [ $# -gt 0 ];do
+  case "$1" in
+   --service)
+     shift
+     SERVICE=$1
+     shift
+     ;;
+   --help)
+     HELP=_help
+     shift
+     ;;
+     *)
+     break
+     ;;
+  esac
+done
+
+if [ "$SERVICE" = "" ] ; then
+  if [ "$HELP" = "_help" ] ; then
+    SERVICE="help"
+  else
+    SERVICE="cli"
+  fi
+fi
+SERVICE_LIST=""
+
+for i in "$bin"/ext/*.sh ; do
+  . $i
+done
+
+TORUN=""
+for j in $SERVICE_LIST ; do
+  if [ "$j" = "$SERVICE" ] ; then
+    TORUN=${j}$HELP
+  fi
+done
+echo "$@"
+if [ "$TORUN" = "" ] ; then
+  echo "Service $SERVICE not found"
+  echo "Available Services: $SERVICE_LIST"
+  exit 7
+else
+  $TORUN "$@"
+fi
+
