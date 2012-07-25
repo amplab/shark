@@ -3,6 +3,7 @@ package shark
 import java.util.{ArrayList, List => JavaList}
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.hive.common.LogUtils
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.Schema
 import org.apache.hadoop.hive.ql.Driver
@@ -25,7 +26,7 @@ object SharkServer {
     "Shark::" + java.net.InetAddress.getLocalHost.getHostName)
 
   def main(args: Array[String]) {
-    SessionState.initHiveLog4j();
+    LogUtils.initHiveLog4j();
 
     var port = 10000;
     var minWorkerThreads = 100 // default number of threads serving the Hive server
@@ -33,18 +34,19 @@ object SharkServer {
     if (args.length >= 2) minWorkerThreads = Integer.parseInt(args.apply(1))
 
     val serverTransport = new TServerSocket(port);
-    val hfactory = new SharkHiveProcessingFactory(null)
-    val options = new TThreadPoolServer.Options()
-    options.minWorkerThreads = minWorkerThreads
-    val server = new TThreadPoolServer(hfactory, serverTransport,
-      new TTransportFactory(), new TTransportFactory(),
-      new TBinaryProtocol.Factory(), new TBinaryProtocol.Factory(), options)
+    val hfactory = new SharkHiveProcessingFactory(null, new HiveConf())
+    val ttServerArgs = new TThreadPoolServer.Args(serverTransport)
+    ttServerArgs.processorFactory(hfactory)
+    ttServerArgs.minWorkerThreads(minWorkerThreads)
+    ttServerArgs.transportFactory(new TTransportFactory())
+    ttServerArgs.protocolFactory(new TBinaryProtocol.Factory())
+    val server = new TThreadPoolServer(ttServerArgs)
     LOG.info("Starting shark server on port " + port)
     server.serve()
   }
 }
 
-class SharkHiveProcessingFactory(processor: TProcessor) extends ThriftHiveProcessorFactory(processor) {
+class SharkHiveProcessingFactory(processor: TProcessor, conf: HiveConf) extends ThriftHiveProcessorFactory(processor, conf) {
 
   override def getProcessor(trans: TTransport) = new ThriftHive.Processor(new SharkServerHandler)
 }

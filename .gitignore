@@ -34,3 +34,7 @@ paper.pdf
 paper.blg
 paper.bbl
 paper.aux
+
+# IntelliJ IDE files
+.idea
+*.iml

@@ -1,6 +1,6 @@
 package shark
 
-import java.util.{ArrayList => JavaArrayList, List => JavaList}
+import java.util.{ArrayList => JavaArrayList, List => JavaList, Date}
 
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.Schema
@@ -53,7 +53,7 @@ object SharkDriver extends LogHelper {
  * The driver to execute queries in Shark.
  */
 class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
-
+  
   // Use reflection to make some private members accessible.
   val planField = this.getClass.getSuperclass.getDeclaredField("plan")
   val contextField = this.getClass.getSuperclass.getDeclaredField("ctx")
@@ -66,7 +66,7 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
     "doAuthorization", classOf[BaseSemanticAnalyzer])
   doAuthMethod.setAccessible(true)
   val saHooksMethod = this.getClass.getSuperclass.getDeclaredMethod(
-    "getSemanticAnalyzerHooks")
+    "getHooks", classOf[HiveConf.ConfVars], classOf[Class[_]])
   saHooksMethod.setAccessible(true)
   
   // Helper methods to access the private members made accessible using reflection.
@@ -105,6 +105,10 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
    * Overload compile to use Shark's semantic analyzers.
    */
   override def compile(cmd: String): Int = {
+    
+    val now = new Date().getTime
+    
+        
     if (plan != null) {
       close()
       plan = null
@@ -119,7 +123,8 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
       val sem = SharkSemanticAnalyzerFactory.get(conf, tree)
       
       // Do semantic analysis and plan generation
-      val saHooks = saHooksMethod.invoke(this).asInstanceOf[JavaList[AbstractSemanticAnalyzerHook]]
+      val saHooks = saHooksMethod.invoke(this, HiveConf.ConfVars.SEMANTIC_ANALYZER_HOOK,
+        classOf[AbstractSemanticAnalyzerHook]).asInstanceOf[JavaList[AbstractSemanticAnalyzerHook]]
       if (saHooks != null) {
         val hookCtx = new HiveSemanticAnalyzerHookContextImpl()
         hookCtx.setConf(conf);
@@ -134,7 +139,7 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
       
       sem.validate()
       
-      plan = new QueryPlan(command, sem)
+      plan = new QueryPlan(command, sem, now)
       
       // Initialize FetchTask right here. Somehow Hive initializes it twice...
       if (sem.getFetchTask != null) {
@@ -177,7 +182,7 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
         val errorMessage = "FAILED: Hive Internal Error: " + Utilities.getNameMessage(e)
         logError(errorMessage, "\n" + StringUtils.stringifyException(e))
         12
-      }
+      } 
     }
   }
   
