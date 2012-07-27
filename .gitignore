@@ -38,3 +38,6 @@ paper.aux
 # IntelliJ IDE files
 .idea
 *.iml
+
+# Test Reports
+TEST*.xml

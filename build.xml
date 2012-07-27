@@ -1,0 +1,26 @@
+<project name="shark" default="test">
+
+	<property environment="env"/>
+
+	<target name="test" description="Run tests">
+		<junit showoutput="true" printsummary="yes" haltonfailure="no"
+				fork="yes" maxmemory="512m" dir="." timeout="18200000"
+				errorProperty="tests.failed" failureProperty="tests.failed" filtertrace="off">
+			  
+		  <sysproperty key="user.dir" value="${user.dir}"/>
+			<sysproperty key="test.tmp.dir" value="${test.tmp.dir}"/>
+      <sysproperty key="test.warehouse.dir" value="${test.warehouse.dir}"/>
+      <sysproperty key="build.dir" value="${build.dir}"/>
+      <sysproperty key="build.dir.hive" value="${build.dir.hive}"/>
+      <sysproperty key="test.output.overwrite" value="${test.output.overwrite}"/>
+      <sysproperty key="test.user.dir" value="${user.dir}"/>
+      <sysproperty key="log4j.configuration" value="${log4j.configuration}"/>
+      
+			<formatter type="xml" usefile="true" />
+			<classpath path="${env.CLASSPATH}"/>
+			<assertions> <enable /> </assertions>
+			<test name="shark.TestSharkCliDriver" todir="${test.build.dir}" />	
+		</junit>
+	</target>
+
+</project>

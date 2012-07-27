@@ -44,10 +44,15 @@ fi
 for jar in `find $SHARK_HOME/lib -name '*jar'`; do
   CLASSPATH+=:$jar
 done
-for jar in `find $SHARK_HOME/lib_managed/jars -name '*jar'`; do
+for jar in `find $SHARK_HOME/lib_managed/jars -not -name *ant*.jar -name '*jar'`; do
   CLASSPATH+=:$jar
 done
 for jar in `find $SHARK_HOME/lib_managed/bundles -name '*jar'`; do
+  CLASSPATH+=:$jar
+done
+
+# Add Scala JARS
+for jar in `find $SCALA_HOME -name '*jar'`; do
   CLASSPATH+=:$jar
 done
 
@@ -86,10 +91,17 @@ if [ -e $FWDIR/conf/java-opts ] ; then
 fi
 export JAVA_OPTS
 
+# In case we are running Ant
+export ANT_OPTS=$JAVA_OPTS
+
 if [ -n "$SCALA_HOME" ]; then
   SCALA=${SCALA_HOME}/bin/scala
 else
   SCALA=scala
 fi
 
-exec $SCALA -cp $CLASSPATH "$@"
+if [ "x$RUNNER" == "x" ] ; then
+    RUNNER="$SCALA -cp $CLASSPATH" 
+fi
+
+exec $RUNNER "$@"
