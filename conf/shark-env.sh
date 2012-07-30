@@ -31,6 +31,9 @@ export HIVE_HOME=""
 #export HIVE_DEV_HOME=""
 #export HIVE_HOME=$HIVE_DEV_HOME/build/dist
 
+# Make sure your SCALA_HOME is set when running tests.
+#export SCALA_HOME=""
+
 # Set these options when running through spark-ec2 scripts
 #export MASTER=`cat /root/mesos-ec2/cluster-url`
 #export HADOOP_HOME=/root/ephemeral-hdfs
