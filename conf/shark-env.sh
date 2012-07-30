@@ -27,15 +27,16 @@ export SPARK_JAVA_OPTS="-Dspark.local.dir=/tmp -Dspark.kryoserializer.buffer.mb=
 # HIVE_HOME, point to Hive binary distribution
 export HIVE_HOME=""
 
-# The following is only needed for development (SBT test uses this).
-#export HIVE_DEV_HOME=""
-#export HIVE_HOME=$HIVE_DEV_HOME/build/dist
-
-# Make sure your SCALA_HOME is set when running tests.
-#export SCALA_HOME=""
+# Point to your Scala installation.
+export SCALA_HOME=""
 
 # Set these options when running through spark-ec2 scripts
 #export MASTER=`cat /root/mesos-ec2/cluster-url`
 #export HADOOP_HOME=/root/ephemeral-hdfs
 #export MESOS_NATIVE_LIBRARY=/usr/local/lib/libmesos.so
 #export SCALA_HOME=/root/scala-$SCALA_VERSION.final
+
+# The following is only needed for development and testing (SBT test uses this).
+#export HIVE_DEV_HOME=""
+#export HIVE_HOME=$HIVE_DEV_HOME/build/dist
+
