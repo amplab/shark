@@ -28,7 +28,7 @@ public class TestSharkCliDriver extends TestCliDriver {
   static {
     // Replace qt in Hive's TestCliDriver with SharkQTestUtil.
     try {
-
+      
       Field qtField = TestCliDriver.class.getDeclaredField("qt");
       qtField.setAccessible(true);
 
