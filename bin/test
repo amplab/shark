@@ -1,7 +1,7 @@
 #!/bin/bash
 
 BINDIR="`dirname $0`"
-FWDIR="`dirname $BINDIR`"
+FWDIR="$(cd `dirname $BINDIR`; pwd)"
 
 # Load environment variables from conf/shark-env.sh, if it exists
 if [ -e $FWDIR/conf/shark-env.sh ] ; then
@@ -14,9 +14,21 @@ if [ -z $HIVE_HOME ] ; then
   exit 1
 fi
 
+# Check for SCALA_HOME
+if [ -z $SCALA_HOME ] ; then
+  echo "No SCALA_HOME specified. Please set SCALA_HOME"
+  exit 1
+fi
+
 CLASSPATH+=:${HIVE_DEV_HOME}/build/ql/test/classes
 CLASSPATH+=:${HIVE_DEV_HOME}/build/hadoopcore/hadoop-0.20.1/hadoop-0.20.1-test.jar
 CLASSPATH+=:${HIVE_DEV_HOME}/data/conf
+
+# Add Scala JARS
+for jar in `find $SCALA_HOME -name '*jar'`; do
+  CLASSPATH+=:$jar
+done
+
 export CLASSPATH
 
 BUILD_PATH=$HIVE_DEV_HOME/build/ql
@@ -26,11 +38,13 @@ JAVA_OPTS+="-Dbuild.dir.hive=${HIVE_DEV_HOME}/build "
 JAVA_OPTS+="-Dbuild.dir=${HIVE_DEV_HOME}/build/ql "
 JAVA_OPTS+="-Duser.dir=${HIVE_DEV_HOME}/ql "
 JAVA_OPTS+="-Dtest.output.overwrite=false "
+JAVA_OPTS+="-Dtest.build.dir=${FWDIR}/build/test "
 JAVA_OPTS+="-Dtest.tmp.dir=${BUILD_PATH}/tmp "
 JAVA_OPTS+="-Dtest.log.dir=${BUILD_PATH}/test/logs "
 JAVA_OPTS+="-Dtest.warehouse.dir=${BUILD_PATH}/test/data/warehouse "
 JAVA_OPTS+="-Dlog4j.configuration=file://${HIVE_DEV_HOME}/data/conf/hive-log4j.properties "
+
 export JAVA_OPTS
+export RUNNER="ant -noclasspath -f $FWDIR/bin/build_test.xml test"
 
-exec $FWDIR/run junit.textui.TestRunner shark.TestSharkCliDriver "$@"
-
+exec "$FWDIR/run" "$@"
