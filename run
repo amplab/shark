@@ -44,7 +44,7 @@ fi
 for jar in `find $SHARK_HOME/lib -name '*jar'`; do
   CLASSPATH+=:$jar
 done
-for jar in `find $SHARK_HOME/lib_managed/jars -not -name *ant*.jar -name '*jar'`; do
+for jar in `find $SHARK_HOME/lib_managed/jars -name '*jar'`; do
   CLASSPATH+=:$jar
 done
 for jar in `find $SHARK_HOME/lib_managed/bundles -name '*jar'`; do

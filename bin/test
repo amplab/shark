@@ -33,6 +33,6 @@ JAVA_OPTS+="-Dtest.warehouse.dir=${BUILD_PATH}/test/data/warehouse "
 JAVA_OPTS+="-Dlog4j.configuration=file://${HIVE_DEV_HOME}/data/conf/hive-log4j.properties "
 
 export JAVA_OPTS
-export RUNNER="ant -f $FWDIR/build.xml test"
+export RUNNER="ant -noclasspath -f $FWDIR/bin/build_test.xml test"
 
 exec "$FWDIR/run" "$@"
