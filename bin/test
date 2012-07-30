@@ -14,9 +14,21 @@ if [ -z $HIVE_HOME ] ; then
   exit 1
 fi
 
+# Check for SCALA_HOME
+if [ -z $SCALA_HOME ] ; then
+  echo "No SCALA_HOME specified. Please set SCALA_HOME"
+  exit 1
+fi
+
 CLASSPATH+=:${HIVE_DEV_HOME}/build/ql/test/classes
 CLASSPATH+=:${HIVE_DEV_HOME}/build/hadoopcore/hadoop-0.20.1/hadoop-0.20.1-test.jar
 CLASSPATH+=:${HIVE_DEV_HOME}/data/conf
+
+# Add Scala JARS
+for jar in `find $SCALA_HOME -name '*jar'`; do
+  CLASSPATH+=:$jar
+done
+
 export CLASSPATH
 
 BUILD_PATH=$HIVE_DEV_HOME/build/ql
