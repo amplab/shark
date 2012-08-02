@@ -55,7 +55,8 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
     bigTableAliasByte = bigTableAlias.toByte
 
     // Also call initialize on slave since we want the joinKeys and joinVals to
-    // be initialized so we can use them in combineMultipleRdds().
+    // be initialized so we can use them in combineMultipleRdds(). This also puts
+    // serialization info for keys in MapJoinMetaData.
     initializeOnSlave()
   }
 
@@ -70,6 +71,8 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
     // the evaluators.
     joinKeysObjectInspectors = JoinUtil.getObjectInspectorsFromEvaluators(
       joinKeys, objectInspectors.toArray, CommonJoinOperator.NOTSKIPBIGTABLE)
+
+    // Put serialization metadata for keys in MapJoinMetaData.
     setKeyMetaData()
   }
 
@@ -92,6 +95,9 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
       // We need to do this before collecting the RDD because the RDD might
       // contain lazy structs that cannot be properly collected directly.
       val posByte = pos.toByte
+
+      // Put serialization metadata for values in master's MapJoinMetaData.
+      // Needed to deserialize values in collect().
       setValueMetaData(posByte)
 
       // Create a local reference for the serialized arrays, otherwise the
@@ -101,6 +107,9 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
       val rddForHash: RDD[(AbstractMapJoinKey, MapJoinObjectValue)] =
         rdd.mapPartitions { partition =>
           op.initializeOnSlave()
+          // Put serialization metadata for values in slave's MapJoinMetaData.
+          // Needed to serialize values in collect().
+          op.setValueMetaData(posByte)
           op.computeJoinKeyValuesOnPartition(partition, posByte)
         }
       
@@ -109,6 +118,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
       val wrappedRows: Array[(AbstractMapJoinKey, MapJoinObjectValue)] = rddForHash.collect()
       val collectTime = System.currentTimeMillis() - startCollect
 
+      // Unwrap the key and values, a list of rows.
       val rows = wrappedRows.map{ case (wrappedKey, wrappedValue) =>
         val keyObj = wrappedKey match {
           case oneKey: MapJoinSingleKey => oneKey.getObj
@@ -119,6 +129,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
       }
 
       val startHash = System.currentTimeMillis()
+      // Merge rows from each partition, according to key.
       val hashtable = rows.toSeq.groupByKey().mapValues(_.flatten)
       val hashTime = System.currentTimeMillis() - startHash
       logInfo("Input %d (%d rows) took %d ms to collect and %s ms to build hash table.".format(
@@ -144,6 +155,8 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
 
   def computeJoinKeyValuesOnPartition[T](iter: Iterator[T], posByte: Byte)
   : Iterator[(AbstractMapJoinKey, MapJoinObjectValue )] = {
+    // MapJoinObjectValue contains a MapJoinRowContainer, which contains a list of
+    // rows to be joined.
     var valueMap = new JavaHashMap[AbstractMapJoinKey, MapJoinObjectValue]
     iter.foreach { row =>
       val key = JoinUtil.computeMapJoinKeys(
@@ -158,7 +171,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
         joinFilterObjectInspectors(posByte),
         noOuterJoin)
       // If we've seen the key before, just add it to the row container wrapped by 
-      // corresponding MapJoinObjectValue
+      // corresponding MapJoinObjectValue.
       val objValue = valueMap.get(key)
       if (objValue == null) {
         val rowContainer = new MapJoinRowContainer[Array[Object]]
@@ -168,19 +181,10 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
         val rowContainer = objValue.getObj
         rowContainer.add(value)
       }
-      Unit
     }
-    return new Iterator[(AbstractMapJoinKey, MapJoinObjectValue)] {
-      val iter = valueMap.entrySet.iterator
-      
-      def hasNext = iter.hasNext
-
-      def next() = {
-        val entry = iter.next()
-        (entry.getKey, entry.getValue)
-      }
-    }
+    return valueMap.iterator
   }
+
 
   def setKeyMetaData() {
     MapJoinMetaData.clear()
