@@ -1,5 +1,6 @@
 package shark.exec
 
+import java.nio.ByteBuffer
 import java.util.ArrayList
 
 import org.apache.commons.codec.binary.Base64
@@ -111,12 +112,12 @@ object KryoSerializerToString {
   @transient val kryoSer = new spark.KryoSerializer
 
   def serialize[T](o: T): String = {
-    val bytes = kryoSer.newInstance().serialize(o)
+    val bytes = kryoSer.newInstance().serialize(o).array()
     new String(Base64.encodeBase64(bytes))
   }
 
   def deserialize[T](byteString: String): T  = {
     val bytes = Base64.decodeBase64(byteString.getBytes())
-    kryoSer.newInstance().deserialize[T](bytes)
+    kryoSer.newInstance().deserialize[T](ByteBuffer.wrap(bytes))
   }
 }

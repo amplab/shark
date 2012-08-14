@@ -2,6 +2,7 @@ package shark.exec
 
 import java.beans.{XMLDecoder, XMLEncoder, PersistenceDelegate}
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, ObjectOutput, ObjectInput}
+import java.nio.ByteBuffer
 
 import org.apache.hadoop.hive.ql.exec.Utilities.EnumDelegate
 import org.apache.hadoop.hive.ql.plan.GroupByDesc
@@ -99,11 +100,11 @@ object KryoSerializer extends shark.LogHelper {
   @transient val kryoSer = new spark.KryoSerializer
 
   def serialize[T](o: T): Array[Byte] = {
-    kryoSer.newInstance().serialize(o)
+    kryoSer.newInstance().serialize(o).array()
   }
 
   def deserialize[T](bytes: Array[Byte]): T  = {
-    kryoSer.newInstance().deserialize[T](bytes)
+    kryoSer.newInstance().deserialize[T](ByteBuffer.wrap(bytes))
   }
 
 }
