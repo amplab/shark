@@ -3,6 +3,13 @@ if [ -e $SHARK_CONF_DIR/shark-env.sh ] ; then
    . $SHARK_CONF_DIR/shark-env.sh
 fi
 
+if [[ "$@" == *"test"* ]]; then
+  if [ "x$HIVE_DEV_HOME" == "x" ]; then
+    echo "No HIVE_DEV_HOME specified. Required for tests. Please set HIVE_DEV_HOME."
+    exit 1
+  fi
+fi
+
 if [ "x$HIVE_HOME" == "x" ] ; then
     echo "No HIVE_HOME specified. Please set HIVE_HOME"
     exit 1
