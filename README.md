@@ -58,8 +58,8 @@ We also include a few Shark-specific configuration parameters that can be set
 in the same way as you would set configuration parameters in Hive (e.g. from the 
 Shark CLI):
 
-    shark> shark.exec.mode = [hive | shark (default)]
-    shark> shark.explain.mode = [hive | shark (default)]
+    shark> set shark.exec.mode = [hive | shark (default)]
+    shark> set shark.explain.mode = [hive | shark (default)]
 
 
 ## Caching
