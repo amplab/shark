@@ -16,6 +16,7 @@ import scala.collection.Iterator
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
+import shark.SharkEnv
 import shark.operators.ReduceSinkWrapper
 
 
@@ -56,6 +57,9 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
     val ois = new ArrayList[ObjectInspector]
     ois.add(keySer.getObjectInspector)
     ois.add(valueSer.getObjectInspector)
+
+    // No need to lock this one (see SharkEnv.objectInspectorLock) because
+    // this is called on the master only.
     val outputObjInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
         List("KEY","VALUE"), ois)
 
@@ -188,7 +192,7 @@ object ReduceSinkOperator {
     val valueSer = valueTableDesc.getDeserializerClass().newInstance().asInstanceOf[SerDe]
     valueSer.initialize(null, valueTableDesc.getProperties())
     
-    val keyObjInspector = Operator.objectInspectorLock.synchronized {
+    val keyObjInspector = SharkEnv.objectInspectorLock.synchronized {
       ReduceSinkWrapper.initEvaluatorsAndReturnStruct(
         keyEval,
         distinctColIndices,
@@ -197,7 +201,7 @@ object ReduceSinkOperator {
         rowInspector)
     }
     val valFieldInspectors = valueEval.map(eval => eval.initialize(rowInspector)).toList
-    val valObjInspector = Operator.objectInspectorLock.synchronized {
+    val valObjInspector = SharkEnv.objectInspectorLock.synchronized {
       ObjectInspectorFactory.getStandardStructObjectInspector(
         conf.getOutputValueColumnNames(), valFieldInspectors)
     }

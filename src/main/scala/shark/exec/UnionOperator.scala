@@ -14,6 +14,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
+import shark.SharkEnv
 import spark.{UnionRDD, RDD}
 
 
@@ -64,7 +65,7 @@ class UnionOperator extends NaryOperator[HiveUnionOperator] {
     }
 
     val outputFieldOIs = columnTypeResolvers.map(_.get())
-    val outputObjInspector = Operator.objectInspectorLock.synchronized {
+    val outputObjInspector = SharkEnv.objectInspectorLock.synchronized {
       ObjectInspectorFactory.getStandardStructObjectInspector(
         columnNames, outputFieldOIs.toList)
     }

@@ -53,12 +53,14 @@ with HiveTopOperator {
           partNames.add(key)
           partObjectInspectors.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector)
         }
+
+        // No need to lock this one (see SharkEnv.objectInspectorLock) because
+        // this is called on the master only.
         val partObjectInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
             partNames, partObjectInspectors)
         val oiList = Arrays.asList(
             tableDeser.getObjectInspector().asInstanceOf[StructObjectInspector], 
             partObjectInspector.asInstanceOf[StructObjectInspector])
-
         // new oi is union of table + partition object inspectors
         ObjectInspectorFactory.getUnionStructObjectInspector(oiList)
       }

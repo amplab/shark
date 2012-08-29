@@ -17,7 +17,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.hive.serde2.SerDe
 
 import scala.collection.JavaConversions._
@@ -185,7 +184,6 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
     return valueMap.iterator
   }
 
-
   def setKeyMetaData() {
     MapJoinMetaData.clear()
 
@@ -193,13 +191,18 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
     val keySerializer = keyTableDesc.getDeserializerClass().newInstance().asInstanceOf[SerDe]
     keySerializer.initialize(null, keyTableDesc.getProperties())
  
-    val standardOI = ObjectInspectorUtils.getStandardObjectInspector(
-      keySerializer.getObjectInspector(), ObjectInspectorCopyOption.WRITABLE)
-    MapJoinMetaData.put(Integer.valueOf(metadataKeyTag), new MapJoinObjectCtx(
-      standardOI, keySerializer, keyTableDesc, hconf))
+    val standardOI = SharkEnv.objectInspectorLock.synchronized {
+      ObjectInspectorUtils.getStandardObjectInspector(
+        keySerializer.getObjectInspector(), ObjectInspectorCopyOption.WRITABLE)
+    }
+
+    // MapJoinMetaData is a static object. Wrap it around synchronized to be thread safe.
+    this.synchronized {
+      MapJoinMetaData.put(Integer.valueOf(metadataKeyTag), new MapJoinObjectCtx(
+        standardOI, keySerializer, keyTableDesc, hconf))
+    }
   }
  
-  
   def setValueMetaData(pos: Byte) {
     val valueTableDesc = conf.getValueFilteredTblDescs().get(pos)
     val valueSerDe = valueTableDesc.getDeserializerClass().newInstance.asInstanceOf[SerDe]
@@ -209,12 +212,17 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
     val newFields = joinValuesStandardObjectInspectors.get(pos)
     val length = newFields.size()
     val newNames = new java.util.ArrayList[String](length)
-
     for (i <- 0 until length) newNames.add(new String("tmp_" + i))
-    val standardOI = ObjectInspectorFactory.getStandardStructObjectInspector(newNames, newFields)
 
-    MapJoinMetaData.put(Integer.valueOf(pos), new MapJoinObjectCtx(
-      standardOI, valueSerDe, valueTableDesc, hconf))
+    val standardOI = SharkEnv.objectInspectorLock.synchronized {
+      ObjectInspectorFactory.getStandardStructObjectInspector(newNames, newFields)
+    }
+
+    // MapJoinMetaData is a static object. Wrap it around synchronized to be thread safe.
+    this.synchronized {
+      MapJoinMetaData.put(Integer.valueOf(pos), new MapJoinObjectCtx(
+        standardOI, valueSerDe, valueTableDesc, hconf))
+    }
   }
 
   /**

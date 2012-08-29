@@ -176,18 +176,17 @@ object ColumnarStructObjectInspector {
     for (i <- 0 until columnNames.size) {
       val typeInfo = columnTypes.get(i)
       val fieldOI = typeInfo.getCategory match {
-        case Category.PRIMITIVE => {
+        case Category.PRIMITIVE => SharkEnv.objectInspectorLock.synchronized {
           PrimitiveObjectInspectorFactory.getPrimitiveWritableObjectInspector(
             typeInfo.asInstanceOf[PrimitiveTypeInfo].getPrimitiveCategory)
         }
-        case _ => {
+        case _ => SharkEnv.objectInspectorLock.synchronized {
           LazyFactory.createLazyObjectInspector(
             typeInfo, serDeParams.getSeparators(), 1, serDeParams.getNullSequence(), 
             serDeParams.isEscaped(), serDeParams.getEscapeChar())
         }
       }
       fields.add(new IDStructField(i, columnNames.get(i), fieldOI))
-
     }
     new ColumnarStructObjectInspector(fields)
   }
