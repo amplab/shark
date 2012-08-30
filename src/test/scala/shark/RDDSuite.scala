@@ -2,7 +2,7 @@ package shark
 
 import org.apache.hadoop.hive.ql.plan.JoinCondDesc
 import org.scalatest.{BeforeAndAfter, FunSuite}
-import shark.exec.ReduceKey
+import shark.execution.ReduceKey
 import spark.{RDD, SparkContext}
 import spark.SparkContext._
 
