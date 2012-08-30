@@ -5,7 +5,7 @@ import java.io.File
 
 import org.apache.hadoop.hive.metastore.api.FieldSchema
 import org.apache.hadoop.hive.ql.{Context, DriverContext}
-import org.apache.hadoop.hive.ql.exec.{TableScanOperator => HiveTableScanOperator, Utilities, ExecDriver}
+import org.apache.hadoop.hive.ql.exec.{ExecDriver, TableScanOperator => HiveTableScanOperator, Utilities}
 import org.apache.hadoop.hive.ql.metadata.{Partition, Table}
 import org.apache.hadoop.hive.ql.optimizer.ppr.PartitionPruner
 import org.apache.hadoop.hive.ql.parse._
@@ -13,14 +13,11 @@ import org.apache.hadoop.hive.ql.plan.api.StageType
 import org.apache.hadoop.hive.ql.plan.CreateTableDesc
 import org.apache.hadoop.hive.ql.plan.PartitionDesc
 import org.apache.hadoop.hive.ql.session.SessionState
-import org.apache.hadoop.fs.FileUtil
-import org.apache.hadoop.fs.Path
 
 import scala.collection.JavaConversions._
 
-import shark.LogHelper
+import shark.{LogHelper, SharkEnv}
 import spark.RDD
-import shark.SharkEnv
 
 
 class SparkWork(

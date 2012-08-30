@@ -193,7 +193,7 @@ class CustomPipedRdd(
   override def compute(split: Split): Iterator[Writable] = {
     val workingDir = System.getProperty("user.dir")
     val newCmd = command.map { arg => 
-      if (new File(workingDir + "/" + arg).exists())  "./" + arg else arg
+      if (new File(workingDir + "/" + arg).exists()) "./" + arg else arg
     }
     val pb = new ProcessBuilder(newCmd)
     pb.directory(new File(workingDir))
