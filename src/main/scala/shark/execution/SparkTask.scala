@@ -1,21 +1,26 @@
 package shark.execution
 
 import java.util.{List => JavaList}
+import java.io.File
 
 import org.apache.hadoop.hive.metastore.api.FieldSchema
 import org.apache.hadoop.hive.ql.{Context, DriverContext}
-import org.apache.hadoop.hive.ql.exec.{TableScanOperator => HiveTableScanOperator, Utilities}
+import org.apache.hadoop.hive.ql.exec.{TableScanOperator => HiveTableScanOperator, Utilities, ExecDriver}
 import org.apache.hadoop.hive.ql.metadata.{Partition, Table}
 import org.apache.hadoop.hive.ql.optimizer.ppr.PartitionPruner
 import org.apache.hadoop.hive.ql.parse._
 import org.apache.hadoop.hive.ql.plan.api.StageType
 import org.apache.hadoop.hive.ql.plan.CreateTableDesc
 import org.apache.hadoop.hive.ql.plan.PartitionDesc
+import org.apache.hadoop.hive.ql.session.SessionState
+import org.apache.hadoop.fs.FileUtil
+import org.apache.hadoop.fs.Path
 
 import scala.collection.JavaConversions._
 
 import shark.LogHelper
 import spark.RDD
+import shark.SharkEnv
 
 
 class SparkWork(
@@ -36,7 +41,18 @@ with java.io.Serializable with LogHelper {
 
   override def execute(driverContext: DriverContext): Int = {
     logInfo("Executing " + this.getClass.getName)
-
+    
+    val ctx = driverContext.getCtx()
+    // Adding files to the SparkContext
+    // The getResourceFiles method is protected, let's make it accessible
+    val m = classOf[ExecDriver].getDeclaredMethod("getResourceFiles",
+      classOf[org.apache.hadoop.conf.Configuration], classOf[SessionState.ResourceType])
+    m.setAccessible(true)
+    val files = m.invoke(null, conf, SessionState.ResourceType.FILE).asInstanceOf[String]
+    files.split(",").foreach { path =>
+      SharkEnv.sc.addFile(path)
+    }
+    
     Operator.hconf = conf
 
     // Replace Hive physical plan with Shark plan.
