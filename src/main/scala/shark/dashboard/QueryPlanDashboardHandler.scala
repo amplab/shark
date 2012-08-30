@@ -5,7 +5,7 @@ import javax.servlet.http.{HttpServletRequest, HttpServletResponse}
 import org.eclipse.jetty.server.handler.AbstractHandler
 import org.eclipse.jetty.server.Request
 
-import shark.exec.{ExplainTaskHelper, HiveOperator, Operator, TerminalAbstractOperator}
+import shark.execution.{ExplainTaskHelper, HiveOperator, Operator, TerminalAbstractOperator}
 import spark.{CacheTracker, Utils}
 
 

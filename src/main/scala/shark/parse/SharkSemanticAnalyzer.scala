@@ -18,7 +18,7 @@ import scala.collection.JavaConversions._
 import scala.collection.mutable.Stack
 
 import shark.LogHelper
-import shark.exec.{HiveOperator, Operator, OperatorFactory, SparkWork, ReduceSinkOperator,
+import shark.execution.{HiveOperator, Operator, OperatorFactory, SparkWork, ReduceSinkOperator,
   TerminalAbstractOperator, TerminalOperator}
 
 

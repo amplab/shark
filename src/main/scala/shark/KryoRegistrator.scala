@@ -9,7 +9,7 @@ import com.esotericsoftware.kryo.serialize.{IntSerializer, SimpleSerializer}
 class KryoRegistrator extends spark.KryoRegistrator {
   def registerClasses(kryo: Kryo) {
 
-    kryo.register(classOf[exec.ReduceKey])
+    kryo.register(classOf[execution.ReduceKey])
 
     // Java Arrays.asList returns an internal class that cannot be serialized
     // by default Kryo. This provides a workaround.

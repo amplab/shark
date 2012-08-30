@@ -10,7 +10,7 @@ import org.apache.hadoop.hive.ql.exec._
 import org.apache.hadoop.hive.ql.parse._
 import org.apache.hadoop.hive.ql.plan.ExplainWork
 
-import shark.exec.SharkExplainWork
+import shark.execution.SharkExplainWork
 
 
 class SharkExplainSemanticAnalyzer(conf: HiveConf) extends ExplainSemanticAnalyzer(conf) {
