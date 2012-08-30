@@ -98,16 +98,15 @@ class ScriptOperator extends UnaryOperator[HiveScriptOperator] {
    */
   def getCommandAndEnvs(): (Array[String], Map[String, String]) = {
 
-    val hiveOpHelper = new ScriptOperatorHelper(new HiveScriptOperator)
-
-    alias = hiveOpHelper.getAlias()
+    val scriptOpHelper = new ScriptOperatorHelper(new HiveScriptOperator)
+    alias = scriptOpHelper.getAlias
 
     val cmdArgs = HiveScriptOperator.splitArgs(hiveOp.getConf().getScriptCmd())
     val prog = cmdArgs(0)
     val currentDir = new File(".").getAbsoluteFile()
 
     if (!(new File(prog)).isAbsolute()) {
-      val finder = hiveOpHelper.newPathFinderInstance("PATH")
+      val finder = scriptOpHelper.newPathFinderInstance("PATH")
       finder.prependPathComponent(currentDir.toString())
       var f = finder.getAbsolutePath(prog)
       if (f != null) {
@@ -123,16 +122,16 @@ class ScriptOperator extends UnaryOperator[HiveScriptOperator] {
 
     // Set environmental variables.
     val envs = new java.util.HashMap[String, String]
-    ScriptOperatorHelper.addJobConfToEnvironment(hconf, envs)
+    scriptOpHelper.addJobConfToEnvironment(hconf, envs)
 
-    envs.put(ScriptOperatorHelper.safeEnvVarName(HiveConf.ConfVars.HIVEALIAS.varname),
+    envs.put(scriptOpHelper.safeEnvVarName(HiveConf.ConfVars.HIVEALIAS.varname),
         String.valueOf(alias))
 
     // Create an environment variable that uniquely identifies this script
     // operator
     val idEnvVarName = HiveConf.getVar(hconf, HiveConf.ConfVars.HIVESCRIPTIDENVVAR)
     val idEnvVarVal = hiveOp.getOperatorId()
-    envs.put(ScriptOperatorHelper.safeEnvVarName(idEnvVarName), idEnvVarVal)
+    envs.put(scriptOpHelper.safeEnvVarName(idEnvVarName), idEnvVarVal)
 
     (wrappedCmdArgs, Map.empty ++ envs)
   }
