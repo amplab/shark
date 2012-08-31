@@ -1,10 +1,8 @@
-package shark.execution
+package org.apache.hadoop.hive.ql.exec
 
 import java.util.ArrayList
 
-import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory}
 import org.apache.hadoop.hive.ql.exec.{GroupByOperator => HiveGroupByOperator}
-import org.apache.hadoop.hive.ql.exec.Utilities
 import org.apache.hadoop.hive.ql.plan.{AggregationDesc, ExprNodeDesc, ExprNodeColumnDesc, GroupByDesc}
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator.AggregationBuffer
@@ -15,7 +13,8 @@ import org.apache.hadoop.hive.serde2.objectinspector.{StandardStructObjectInspec
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
-import shark.{KeyWrapperFactory, SharkEnv}
+import shark.SharkEnv
+import shark.execution.UnaryOperator
 import spark.RDD
 import spark.SparkContext._
 
@@ -88,33 +87,19 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
   }
 
   override def processPartition[T](iter: Iterator[T]) = {
-    logInfo("Pre-Shuffle Group-By")
-    val hashAggregations = new java.util.HashMap[KeyWrapperFactory#KeyWrapper, Array[AggregationBuffer]]()
-    val newKeys = keyFactory.getKeyWrapper()
+    logInfo("Running Pre-Shuffle Group-By")
+    val hashAggregations = new java.util.HashMap[KeyWrapper, Array[AggregationBuffer]]()
+    val newKeys: KeyWrapper = keyFactory.getKeyWrapper()
     iter.foreach { case row: AnyRef =>
+      
+      newKeys.getNewKey(row, rowInspector)
+      newKeys.setHashKey()
 
-      newKeys match {
-        case k: KeyWrapperFactory#ListKeyWrapper => {
-          k.getNewKey(row, rowInspector)
-          k.setHashKey()
-        }
-        case k: KeyWrapperFactory#TextKeyWrapper => {
-          k.getNewKey(row, rowInspector)
-          k.setHashKey()
-        }
-      }
       var aggs = hashAggregations.get(newKeys)
       var newKey = false
       if (aggs == null) {
         newKey = true
-        val newKeyProber = newKeys match {
-          case k: KeyWrapperFactory#ListKeyWrapper => {
-            k.copyKey()
-          }
-          case k: KeyWrapperFactory#TextKeyWrapper => {
-            k.copyKey()
-          }
-        }
+        val newKeyProber = newKeys.copyKey()
         aggs = newAggregations()
         hashAggregations.put(newKeyProber, aggs)
       }
@@ -124,13 +109,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
     
     val outputCache = new Array[Object](keyFields.length + aggregationEvals.length)
     hashAggregations.toIterator.map { case(key, aggrs) =>
-      val arr = key match {
-        case k: KeyWrapperFactory#ListKeyWrapper => 
-          k.getKeyArray
-        case k: KeyWrapperFactory#TextKeyWrapper => 
-          k.getKeyArray
-      }
-                                     
+      val arr = key.getKeyArray()
       arr.zipWithIndex foreach { case(key, i) => outputCache(i) = key }
       aggrs.zipWithIndex foreach { case(aggr, i) => outputCache(i + arr.length) = aggregationEvals(i).evaluate(aggr) }
       outputCache

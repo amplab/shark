@@ -1,10 +1,9 @@
-package shark.execution
+package org.apache.hadoop.hive.ql.exec
 
 import java.util.ArrayList
 import java.util.{HashMap => JHashMap, HashSet => JHashSet, Set => JSet}
 
 import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory, Utilities}
 import org.apache.hadoop.hive.ql.exec.{GroupByOperator => HiveGroupByOperator}
 import org.apache.hadoop.hive.ql.plan.{ExprNodeColumnDesc, TableDesc}
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator
@@ -18,7 +17,7 @@ import org.apache.hadoop.io.BytesWritable
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
-import shark.KeyWrapperFactory
+import shark.execution.{HiveTopOperator, ReduceKey}
 import spark.RDD
 import spark.SparkContext._
 
@@ -35,7 +34,7 @@ with HiveTopOperator {
   @transient val nonDistinctKeyAggrs = new JHashMap[Int, JSet[java.lang.Integer]]()
   @transient val nonDistinctAggrs = new ArrayList[Int]()
   @transient val distinctKeyWrapperFactories = new JHashMap[Int, ArrayList[KeyWrapperFactory]]()
-  @transient val distinctHashSets = new JHashMap[Int, ArrayList[JHashSet[KeyWrapperFactory#ListKeyWrapper]]]()
+  @transient val distinctHashSets = new JHashMap[Int, ArrayList[JHashSet[KeyWrapper]]]()
 
   @transient var unionExprEvaluator: ExprNodeEvaluator = _
 
@@ -48,11 +47,11 @@ with HiveTopOperator {
   override def initializeOnSlave() {
     
     super.initializeOnSlave()
-    initializeKeyUnionAggregators()
-    initializeKeyWrapperFactories()
-
     // Initialize unionExpr. KEY has union field as the last field if there are distinct aggrs.
     unionExprEvaluator = initializeUnionExprEvaluator(rowInspector)
+
+    initializeKeyUnionAggregators()
+    initializeKeyWrapperFactories()
 
     keySer = keyTableDesc.getDeserializerClass.newInstance().asInstanceOf[Deserializer]
     keySer.initialize(null, keyTableDesc.getProperties())
@@ -70,10 +69,10 @@ with HiveTopOperator {
       val writableOis = ois.map( oi => oi.map( k => ObjectInspectorUtils.getStandardObjectInspector(k, ObjectInspectorCopyOption.WRITABLE) )).toArray
 
       val keys = new ArrayList[KeyWrapperFactory]()      
-      val hashSets = new ArrayList[JHashSet[KeyWrapperFactory#ListKeyWrapper]]()
+      val hashSets = new ArrayList[JHashSet[KeyWrapper]]()
       for(i <- 0 until evals.size) {
         keys.add(new KeyWrapperFactory(evals(i), ois(i), writableOis(i)))
-        hashSets.add(new JHashSet[KeyWrapperFactory#ListKeyWrapper])
+        hashSets.add(new JHashSet[KeyWrapper])
       } 
       distinctHashSets.put(unionId, hashSets)
       distinctKeyWrapperFactories.put(unionId, keys)
@@ -199,13 +198,7 @@ with HiveTopOperator {
                 bytes.set(value)
                 val deserializedValue = deserializeValue(bytes)
                 val row = Array(deserializedUnionKey, deserializedValue)
-
-                keys match {
-                  case k: KeyWrapperFactory#ListKeyWrapper => 
-                    k.getNewKey(row, rowInspector)
-                  case k: KeyWrapperFactory#TextKeyWrapper => 
-                    k.getNewKey(row, rowInspector)
-                }
+                keys.getNewKey(row, rowInspector)
                 val uo =  unionExprEvaluator.evaluate(row).asInstanceOf[UnionObject]
                 val unionTag = uo.getTag().toInt
                 // Handle non-distincts in the key-union
@@ -230,14 +223,13 @@ with HiveTopOperator {
                   val hashes = distinctHashSets.get(unionTag)
                   for (i <- 0 until factories.size) {
                     val aggrIndex = aggrIndices.next
-                    // We currently only do ListKeyWrapper
-                    val key = factories.get(i).getKeyWrapper().asInstanceOf[KeyWrapperFactory#ListKeyWrapper]
+                    val key: KeyWrapper = factories.get(i).getKeyWrapper()
                     key.getNewKey(row, rowInspector)
                     key.setHashKey()
                     var seen = hashes(i).contains(key)
                     if (!seen) {
                       aggregationEvals(aggrIndex).aggregate(aggrs(aggrIndex), key.getKeyArray)
-                      hashes(i).add(key.copyKey().asInstanceOf[KeyWrapperFactory#ListKeyWrapper])
+                      hashes(i).add(key.copyKey())
                     }
                   }
                 }

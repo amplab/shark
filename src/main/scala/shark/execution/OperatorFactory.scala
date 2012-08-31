@@ -1,5 +1,6 @@
 package shark.execution
 
+import org.apache.hadoop.hive.ql.exec.{GroupByPostShuffleOperator, GroupByPreShuffleOperator}
 import org.apache.hadoop.hive.ql.metadata.HiveException
 
 import scala.collection.JavaConversions._
@@ -21,20 +22,25 @@ object OperatorFactory extends LogHelper {
     _createOperatorTree(hiveTerminalOp).asInstanceOf[TerminalOperator]
   }
 
-  def createSharkCacheOutputPlan(hiveTerminalOp: HiveOperator, tableName: String): TerminalOperator = {
-    val terminalOp = _newOperatorInstance(classOf[CacheSinkOperator], hiveTerminalOp).asInstanceOf[CacheSinkOperator]
+  def createSharkCacheOutputPlan(hiveTerminalOp: HiveOperator, tableName: String)
+  : TerminalOperator = {
+    val terminalOp = _newOperatorInstance(
+      classOf[CacheSinkOperator], hiveTerminalOp).asInstanceOf[CacheSinkOperator]
     terminalOp.tableName = tableName
-    _createAndSetParents(terminalOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
+    _createAndSetParents(
+      terminalOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }
   
   def createSharkFileOutputPlan(hiveTerminalOp: HiveOperator): TerminalOperator = {
     val terminalOp = _newOperatorInstance(classOf[FileSinkOperator], hiveTerminalOp)
-    _createAndSetParents(terminalOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
+    _createAndSetParents(
+      terminalOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }
 
   def createSharkRddOutputPlan(hiveTerminalOp: HiveOperator): TerminalOperator = {
     val terminalOp = _newOperatorInstance(classOf[TableRddSinkOperator], hiveTerminalOp)
-    _createAndSetParents(terminalOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
+    _createAndSetParents(
+      terminalOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }
   
   /** Create a Shark operator given the Hive operator. */
