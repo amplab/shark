@@ -45,10 +45,12 @@ with java.io.Serializable with LogHelper {
     val m = classOf[ExecDriver].getDeclaredMethod("getResourceFiles",
       classOf[org.apache.hadoop.conf.Configuration], classOf[SessionState.ResourceType])
     m.setAccessible(true)
+    // Add required files
     val files = m.invoke(null, conf, SessionState.ResourceType.FILE).asInstanceOf[String]
-    files.split(",").foreach { path =>
-      SharkEnv.sc.addFile(path)
-    }
+    files.split(",").filterNot(_.isEmpty).foreach { SharkEnv.sc.addFile(_) }
+    // Add required jars
+    val jars = m.invoke(null, conf, SessionState.ResourceType.JAR).asInstanceOf[String]
+    jars.split(",").filterNot(_.isEmpty).foreach { SharkEnv.sc.addJar(_) }
     
     Operator.hconf = conf
 
