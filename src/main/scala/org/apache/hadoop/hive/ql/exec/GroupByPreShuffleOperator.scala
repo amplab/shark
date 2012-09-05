@@ -1,14 +1,14 @@
 package org.apache.hadoop.hive.ql.exec
 
-import java.util.ArrayList
+import java.util.{ArrayList, HashMap => JHashMap}
 
 import org.apache.hadoop.hive.ql.exec.{GroupByOperator => HiveGroupByOperator}
 import org.apache.hadoop.hive.ql.plan.{AggregationDesc, ExprNodeDesc, ExprNodeColumnDesc, GroupByDesc}
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator.AggregationBuffer
-import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorFactory, ObjectInspectorUtils}
+import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorFactory,
+    ObjectInspectorUtils, StandardStructObjectInspector, StructObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption
-import org.apache.hadoop.hive.serde2.objectinspector.{StandardStructObjectInspector, StructObjectInspector}
 
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
@@ -19,6 +19,9 @@ import spark.RDD
 import spark.SparkContext._
 
 
+/**
+ * The pre-shuffle group by operator responsible for map side aggregations.
+ */
 class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
 
   @BeanProperty var conf: GroupByDesc = _
@@ -71,16 +74,13 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
         aggregationParameterObjectInspectors(pair._2))
     }
 
-    val fieldNames = conf.getOutputColumnNames    
-    val keyFieldNames = fieldNames.slice(0,keyFields.length)
-    
+    val keyFieldNames = conf.getOutputColumnNames.slice(0, keyFields.length)
     val totalFields = keyFields.length + aggregationEvals.length
     val keyois = new ArrayList[ObjectInspector](totalFields)
     keyObjectInspectors.foreach(keyois.add(_))
 
     keyObjectInspector = SharkEnv.objectInspectorLock.synchronized {
-      ObjectInspectorFactory.getStandardStructObjectInspector(
-        keyFieldNames, keyois)
+      ObjectInspectorFactory.getStandardStructObjectInspector(keyFieldNames, keyois)
     }
 
     keyFactory = new KeyWrapperFactory(keyFields, keyObjectInspectors, currentKeyObjectInspectors)
@@ -88,30 +88,39 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
 
   override def processPartition[T](iter: Iterator[T]) = {
     logInfo("Running Pre-Shuffle Group-By")
-    val hashAggregations = new java.util.HashMap[KeyWrapper, Array[AggregationBuffer]]()
+
+    // Do aggregation on map side using hashAggregations hash table.
+    val hashAggregations = new JHashMap[KeyWrapper, Array[AggregationBuffer]]()
     val newKeys: KeyWrapper = keyFactory.getKeyWrapper()
     iter.foreach { case row: AnyRef =>
-      
       newKeys.getNewKey(row, rowInspector)
       newKeys.setHashKey()
 
       var aggs = hashAggregations.get(newKeys)
-      var newKey = false
+      var isNewKey = false
       if (aggs == null) {
-        newKey = true
+        isNewKey = true
         val newKeyProber = newKeys.copyKey()
         aggs = newAggregations()
         hashAggregations.put(newKeyProber, aggs)
       }
-      aggregate(row, aggs, newKey)
-      Unit
+      aggregate(row, aggs, isNewKey)
     }
-    
+
+    // Generate an iterator for the aggregation output from hashAggregations.
     val outputCache = new Array[Object](keyFields.length + aggregationEvals.length)
     hashAggregations.toIterator.map { case(key, aggrs) =>
       val arr = key.getKeyArray()
-      arr.zipWithIndex foreach { case(key, i) => outputCache(i) = key }
-      aggrs.zipWithIndex foreach { case(aggr, i) => outputCache(i + arr.length) = aggregationEvals(i).evaluate(aggr) }
+      var i = 0
+      while (i < arr.length) {
+        outputCache(i) = arr(i)
+        i += 1
+      }
+      i = 0
+      while (i < aggrs.length) {
+        outputCache(i + arr.length) = aggregationEvals(i).evaluate(aggrs(i))
+        i += 1
+      }
       outputCache
     }
   }
@@ -120,9 +129,8 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
     var i = 0
     while (i < aggregations.length) {
       if (!aggregationIsDistinct(i) || isNewKey) {
-        //TODO: remove .map and reuse aggregationParameterFields array
-        aggregationEvals(i).aggregate(aggregations(i), 
-                                      aggregationParameterFields(i).map(_.evaluate(row)))
+        aggregationEvals(i).aggregate(
+          aggregations(i), aggregationParameterFields(i).map(_.evaluate(row)))
       }
       i += 1
     }

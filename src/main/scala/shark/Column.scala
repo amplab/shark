@@ -22,8 +22,44 @@ import it.unimi.dsi.fastutil.doubles.DoubleArrayList
 import javaewah.EWAHCompressedBitmap
 import javaewah.IntIterator
 
-// Columns hold primitive arrays of data
-// They provide methods to add objects given their objectInspectors and retrieve writable objects
+
+/**
+ * A column of data, backed by some primitive array(s). These columns provide
+ * methods to add objects using their object inspectors and return Hadoop
+ * writable objects.
+ */
+abstract class Column {
+
+  /**
+   *  Initial number of elements in a column.
+   *  TODO(rxin): Choose this more intelligently. See 
+   *  https://github.com/amplab/shark/issues/43
+   */
+  val initialSize = 1000000 // Number of rows
+
+  /**
+   * A compressed bitmap to indicate whether an element is NULL.
+   */
+  val nulls = new EWAHCompressedBitmap()
+  var nullsIter: IntIterator = null
+  var nextNullIndex = -1
+
+  /**
+   * Return a hadoop writable object for the field value in this column at
+   * index position i.
+   */
+  def apply(i: Int): Object
+
+  /**
+   * Use the object inspector to extract the field value from the object and
+   * add it to the columnar collection.
+   */
+  def add(o: Object, oi: ObjectInspector)
+
+  def close(): Unit 
+}
+
+
 object Column {
   def apply(oi: ObjectInspector) = {
     oi.getCategory match {
@@ -44,20 +80,6 @@ object Column {
       case _ => new LazyColumn(oi)
     }
   }
-}
-
-
-abstract class Column {
-  val initialSize = 1000000 // Number of rows
-  val nulls = new EWAHCompressedBitmap()
-  var nullsIter: IntIterator = null
-  var nextNullIndex = -1
-
-  def apply(i: Int): Object
-
-  def add(o: Object, oi: ObjectInspector)
-
-  def close(): Unit 
 }
 
 
@@ -285,6 +307,11 @@ class DoubleColumn extends Column {
 }
 
 
+/**
+ * A string column. Store a collection of strings using a single byte array by
+ * concatenating them together. An additional int array is used to index the
+ * starting position of each string.
+ */
 class StringColumn extends Column {
 
   val arr = new ByteArrayList(initialSize)
@@ -332,7 +359,10 @@ class VoidColumn extends Column {
 }
 
 
-// Holds non-primitive column in serialized form
+/**
+ * For non-primitive columns, serialize the value and store them as a single
+ * byte array.
+ */
 class LazyColumn(outputOI: ObjectInspector) extends Column {
 
   val arr = new ByteArrayList(initialSize) // all serialized bytes

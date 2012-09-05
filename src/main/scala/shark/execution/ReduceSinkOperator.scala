@@ -44,13 +44,7 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
 
     // Note that we get input object inspector from hiveOp rather than Shark's
     // objectInspector because initializeMasterOnAll() hasn't been invoked yet.
-    val vars = ReduceSinkOperator.initializeOisAndSers(conf, hiveOp.getInputObjInspectors().head)
-    keyEval = vars._1
-    valueEval = vars._2
-    keySer = vars._3
-    valueSer = vars._4
-    keyObjInspector = vars._5
-    valObjInspector = vars._6
+    initializeOisAndSers(conf, hiveOp.getInputObjInspectors().head)
 
     // Determine output object inspector (a struct of KEY, VALUE).
     val ois = new ArrayList[ObjectInspector]
@@ -80,20 +74,50 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
     }
   }
 
+  /**
+   * Initialize the object inspectors and serializers. Used on both the master
+   * and the slave.
+   */
+  def initializeOisAndSers(conf: ReduceSinkDesc, rowInspector: ObjectInspector) {
+    keyEval = conf.getKeyCols.map(ExprNodeEvaluatorFactory.get(_)).toArray
+    val numDistributionKeys = conf.getNumDistributionKeys()
+    val distinctColIndices = conf.getDistinctColumnIndices()
+    val numDistinctExprs = distinctColIndices.size()
+    valueEval = conf.getValueCols.map(ExprNodeEvaluatorFactory.get(_)).toArray
+
+    val keyTableDesc = conf.getKeySerializeInfo()
+    keySer = keyTableDesc.getDeserializerClass().newInstance().asInstanceOf[SerDe]
+    keySer.initialize(null, keyTableDesc.getProperties())
+    val keyIsText = keySer.getSerializedClass().equals(classOf[Text])
+
+    val valueTableDesc = conf.getValueSerializeInfo()
+    valueSer = valueTableDesc.getDeserializerClass().newInstance().asInstanceOf[SerDe]
+    valueSer.initialize(null, valueTableDesc.getProperties())
+    
+    keyObjInspector = SharkEnv.objectInspectorLock.synchronized {
+      ReduceSinkOperatorHelper.initEvaluatorsAndReturnStruct(
+        keyEval,
+        distinctColIndices,
+        conf.getOutputKeyColumnNames,
+        numDistributionKeys,
+        rowInspector)
+    }
+    val valFieldInspectors = valueEval.map(eval => eval.initialize(rowInspector)).toList
+    valObjInspector = SharkEnv.objectInspectorLock.synchronized {
+      ObjectInspectorFactory.getStandardStructObjectInspector(
+        conf.getOutputValueColumnNames(), valFieldInspectors)
+    }
+
+    partitionEval = conf.getPartitionCols.map(ExprNodeEvaluatorFactory.get(_)).toArray
+    partitionObjInspectors = partitionEval.map(_.initialize(rowInspector)).toArray
+  }
+
   override def initializeOnMaster() {
     conf = hiveOp.getConf()
   }
 
   override def initializeOnSlave() {
-    val vars = ReduceSinkOperator.initializeOisAndSers(conf, objectInspector)
-    keyEval = vars._1
-    valueEval = vars._2
-    keySer = vars._3
-    valueSer = vars._4
-    keyObjInspector = vars._5
-    valObjInspector = vars._6
-    partitionEval = vars._7
-    partitionObjInspectors = vars._8
+    initializeOisAndSers(conf, objectInspector)
   }
 
   override def processPartition[T](iter: Iterator[T]) = {
@@ -170,44 +194,4 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
       }    
     }
   }
-}
-
-
-object ReduceSinkOperator {
-
-  def initializeOisAndSers(conf: ReduceSinkDesc, rowInspector: ObjectInspector) = {
-    val keyEval = conf.getKeyCols.map(ExprNodeEvaluatorFactory.get(_)).toArray
-    val numDistributionKeys = conf.getNumDistributionKeys()
-    val distinctColIndices = conf.getDistinctColumnIndices()
-    val numDistinctExprs = distinctColIndices.size()
-    val valueEval = conf.getValueCols.map(ExprNodeEvaluatorFactory.get(_)).toArray
-
-    val keyTableDesc = conf.getKeySerializeInfo()
-    val keySer = keyTableDesc.getDeserializerClass().newInstance().asInstanceOf[SerDe]
-    keySer.initialize(null, keyTableDesc.getProperties())
-    val keyIsText = keySer.getSerializedClass().equals(classOf[Text])
-
-    val valueTableDesc = conf.getValueSerializeInfo()
-    val valueSer = valueTableDesc.getDeserializerClass().newInstance().asInstanceOf[SerDe]
-    valueSer.initialize(null, valueTableDesc.getProperties())
-    
-    val keyObjInspector = SharkEnv.objectInspectorLock.synchronized {
-      ReduceSinkOperatorHelper.initEvaluatorsAndReturnStruct(
-        keyEval,
-        distinctColIndices,
-        conf.getOutputKeyColumnNames,
-        numDistributionKeys,
-        rowInspector)
-    }
-    val valFieldInspectors = valueEval.map(eval => eval.initialize(rowInspector)).toList
-    val valObjInspector = SharkEnv.objectInspectorLock.synchronized {
-      ObjectInspectorFactory.getStandardStructObjectInspector(
-        conf.getOutputValueColumnNames(), valFieldInspectors)
-    }
-
-    val partitionEval = conf.getPartitionCols.map(ExprNodeEvaluatorFactory.get(_)).toArray
-    val partitionObjInspectors = partitionEval.map(_.initialize(rowInspector)).toArray
-    (keyEval, valueEval, keySer, valueSer, keyObjInspector, valObjInspector, partitionEval, partitionObjInspectors)
-  }
-
 }
