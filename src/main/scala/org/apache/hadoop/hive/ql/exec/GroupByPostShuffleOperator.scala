@@ -8,17 +8,19 @@ import org.apache.hadoop.hive.ql.exec.{GroupByOperator => HiveGroupByOperator}
 import org.apache.hadoop.hive.ql.plan.{ExprNodeColumnDesc, TableDesc}
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator.AggregationBuffer
-import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorUtils, StandardStructObjectInspector, StructObjectInspector, UnionObject}
+import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorUtils,
+  StandardStructObjectInspector, StructObjectInspector, UnionObject}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption
 import org.apache.hadoop.hive.serde2.{Deserializer, SerDe}
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils
 import org.apache.hadoop.io.BytesWritable
 
+import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
 import shark.execution.{HiveTopOperator, ReduceKey}
-import spark.RDD
+import spark.{Aggregator, HashPartitioner, RDD, ShuffledRDD}
 import spark.SparkContext._
 
 
@@ -161,10 +163,24 @@ with HiveTopOperator {
   override def preprocessRdd[T](rdd: RDD[T]): RDD[_] = {
     var numReduceTasks = hconf.getIntVar(HiveConf.ConfVars.HADOOPNUMREDUCERS)
     // If we have no keys, it needs a total aggregation with 1 reducer.
-    if (numReduceTasks < 1 || conf.getKeys.size == 0) numReduceTasks = 1 
-    rdd.asInstanceOf[RDD[(Any, Any)]].groupByKey(numReduceTasks)
+    if (numReduceTasks < 1 || conf.getKeys.size == 0) numReduceTasks = 1
+
+    // We don't use Spark's groupByKey to avoid map-side combiners in Spark.
+    //rdd.asInstanceOf[RDD[(Any, Any)]].groupByKey(numReduceTasks)
+
+    // TODO(rxin): Rewrite aggregation logic to integrate it with mergeValue.
+    val aggregator = new Aggregator[Any, Any, ArrayBuffer[Any]](
+      GroupByAggregator.createCombiner _,
+      GroupByAggregator.mergeValue _,
+      GroupByAggregator.mergeCombiners _,
+      false)
+
+    new ShuffledRDD(
+      rdd.asInstanceOf[RDD[(Any, Any)]],
+      aggregator,
+      new HashPartitioner(numReduceTasks))
   }
-  
+
   override def processPartition[T](iter: Iterator[T]) = {
     // TODO: we should support outputs besides BytesWritable in case a different
     // SerDe is used for intermediate data.
@@ -294,4 +310,13 @@ with HiveTopOperator {
   }
   
 }
+
+
+object GroupByAggregator {
+  def createCombiner(v: Any) = ArrayBuffer(v)
+  def mergeValue(buf: ArrayBuffer[Any], v: Any) = buf += v
+  def mergeCombiners(b1: ArrayBuffer[Any], b2: ArrayBuffer[Any]) = b1 ++= b2
+}
+
+
 
