@@ -18,7 +18,7 @@
 export SCALA_VERSION=2.9.1
 
 # Set Spark's memory per machine -- you might want to increase this
-export SPARK_MEM=3g
+export SPARK_MEM=2g
 
 # Java options
 # On EC2, change the local.dir to /mnt/tmp
@@ -28,7 +28,7 @@ export SPARK_JAVA_OPTS="-Dspark.local.dir=/tmp -Dspark.kryoserializer.buffer.mb=
 export HIVE_HOME=""
 
 # Point to your Scala installation.
-export SCALA_HOME=""
+export SCALA_HOME="/usr/local/Cellar/scala/2.9.1"
 
 # Set these options when running through spark-ec2 scripts
 #export MASTER=`cat /root/mesos-ec2/cluster-url`
@@ -37,6 +37,6 @@ export SCALA_HOME=""
 #export SCALA_HOME=/root/scala-$SCALA_VERSION.final
 
 # The following is only needed for development and testing (SBT test uses this).
-#export HIVE_DEV_HOME=""
-#export HIVE_HOME=$HIVE_DEV_HOME/build/dist
+export HIVE_DEV_HOME="/Users/rxin/Documents/shark/hive"
+export HIVE_HOME=$HIVE_DEV_HOME/build/dist
 
