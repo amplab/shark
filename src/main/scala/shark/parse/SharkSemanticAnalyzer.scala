@@ -1,12 +1,12 @@
 package shark.parse
 
-import java.util.{ArrayList, List => JavaList}
 import java.lang.reflect.Method
+import java.util.{ArrayList, List => JavaList}
 
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.hadoop.hive.metastore.Warehouse
 import org.apache.hadoop.hive.metastore.api.{FieldSchema, MetaException}
+import org.apache.hadoop.hive.metastore.Warehouse
 import org.apache.hadoop.hive.ql.exec.{DDLTask, FetchTask, MoveTask, TaskFactory}
 import org.apache.hadoop.hive.ql.metadata.HiveException
 import org.apache.hadoop.hive.ql.optimizer.Optimizer
@@ -15,10 +15,9 @@ import org.apache.hadoop.hive.ql.plan._
 import org.apache.hadoop.hive.ql.session.SessionState
 
 import scala.collection.JavaConversions._
-import scala.collection.mutable.Stack
 
 import shark.LogHelper
-import shark.execution.{HiveOperator, Operator, OperatorFactory, SparkWork, ReduceSinkOperator,
+import shark.execution.{HiveOperator, Operator, OperatorFactory, ReduceSinkOperator, SparkWork,
   TerminalAbstractOperator, TerminalOperator}
 
 
@@ -56,9 +55,10 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     //TODO: can probably reuse Hive code for this
     // analyze create table command
     var isCTAS = false
+    var shouldCache = false
     if (ast.getToken().getType() == HiveParser.TOK_CREATETABLE) {
       super.analyzeInternal(ast)
-      for(ch <- ast.getChildren) {
+      for (ch <- ast.getChildren) {
         ch.asInstanceOf[ASTNode].getToken.getType match {
           case HiveParser.TOK_QUERY => {
             isCTAS = true
@@ -75,8 +75,9 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       if (!isCTAS || td == null) {
         return
       } else {
-        if (td.getTableName.endsWith("_cached")) {
-         td.setSerName(classOf[shark.ColumnarSerDe].getName)
+        shouldCache = td.getTblProps().getOrElse("shark.cache", "false").toBoolean
+        if (shouldCache) {
+          td.setSerName(classOf[shark.ColumnarSerDe].getName)
         }
         qb.setTableDesc(td)
         reset()
@@ -91,18 +92,18 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       return super.analyzeInternal(ast)
     }
 
-    // continue analyzing from the child ASTNode.
+    // Continue analyzing from the child ASTNode.
     doPhase1(child, qb, initPhase1Ctx())
     logInfo("Completed phase 1 of Shark Semantic Analysis")
     getMetaData(qb)
     logInfo("Completed getting MetaData in Shark Semantic Analysis")
-    
+
     // Save the result schema derived from the sink operator produced
-    // by genPlan.  This has the correct column names, which clients
+    // by genPlan. This has the correct column names, which clients
     // such as JDBC would prefer instead of the c0, c1 we'll end
     // up with later.
     val hiveSinkOp = genPlan(qb).asInstanceOf[org.apache.hadoop.hive.ql.exec.FileSinkOperator]
-    
+
     // Use reflection to invoke convertRowSchemaToViewSchema.
     _resSchema = SharkSemanticAnalyzer.convertRowSchemaToViewSchemaMethod.invoke(
       this, pctx.getOpParseCtx.get(hiveSinkOp).getRowResolver()
@@ -119,13 +120,13 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     // Replace Hive physical plan with Shark plan. This needs to happen after
     // Hive optimization.
     val hiveSinkOps = SharkSemanticAnalyzer.findAllHiveFileSinkOperators(
-        pCtx.getTopOps().values().head)
-    
+      pCtx.getTopOps().values().head)
+
     if (hiveSinkOps.size == 1) {
       // For a single output, we have the option of choosing the output
-      // destination (e.g. CTAS with _cached).
+      // destination (e.g. CTAS with table property "shark.cache" = "true").
       val terminalOp = {
-        if (isCTAS && qb.getTableDesc != null && qb.getTableDesc.getTableName.endsWith("_cached")) {
+        if (isCTAS && qb.getTableDesc != null && shouldCache) {
           OperatorFactory.createSharkCacheOutputPlan(hiveSinkOps.head, qb.getTableDesc.getTableName)
         } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink) {
           OperatorFactory.createSharkRddOutputPlan(hiveSinkOps.head)
@@ -164,27 +165,27 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     }
 
     if (qb.getIsQuery) {
-      // Configure FetchTask (used for fetching results to CLIDriver)
+      // Configure FetchTask (used for fetching results to CLIDriver).
       val loadWork = getParseContext.getLoadFileWork.get(0)
       val cols = loadWork.getColumns
       val colTypes = loadWork.getColumnTypes
-      
+
       val resFileFormat = HiveConf.getVar(conf, HiveConf.ConfVars.HIVEQUERYRESULTFILEFORMAT)
       val resultTab = PlanUtils.getDefaultQueryOutputTableDesc(cols, colTypes, resFileFormat)
-      
+
       val fetchWork = new FetchWork(
         new Path(loadWork.getSourceDir).toString, resultTab, qb.getParseInfo.getOuterQueryLimit)
-      
+
       val fetchTask = TaskFactory.get(fetchWork, conf).asInstanceOf[FetchTask]
       setFetchTask(fetchTask)
 
     } else {
-      // Configure MoveTasks for table updates (e.g. CTAS, INSERT)
+      // Configure MoveTasks for table updates (e.g. CTAS, INSERT).
       val mvTasks = new ArrayList[MoveTask]()
-      
+
       val fileWork = getParseContext.getLoadFileWork
       val tableWork = getParseContext.getLoadTableWork
-      tableWork.foreach { ltd => 
+      tableWork.foreach { ltd =>
         mvTasks.add(TaskFactory.get(
           new MoveWork(null, null, ltd, null, false), conf).asInstanceOf[MoveTask])
       }
@@ -196,8 +197,8 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
             try {
               val dumpTable = db.newTable(qb.getTableDesc.getTableName)
               val wh = new Warehouse(conf)
-              location = wh.getDefaultTablePath(dumpTable.getDbName,
-                  dumpTable.getTableName).toString
+              location = wh.getDefaultTablePath(
+                dumpTable.getDbName, dumpTable.getTableName).toString
             } catch {
               case e: HiveException => throw new SemanticException(e)
               case e: MetaException => throw new SemanticException(e)
@@ -205,7 +206,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
           }
           lfd.setTargetDir(location)
         }
-        
+
         mvTasks.add(TaskFactory.get(
           new MoveWork(null, null, null, lfd, false), conf).asInstanceOf[MoveTask])
       }
@@ -241,17 +242,17 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
 
       // Use reflection to call validateCreateTable, which is private.
       val validateCreateTableMethod = this.getClass.getSuperclass.getDeclaredMethod(
-          "validateCreateTable", classOf[CreateTableDesc])
+        "validateCreateTable", classOf[CreateTableDesc])
       validateCreateTableMethod.setAccessible(true)
       validateCreateTableMethod.invoke(this, crtTblDesc)
-      
+
       // Clear the output for CTAS since we don't need the output from the
-      // mapredWork, the DDLWork at the tail of the chain will have the output
+      // mapredWork, the DDLWork at the tail of the chain will have the output.
       getOutputs.clear()
-      
+
       // CTAS assumes only single output.
-      val crtTblTask = TaskFactory.get(new DDLWork(getInputs, getOutputs, crtTblDesc),
-          conf).asInstanceOf[DDLTask]
+      val crtTblTask = TaskFactory.get(
+        new DDLWork(getInputs, getOutputs, crtTblDesc),conf).asInstanceOf[DDLTask]
       rootTasks.head.addDependentTask(crtTblTask)
     }
   }
@@ -259,12 +260,12 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
 
 
 object SharkSemanticAnalyzer extends LogHelper {
-  
+
   /**
    * The reflection object used to invoke convertRowSchemaToViewSchema.
    */
   val convertRowSchemaToViewSchemaMethod = classOf[SemanticAnalyzer].getDeclaredMethod(
-      "convertRowSchemaToViewSchema", classOf[RowResolver])
+    "convertRowSchemaToViewSchema", classOf[RowResolver])
   convertRowSchemaToViewSchemaMethod.setAccessible(true)
 
   /**
@@ -315,4 +316,3 @@ object SharkSemanticAnalyzer extends LogHelper {
     }
   }
 }
-
