@@ -4,17 +4,25 @@ import java.io.{DataInput, DataOutput}
 import java.util.Properties
 
 import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.hdfs.DFSConfigKeys
 import org.apache.hadoop.hive.serde2.{ByteStream, SerDe, SerDeException}
 import org.apache.hadoop.hive.serde2.`lazy`.{LazyFactory, LazySimpleSerDe}
 import org.apache.hadoop.hive.serde2.`lazy`.LazySimpleSerDe.SerDeParameters
+import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
+import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
 import org.apache.hadoop.hive.serde2.objectinspector.StructField
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
-import org.apache.hadoop.hive.serde2.typeinfo.{TypeInfo, PrimitiveTypeInfo}
+import org.apache.hadoop.hive.serde2.objectinspector.UnionObjectInspector
+import org.apache.hadoop.hive.serde2.typeinfo.{PrimitiveTypeInfo, TypeInfo}
 import org.apache.hadoop.io.Writable
+
+import scala.collection.JavaConversions._
 
 
 class ColumnarSerDe extends SerDe {
@@ -22,13 +30,15 @@ class ColumnarSerDe extends SerDe {
   var cachedObjectInspector: StructObjectInspector = _
   var cachedWritable: ColumnarWritable = _
   var cachedStruct: ColumnarStruct = _
+  var conf: Configuration = _
   var serDeParams: SerDeParameters = _
   val serializeStream = new ByteStream.Output()
 
   def initialize(job: Configuration, tbl: Properties) {
     serDeParams = LazySimpleSerDe.initSerdeParams(job, tbl, getClass().getName())
-    // create oi & writable
+    // Create oi & writable.
     cachedObjectInspector = ColumnarStructObjectInspector(serDeParams)
+    conf = job
   }
 
   def deserialize(blob: Writable): Object = {  
@@ -48,14 +58,13 @@ class ColumnarSerDe extends SerDe {
   
   def serialize(obj: Object, objInspector: ObjectInspector): Writable = {
     if (cachedWritable == null) {
-      cachedWritable = new ColumnarWritable(cachedObjectInspector)
+      cachedWritable = new ColumnarWritable(cachedObjectInspector, conf)
     }
     val soi = objInspector.asInstanceOf[StructObjectInspector]
     val fields = soi.getAllStructFieldRefs
     //Doesn't handle complex things yet
     var i = 0
     while (i < fields.size) {
-    //for (i <- 0 until fields.size) {
       val field = fields.get(i)
       val fieldOI = field.getFieldObjectInspector
       fieldOI.getCategory match {
@@ -82,14 +91,26 @@ class ColumnarSerDe extends SerDe {
   }
 }
 
-
-class ColumnarWritable(oi: StructObjectInspector) extends Writable {
+class ColumnarWritable(oi: StructObjectInspector, conf: Configuration)
+  extends Writable {
 
   val fields = oi.getAllStructFieldRefs
   val columns = new Array[Column](fields.size)
 
+  // Determine the initial capacity for ArrayList columns.
+  var initialColumnSize = SharkConfVars.getIntVar(conf, SharkConfVars.COLUMN_INITIALSIZE)
+  if (initialColumnSize == - 1) {
+    // Try both "dfs.block.size" and "dfs.blocksize" (from DFS_BLOCK_SIZE_KEY),
+    // which is the new name since Hadoop 0.21.0.
+    val partitionSize = conf.getLong(DFSConfigKeys.DFS_BLOCK_SIZE_KEY,
+      conf.getLong("dfs.block.size", DFSConfigKeys.DFS_BLOCK_SIZE_DEFAULT))
+    val fieldSize = ColumnarWritable.getFieldSize(oi)
+    initialColumnSize = (partitionSize / (fieldSize *
+      oi.getAllStructFieldRefs().size).toLong).toInt
+  }
+
   (0 until columns.length).foreach { i =>
-    columns(i) = Column(fields.get(i).getFieldObjectInspector)
+    columns(i) = Column(fields.get(i).getFieldObjectInspector, initialColumnSize)
   }
 
   def getField(id: Int, rowId: Int): Object = {
@@ -110,6 +131,76 @@ class ColumnarWritable(oi: StructObjectInspector) extends Writable {
   }
 }
 
+object ColumnarWritable {
+
+  // Sizes of primitive types
+  private val BOOLEAN_SIZE = 1
+  private val BYTE_SIZE = 1
+  private val SHORT_SIZE = 2
+  private val INT_SIZE = 4
+  private val LONG_SIZE = 8
+  private val FLOAT_SIZE = 4
+  private val DOUBLE_SIZE = 8
+  private val STRING_SIZE = 16
+
+  // Void columns are represented by NullWritable, which is a singleton, so it's not
+  // large enough to matter.
+  private val NULL_SIZE = 0
+
+  // Size of an object reference.
+  private val pointerSize = if (System.getProperty("os.arch").contains("64")) 8 else 4
+
+  // Estimates for complex types. Includes overhead and pointer sizes for Java HashMap and
+  // ArrayList objects, based on Spark's SizeEstimator.estimate().
+  private val avgListLength = 5
+  private val listOverhead = 88 + pointerSize * avgListLength
+  private val avgMapSize = 5
+  private val mapOverhead = 152 + pointerSize * avgMapSize
+
+  // Determine average field size from the ObjectInspector passed. Should remove parts for
+  // nested data once those are supported.
+  def getFieldSize(oi: ObjectInspector): Int = {
+    val size = oi.getCategory match {
+      case Category.PRIMITIVE => {
+        oi.asInstanceOf[PrimitiveObjectInspector].getPrimitiveCategory match {
+          case PrimitiveCategory.BOOLEAN => BOOLEAN_SIZE
+          case PrimitiveCategory.BYTE => BYTE_SIZE
+          case PrimitiveCategory.SHORT => SHORT_SIZE
+          case PrimitiveCategory.INT => INT_SIZE
+          case PrimitiveCategory.LONG => LONG_SIZE
+          case PrimitiveCategory.FLOAT => FLOAT_SIZE
+          case PrimitiveCategory.DOUBLE => DOUBLE_SIZE
+          case PrimitiveCategory.STRING => STRING_SIZE
+          case PrimitiveCategory.VOID => NULL_SIZE
+          case _ => throw new Exception("Invalid primitive object inspector category")
+        }
+      }
+      case Category.LIST => {
+        val listOISize = getFieldSize(oi.asInstanceOf[ListObjectInspector].getListElementObjectInspector())
+        listOverhead + listOISize * avgListLength
+      }
+      case Category.STRUCT => {
+        val fieldRefs = oi.asInstanceOf[StructObjectInspector].getAllStructFieldRefs()
+        fieldRefs.foldLeft(0)((sum, structField) =>
+          sum + getFieldSize(structField.getFieldObjectInspector))
+      }
+      case Category.UNION => {
+        val unionOIs = oi.asInstanceOf[UnionObjectInspector].getObjectInspectors()
+        val unionOISizes = unionOIs.foldLeft(0)((sum, unionOI) =>
+          sum + getFieldSize(unionOI))
+        unionOISizes / unionOIs.size
+      }
+      case Category.MAP => {
+        val mapOI = oi.asInstanceOf[MapObjectInspector]
+        val keySize = getFieldSize(mapOI.getMapKeyObjectInspector())
+        val valueSize = getFieldSize(mapOI.getMapValueObjectInspector())
+        mapOverhead + (avgMapSize * (keySize + valueSize))
+      }
+      case _ => throw new Exception("Invalid primitive object inspector category")
+    }
+    return size
+  }
+}
 
 class ColumnarStruct(val data: ColumnarWritable) {
 
@@ -131,7 +222,6 @@ class ColumnarStruct(val data: ColumnarWritable) {
     l
   }
 }
-
 
 class ColumnarStructObjectInspector(fields: java.util.List[StructField]) extends StructObjectInspector {
 

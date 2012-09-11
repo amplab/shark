@@ -11,6 +11,12 @@ object SharkConfVars {
   // This is created for testing. Hive's test script assumes a certain output
   // format. To pass the test scripts, we need to use Hive's EXPLAIN.
   val EXPLAIN_MODE = new ConfVar("shark.explain.mode", "shark")
+
+  // Specify the initial capacity for ArrayLists used to represent columns in columnar
+  // cache. The default -1 for non-local mode means that Shark will try to estimate
+  // the number of rows by using: partition_size / (num_columns * avg_field_size).
+  val COLUMN_INITIALSIZE = new ConfVar("shark.columnar.cache.initialSize",
+    if (System.getenv("MASTER") == null) 100 else -1)
   
   def getIntVar(conf: Configuration, variable: ConfVar): Int = {
     require(variable.valClass == classOf[Int])
@@ -65,18 +71,18 @@ case class ConfVar(
   }
 
   def this(varname: String, defaultVal: Int) = {
-    this(varname, classOf[String], null, defaultVal, 0, 0, false)
+    this(varname, classOf[Int], null, defaultVal, 0, 0, false)
   }
 
   def this(varname: String, defaultVal: Long) = {
-    this(varname, classOf[String], null, 0, defaultVal, 0, false)
+    this(varname, classOf[Long], null, 0, defaultVal, 0, false)
   }
 
   def this(varname: String, defaultVal: Float) = {
-    this(varname, classOf[String], null, 0, 0, defaultVal, false)
+    this(varname, classOf[Float], null, 0, 0, defaultVal, false)
   }
 
   def this(varname: String, defaultVal: Boolean) = {
-    this(varname, classOf[String], null, 0, 0, 0, defaultVal)
+    this(varname, classOf[Boolean], null, 0, 0, 0, defaultVal)
   }
 }
