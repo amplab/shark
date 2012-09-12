@@ -1,26 +1,26 @@
 package shark
 
-import org.apache.hadoop.io.{BooleanWritable, IntWritable, LongWritable, FloatWritable, Text, NullWritable}
-import org.apache.hadoop.hive.serde2.io.ShortWritable
-import org.apache.hadoop.hive.serde2.io.DoubleWritable
+import it.unimi.dsi.fastutil.booleans.BooleanArrayList
+import it.unimi.dsi.fastutil.bytes.ByteArrayList
+import it.unimi.dsi.fastutil.doubles.DoubleArrayList
+import it.unimi.dsi.fastutil.floats.FloatArrayList
+import it.unimi.dsi.fastutil.ints.IntArrayList
+import it.unimi.dsi.fastutil.longs.LongArrayList
+import it.unimi.dsi.fastutil.shorts.ShortArrayList
+import javaewah.EWAHCompressedBitmap
+import javaewah.IntIterator
+import org.apache.hadoop.hive.serde2.ByteStream
 import org.apache.hadoop.hive.serde2.io.ByteWritable
+import org.apache.hadoop.hive.serde2.io.DoubleWritable
+import org.apache.hadoop.hive.serde2.io.ShortWritable
+import org.apache.hadoop.hive.serde2.`lazy`.ByteArrayRef
+import org.apache.hadoop.hive.serde2.`lazy`.LazyFactory
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category
 import org.apache.hadoop.hive.serde2.objectinspector.primitive._
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
-import org.apache.hadoop.hive.serde2.ByteStream
-import org.apache.hadoop.hive.serde2.`lazy`.ByteArrayRef
-import org.apache.hadoop.hive.serde2.`lazy`.LazyFactory
-import it.unimi.dsi.fastutil.booleans.BooleanArrayList
-import it.unimi.dsi.fastutil.bytes.ByteArrayList
-import it.unimi.dsi.fastutil.ints.IntArrayList
-import it.unimi.dsi.fastutil.shorts.ShortArrayList
-import it.unimi.dsi.fastutil.longs.LongArrayList
-import it.unimi.dsi.fastutil.floats.FloatArrayList
-import it.unimi.dsi.fastutil.doubles.DoubleArrayList
-import javaewah.EWAHCompressedBitmap
-import javaewah.IntIterator
+import org.apache.hadoop.io.{BooleanWritable, FloatWritable, IntWritable, LongWritable, NullWritable, Text}
 
 
 /**
@@ -29,13 +29,6 @@ import javaewah.IntIterator
  * writable objects.
  */
 abstract class Column {
-
-  /**
-   *  Initial number of elements in a column.
-   *  TODO(rxin): Choose this more intelligently. See 
-   *  https://github.com/amplab/shark/issues/43
-   */
-  val initialSize = 1000000 // Number of rows
 
   /**
    * A compressed bitmap to indicate whether an element is NULL.
@@ -61,29 +54,29 @@ abstract class Column {
 
 
 object Column {
-  def apply(oi: ObjectInspector) = {
+  def apply(oi: ObjectInspector, initialSize: Int) = {
     oi.getCategory match {
       case Category.PRIMITIVE => {
         oi.asInstanceOf[PrimitiveObjectInspector].getPrimitiveCategory match {
-          case PrimitiveCategory.BOOLEAN =>  new BooleanColumn()
-          case PrimitiveCategory.BYTE => new ByteColumn()
-          case PrimitiveCategory.SHORT => new ShortColumn()
-          case PrimitiveCategory.INT => new IntColumn()
-          case PrimitiveCategory.LONG => new LongColumn()
-          case PrimitiveCategory.FLOAT => new FloatColumn()
-          case PrimitiveCategory.DOUBLE => new DoubleColumn()
-          case PrimitiveCategory.STRING => new StringColumn()
+          case PrimitiveCategory.BOOLEAN => new BooleanColumn(initialSize)
+          case PrimitiveCategory.BYTE => new ByteColumn(initialSize)
+          case PrimitiveCategory.SHORT => new ShortColumn(initialSize)
+          case PrimitiveCategory.INT => new IntColumn(initialSize)
+          case PrimitiveCategory.LONG => new LongColumn(initialSize)
+          case PrimitiveCategory.FLOAT => new FloatColumn(initialSize)
+          case PrimitiveCategory.DOUBLE => new DoubleColumn(initialSize)
+          case PrimitiveCategory.STRING => new StringColumn(initialSize)
           case PrimitiveCategory.VOID => new VoidColumn()
           case _ => throw new Exception("Invalid primitive object inspector category")
         }
       }
-      case _ => new LazyColumn(oi)
+      case _ => new LazyColumn(oi, initialSize)
     }
   }
 }
 
 
-class BooleanColumn extends Column {
+class BooleanColumn(initialSize: Int) extends Column {
 
   val arr = new BooleanArrayList(initialSize)
   val w = new BooleanWritable()
@@ -115,7 +108,7 @@ class BooleanColumn extends Column {
 }
 
 
-class ByteColumn extends Column {
+class ByteColumn(initialSize: Int) extends Column {
 
   val arr = new ByteArrayList(initialSize)
   val w = new ByteWritable()
@@ -147,7 +140,7 @@ class ByteColumn extends Column {
 }
 
 
-class ShortColumn extends Column {
+class ShortColumn(initialSize: Int) extends Column {
 
   val arr = new ShortArrayList(initialSize)
   val w = new ShortWritable()
@@ -179,7 +172,7 @@ class ShortColumn extends Column {
 }
 
 
-class IntColumn extends Column {
+class IntColumn(initialSize: Int) extends Column {
 
   val arr = new IntArrayList(initialSize)
   val w = new IntWritable()
@@ -211,7 +204,7 @@ class IntColumn extends Column {
 }
 
 
-class LongColumn extends Column {
+class LongColumn(initialSize: Int) extends Column {
 
   val arr = new LongArrayList(initialSize)
   val w = new LongWritable()
@@ -243,7 +236,7 @@ class LongColumn extends Column {
 }
 
 
-class FloatColumn extends Column {
+class FloatColumn(initialSize: Int) extends Column {
 
   val arr = new FloatArrayList(initialSize)
   val w = new FloatWritable()
@@ -275,7 +268,7 @@ class FloatColumn extends Column {
 }
 
 
-class DoubleColumn extends Column {
+class DoubleColumn(initialSize: Int) extends Column {
 
   val arr = new DoubleArrayList(initialSize)
   val w = new DoubleWritable()
@@ -312,10 +305,11 @@ class DoubleColumn extends Column {
  * concatenating them together. An additional int array is used to index the
  * starting position of each string.
  */
-class StringColumn extends Column {
+class StringColumn(initialSize: Int) extends Column {
 
-  val arr = new ByteArrayList(initialSize)
-  val starts = new IntArrayList(initialSize) // start of each string
+  val arr = new ByteArrayList(initialSize * ColumnarSerDe.STRING_SIZE)
+  // Start of each string.
+  val starts = new IntArrayList(initialSize)
   val w: Text = new Text()
 
   starts.add(0)
@@ -351,7 +345,7 @@ class StringColumn extends Column {
 }
 
 
-class VoidColumn extends Column {
+class VoidColumn() extends Column {
   val void = NullWritable.get()
   override def apply(i: Int) = void
   override def add(o: Object, oi: ObjectInspector) {}
@@ -363,10 +357,13 @@ class VoidColumn extends Column {
  * For non-primitive columns, serialize the value and store them as a single
  * byte array.
  */
-class LazyColumn(outputOI: ObjectInspector) extends Column {
+class LazyColumn(outputOI: ObjectInspector, initialSize: Int) extends Column {
 
-  val arr = new ByteArrayList(initialSize) // all serialized bytes
-  val starts = new IntArrayList(initialSize) // start of each serialized object
+  // Multiply the initialSize by a factor that's based on the object types contained
+  // by the non-primitive object.
+  val arr = new ByteArrayList(initialSize * ColumnarSerDe.getFieldSize(outputOI))
+  // Start of each serialized object.
+  val starts = new IntArrayList(initialSize)
   val o = LazyFactory.createLazyObject(outputOI)
   val ref = new ByteArrayRef()
 
@@ -378,7 +375,8 @@ class LazyColumn(outputOI: ObjectInspector) extends Column {
     o
   }
 
-  override def add(o: Object, oi: ObjectInspector) { //Our object is an already serialized bytearray
+  // The object is already a serialized bytearray.
+  override def add(o: Object, oi: ObjectInspector) {
     val bytes = o.asInstanceOf[ByteStream.Output]
     starts.add(arr.size() + bytes.getCount)
     arr.addElements(arr.size(), bytes.getData, 0, bytes.getCount)
