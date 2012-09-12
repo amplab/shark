@@ -25,20 +25,44 @@ import org.apache.hadoop.io.Writable
 import scala.collection.JavaConversions._
 
 
-class ColumnarSerDe extends SerDe {
+class ColumnarSerDe extends SerDe with LogHelper {
 
   var cachedObjectInspector: StructObjectInspector = _
   var cachedWritable: ColumnarWritable = _
   var cachedStruct: ColumnarStruct = _
-  var conf: Configuration = _
   var serDeParams: SerDeParameters = _
+  var initialColumnSize: Int = _
   val serializeStream = new ByteStream.Output()
 
-  def initialize(job: Configuration, tbl: Properties) {
-    serDeParams = LazySimpleSerDe.initSerdeParams(job, tbl, getClass().getName())
+
+  def initialize(conf: Configuration, tbl: Properties) {
+    serDeParams = LazySimpleSerDe.initSerdeParams(conf, tbl, getClass().getName())
     // Create oi & writable.
     cachedObjectInspector = ColumnarStructObjectInspector(serDeParams)
-    conf = job
+
+    // This null check is needed because Hive's SemanticAnalyzer.genFileSinkPlan() creates
+    // an instance of the table's StructObjectInspector by creating an instance SerDe, which
+    // it initializes by passing a 'null' argument for 'conf'.
+    if (conf != null) {
+      initialColumnSize = SharkConfVars.getIntVar(conf, SharkConfVars.COLUMN_INITIALSIZE)
+
+      if (initialColumnSize == - 1) {
+        // Approximate the size of a partition by using the HDFS "dfs.block.size" config.
+        // Try both "dfs.block.size" and "dfs.blocksize" (from DFS_BLOCK_SIZE_KEY), which
+        // is the new name since Hadoop 0.21.0
+        val partitionSize = conf.getLong(DFSConfigKeys.DFS_BLOCK_SIZE_KEY,
+          conf.getLong("dfs.block.size", DFSConfigKeys.DFS_BLOCK_SIZE_DEFAULT))
+
+        logDebug("Estimated size of partition to cache is " + partitionSize)
+
+        // Estimate the initial capacity for ArrayList columns using:
+        // partition_size / (num_columns * avg_field_size).
+        val rowSize = ColumnarSerDe.getFieldSize(cachedObjectInspector).toLong
+        initialColumnSize = (partitionSize / rowSize).toInt
+
+        logDebug("Estimated size of each row is: " + rowSize)
+      }
+    }
   }
 
   def deserialize(blob: Writable): Object = {  
@@ -57,9 +81,11 @@ class ColumnarSerDe extends SerDe {
   }
   
   def serialize(obj: Object, objInspector: ObjectInspector): Writable = {
+
     if (cachedWritable == null) {
-      cachedWritable = new ColumnarWritable(cachedObjectInspector, conf)
+      cachedWritable = new ColumnarWritable(cachedObjectInspector, initialColumnSize)
     }
+
     val soi = objInspector.asInstanceOf[StructObjectInspector]
     val fields = soi.getAllStructFieldRefs
     //Doesn't handle complex things yet
@@ -91,23 +117,12 @@ class ColumnarSerDe extends SerDe {
   }
 }
 
-class ColumnarWritable(oi: StructObjectInspector, conf: Configuration)
+class ColumnarWritable(oi: StructObjectInspector, initialColumnSize: Int)
+
   extends Writable {
 
   val fields = oi.getAllStructFieldRefs
   val columns = new Array[Column](fields.size)
-
-  // Determine the initial capacity for ArrayList columns.
-  var initialColumnSize = SharkConfVars.getIntVar(conf, SharkConfVars.COLUMN_INITIALSIZE)
-  if (initialColumnSize == - 1) {
-    // Try both "dfs.block.size" and "dfs.blocksize" (from DFS_BLOCK_SIZE_KEY),
-    // which is the new name since Hadoop 0.21.0.
-    val partitionSize = conf.getLong(DFSConfigKeys.DFS_BLOCK_SIZE_KEY,
-      conf.getLong("dfs.block.size", DFSConfigKeys.DFS_BLOCK_SIZE_DEFAULT))
-    val fieldSize = ColumnarWritable.getFieldSize(oi)
-    initialColumnSize = (partitionSize / (fieldSize *
-      oi.getAllStructFieldRefs().size).toLong).toInt
-  }
 
   (0 until columns.length).foreach { i =>
     columns(i) = Column(fields.get(i).getFieldObjectInspector, initialColumnSize)
@@ -131,31 +146,27 @@ class ColumnarWritable(oi: StructObjectInspector, conf: Configuration)
   }
 }
 
-object ColumnarWritable {
+object ColumnarSerDe {
 
   // Sizes of primitive types
-  private val BOOLEAN_SIZE = 1
-  private val BYTE_SIZE = 1
-  private val SHORT_SIZE = 2
-  private val INT_SIZE = 4
-  private val LONG_SIZE = 8
-  private val FLOAT_SIZE = 4
-  private val DOUBLE_SIZE = 8
-  private val STRING_SIZE = 16
+  val BOOLEAN_SIZE = 1
+  val BYTE_SIZE = 1
+  val SHORT_SIZE = 2
+  val INT_SIZE = 4
+  val LONG_SIZE = 8
+  val FLOAT_SIZE = 4
+  val DOUBLE_SIZE = 8
+
+  // Strings are assumed to be 16 bytes on average.
+  val STRING_SIZE = 16
 
   // Void columns are represented by NullWritable, which is a singleton, so it's not
   // large enough to matter.
-  private val NULL_SIZE = 0
+  val NULL_SIZE = 0
 
-  // Size of an object reference.
-  private val pointerSize = if (System.getProperty("os.arch").contains("64")) 8 else 4
-
-  // Estimates for complex types. Includes overhead and pointer sizes for Java HashMap and
-  // ArrayList objects, based on Spark's SizeEstimator.estimate().
-  private val avgListLength = 5
-  private val listOverhead = 88 + pointerSize * avgListLength
-  private val avgMapSize = 5
-  private val mapOverhead = 152 + pointerSize * avgMapSize
+  // Estimates for average sizes of Lists and Maps.
+  val MAP_SIZE = 5
+  val LIST_SIZE = 5
 
   // Determine average field size from the ObjectInspector passed. Should remove parts for
   // nested data once those are supported.
@@ -177,7 +188,7 @@ object ColumnarWritable {
       }
       case Category.LIST => {
         val listOISize = getFieldSize(oi.asInstanceOf[ListObjectInspector].getListElementObjectInspector())
-        listOverhead + listOISize * avgListLength
+        LIST_SIZE * listOISize
       }
       case Category.STRUCT => {
         val fieldRefs = oi.asInstanceOf[StructObjectInspector].getAllStructFieldRefs()
@@ -194,7 +205,7 @@ object ColumnarWritable {
         val mapOI = oi.asInstanceOf[MapObjectInspector]
         val keySize = getFieldSize(mapOI.getMapKeyObjectInspector())
         val valueSize = getFieldSize(mapOI.getMapValueObjectInspector())
-        mapOverhead + (avgMapSize * (keySize + valueSize))
+        MAP_SIZE * (keySize + valueSize)
       }
       case _ => throw new Exception("Invalid primitive object inspector category")
     }
@@ -302,4 +313,3 @@ extends StructField {
     return "" + fieldID + ":" + fieldName
   }
 }
-

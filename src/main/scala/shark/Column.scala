@@ -66,7 +66,7 @@ object Column {
           case PrimitiveCategory.FLOAT => new FloatColumn(initialSize)
           case PrimitiveCategory.DOUBLE => new DoubleColumn(initialSize)
           case PrimitiveCategory.STRING => new StringColumn(initialSize)
-          case PrimitiveCategory.VOID => new VoidColumn(initialSize)
+          case PrimitiveCategory.VOID => new VoidColumn()
           case _ => throw new Exception("Invalid primitive object inspector category")
         }
       }
@@ -307,8 +307,9 @@ class DoubleColumn(initialSize: Int) extends Column {
  */
 class StringColumn(initialSize: Int) extends Column {
 
-  val arr = new ByteArrayList(initialSize)
-  val starts = new IntArrayList(initialSize) // start of each string
+  val arr = new ByteArrayList(initialSize * ColumnarSerDe.STRING_SIZE)
+  // Start of each string.
+  val starts = new IntArrayList(initialSize)
   val w: Text = new Text()
 
   starts.add(0)
@@ -344,7 +345,7 @@ class StringColumn(initialSize: Int) extends Column {
 }
 
 
-class VoidColumn(initialSize: Int) extends Column {
+class VoidColumn() extends Column {
   val void = NullWritable.get()
   override def apply(i: Int) = void
   override def add(o: Object, oi: ObjectInspector) {}
@@ -358,8 +359,11 @@ class VoidColumn(initialSize: Int) extends Column {
  */
 class LazyColumn(outputOI: ObjectInspector, initialSize: Int) extends Column {
 
-  val arr = new ByteArrayList(initialSize) // all serialized bytes
-  val starts = new IntArrayList(initialSize) // start of each serialized object
+  // Multiply the initialSize by a factor that's based on the object types contained
+  // by the non-primitive object.
+  val arr = new ByteArrayList(initialSize * ColumnarSerDe.getFieldSize(outputOI))
+  // Start of each serialized object.
+  val starts = new IntArrayList(initialSize)
   val o = LazyFactory.createLazyObject(outputOI)
   val ref = new ByteArrayRef()
 
@@ -371,7 +375,8 @@ class LazyColumn(outputOI: ObjectInspector, initialSize: Int) extends Column {
     o
   }
 
-  override def add(o: Object, oi: ObjectInspector) { //Our object is an already serialized bytearray
+  // The object is already a serialized bytearray.
+  override def add(o: Object, oi: ObjectInspector) {
     val bytes = o.asInstanceOf[ByteStream.Output]
     starts.add(arr.size() + bytes.getCount)
     arr.addElements(arr.size(), bytes.getData, 0, bytes.getCount)

@@ -19,6 +19,7 @@ import scala.collection.JavaConversions._
 import shark.LogHelper
 import shark.execution.{HiveOperator, Operator, OperatorFactory, ReduceSinkOperator, SparkWork,
   TerminalAbstractOperator, TerminalOperator}
+import shark.SharkConfVars
 
 
 /**
@@ -75,7 +76,9 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       if (!isCTAS || td == null) {
         return
       } else {
-        shouldCache = td.getTblProps().getOrElse("shark.cache", "false").toBoolean
+        shouldCache = td.getTblProps().getOrElse("shark.cache", "false").toBoolean ||
+          (SharkConfVars.getBoolVar(conf, SharkConfVars.CHECK_TABLENAME_FLAG) &&
+          td.getTableName.endsWith("_cached"))
         if (shouldCache) {
           td.setSerName(classOf[shark.ColumnarSerDe].getName)
         }
