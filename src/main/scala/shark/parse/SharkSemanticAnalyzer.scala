@@ -57,6 +57,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     // analyze create table command
     var isCTAS = false
     var shouldCache = false
+    var shouldReset = false
     if (ast.getToken().getType() == HiveParser.TOK_CREATETABLE) {
       super.analyzeInternal(ast)
       for (ch <- ast.getChildren) {
@@ -83,7 +84,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
           td.setSerName(classOf[shark.ColumnarSerDe].getName)
         }
         qb.setTableDesc(td)
-        reset()
+        shouldReset = true
       }
     } else {
       SessionState.get().setCommandType(HiveOperation.QUERY)
@@ -100,6 +101,8 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     logInfo("Completed phase 1 of Shark Semantic Analysis")
     getMetaData(qb)
     logInfo("Completed getting MetaData in Shark Semantic Analysis")
+
+    if (shouldReset) reset()
 
     // Save the result schema derived from the sink operator produced
     // by genPlan. This has the correct column names, which clients
