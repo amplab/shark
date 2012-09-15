@@ -191,7 +191,12 @@ class CustomPipedRdd(
   override val dependencies = List(new OneToOneDependency(parent))
 
   override def compute(split: Split): Iterator[Writable] = {
-    val pb = new ProcessBuilder(command)
+    val workingDir = System.getProperty("user.dir")
+    val newCmd = command.map { arg => 
+      if (new File(workingDir + "/" + arg).exists()) "./" + arg else arg
+    }
+    val pb = new ProcessBuilder(newCmd)
+    pb.directory(new File(workingDir))
     // Add the environmental variables to the process.
     val currentEnvVars = pb.environment()
     envVars.foreach { case(variable, value) => currentEnvVars.put(variable, value) }
