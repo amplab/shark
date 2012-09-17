@@ -24,7 +24,11 @@ class SerializationSuite extends FunSuite {
   }
 
   test("Java serializing operators") {
-    val operator = new shark.execution.FileSinkOperator
+
+    import shark.execution.{FileSinkOperator => SharkFileSinkOperator}
+    import shark.execution.OperatorSerializationWrapper
+
+    val operator = new SharkFileSinkOperator
     operator.localHconf = new org.apache.hadoop.hive.conf.HiveConf
     operator.localHiveOp = new org.apache.hadoop.hive.ql.exec.FileSinkOperator
     val opWrapped = shark.execution.OperatorSerializationWrapper(operator)
@@ -32,7 +36,7 @@ class SerializationSuite extends FunSuite {
     val ser = new JavaSerializer
     val bytes = ser.newInstance().serialize(opWrapped)
     val desered = ser.newInstance()
-      .deserialize[shark.execution.OperatorSerializationWrapper[shark.execution.FileSinkOperator]](bytes)
+      .deserialize[OperatorSerializationWrapper[SharkFileSinkOperator]](bytes)
 
     assert(desered.value != null)
     assert(desered.value.localHconf != null)
