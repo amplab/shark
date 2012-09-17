@@ -46,11 +46,8 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
   }
 
   override def initializeOnSlave() {
-    aggregationEvals = conf.getAggregators.map { agg =>
-      (agg.getGenericUDAFEvaluator.getClass).newInstance.asInstanceOf[GenericUDAFEvaluator]
-    }.toArray
-    
-    aggregationIsDistinct = conf.getAggregators.map { agg => agg.getDistinct }.toArray
+    aggregationEvals = conf.getAggregators.map(_.getGenericUDAFEvaluator).toArray
+    aggregationIsDistinct = conf.getAggregators.map(_.getDistinct).toArray
     rowInspector = objectInspector.asInstanceOf[StructObjectInspector]
     keyFields = conf.getKeys().map(k => ExprNodeEvaluatorFactory.get(k)).toArray
     val keyObjectInspectors: Array[ObjectInspector] = keyFields.map(k => k.initialize(rowInspector))
@@ -68,7 +65,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
     aggregationParameterObjectInspectors = aggregationParameterFields.map { aggr =>
       aggr.map { param => param.initialize(rowInspector) }
     }
-    
+
     val aggObjInspectors = aggregationEvals.zipWithIndex.map { pair =>
       pair._1.init(conf.getAggregators.get(pair._2).getMode,
         aggregationParameterObjectInspectors(pair._2))
