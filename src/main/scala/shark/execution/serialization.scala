@@ -21,9 +21,13 @@ import shark.LogHelper
 class OperatorSerializationWrapper[T <: Operator[_ <: HiveOperator]]
   extends Serializable with shark.LogHelper {
 
+  /** The operator we are going to serialize. */
   @transient var _value: T = _
 
+  /** The operator serialized by the XMLEncoder, minus the object inspectors. */
   var opSerialized: Array[Byte] = _
+
+  /** The object inspectors, serialized by Kryo. */
   var objectInspectorsSerialized: Array[Byte] = _
 
   def value: T = {
@@ -81,12 +85,12 @@ object XmlSerializer {
   }
 
   def deserialize[T](bytes: Array[Byte]): T  = {
-    val d: XMLDecoder = new XMLDecoder(new ByteArrayInputStream(bytes))
+    val cl = Thread.currentThread.getContextClassLoader
+    val d: XMLDecoder = new XMLDecoder(new ByteArrayInputStream(bytes), null, null, cl)
     val ret = d.readObject()
     d.close()
     ret.asInstanceOf[T]
   }
-
 }
 
 
