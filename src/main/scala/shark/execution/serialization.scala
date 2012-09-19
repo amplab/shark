@@ -81,7 +81,7 @@ object XmlSerializer {
     e.setPersistenceDelegate(classOf[GroupByDesc.Mode], new EnumDelegate())
     e.writeObject(o)
     e.close()
-    out.toByteArray()    
+    out.toByteArray()
   }
 
   def deserialize[T](bytes: Array[Byte]): T  = {

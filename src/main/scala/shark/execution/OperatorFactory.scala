@@ -88,7 +88,7 @@ object OperatorFactory extends LogHelper {
       case _ => throw new HiveException("Unsupported Hive operator: " + hiveOp.getClass.getName)
     }
     
-    logInfo("Replacing %s with %s".format(hiveOp.getClass.getName, sharkOp.getClass.getName))
+    logDebug("Replacing %s with %s".format(hiveOp.getClass.getName, sharkOp.getClass.getName))
     sharkOp
   }
   

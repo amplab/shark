@@ -8,7 +8,8 @@ import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFacto
 import org.apache.hadoop.hive.ql.metadata.HiveException
 import org.apache.hadoop.hive.ql.plan.{ReduceSinkDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.{Deserializer, SerDe}
-import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorFactory, ObjectInspectorUtils}
+import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorFactory,
+  ObjectInspectorUtils}
 import org.apache.hadoop.hive.serde2.objectinspector.StandardUnionObjectInspector.StandardUnion
 import org.apache.hadoop.io.{BytesWritable, Text}
 
@@ -27,16 +28,42 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
 
   @BeanProperty var conf: ReduceSinkDesc = _
 
+  // The evaluator for key columns. Key columns decide the sort/hash order on
+  // the reducer side. Key columns are passed to the reducer in the "key".
+  @transient var keyEval: Array[ExprNodeEvaluator] = _
+
+  // The evaluator for the value columns. Value columns are passed to reducers
+  // in the "value".
+  @transient var valueEval: Array[ExprNodeEvaluator] = _
+
+  // The evaluator for the partition columns (used in CLUSTER BY and
+  // DISTRIBUTE BY in Hive). Partition columns decide the reducer that the
+  // current row goes to. Partition columns are not passed to reducers.
+  @transient var partitionEval: Array[ExprNodeEvaluator] = _
+
   @transient var keySer: SerDe = _
   @transient var valueSer: SerDe = _
   @transient var keyObjInspector: ObjectInspector = _
   @transient var valObjInspector: ObjectInspector = _
   @transient var partitionObjInspectors: Array[ObjectInspector] = _
-  @transient var keyEval: Array[ExprNodeEvaluator] = _
-  @transient var valueEval: Array[ExprNodeEvaluator] = _
-  @transient var partitionEval: Array[ExprNodeEvaluator] = _
 
   override def getTag() = conf.getTag()
+
+  override def initializeOnMaster() {
+    conf = hiveOp.getConf()
+  }
+
+  override def initializeOnSlave() {
+    initializeOisAndSers(conf, objectInspector)
+  }
+
+  override def processPartition[T](iter: Iterator[T]) = {
+    if (conf.getDistinctColumnIndices().size() == 0) {
+      processPartitionNoDistinct(iter)
+    } else {
+      processPartitionDistinct(iter)
+    }
+  }
 
   def initializeDownStreamHiveOperator() {
 
@@ -51,10 +78,9 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
     ois.add(keySer.getObjectInspector)
     ois.add(valueSer.getObjectInspector)
 
-    // No need to lock this one (see SharkEnv.objectInspectorLock) because
-    // this is called on the master only.
-    val outputObjInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
-        List("KEY","VALUE"), ois)
+    val outputObjInspector = SharkEnv.objectInspectorLock.synchronized {
+      ObjectInspectorFactory.getStandardStructObjectInspector(List("KEY","VALUE"), ois)
+    }
 
     val joinTag = conf.getTag()
 
@@ -75,8 +101,8 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
   }
 
   /**
-   * Initialize the object inspectors and serializers. Used on both the master
-   * and the slave.
+   * Initialize the object inspectors, evaluators, and serializers. Used on
+   * both the master and the slave.
    */
   def initializeOisAndSers(conf: ReduceSinkDesc, rowInspector: ObjectInspector) {
     keyEval = conf.getKeyCols.map(ExprNodeEvaluatorFactory.get(_)).toArray
@@ -85,15 +111,18 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
     val numDistinctExprs = distinctColIndices.size()
     valueEval = conf.getValueCols.map(ExprNodeEvaluatorFactory.get(_)).toArray
 
+    // Initialize serde for key columns.
     val keyTableDesc = conf.getKeySerializeInfo()
     keySer = keyTableDesc.getDeserializerClass().newInstance().asInstanceOf[SerDe]
     keySer.initialize(null, keyTableDesc.getProperties())
     val keyIsText = keySer.getSerializedClass().equals(classOf[Text])
 
+    // Initialize serde for value columns.
     val valueTableDesc = conf.getValueSerializeInfo()
     valueSer = valueTableDesc.getDeserializerClass().newInstance().asInstanceOf[SerDe]
     valueSer.initialize(null, valueTableDesc.getProperties())
-    
+
+    // Initialize object inspector for key columns.
     keyObjInspector = SharkEnv.objectInspectorLock.synchronized {
       ReduceSinkOperatorHelper.initEvaluatorsAndReturnStruct(
         keyEval,
@@ -102,96 +131,116 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
         numDistributionKeys,
         rowInspector)
     }
+
+    // Initialize object inspector for value columns.
     val valFieldInspectors = valueEval.map(eval => eval.initialize(rowInspector)).toList
     valObjInspector = SharkEnv.objectInspectorLock.synchronized {
       ObjectInspectorFactory.getStandardStructObjectInspector(
         conf.getOutputValueColumnNames(), valFieldInspectors)
     }
 
+    // Initialize evaluator and object inspector for partition columns.
     partitionEval = conf.getPartitionCols.map(ExprNodeEvaluatorFactory.get(_)).toArray
     partitionObjInspectors = partitionEval.map(_.initialize(rowInspector)).toArray
   }
 
-  override def initializeOnMaster() {
-    conf = hiveOp.getConf()
-  }
+  /**
+   * Process a partition when there is NO distinct key aggregations.
+   */
+  def processPartitionNoDistinct[T](iter: Iterator[T]) = {
+    // Buffer for key, value evaluation to avoid frequent object allocation.
+    val evaluatedKey = new Array[Object](keyEval.length)
+    val evaluatedValue = new Array[Object](valueEval.length)
 
-  override def initializeOnSlave() {
-    initializeOisAndSers(conf, objectInspector)
-  }
+    // A random number generator, used to distribute keys evenly if there is
+    // no partition columns specified. Use a constant seed to make the code
+    // deterministic as did Hive.
+    val rand = new Random(13)
 
-  override def processPartition[T](iter: Iterator[T]) = {
-    if (conf.getDistinctColumnIndices().size() == 0) { 
-      // Normal case with no distinct columns
-      val rng = new Random(13)
-      val evaluatedKey = new Array[Object](keyEval.length)
-      val evaluatedValue = new Array[Object](valueEval.length)
-      
-      iter.map { row =>
-        // TODO: we don't need partition code for group-by or join
-        // Partition code is used for distribute/cluster by
-        var partitionCode = 0
-        for (i <- 0 until partitionEval.size) {
+    iter.map { row =>
+      // TODO: we don't need partition code for group-by or join
+
+      // Determine the partition code (Hive calls it keyHashCode), used for
+      // DISTRIBUTED BY / CLUSTER BY.
+      var partitionCode = 0
+      if (partitionEval.size == 0) {
+        // If there is no partition columns, we randomly distribute the data
+        partitionCode = rand.nextInt()
+      } else {
+        // With partition columns, determine a partitionCode to distribute.
+        var i = 0
+        while (i < partitionEval.size) {
           val o = partitionEval(i).evaluate(row)
           partitionCode = partitionCode * 31 +
             ObjectInspectorUtils.hashCode(o, partitionObjInspectors(i))
-        }
-        if  (partitionEval.size == 0) {
-          partitionCode = rng.nextInt()
-        }
-                
-        var i = 0
-        while (i < keyEval.length) {
-          evaluatedKey(i) = keyEval(i).evaluate(row)
           i += 1
         }
-
-        i = 0
-        while (i < valueEval.length) {
-          evaluatedValue(i) = valueEval(i).evaluate(row)
-          i += 1
-        }
-
-        // Note: we currently only support BinarySerDe's (not Text)
-        val key = keySer.serialize(evaluatedKey, keyObjInspector)
-          .asInstanceOf[BytesWritable]
-        val value = valueSer.serialize(evaluatedValue, valObjInspector)
-          .asInstanceOf[BytesWritable]
-        val keyArr = new ReduceKey(new Array[Byte](key.getLength))
-        keyArr.partitionCode = partitionCode
-        val valueArr = new Array[Byte](value.getLength)
-        //TODO we don't need to copy bytes if combiners are removed
-        Array.copy(key.getBytes, 0, keyArr.bytes, 0, key.getLength)
-        Array.copy(value.getBytes, 0, valueArr, 0, value.getLength)
-        (keyArr, valueArr)
       }
-    } else {
-      // We output one row per distinct column
-      val distinctExprs = conf.getDistinctColumnIndices()
-      iter.flatMap {  row =>
-        val value = valueSer.serialize(valueEval.map(_.evaluate(row)), valObjInspector)
-          .asInstanceOf[BytesWritable]
-        
-        val numDistributionKeys = conf.getNumDistributionKeys
-        val allKeys = keyEval.map(_.evaluate(row)) // The key without distinct cols
-        val currentKeys = new Array[Object](numDistributionKeys + 1)
-        System.arraycopy(allKeys, 0, currentKeys, 0, numDistributionKeys)
-        val serializedDistributionKey = keySer.serialize(currentKeys, keyObjInspector).asInstanceOf[BytesWritable]
-        val distributionKeyArray = new Array[Byte](serializedDistributionKey.getLength)
-        Array.copy(serializedDistributionKey.getBytes, 0, distributionKeyArray, 0, serializedDistributionKey.getLength)
-        val distributionKey = new ReduceKey(distributionKeyArray)
-        for (i <- 0 until distinctExprs.size) yield {
-          val distinctParameters = conf.getDistinctColumnIndices()(i).map(allKeys(_)).toArray
-          currentKeys(numDistributionKeys) = new StandardUnion(i.toByte, distinctParameters)
-          val key = keySer.serialize(currentKeys, keyObjInspector)
-            .asInstanceOf[BytesWritable]
-          val keyArr = new Array[Byte](key.getLength)
-          val valueArr = new Array[Byte](value.getLength)
-          Array.copy(key.getBytes, 0, keyArr, 0, key.getLength)
-          Array.copy(value.getBytes, 0, valueArr, 0, value.getLength)
-          (distributionKey, (keyArr, valueArr)).asInstanceOf[Any]
-        }
-      }    
+
+      // Evaluate the key columns.
+      var i = 0
+      while (i < keyEval.length) {
+        evaluatedKey(i) = keyEval(i).evaluate(row)
+        i += 1
+      }
+
+      // Evaluate the value columns.
+      i = 0
+      while (i < valueEval.length) {
+        evaluatedValue(i) = valueEval(i).evaluate(row)
+        i += 1
+      }
+
+      // Note: we currently only support BinarySerDe's (not Text)
+      val key = keySer.serialize(evaluatedKey, keyObjInspector).asInstanceOf[BytesWritable]
+      val value = valueSer.serialize(evaluatedValue, valObjInspector).asInstanceOf[BytesWritable]
+      val keyArr = new ReduceKey(new Array[Byte](key.getLength))
+      keyArr.partitionCode = partitionCode
+      val valueArr = new Array[Byte](value.getLength)
+
+      // TODO(rxin): we don't need to copy bytes if we get rid of Spark block
+      // manager's double buffering.
+      Array.copy(key.getBytes, 0, keyArr.bytes, 0, key.getLength)
+      Array.copy(value.getBytes, 0, valueArr, 0, value.getLength)
+      (keyArr, valueArr)
     }
   }
+
+  /**
+   * Process a partition when there is distinct key aggregations. One row per
+   * distinct column is emitted here.
+   */
+  def processPartitionDistinct[T](iter: Iterator[T]) = {
+    // TODO(rxin): Rewrite this pile of code.
+
+    // We output one row per distinct column
+    val distinctExprs = conf.getDistinctColumnIndices()
+    iter.flatMap { row =>
+      val value = valueSer.serialize(valueEval.map(_.evaluate(row)), valObjInspector)
+        .asInstanceOf[BytesWritable]
+
+      val numDistributionKeys = conf.getNumDistributionKeys
+      val allKeys = keyEval.map(_.evaluate(row)) // The key without distinct cols
+      val currentKeys = new Array[Object](numDistributionKeys + 1)
+      System.arraycopy(allKeys, 0, currentKeys, 0, numDistributionKeys)
+      val serializedDistributionKey = keySer.serialize(currentKeys, keyObjInspector)
+        .asInstanceOf[BytesWritable]
+      val distributionKeyArray = new Array[Byte](serializedDistributionKey.getLength)
+      Array.copy(serializedDistributionKey.getBytes, 0,
+        distributionKeyArray, 0, serializedDistributionKey.getLength)
+      val distributionKey = new ReduceKey(distributionKeyArray)
+      for (i <- 0 until distinctExprs.size) yield {
+        val distinctParameters = conf.getDistinctColumnIndices()(i).map(allKeys(_)).toArray
+        currentKeys(numDistributionKeys) = new StandardUnion(i.toByte, distinctParameters)
+        val key = keySer.serialize(currentKeys, keyObjInspector)
+          .asInstanceOf[BytesWritable]
+        val keyArr = new Array[Byte](key.getLength)
+        val valueArr = new Array[Byte](value.getLength)
+        Array.copy(key.getBytes, 0, keyArr, 0, key.getLength)
+        Array.copy(value.getBytes, 0, valueArr, 0, value.getLength)
+        (distributionKey, (keyArr, valueArr)).asInstanceOf[Any]
+      }
+    }
+  }
+
 }

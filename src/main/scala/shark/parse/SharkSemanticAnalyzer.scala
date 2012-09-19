@@ -306,13 +306,13 @@ object SharkSemanticAnalyzer extends LogHelper {
       queue ++= current.parentOperators
     }
 
-    logInfo("Found %d ReduceSinkOperator's.".format(reduceSinks.size))
+    logDebug("Found %d ReduceSinkOperator's.".format(reduceSinks.size))
 
     reduceSinks.foreach { op =>
       val hiveOp = op.asInstanceOf[Operator[HiveOperator]].hiveOp
       if (hiveOp.getChildOperators() != null) {
         hiveOp.getChildOperators().foreach { child =>
-          logInfo("Removing child %s from %s".format(child, hiveOp))
+          logDebug("Removing child %s from %s".format(child, hiveOp))
           hiveOp.removeChild(child)
         }
       }
