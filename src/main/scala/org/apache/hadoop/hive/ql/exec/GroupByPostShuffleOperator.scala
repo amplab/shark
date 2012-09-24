@@ -20,16 +20,16 @@ import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
 import shark.execution.{HiveTopOperator, ReduceKey}
-import spark.{Aggregator, HashPartitioner, RDD, ShuffledRDD}
+import spark.{Aggregator, HashPartitioner, RDD, ShuffledAggregatedRDD}
 import spark.SparkContext._
 
 
-class GroupByPostShuffleOperator extends GroupByPreShuffleOperator 
+class GroupByPostShuffleOperator extends GroupByPreShuffleOperator
 with HiveTopOperator {
 
   @BeanProperty var keyTableDesc: TableDesc = _
   @BeanProperty var valueTableDesc: TableDesc = _
-  
+
   @transient var keySer: Deserializer = _
   @transient var valueSer: Deserializer = _
   @transient val distinctKeyAggrs = new JHashMap[Int, JSet[java.lang.Integer]]()
@@ -45,9 +45,9 @@ with HiveTopOperator {
     keyTableDesc = keyValueTableDescs.values.head._1
     valueTableDesc = keyValueTableDescs.values.head._2
   }
-  
+
   override def initializeOnSlave() {
-    
+
     super.initializeOnSlave()
     // Initialize unionExpr. KEY has union field as the last field if there are distinct aggrs.
     unionExprEvaluator = initializeUnionExprEvaluator(rowInspector)
@@ -61,26 +61,26 @@ with HiveTopOperator {
     valueSer = valueTableDesc.getDeserializerClass.newInstance().asInstanceOf[SerDe]
     valueSer.initialize(null, valueTableDesc.getProperties())
   }
-  
+
   def initializeKeyWrapperFactories() {
-    
+
     distinctKeyAggrs.keySet.iterator.foreach { unionId => {
       val aggrIndices = distinctKeyAggrs.get(unionId)
       val evals = aggrIndices.map( i => aggregationParameterFields(i) ).toArray
       val ois = aggrIndices.map( i => aggregationParameterObjectInspectors(i) ).toArray
       val writableOis = ois.map( oi => oi.map( k => ObjectInspectorUtils.getStandardObjectInspector(k, ObjectInspectorCopyOption.WRITABLE) )).toArray
 
-      val keys = new ArrayList[KeyWrapperFactory]()      
+      val keys = new ArrayList[KeyWrapperFactory]()
       val hashSets = new ArrayList[JHashSet[KeyWrapper]]()
       for(i <- 0 until evals.size) {
         keys.add(new KeyWrapperFactory(evals(i), ois(i), writableOis(i)))
         hashSets.add(new JHashSet[KeyWrapper])
-      } 
+      }
       distinctHashSets.put(unionId, hashSets)
       distinctKeyWrapperFactories.put(unionId, keys)
     }}
   }
-  
+
   def initializeUnionExprEvaluator(rowInspector: ObjectInspector): ExprNodeEvaluator = {
     val sfs = rowInspector.asInstanceOf[StructObjectInspector].getAllStructFieldRefs
     var unionExprEval: ExprNodeEvaluator = null
@@ -175,7 +175,7 @@ with HiveTopOperator {
       GroupByAggregator.mergeCombiners _,
       false)
 
-    new ShuffledRDD(
+    new ShuffledAggregatedRDD(
       rdd.asInstanceOf[RDD[(Any, Any)]],
       aggregator,
       new HashPartitioner(numReduceTasks))
@@ -189,13 +189,13 @@ with HiveTopOperator {
     val outputCache = new Array[Object](keyFields.length + aggregationEvals.length)
     // The reusedRow is used to conform to Hive's expected row format.
     // It is an array of [key, value] that is reused across rows
-    val reusedRow = new Array[Any](2) 
+    val reusedRow = new Array[Any](2)
     val keys = keyFactory.getKeyWrapper()
     val aggrs = newAggregations()
     val newIter = iter.map(pair => {
       pair match {
         case (key: ReduceKey, values: Seq[_]) => {
-          
+
           bytes.set(key.bytes)
           val deserializedKey = deserializeKey(bytes)
           reusedRow(0) = deserializedKey
@@ -292,11 +292,11 @@ with HiveTopOperator {
     }
     output
   }
-  
-  def deserializeKey(bytes: BytesWritable) = {    
+
+  def deserializeKey(bytes: BytesWritable) = {
     keySer.asInstanceOf[Deserializer].deserialize(bytes)
   }
-  
+
   def deserializeValue(bytes: BytesWritable) = {
     valueSer.asInstanceOf[Deserializer].deserialize(bytes)
   }
@@ -308,7 +308,7 @@ with HiveTopOperator {
       i += 1
     }
   }
-  
+
 }
 
 
