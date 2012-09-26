@@ -10,7 +10,7 @@ import org.apache.hadoop.hive.ql.processors.CommandProcessorFactory
 
 import scala.collection.JavaConversions._
 
-import shark.exec.TableRDD
+import shark.execution.TableRDD
 import spark.SparkContext
 
 

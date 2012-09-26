@@ -14,7 +14,7 @@ import org.apache.hadoop.util.StringUtils
 
 import scala.collection.JavaConversions._
 
-import shark.exec.{SharkExplainTask, SharkExplainWork, SparkTask, SparkWork, TableRDD}
+import shark.execution.{SharkExplainTask, SharkExplainWork, SparkTask, SparkWork, TableRDD}
 import shark.parse.{QueryContext, SharkSemanticAnalyzerFactory}
 
 

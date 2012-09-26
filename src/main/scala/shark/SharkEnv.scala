@@ -26,5 +26,13 @@ object SharkEnv extends LogHelper {
   // The following line turns Kryo serialization debug log on. It is extremely chatty.
   //com.esotericsoftware.minlog.Log.set(com.esotericsoftware.minlog.Log.LEVEL_DEBUG)
 
+  /**
+   * A lock for various operations in ObjectInspectorFactory. Methods in that
+   * class uses a static objectInspectorCache object to cache the creation of
+   * object inspectors. That object is not thread safe so we wrap all calls to
+   * that object in a synchronized lock on this.
+   */
+  val objectInspectorLock: AnyRef = new Object()
+
 }
 

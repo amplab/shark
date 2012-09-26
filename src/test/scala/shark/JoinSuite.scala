@@ -2,7 +2,7 @@ package shark
 
 import org.apache.hadoop.hive.ql.plan.JoinCondDesc
 import org.scalatest.{BeforeAndAfter, FunSuite}
-import shark.exec.CommonJoinOperator
+import shark.execution.CommonJoinOperator
 import spark.{RDD, SparkContext}
 import spark.SparkContext._
 

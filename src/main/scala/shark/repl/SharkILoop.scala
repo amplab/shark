@@ -22,7 +22,6 @@ class SharkILoop extends SparkILoop(None, new PrintWriter(Console.out, true), No
         spark.repl.Main.interp.out.flush();
         @transient val sparkContext = shark.repl.Main.interp.createSparkContext();
         @transient val sc = sparkContext.asInstanceOf[shark.SharkContext];
-        sc.waitForRegister();
         spark.repl.Main.interp.out.println("Shark context available as sc.");
         shark.SharkEnv.sc = sc;
         import sc._;

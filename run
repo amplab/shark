@@ -86,10 +86,17 @@ if [ -e $FWDIR/conf/java-opts ] ; then
 fi
 export JAVA_OPTS
 
+# In case we are running Ant
+export ANT_OPTS=$JAVA_OPTS
+
 if [ -n "$SCALA_HOME" ]; then
   SCALA=${SCALA_HOME}/bin/scala
 else
   SCALA=scala
 fi
 
-exec $SCALA -cp $CLASSPATH "$@"
+if [ "x$RUNNER" == "x" ] ; then
+    RUNNER="$SCALA -cp $CLASSPATH" 
+fi
+
+exec $RUNNER "$@"
