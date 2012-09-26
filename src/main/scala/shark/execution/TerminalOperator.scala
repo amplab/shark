@@ -2,6 +2,7 @@ package shark.execution
 
 import java.util.Date
 
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.io.Text
 import org.apache.hadoop.io.BytesWritable
 import org.apache.hadoop.hive.conf.HiveConf
@@ -14,7 +15,6 @@ import scala.reflect.BeanProperty
 import shark.{CacheKey, RDDUtils, SharkEnv}
 import spark.{RDD, TaskContext}
 
-import java.util.Date
 
 /**
  * File sink operator. It can accomplish one of the three things:
@@ -56,11 +56,11 @@ class FileSinkOperator extends TerminalOperator with Serializable {
 
   def setConfParams(conf: HiveConf, context: TaskContext) {
     val jobID = context.stageId
-    val splitID = context.splitId 
+    val splitID = context.splitId
     val jID = HadoopWriter.createJobID(now, jobID)
     val taID = new TaskAttemptID(new TaskID(jID, true, splitID), 0)
     conf.set("mapred.job.id", jID.toString)
-    conf.set("mapred.tip.id", taID.getTaskID.toString) 
+    conf.set("mapred.tip.id", taID.getTaskID.toString)
     conf.set("mapred.task.id", taID.toString)
     conf.setBoolean("mapred.task.is.map", true)
     conf.setInt("mapred.task.partition", splitID)
@@ -70,6 +70,27 @@ class FileSinkOperator extends TerminalOperator with Serializable {
     iter.foreach { row =>
       localHiveOp.processOp(row, 0)
     }
+
+    // Create missing parent directories so that the HiveFileSinkOperator can rename
+    // temp files without complaining about missing parent directories.
+
+    // Two rounds of reflection are needed, since the FSPaths reference is private, and
+    // the FSPaths' finalPaths reference isn't publicly accessible.
+    val fspField = localHiveOp.getClass.getDeclaredField("fsp")
+    fspField.setAccessible(true)
+    val fileSystemPaths = fspField.get(localHiveOp).asInstanceOf[HiveFileSinkOperator#FSPaths]
+    val finalPathsField = fileSystemPaths.getClass.getDeclaredField("finalPaths")
+    finalPathsField.setAccessible(true)
+    val finalPaths = finalPathsField.get(fileSystemPaths).asInstanceOf[Array[Path]]
+
+    // Get a reference to the FileSystem. No need for reflection here.
+    val fileSystem = FileSystem.get(localHconf)
+
+    for (idx <- 0 until finalPaths.length) {
+      val finalPath = finalPaths(idx)
+      if (!fileSystem.exists(finalPath.getParent())) fileSystem.mkdirs(finalPath.getParent())
+    }
+
     localHiveOp.closeOp(false)
     iter
   }
@@ -110,7 +131,7 @@ object FileSinkOperator {
 class CacheSinkOperator(@BeanProperty var tableName: String) extends TerminalOperator {
 
   def this() = this(null)
- 
+
   override def processPartition[T](iter: Iterator[T]): Iterator[_] = {
     RDDUtils.serialize(
         iter,
@@ -131,4 +152,3 @@ class CacheSinkOperator(@BeanProperty var tableName: String) extends TerminalOpe
  * Collect the output as a TableRDD.
  */
 class TableRddSinkOperator extends TerminalOperator {}
-
