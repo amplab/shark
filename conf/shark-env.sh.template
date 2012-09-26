@@ -15,7 +15,7 @@
 # - HIVE_CONF_DIR, optional, to specify the path of Hive configuration files
 #   (default HIVE_HOME/conf)
 
-export SCALA_VERSION=2.9.1
+export SCALA_VERSION=2.9.2
 
 # Set Spark's memory per machine -- you might want to increase this
 export SPARK_MEM=2g
