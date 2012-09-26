@@ -10,7 +10,8 @@ import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
 import shark.LogHelper
-import spark.RDD
+import shark.memstore.SharkRDD._
+import spark.{RDD, Split}
 
 
 abstract class Operator[T <: HiveOperator] extends LogHelper with Serializable {
@@ -29,7 +30,7 @@ abstract class Operator[T <: HiveOperator] extends LogHelper with Serializable {
    */
   def initializeOnSlave() {}
 
-  def processPartition[T](iter: Iterator[T]): Iterator[_]
+  def processPartition(split: Split, iter: Iterator[_]): Iterator[_]
 
   /**
    * Execute the operator. This should recursively execute parent operators.
@@ -105,27 +106,27 @@ abstract class Operator[T <: HiveOperator] extends LogHelper with Serializable {
  * A base operator class that has many parents and one child. This can be used
  * to implement join, union, etc. Operators implementations should override the
  * following methods:
- * 
+ *
  * combineMultipleRdds: Combines multiple RDDs into a single RDD. E.g. in the
  * case of join, this function does the join operation.
- * 
+ *
  * processPartition: Called on each slave on the output of combineMultipleRdds.
  * This can be used to transform rows into their desired format.
  *
  * postprocessRdd: Called on the master to transform the output of
  * processPartition before sending it downstream.
- * 
+ *
  */
 abstract class NaryOperator[T <: HiveOperator] extends Operator[T] {
-  
+
   /** Process a partition. Called on slaves. */
-  def processPartition[T](iter: Iterator[T]): Iterator[_]
+  def processPartition(split: Split, iter: Iterator[_]): Iterator[_]
 
   /** Called on master. */
   def combineMultipleRdds(rdds: Seq[(Int, RDD[_])]): RDD[_]
 
   /** Called on master. */
-  def postprocessRdd[T](rdd: RDD[T]): RDD[_] = rdd
+  def postprocessRdd(rdd: RDD[_]): RDD[_] = rdd
 
   override def execute(): RDD[_] = {
     val inputRdds = executeParents()
@@ -140,29 +141,29 @@ abstract class NaryOperator[T <: HiveOperator] extends Operator[T] {
 /**
  * A base operator class that has at most one parent.
  * Operators implementations should override the following methods:
- * 
+ *
  * preprocessRdd: Called on the master. Can be used to transform the RDD before
  * passing it to processPartition. For example, the operator can use this
  * function to sort the input.
- * 
+ *
  * processPartition: Called on each slave on the output of preprocessRdd.
  * This can be used to transform rows into their desired format.
- * 
+ *
  * postprocessRdd: Called on the master to transform the output of
  * processPartition before sending it downstream.
- * 
+ *
  */
 abstract class UnaryOperator[T <: HiveOperator] extends Operator[T] {
 
   /** Process a partition. Called on slaves. */
-  def processPartition[T](iter: Iterator[T]): Iterator[_]
-  
-  /** Called on master. */
-  def preprocessRdd[T](rdd: RDD[T]): RDD[_] = rdd
+  def processPartition(split: Split, iter: Iterator[_]): Iterator[_]
 
   /** Called on master. */
-  def postprocessRdd[T](rdd: RDD[T]): RDD[_] = rdd
-  
+  def preprocessRdd(rdd: RDD[_]): RDD[_] = rdd
+
+  /** Called on master. */
+  def postprocessRdd(rdd: RDD[_]): RDD[_] = rdd
+
   def objectInspector = objectInspectors.head
 
   def parentOperator = parentOperators.head
@@ -179,9 +180,6 @@ abstract class UnaryOperator[T <: HiveOperator] extends Operator[T] {
 abstract class TopOperator[T <: HiveOperator] extends UnaryOperator[T]
 
 
-abstract class TerminalAbstractOperator[T <: HiveOperator] extends UnaryOperator[T]
-
-
 object Operator extends LogHelper {
 
   /** A reference to HiveConf for convenience. */
@@ -194,12 +192,12 @@ object Operator extends LogHelper {
    */
   def executeProcessPartition(operator: Operator[_ <: HiveOperator], rdd: RDD[_]): RDD[_] = {
     val op = OperatorSerializationWrapper(operator)
-    rdd.mapPartitions { partition =>
+    rdd.mapPartitionsWithSplit { case(split, partition) =>
       op.logDebug("Started executing mapPartitions for operator: " + op)
       op.logDebug("Input object inspectors: " + op.objectInspectors)
 
       op.initializeOnSlave()
-      val newPart = op.processPartition(partition)
+      val newPart = op.processPartition(split, partition)
       op.logDebug("Finished executing mapPartitions for operator: " + op)
 
       newPart

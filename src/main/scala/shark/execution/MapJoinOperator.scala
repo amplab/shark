@@ -24,7 +24,7 @@ import scala.reflect.BeanProperty
 
 import spark.broadcast.Broadcast
 import shark.collections.Conversions._
-import spark.RDD
+import spark.{RDD, Split}
 import shark.SharkEnv
 
 /**
@@ -111,7 +111,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
           op.setValueMetaData(posByte)
           op.computeJoinKeyValuesOnPartition(partition, posByte)
         }
-      
+
       // Collect the RDD and build a hash table.
       val startCollect = System.currentTimeMillis()
       val wrappedRows: Array[(AbstractMapJoinKey, MapJoinObjectValue)] = rddForHash.collect()
@@ -133,12 +133,12 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
       val hashTime = System.currentTimeMillis() - startHash
       logInfo("Input %d (%d rows) took %d ms to collect and %s ms to build hash table.".format(
         pos, rows.size, collectTime, hashTime))
-            
+
       (pos, hashtable)
     }.toMap
 
     val fetcher = new MapJoinHashTablesBroadcast(hashtables)
-    
+
     val op = op1
     rdds(bigTableAlias)._2.mapPartitions { partition =>
       op.logDebug("Started executing mapPartitions for operator: " + op)
@@ -169,7 +169,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
         joinFilters(posByte),
         joinFilterObjectInspectors(posByte),
         noOuterJoin)
-      // If we've seen the key before, just add it to the row container wrapped by 
+      // If we've seen the key before, just add it to the row container wrapped by
       // corresponding MapJoinObjectValue.
       val objValue = valueMap.get(key)
       if (objValue == null) {
@@ -190,7 +190,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
     val keyTableDesc = conf.getKeyTblDesc()
     val keySerializer = keyTableDesc.getDeserializerClass().newInstance().asInstanceOf[SerDe]
     keySerializer.initialize(null, keyTableDesc.getProperties())
- 
+
     val standardOI = SharkEnv.objectInspectorLock.synchronized {
       ObjectInspectorUtils.getStandardObjectInspector(
         keySerializer.getObjectInspector(), ObjectInspectorCopyOption.WRITABLE)
@@ -202,7 +202,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
         standardOI, keySerializer, keyTableDesc, hconf))
     }
   }
- 
+
   def setValueMetaData(pos: Byte) {
     val valueTableDesc = conf.getValueFilteredTblDescs().get(pos)
     val valueSerDe = valueTableDesc.getDeserializerClass().newInstance.asInstanceOf[SerDe]
@@ -232,7 +232,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
    */
   def joinOnPartition[T](iter: Iterator[T], hashtables: Map[Int, MapJoinHashTable])
   : Iterator[_] = {
-    
+
     val joinKeyEval = joinKeys(bigTableAlias.toByte)
     val joinValueEval = joinVals(bigTableAlias.toByte)
     val bufs = new Array[Seq[Array[java.lang.Object]]](numTables)
@@ -302,7 +302,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
     }
   }
 
-  override def processPartition[T](iter: Iterator[T]): Iterator[_] = {
-    throw new Exception("UnionOperator.processPartition() should've never been called.")
+  override def processPartition(split: Split, iter: Iterator[_]): Iterator[_] = {
+    throw new Exception("MapJoinOperator.processPartition() should've never been called.")
   }
 }

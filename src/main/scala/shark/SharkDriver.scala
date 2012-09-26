@@ -15,6 +15,7 @@ import org.apache.hadoop.util.StringUtils
 import scala.collection.JavaConversions._
 
 import shark.execution.{SharkExplainTask, SharkExplainWork, SparkTask, SparkWork, TableRDD}
+import shark.memstore.ColumnarSerDe
 import shark.parse.{QueryContext, SharkSemanticAnalyzerFactory}
 
 
@@ -22,11 +23,11 @@ import shark.parse.{QueryContext, SharkSemanticAnalyzerFactory}
  * This static object is responsible for two things:
  * 1. Replace OperatorFactory.opvec with Shark specific operators.
  * 2. Add Shark specific tasks to TaskFactory.taskvec.
- * 
+ *
  * See below for the SharkDriver class.
  */
 object SharkDriver extends LogHelper {
-  
+
   /**
    * A dummy static method so we can make sure the following static code are
    * executed.
@@ -61,14 +62,14 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
   contextField.setAccessible(true)
   planField.setAccessible(true)
   schemaField.setAccessible(true)
-  
+
   val doAuthMethod = this.getClass.getSuperclass.getDeclaredMethod(
     "doAuthorization", classOf[BaseSemanticAnalyzer])
   doAuthMethod.setAccessible(true)
   val saHooksMethod = this.getClass.getSuperclass.getDeclaredMethod(
     "getSemanticAnalyzerHooks")
   saHooksMethod.setAccessible(true)
-  
+
   // Helper methods to access the private members made accessible using reflection.
   def plan = getPlan
   def plan_= (value: QueryPlan): Unit = planField.set(this, value)
@@ -78,17 +79,17 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
 
   def schema = schemaField.get(this).asInstanceOf[Schema]
   def schema_= (value: Schema): Unit = schemaField.set(this, value)
-  
+
   var useTableRddSink = false
 
   override def init(): Unit = {
     // Forces the static code in SharkDriver to execute.
     SharkDriver.runStaticCode()
-    
+
     // Init Hive Driver.
     super.init()
   }
-  
+
   def tableRdd(cmd:String): TableRDD = {
     useTableRddSink = true
     val response = run(cmd)
@@ -109,15 +110,15 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
       close()
       plan = null
     }
-    
+
     TaskFactory.resetId()
-    
+
     try {
       val command = new VariableSubstitution().substitute(conf, cmd)
       context = new QueryContext(conf, useTableRddSink)
       val tree = ParseUtils.findRootNonNullToken((new ParseDriver()).parse(command, context))
       val sem = SharkSemanticAnalyzerFactory.get(conf, tree)
-      
+
       // Do semantic analysis and plan generation
       val saHooks = saHooksMethod.invoke(this).asInstanceOf[JavaList[AbstractSemanticAnalyzerHook]]
       if (saHooks != null) {
@@ -131,21 +132,21 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
       }
 
       logInfo("Semantic Analysis Completed")
-      
+
       sem.validate()
-      
+
       plan = new QueryPlan(command, sem)
-      
+
       // Initialize FetchTask right here. Somehow Hive initializes it twice...
       if (sem.getFetchTask != null) {
         sem.getFetchTask.initialize(conf, null, null)
       }
-      
+
       // get the output schema
       schema = Driver.getSchema(sem, conf)
-      
+
       // skip the testing serialization code
-      
+
       // do the authorization check
       if (HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_AUTHORIZATION_ENABLED)) {
         try {
@@ -180,6 +181,6 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
       }
     }
   }
-  
+
 }
 

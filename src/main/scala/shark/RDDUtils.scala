@@ -17,6 +17,7 @@ import org.apache.hadoop.io.Text
 import scala.collection.mutable.{ArrayBuffer, Buffer}
 import scala.collection.JavaConverters._
 
+import shark.memstore.ColumnarWritable
 import spark._
 import spark.SparkContext._
 
@@ -26,42 +27,6 @@ import spark.SparkContext._
  * to Spark's built-in abstractions.
  */
 object RDDUtils {
-  
-  /**
-   * Used to serialize an RDD using a Hive SerDe before caching in a
-   * BoundedMemoryCache. We serialize this way instead of using a
-   * SerializingCache because this requires less copying of byte arrays.
-   */
-  def serialize[T](iter: Iterator[T], hconf: HiveConf, td: TableDesc, oi: ObjectInspector) = {
-    val serializer = td.getDeserializerClass().newInstance().asInstanceOf[SerDe]
-    serializer.initialize(hconf, td.getProperties())
-    var v: Object = null
-    var numRows: Int = 0
-    iter.foreach { row =>
-      v = serializer.serialize(row, oi)
-      numRows += 1
-    }
-    if (v != null) {
-      v.asInstanceOf[ColumnarWritable].close()
-      Iterator(numRows, v)
-    } else {
-      Iterator()
-    }
-  }
-
-  def deserialize(rdd: RDD[_]) = {    
-    rdd.mapPartitions { iter =>
-      //First element is a byte array holding serialized Writables
-      if (iter.hasNext) {
-        val numRows = iter.next().asInstanceOf[Int]
-        val writable = iter.next().asInstanceOf[ColumnarWritable]
-        writable.close()
-        Iterator.continually({writable}).take(numRows) //Reuses writable across rows
-      } else {
-        iter
-      }
-    }
-  }
 
   def sortLeastKByKey[K <% Ordered[K]: ClassManifest, V: ClassManifest](rdd: RDD[(K,V)], k: Int)
   : RDD[(K,V)] = {
@@ -115,5 +80,5 @@ object RDDUtils {
     }
     ordering.leastOf(it.asJava, k).asScala
   }
-  
+
 }

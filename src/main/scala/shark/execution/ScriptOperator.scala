@@ -70,7 +70,7 @@ class ScriptOperator extends UnaryOperator[HiveScriptOperator] {
       op.deserializeFromScript(part)
     }
   }
-  
+
   override def initializeOnMaster() {
     localHiveOp = hiveOp
     localHconf = super.hconf
@@ -136,7 +136,7 @@ class ScriptOperator extends UnaryOperator[HiveScriptOperator] {
     (wrappedCmdArgs, Map.empty ++ envs)
   }
 
-  override def processPartition[T](iter: Iterator[T]): Iterator[_] = {
+  override def processPartition(split: Split, iter: Iterator[_]): Iterator[_] = {
     throw new Exception("UnionOperator.processPartition() should've never been called.")
   }
 
@@ -192,7 +192,7 @@ class CustomPipedRdd(
 
   override def compute(split: Split): Iterator[Writable] = {
     val workingDir = System.getProperty("user.dir")
-    val newCmd = command.map { arg => 
+    val newCmd = command.map { arg =>
       if (new File(workingDir + "/" + arg).exists()) "./" + arg else arg
     }
     val pb = new ProcessBuilder(newCmd)

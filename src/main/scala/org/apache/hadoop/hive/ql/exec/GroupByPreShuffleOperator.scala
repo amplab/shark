@@ -15,7 +15,7 @@ import scala.reflect.BeanProperty
 
 import shark.SharkEnv
 import shark.execution.UnaryOperator
-import spark.RDD
+import spark.{RDD, Split}
 import spark.SparkContext._
 
 
@@ -52,12 +52,12 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
     keyFields = conf.getKeys().map(k => ExprNodeEvaluatorFactory.get(k)).toArray
     val keyObjectInspectors: Array[ObjectInspector] = keyFields.map(k => k.initialize(rowInspector))
     val currentKeyObjectInspectors = SharkEnv.objectInspectorLock.synchronized {
-      keyObjectInspectors.map { k => 
+      keyObjectInspectors.map { k =>
         ObjectInspectorUtils.getStandardObjectInspector(k, ObjectInspectorCopyOption.WRITABLE)
       }
     }
 
-    aggregationParameterFields = conf.getAggregators.toArray.map { aggr => 
+    aggregationParameterFields = conf.getAggregators.toArray.map { aggr =>
       aggr.asInstanceOf[AggregationDesc].getParameters.toArray.map { param =>
         ExprNodeEvaluatorFactory.get(param.asInstanceOf[ExprNodeDesc])
       }
@@ -83,7 +83,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
     keyFactory = new KeyWrapperFactory(keyFields, keyObjectInspectors, currentKeyObjectInspectors)
   }
 
-  override def processPartition[T](iter: Iterator[T]) = {
+  override def processPartition(split: Split, iter: Iterator[_]) = {
     logInfo("Running Pre-Shuffle Group-By")
 
     // Do aggregation on map side using hashAggregations hash table.
@@ -132,7 +132,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
       i += 1
     }
   }
-  
+
   def newAggregations(): Array[AggregationBuffer] = {
     aggregationEvals.map(eval => eval.getNewAggregationBuffer)
   }

@@ -1,5 +1,6 @@
 package shark
 
+import shark.memstore.CacheManager
 import spark.SparkContext
 
 object SharkEnv extends LogHelper {

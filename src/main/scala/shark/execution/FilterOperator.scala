@@ -9,9 +9,10 @@ import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
 import scala.collection.Iterator
 import scala.reflect.BeanProperty
 
+import spark.Split
 
 class FilterOperator extends UnaryOperator[HiveFilterOperator] {
-  
+
   @transient var conditionEvaluator: ExprNodeEvaluator = _
 
   @BeanProperty var conf: FilterDesc = _
@@ -28,7 +29,7 @@ class FilterOperator extends UnaryOperator[HiveFilterOperator] {
     }
   }
 
-  override def processPartition[T](iter: Iterator[T]) = {
+  override def processPartition(split: Split, iter: Iterator[_]) = {
     val conditionInspector = conditionEvaluator.initialize(objectInspector)
       .asInstanceOf[PrimitiveObjectInspector]
 

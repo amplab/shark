@@ -15,7 +15,7 @@ import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
 import shark.SharkEnv
-import spark.{UnionRDD, RDD}
+import spark.{UnionRDD, RDD, Split}
 
 
 /**
@@ -30,7 +30,7 @@ class UnionOperator extends NaryOperator[HiveUnionOperator] {
 
   @BeanProperty var needsTransform: Array[Boolean] = _
   @BeanProperty var numParents: Int = _
-  
+
   override def initializeOnMaster() {
     numParents = parentOperators.size
 
@@ -38,10 +38,10 @@ class UnionOperator extends NaryOperator[HiveUnionOperator] {
     val needsTransformField = hiveOp.getClass.getDeclaredField("needsTransform")
     needsTransformField.setAccessible(true)
     needsTransform = needsTransformField.get(hiveOp).asInstanceOf[Array[Boolean]]
-    
+
     initializeOnSlave()
   }
-  
+
   override def initializeOnSlave() {
     // Some how in union, it is possible for Hive to add an extra null object
     // inspectors. We need to work around that.
@@ -52,7 +52,7 @@ class UnionOperator extends NaryOperator[HiveUnionOperator] {
     // Get columnNames from the first parent
     val columns = parentFields.head.size()
     val columnNames = parentFields.head.map(_.getFieldName())
-    
+
     // Get outputFieldOIs
     columnTypeResolvers = new Array[ReturnObjectInspectorResolver](columns)
     for (c <- 0 until columns) columnTypeResolvers(c) = new ReturnObjectInspectorResolver()
@@ -78,7 +78,7 @@ class UnionOperator extends NaryOperator[HiveUnionOperator] {
           p, objectInspectors(p), outputObjInspector))
     }
   }
-  
+
   /**
    * Override execute. The only thing we need to call is combineMultipleRdds().
    */
@@ -89,7 +89,7 @@ class UnionOperator extends NaryOperator[HiveUnionOperator] {
 
   override def combineMultipleRdds(rdds: Seq[(Int, RDD[_])]): RDD[_] = {
     val rddsInOrder: Seq[RDD[Any]] = rdds.sortBy(_._1).map(_._2.asInstanceOf[RDD[Any]])
-    
+
     val rddsTransformed = rddsInOrder.zipWithIndex.map { case(rdd, tag) =>
       if (needsTransform(tag)) {
         transformRdd(rdd, tag)
@@ -97,7 +97,7 @@ class UnionOperator extends NaryOperator[HiveUnionOperator] {
         rdd
       }
     }
-    
+
     new UnionRDD(rddsTransformed.head.context, rddsTransformed.asInstanceOf[Seq[RDD[Any]]])
   }
 
@@ -116,7 +116,7 @@ class UnionOperator extends NaryOperator[HiveUnionOperator] {
       part.map { row =>
         val soi = op.parentObjInspectors(tag)
         val fields = op.parentFields(tag)
- 
+
         for (c <- 0 until fields.size) {
           outputRow.set(c, op.columnTypeResolvers(c).convertIfNecessary(soi
               .getStructFieldData(row, fields.get(c)), fields.get(c)
@@ -128,7 +128,7 @@ class UnionOperator extends NaryOperator[HiveUnionOperator] {
     }
   }
 
-  override def processPartition[T](iter: Iterator[T]): Iterator[_] = {
+  override def processPartition(split: Split, iter: Iterator[_]): Iterator[_] = {
     throw new Exception("UnionOperator.processPartition() should've never been called.")
   }
 }

@@ -20,7 +20,7 @@ import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
 import shark.execution.{HiveTopOperator, ReduceKey}
-import spark.{Aggregator, HashPartitioner, RDD, ShuffledAggregatedRDD}
+import spark.{Aggregator, HashPartitioner, RDD, ShuffledAggregatedRDD, Split}
 import spark.SparkContext._
 
 
@@ -160,7 +160,7 @@ with HiveTopOperator {
     }
   }
 
-  override def preprocessRdd[T](rdd: RDD[T]): RDD[_] = {
+  override def preprocessRdd(rdd: RDD[_]): RDD[_] = {
     var numReduceTasks = hconf.getIntVar(HiveConf.ConfVars.HADOOPNUMREDUCERS)
     // If we have no keys, it needs a total aggregation with 1 reducer.
     if (numReduceTasks < 1 || conf.getKeys.size == 0) numReduceTasks = 1
@@ -181,7 +181,7 @@ with HiveTopOperator {
       new HashPartitioner(numReduceTasks))
   }
 
-  override def processPartition[T](iter: Iterator[T]) = {
+  override def processPartition(split: Split, iter: Iterator[_]) = {
     // TODO: we should support outputs besides BytesWritable in case a different
     // SerDe is used for intermediate data.
     val bytes = new BytesWritable()

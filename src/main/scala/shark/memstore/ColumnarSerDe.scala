@@ -1,28 +1,20 @@
-package shark
+package shark.memstore
 
-import java.io.{DataInput, DataOutput}
 import java.util.Properties
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hdfs.DFSConfigKeys
-import org.apache.hadoop.hive.serde2.{ByteStream, SerDe, SerDeException}
+import org.apache.hadoop.hive.serde2.{ByteStream, SerDe}
 import org.apache.hadoop.hive.serde2.`lazy`.{LazyFactory, LazySimpleSerDe}
 import org.apache.hadoop.hive.serde2.`lazy`.LazySimpleSerDe.SerDeParameters
-import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector
-import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
-import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.{ListObjectInspector, MapObjectInspector,
+  ObjectInspector, PrimitiveObjectInspector, StructObjectInspector, UnionObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
-import org.apache.hadoop.hive.serde2.objectinspector.StructField
-import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
-import org.apache.hadoop.hive.serde2.objectinspector.UnionObjectInspector
-import org.apache.hadoop.hive.serde2.typeinfo.{PrimitiveTypeInfo, TypeInfo}
 import org.apache.hadoop.io.Writable
 
 import scala.collection.JavaConversions._
+
+import shark.{LogHelper, SharkConfVars}
 
 
 class ColumnarSerDe extends SerDe with LogHelper {
@@ -34,8 +26,9 @@ class ColumnarSerDe extends SerDe with LogHelper {
   var initialColumnSize: Int = _
   val serializeStream = new ByteStream.Output()
 
+  def columnFactory: ColumnFactory = Column
 
-  def initialize(conf: Configuration, tbl: Properties) {
+  override def initialize(conf: Configuration, tbl: Properties) {
     serDeParams = LazySimpleSerDe.initSerdeParams(conf, tbl, getClass().getName())
     // Create oi & writable.
     cachedObjectInspector = ColumnarStructObjectInspector(serDeParams)
@@ -63,46 +56,44 @@ class ColumnarSerDe extends SerDe with LogHelper {
         logDebug("Estimated size of each row is: " + rowSize)
       }
     }
+
+    cachedWritable = new ColumnarWritable(cachedObjectInspector, initialColumnSize, columnFactory)
   }
 
-  def deserialize(blob: Writable): Object = {  
+  override def deserialize(blob: Writable): Object = {
     if (cachedStruct == null)
       cachedStruct = new ColumnarStruct(blob.asInstanceOf[ColumnarWritable])
     cachedStruct.initializeNextRow()
     cachedStruct
   }
 
-  def getObjectInspector(): ObjectInspector = {
+  override def getObjectInspector(): ObjectInspector = {
     return cachedObjectInspector
   }
 
-  def getSerializedClass(): Class[_ <: Writable] = {
+  override def getSerializedClass(): Class[_ <: Writable] = {
     return classOf[ColumnarWritable]
   }
-  
-  def serialize(obj: Object, objInspector: ObjectInspector): Writable = {
 
-    if (cachedWritable == null) {
-      cachedWritable = new ColumnarWritable(cachedObjectInspector, initialColumnSize)
-    }
+  override def serialize(obj: Object, objInspector: ObjectInspector): Writable = {
 
     val soi = objInspector.asInstanceOf[StructObjectInspector]
     val fields = soi.getAllStructFieldRefs
-    //Doesn't handle complex things yet
+
     var i = 0
     while (i < fields.size) {
       val field = fields.get(i)
       val fieldOI = field.getFieldObjectInspector
       fieldOI.getCategory match {
-        case Category.PRIMITIVE =>
+        case ObjectInspector.Category.PRIMITIVE =>
           cachedWritable.add(i, soi.getStructFieldData(obj, field), fieldOI)
         case other => {
           // We use LazySimpleSerDe to serialize nested data
           LazySimpleSerDe.serialize(
-            serializeStream, soi.getStructFieldData(obj, field), 
+            serializeStream, soi.getStructFieldData(obj, field),
             fieldOI,
             serDeParams.getSeparators(),
-            1, 
+            1,
             serDeParams.getNullSequence(),
             serDeParams.isEscaped(),
             serDeParams.getEscapeChar(),
@@ -117,35 +108,21 @@ class ColumnarSerDe extends SerDe with LogHelper {
   }
 }
 
-class ColumnarWritable(oi: StructObjectInspector, initialColumnSize: Int)
 
-  extends Writable {
+class ColumnarSerDeWithStats extends ColumnarSerDe {
+  override def columnFactory: ColumnFactory = ColumnWithStats
 
-  val fields = oi.getAllStructFieldRefs
-  val columns = new Array[Column](fields.size)
-
-  (0 until columns.length).foreach { i =>
-    columns(i) = Column(fields.get(i).getFieldObjectInspector, initialColumnSize)
-  }
-
-  def getField(id: Int, rowId: Int): Object = {
-    columns(id)(rowId)
-  }
-
-  def add(id: Int, o: Object, oi: ObjectInspector) {
-    columns(id).add(o, oi)
-  }
-
-  // We don't use these, but want to maintain Writable interface for SerDe
-  override def write(out: DataOutput) {}
-
-  override def readFields(in: DataInput) {}
-
-  def close() {
-    columns.foreach { _.close() }
+  def stats: TableStats = {
+    new TableStats(cachedWritable.columns.map {
+      case column: ColumnWithStats[_] => Some(column.stats)
+      case _ => None
+    })
   }
 }
 
+
+// Companion object, used to determine the row size, which is then used to
+// determine the initial capacity to allocate as fastutil buffer.
 object ColumnarSerDe {
 
   // Sizes of primitive types
@@ -172,7 +149,7 @@ object ColumnarSerDe {
   // nested data once those are supported.
   def getFieldSize(oi: ObjectInspector): Int = {
     val size = oi.getCategory match {
-      case Category.PRIMITIVE => {
+      case ObjectInspector.Category.PRIMITIVE => {
         oi.asInstanceOf[PrimitiveObjectInspector].getPrimitiveCategory match {
           case PrimitiveCategory.BOOLEAN => BOOLEAN_SIZE
           case PrimitiveCategory.BYTE => BYTE_SIZE
@@ -186,22 +163,23 @@ object ColumnarSerDe {
           case _ => throw new Exception("Invalid primitive object inspector category")
         }
       }
-      case Category.LIST => {
-        val listOISize = getFieldSize(oi.asInstanceOf[ListObjectInspector].getListElementObjectInspector())
+      case ObjectInspector.Category.LIST => {
+        val listOISize = getFieldSize(
+          oi.asInstanceOf[ListObjectInspector].getListElementObjectInspector())
         LIST_SIZE * listOISize
       }
-      case Category.STRUCT => {
+      case ObjectInspector.Category.STRUCT => {
         val fieldRefs = oi.asInstanceOf[StructObjectInspector].getAllStructFieldRefs()
         fieldRefs.foldLeft(0)((sum, structField) =>
           sum + getFieldSize(structField.getFieldObjectInspector))
       }
-      case Category.UNION => {
+      case ObjectInspector.Category.UNION => {
         val unionOIs = oi.asInstanceOf[UnionObjectInspector].getObjectInspectors()
         val unionOISizes = unionOIs.foldLeft(0)((sum, unionOI) =>
           sum + getFieldSize(unionOI))
         unionOISizes / unionOIs.size
       }
-      case Category.MAP => {
+      case ObjectInspector.Category.MAP => {
         val mapOI = oi.asInstanceOf[MapObjectInspector]
         val keySize = getFieldSize(mapOI.getMapKeyObjectInspector())
         val valueSize = getFieldSize(mapOI.getMapValueObjectInspector())
@@ -210,106 +188,5 @@ object ColumnarSerDe {
       case _ => throw new Exception("Invalid primitive object inspector category")
     }
     return size
-  }
-}
-
-class ColumnarStruct(val data: ColumnarWritable) {
-
-  var row = -1
-
-  def initializeNextRow() {
-    row += 1
-  }
-
-  def getField(id: Int): Object = {
-    data.getField(id, row)
-  }
-
-  def getFieldsAsList(): java.util.List[Object] = {
-    val l = new java.util.ArrayList[Object]()
-    for (i <- 0 until data.columns.length) {
-      l.add(data.getField(i, row))
-    }
-    l
-  }
-}
-
-class ColumnarStructObjectInspector(fields: java.util.List[StructField]) extends StructObjectInspector {
-
-  override def getCategory(): Category =  {
-    return Category.STRUCT
-  }
-
-  override def getTypeName(): String =  {
-   return ObjectInspectorUtils.getStandardStructTypeName(this);
-  }
-
-  override def getStructFieldRef(fieldName: String): StructField = {
-    return ObjectInspectorUtils.getStandardStructFieldRef(fieldName, fields)
-  }
-
-  override def getAllStructFieldRefs(): java.util.List[_ <: StructField] = {
-    return fields
-  }
-
-  override def getStructFieldData(data: Object, fieldRef: StructField): Object = {
-    data.asInstanceOf[ColumnarStruct].getField(
-      fieldRef.asInstanceOf[IDStructField].getFieldID())
-  }
-
-  override def getStructFieldsDataAsList(data: Object): java.util.List[Object] = {
-    if (data == null) {
-      null
-    } else {
-      data.asInstanceOf[ColumnarStruct].getFieldsAsList()
-    }
-  }
-}
-
-
-object ColumnarStructObjectInspector {
-
-  def apply(serDeParams: SerDeParameters): ColumnarStructObjectInspector = {
-    val columnNames = serDeParams.getColumnNames()
-    val columnTypes = serDeParams.getColumnTypes()
-    val fields = new java.util.ArrayList[StructField]()
-    for (i <- 0 until columnNames.size) {
-      val typeInfo = columnTypes.get(i)
-      val fieldOI = typeInfo.getCategory match {
-        case Category.PRIMITIVE => SharkEnv.objectInspectorLock.synchronized {
-          PrimitiveObjectInspectorFactory.getPrimitiveWritableObjectInspector(
-            typeInfo.asInstanceOf[PrimitiveTypeInfo].getPrimitiveCategory)
-        }
-        case _ => SharkEnv.objectInspectorLock.synchronized {
-          LazyFactory.createLazyObjectInspector(
-            typeInfo, serDeParams.getSeparators(), 1, serDeParams.getNullSequence(), 
-            serDeParams.isEscaped(), serDeParams.getEscapeChar())
-        }
-      }
-      fields.add(new IDStructField(i, columnNames.get(i), fieldOI))
-    }
-    new ColumnarStructObjectInspector(fields)
-  }
-}
-
-
-class IDStructField(
-  val fieldID: Int, val fieldName: String, val fieldObjectInspector: ObjectInspector)
-extends StructField {
-
-  def getFieldID(): Int = {
-    return fieldID
-  }
-  
-  def getFieldName(): String =  {
-    return fieldName
-  }
-  
-  override def getFieldObjectInspector(): ObjectInspector = {
-    return fieldObjectInspector
-  }
-
-  override def toString(): String =  {
-    return "" + fieldID + ":" + fieldName
   }
 }

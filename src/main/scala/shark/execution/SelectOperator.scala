@@ -5,6 +5,7 @@ import org.apache.hadoop.hive.ql.exec.{SelectOperator => HiveSelectOperator}
 import org.apache.hadoop.hive.ql.plan.SelectDesc
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
+import spark.Split
 
 
 /**
@@ -14,13 +15,13 @@ import scala.reflect.BeanProperty
 class SelectOperator extends UnaryOperator[HiveSelectOperator] {
 
   @BeanProperty var conf: SelectDesc = _
-  
+
   @transient var evals: Array[ExprNodeEvaluator] = _
-  
+
   override def initializeOnMaster() {
     conf = hiveOp.getConf()
   }
-  
+
   override def initializeOnSlave() {
     if (!conf.isSelStarNoCompute) {
       evals = conf.getColList().map(ExprNodeEvaluatorFactory.get(_)).toArray
@@ -28,7 +29,7 @@ class SelectOperator extends UnaryOperator[HiveSelectOperator] {
     }
   }
 
-  override def processPartition[T](iter: Iterator[T]) = {
+  override def processPartition(split: Split, iter: Iterator[_]) = {
     if (conf.isSelStarNoCompute) {
       iter
     } else {
@@ -43,6 +44,4 @@ class SelectOperator extends UnaryOperator[HiveSelectOperator] {
       }
     }
   }
-
 }
-

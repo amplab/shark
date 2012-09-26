@@ -18,7 +18,8 @@ import scala.collection.JavaConversions._
 
 import shark.LogHelper
 import shark.execution.{HiveOperator, Operator, OperatorFactory, ReduceSinkOperator, SparkWork,
-  TerminalAbstractOperator, TerminalOperator}
+  TerminalOperator}
+import shark.memstore.ColumnarSerDe
 import shark.SharkConfVars
 
 
@@ -80,7 +81,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
           (SharkConfVars.getBoolVar(conf, SharkConfVars.CHECK_TABLENAME_FLAG) &&
           td.getTableName.endsWith("_cached"))
         if (shouldCache) {
-          td.setSerName(classOf[shark.ColumnarSerDe].getName)
+          td.setSerName(classOf[ColumnarSerDe].getName)
         }
         qb.setTableDesc(td)
         reset()
@@ -290,7 +291,7 @@ object SharkSemanticAnalyzer extends LogHelper {
    * craft the struct object inspector (that has both KEY and VALUE) in Shark
    * ReduceSinkOperator.initializeDownStreamHiveOperators().
    */
-  def breakHivePlanByStages(terminalOps: Seq[TerminalAbstractOperator[_]]) = {
+  def breakHivePlanByStages(terminalOps: Seq[TerminalOperator]) = {
     val reduceSinks = new scala.collection.mutable.HashSet[ReduceSinkOperator]
     val queue = new scala.collection.mutable.Queue[Operator[_]]
     queue ++= terminalOps
