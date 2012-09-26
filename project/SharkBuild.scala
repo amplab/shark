@@ -22,7 +22,7 @@ object SharkBuild extends Build {
     name := "shark",
     organization := "edu.berkeley.cs.amplab",
     version := "0.1",
-    scalaVersion := "2.9.1",
+    scalaVersion := "2.9.2",
     scalacOptions := Seq("-deprecation", "-unchecked", "-optimize"),
 
     // Download managed jars into lib_managed.
