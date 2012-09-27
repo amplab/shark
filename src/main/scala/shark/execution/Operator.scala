@@ -10,8 +10,8 @@ import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
 import shark.LogHelper
-import shark.memstore.SharkRDD._
-import spark.{RDD, Split}
+import shark.memstore.EnhancedRDD._
+import spark.RDD
 
 
 abstract class Operator[T <: HiveOperator] extends LogHelper with Serializable {
@@ -30,7 +30,7 @@ abstract class Operator[T <: HiveOperator] extends LogHelper with Serializable {
    */
   def initializeOnSlave() {}
 
-  def processPartition(split: Split, iter: Iterator[_]): Iterator[_]
+  def processPartition(split: Int, iter: Iterator[_]): Iterator[_]
 
   /**
    * Execute the operator. This should recursively execute parent operators.
@@ -120,7 +120,7 @@ abstract class Operator[T <: HiveOperator] extends LogHelper with Serializable {
 abstract class NaryOperator[T <: HiveOperator] extends Operator[T] {
 
   /** Process a partition. Called on slaves. */
-  def processPartition(split: Split, iter: Iterator[_]): Iterator[_]
+  def processPartition(split: Int, iter: Iterator[_]): Iterator[_]
 
   /** Called on master. */
   def combineMultipleRdds(rdds: Seq[(Int, RDD[_])]): RDD[_]
@@ -156,7 +156,7 @@ abstract class NaryOperator[T <: HiveOperator] extends Operator[T] {
 abstract class UnaryOperator[T <: HiveOperator] extends Operator[T] {
 
   /** Process a partition. Called on slaves. */
-  def processPartition(split: Split, iter: Iterator[_]): Iterator[_]
+  def processPartition(split: Int, iter: Iterator[_]): Iterator[_]
 
   /** Called on master. */
   def preprocessRdd(rdd: RDD[_]): RDD[_] = rdd

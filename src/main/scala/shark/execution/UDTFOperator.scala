@@ -11,8 +11,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.{ ObjectInspector,
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
-import spark.Split
-
 
 class UDTFOperator extends UnaryOperator[HiveUDTFOperator] {
 
@@ -43,7 +41,7 @@ class UDTFOperator extends UnaryOperator[HiveUDTFOperator] {
     val udtfOutputOI = conf.getGenericUDTF().initialize(udtfInputOIs)
   }
 
-  override def processPartition(split: Split, iter: Iterator[_]): Iterator[_] = {
+  override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
     iter.flatMap { row =>
       explode(row)
     }

@@ -24,7 +24,7 @@ import scala.reflect.BeanProperty
 
 import spark.broadcast.Broadcast
 import shark.collections.Conversions._
-import spark.{RDD, Split}
+import spark.RDD
 import shark.SharkEnv
 
 /**
@@ -302,7 +302,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
     }
   }
 
-  override def processPartition(split: Split, iter: Iterator[_]): Iterator[_] = {
+  override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
     throw new Exception("MapJoinOperator.processPartition() should've never been called.")
   }
 }

@@ -13,7 +13,7 @@ import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
 import shark.RDDUtils
-import spark.{RDD, Split}
+import spark.RDD
 import spark.SparkContext._
 
 
@@ -101,7 +101,7 @@ with HiveTopOperator {
     }
   }
 
-  override def processPartition(split: Split, iter: Iterator[_]) = {
+  override def processPartition(split: Int, iter: Iterator[_]) = {
     val bytes = new BytesWritable()
     iter map {
       case (key, value: Array[Byte]) => {

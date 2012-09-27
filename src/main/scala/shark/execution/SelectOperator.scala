@@ -5,8 +5,6 @@ import org.apache.hadoop.hive.ql.exec.{SelectOperator => HiveSelectOperator}
 import org.apache.hadoop.hive.ql.plan.SelectDesc
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
-import spark.Split
-
 
 /**
  * An operator that does projection, i.e. selecting certain columns and
@@ -29,7 +27,7 @@ class SelectOperator extends UnaryOperator[HiveSelectOperator] {
     }
   }
 
-  override def processPartition(split: Split, iter: Iterator[_]) = {
+  override def processPartition(split: Int, iter: Iterator[_]) = {
     if (conf.isSelStarNoCompute) {
       iter
     } else {

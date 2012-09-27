@@ -15,8 +15,7 @@ import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
 import shark.SharkEnv
-import spark.{UnionRDD, RDD, Split}
-
+import spark.{UnionRDD, RDD}
 
 /**
  * A union operator. If the incoming data are of different type, the union
@@ -128,7 +127,7 @@ class UnionOperator extends NaryOperator[HiveUnionOperator] {
     }
   }
 
-  override def processPartition(split: Split, iter: Iterator[_]): Iterator[_] = {
+  override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
     throw new Exception("UnionOperator.processPartition() should've never been called.")
   }
 }

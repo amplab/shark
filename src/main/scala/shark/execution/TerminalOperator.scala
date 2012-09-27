@@ -14,8 +14,8 @@ import scala.reflect.BeanProperty
 
 import shark.{RDDUtils, SharkConfVars, SharkEnv}
 import shark.memstore._
-import shark.memstore.SharkRDD._
-import spark.{GrowableAccumulableParam, RDD, Split, TaskContext}
+import shark.memstore.EnhancedRDD._
+import spark.{GrowableAccumulableParam, RDD, TaskContext}
 import spark.SparkContext._
 
 
@@ -45,7 +45,7 @@ class TerminalOperator extends UnaryOperator[HiveFileSinkOperator] {
     localHiveOp.initialize(localHconf, Array(objectInspector))
   }
 
-  override def processPartition(split: Split, iter: Iterator[_]): Iterator[_] = iter
+  override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = iter
 }
 
 
@@ -68,7 +68,7 @@ class FileSinkOperator extends TerminalOperator with Serializable {
     conf.setInt("mapred.task.partition", splitID)
   }
 
-  override def processPartition(split: Split, iter: Iterator[_]): Iterator[_] = {
+  override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
     iter.foreach { row =>
       localHiveOp.processOp(row, 0)
     }
@@ -95,7 +95,7 @@ object FileSinkOperator {
       op.logDebug("Input object inspectors: " + op.objectInspectors)
 
       op.initializeOnSlave(context)
-      val newPart = op.processPartition(null, iter)
+      val newPart = op.processPartition(-1, iter)
       op.logDebug("Finished executing mapPartitions for operator: " + op)
 
       true
@@ -131,7 +131,7 @@ class CacheSinkOperator(
       val iterToReturn = rddSerialzier.serialize(iter, op.objectInspector)
 
       if (op.collectStats)
-        statsAcc += (split.index, serde.asInstanceOf[ColumnarSerDeWithStats].stats)
+        statsAcc += (split, serde.asInstanceOf[ColumnarSerDeWithStats].stats)
 
       iterToReturn
     }
@@ -155,7 +155,7 @@ class CacheSinkOperator(
     rdd
   }
 
-  override def processPartition(split: Split, iter: Iterator[_]): Iterator[_] = {
+  override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
     throw new Exception("CacheSinkOperator.processPartition() should've never been called.")
     iter
   }

@@ -3,7 +3,6 @@ package shark.execution
 import org.apache.hadoop.hive.ql.exec.{LimitOperator => HiveLimitOperator}
 import scala.collection.Iterator
 import scala.reflect.BeanProperty
-import spark.Split
 
 class LimitOperator extends UnaryOperator[HiveLimitOperator] {
 
@@ -13,6 +12,6 @@ class LimitOperator extends UnaryOperator[HiveLimitOperator] {
     limit = hiveOp.getConf().getLimit()
   }
 
-  override def processPartition(split: Split, iter: Iterator[_]) = iter.take(limit)
+  override def processPartition(split: Int, iter: Iterator[_]) = iter.take(limit)
 }
 

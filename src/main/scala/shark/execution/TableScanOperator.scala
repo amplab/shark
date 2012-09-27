@@ -20,8 +20,8 @@ import scala.reflect.BeanProperty
 import org.apache.hadoop.hive.ql.exec.MapSplitPruning
 import shark.{SharkConfVars, SharkEnv}
 import shark.memstore.{CacheKey, RDDSerializer, TableStats}
-import shark.memstore.SharkRDD._
-import spark.{RDD, UnionRDD, Split}
+import shark.memstore.EnhancedRDD._
+import spark.{RDD, UnionRDD}
 
 
 class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopOperator {
@@ -115,9 +115,9 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         // Do the pruning.
         val pruned = rdd.pruneSplits { split =>
           if (printPruneDebug) {
-            logInfo("\nSplit " + split.index + "\n" + splitToStats(split.index).toString)
+            logInfo("\nSplit " + split + "\n" + splitToStats(split).toString)
           }
-          MapSplitPruning.test(splitToStats(split.index), filterOp.conditionEvaluator)
+          MapSplitPruning.test(splitToStats(split), filterOp.conditionEvaluator)
         }
         val timeTaken = System.currentTimeMillis - startTime
         logInfo("Map pruning %d splits into %s splits took %d ms".format(
@@ -151,7 +151,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     }
   }
 
-  override def processPartition(split: Split, iter: Iterator[_]): Iterator[_] = {
+  override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
     val deserializer = tableDesc.getDeserializerClass().newInstance()
     deserializer.initialize(localHconf, tableDesc.getProperties)
     iter.map { value =>

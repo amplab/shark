@@ -15,7 +15,7 @@ import scala.reflect.BeanProperty
 
 import shark.SharkEnv
 import shark.execution.UnaryOperator
-import spark.{RDD, Split}
+import spark.RDD
 import spark.SparkContext._
 
 
@@ -83,7 +83,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
     keyFactory = new KeyWrapperFactory(keyFields, keyObjectInspectors, currentKeyObjectInspectors)
   }
 
-  override def processPartition(split: Split, iter: Iterator[_]) = {
+  override def processPartition(split: Int, iter: Iterator[_]) = {
     logInfo("Running Pre-Shuffle Group-By")
 
     // Do aggregation on map side using hashAggregations hash table.

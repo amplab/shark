@@ -18,7 +18,6 @@ import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
 import shark.SharkEnv
-import spark.Split
 
 
 /**
@@ -58,7 +57,7 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
     initializeOisAndSers(conf, objectInspector)
   }
 
-  override def processPartition(split: Split, iter: Iterator[_]) = {
+  override def processPartition(split: Int, iter: Iterator[_]) = {
     if (conf.getDistinctColumnIndices().size() == 0) {
       processPartitionNoDistinct(iter)
     } else {

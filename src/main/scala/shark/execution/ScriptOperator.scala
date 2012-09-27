@@ -136,7 +136,7 @@ class ScriptOperator extends UnaryOperator[HiveScriptOperator] {
     (wrappedCmdArgs, Map.empty ++ envs)
   }
 
-  override def processPartition(split: Split, iter: Iterator[_]): Iterator[_] = {
+  override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
     throw new Exception("UnionOperator.processPartition() should've never been called.")
   }
 

@@ -20,7 +20,7 @@ import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
 import shark.execution.{HiveTopOperator, ReduceKey}
-import spark.{Aggregator, HashPartitioner, RDD, ShuffledAggregatedRDD, Split}
+import spark.{Aggregator, HashPartitioner, RDD, ShuffledAggregatedRDD}
 import spark.SparkContext._
 
 
@@ -181,7 +181,7 @@ with HiveTopOperator {
       new HashPartitioner(numReduceTasks))
   }
 
-  override def processPartition(split: Split, iter: Iterator[_]) = {
+  override def processPartition(split: Int, iter: Iterator[_]) = {
     // TODO: we should support outputs besides BytesWritable in case a different
     // SerDe is used for intermediate data.
     val bytes = new BytesWritable()

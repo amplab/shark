@@ -12,7 +12,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.{ ObjectInspector, StructOb
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
-import spark.{RDD, Split}
+import spark.RDD
 
 
 /**
@@ -72,7 +72,7 @@ class LateralViewJoinOperator extends NaryOperator[HiveLateralViewJoinOperator] 
   }
 
   /** Per existing row, emit a new row with each value of the exploded array */
-  override def processPartition(split: Split, iter: Iterator[_]) = {
+  override def processPartition(split: Int, iter: Iterator[_]) = {
     val lvfSoi = lvfOp.objectInspectors.head.asInstanceOf[StructObjectInspector]
     val lvfFields = lvfSoi.getAllStructFieldRefs()
 

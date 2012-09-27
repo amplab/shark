@@ -13,7 +13,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
-import spark.{UnionRDD, RDD, Split}
+import spark.{UnionRDD, RDD}
 import spark.SparkContext._
 
 
@@ -101,7 +101,7 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
     }
   }
 
-  override def processPartition(split: Split, iter: Iterator[_]): Iterator[_] = {
+  override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
 
     val tupleOrder = CommonJoinOperator.computeTupleOrder(joinConditions)
 
