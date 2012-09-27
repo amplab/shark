@@ -11,6 +11,8 @@ trait ColumnStats[T] {
   def add(v: T)
   def min: T
   def max: T
+
+  override def toString = "[" + min + ", " + max + "]"
 }
 
 

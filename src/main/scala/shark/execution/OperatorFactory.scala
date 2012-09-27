@@ -22,11 +22,12 @@ object OperatorFactory extends LogHelper {
     _createOperatorTree(hiveTerminalOp).asInstanceOf[TerminalOperator]
   }
 
-  def createSharkCacheOutputPlan(hiveTerminalOp: HiveOperator, tableName: String)
-  : TerminalOperator = {
+  def createSharkCacheOutputPlan(
+    hiveTerminalOp: HiveOperator, tableName: String, collectStats: Boolean): TerminalOperator = {
     val terminalOp = _newOperatorInstance(
       classOf[CacheSinkOperator], hiveTerminalOp).asInstanceOf[CacheSinkOperator]
     terminalOp.tableName = tableName
+    terminalOp.collectStats = collectStats
     _createAndSetParents(
       terminalOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }

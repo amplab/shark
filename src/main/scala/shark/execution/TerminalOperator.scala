@@ -12,7 +12,7 @@ import org.apache.hadoop.mapred.{TaskID, TaskAttemptID, HadoopWriter}
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.BeanProperty
 
-import shark.{RDDUtils, SharkEnv}
+import shark.{RDDUtils, SharkConfVars, SharkEnv}
 import shark.memstore._
 import shark.memstore.SharkRDD._
 import spark.{GrowableAccumulableParam, RDD, Split, TaskContext}
@@ -108,9 +108,12 @@ object FileSinkOperator {
 /**
  * Cache the RDD and force evaluate it (so the cache is filled).
  */
-class CacheSinkOperator(@BeanProperty var tableName: String) extends TerminalOperator {
+class CacheSinkOperator(
+  @BeanProperty var tableName: String, @BeanProperty var collectStats: Boolean)
+  extends TerminalOperator {
 
-  def this() = this(null)
+  // Zero-arg constructor for deserialization.
+  def this() = this(null, false)
 
   override def execute(): RDD[_] = {
     val inputRdd = if (parentOperators.size == 1) executeParents().head._2 else null
@@ -122,12 +125,14 @@ class CacheSinkOperator(@BeanProperty var tableName: String) extends TerminalOpe
     val rdd = inputRdd.mapPartitionsWithSplit { case(split, iter) =>
       op.initializeOnSlave()
 
-      val serde = new ColumnarSerDeWithStats
+      val serde = if (op.collectStats) new ColumnarSerDeWithStats else new ColumnarSerDe
       serde.initialize(op.hconf, op.localHiveOp.getConf.getTableInfo.getProperties())
       val rddSerialzier = new RDDSerializer.Columnar(serde)
       val iterToReturn = rddSerialzier.serialize(iter, op.objectInspector)
 
-      statsAcc += (split.index, serde.stats)
+      if (op.collectStats)
+        statsAcc += (split.index, serde.asInstanceOf[ColumnarSerDeWithStats].stats)
+
       iterToReturn
     }
 
@@ -137,8 +142,14 @@ class CacheSinkOperator(@BeanProperty var tableName: String) extends TerminalOpe
     rdd.foreach(_ => Unit)
 
     // Get the column statistics back to the cache manager.
-    println("splits: " + statsAcc.value.size)
     SharkEnv.cache.keyToStats.put(cacheKey, statsAcc.value.toMap)
+
+    if (SharkConfVars.getBoolVar(localHconf, SharkConfVars.MAP_PRUNING_PRINT_DEBUG)) {
+      statsAcc.value.foreach { case(split, tableStats) =>
+        println("Split " + split)
+        println(tableStats.toString)
+      }
+    }
 
     // Return the cached RDD.
     rdd

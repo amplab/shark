@@ -94,23 +94,28 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
   def loadRddFromCache(tableKey: CacheKey[String], rdd: RDD[_]): RDD[_] = {
     logInfo("Loading table from cache " + tableKey)
 
+    // Stats used for map pruning.
+    val splitToStats: collection.Map[Int, TableStats] = SharkEnv.cache.keyToStats(tableKey)
+    
+    // Run map pruning if the flag is set, there exists a filter predicate on
+    // the input table and we have statistics on the table.
     val rddPruned: RDD[_] =
       if (SharkConfVars.getBoolVar(localHconf, SharkConfVars.MAP_PRUNING) &&
-          childOperators(0).isInstanceOf[FilterOperator]) {
+          childOperators(0).isInstanceOf[FilterOperator] && splitToStats.size > 0) {
+
         val startTime = System.currentTimeMillis
-        val splitToStats: collection.Map[Int, TableStats] =
-          SharkEnv.cache.keyToStats(tableKey)
         val printPruneDebug = SharkConfVars.getBoolVar(
           localHconf, SharkConfVars.MAP_PRUNING_PRINT_DEBUG)
+
+        // Must initialize the condition evaluator in FilterOperator to get the
+        // udfs and object inspectors set.
         val filterOp = childOperators(0).asInstanceOf[FilterOperator]
         filterOp.initializeOnSlave()
+
+        // Do the pruning.
         val pruned = rdd.pruneSplits { split =>
           if (printPruneDebug) {
-            logInfo("Split " + split.index)
-            splitToStats(split.index).stats.zipWithIndex.foreach { case (s, i) =>
-              // s is an Option.
-              s.foreach { ss => logInfo("  column " + i + " [" + ss.min + ", " + ss.max + "]") }
-            }
+            logInfo("\nSplit " + split.index + "\n" + splitToStats(split.index).toString)
           }
           MapSplitPruning.test(splitToStats(split.index), filterOp.conditionEvaluator)
         }

@@ -56,8 +56,9 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
 
     //TODO: can probably reuse Hive code for this
     // analyze create table command
-    var isCTAS = false
     var shouldCache = false
+    var shouldCollectStats = true
+    var isCTAS = false
     if (ast.getToken().getType() == HiveParser.TOK_CREATETABLE) {
       super.analyzeInternal(ast)
       for (ch <- ast.getChildren) {
@@ -80,9 +81,8 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         shouldCache = td.getTblProps().getOrElse("shark.cache", "false").toBoolean ||
           (SharkConfVars.getBoolVar(conf, SharkConfVars.CHECK_TABLENAME_FLAG) &&
           td.getTableName.endsWith("_cached"))
-        if (shouldCache) {
-          td.setSerName(classOf[ColumnarSerDe].getName)
-        }
+        shouldCollectStats = td.getTblProps().getOrElse("shark.collectStats", "true").toBoolean
+        if (shouldCache) td.setSerName(classOf[ColumnarSerDe].getName)
         qb.setTableDesc(td)
         reset()
       }
@@ -131,7 +131,8 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       // destination (e.g. CTAS with table property "shark.cache" = "true").
       val terminalOp = {
         if (isCTAS && qb.getTableDesc != null && shouldCache) {
-          OperatorFactory.createSharkCacheOutputPlan(hiveSinkOps.head, qb.getTableDesc.getTableName)
+          OperatorFactory.createSharkCacheOutputPlan(
+            hiveSinkOps.head, qb.getTableDesc.getTableName, shouldCollectStats)
         } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink) {
           OperatorFactory.createSharkRddOutputPlan(hiveSinkOps.head)
         } else {
