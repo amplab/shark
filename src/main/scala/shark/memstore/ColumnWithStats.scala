@@ -38,7 +38,7 @@ object ColumnWithStats extends ColumnFactory {
   class BooleanColumn(initialSize: Int) extends Column.BooleanColumn(initialSize)
     with ColumnWithStats[Boolean] {
 
-    override val stats = new RangeStats.NumericRangeStats[Boolean]
+    override val stats = new ColumnStats.Numeric[Boolean]
 
     override def add(o: Object, oi: ObjectInspector) {
       stats.add(oi.asInstanceOf[BooleanObjectInspector].get(o))
@@ -49,7 +49,7 @@ object ColumnWithStats extends ColumnFactory {
   class ByteColumn(initialSize: Int) extends Column.ByteColumn(initialSize)
     with ColumnWithStats[Byte] {
 
-    override val stats = new RangeStats.NumericRangeStats[Byte]
+    override val stats = new ColumnStats.Numeric[Byte]
 
     override def add(o: Object, oi: ObjectInspector) {
       stats.add(oi.asInstanceOf[ByteObjectInspector].get(o))
@@ -60,7 +60,7 @@ object ColumnWithStats extends ColumnFactory {
   class ShortColumn(initialSize: Int) extends Column.ShortColumn(initialSize)
     with ColumnWithStats[Short] {
 
-    val stats = new RangeStats.NumericRangeStats[Short]
+    val stats = new ColumnStats.Numeric[Short]
 
     override def add(o: Object, oi: ObjectInspector) {
       stats.add(oi.asInstanceOf[ShortObjectInspector].get(o))
@@ -71,7 +71,7 @@ object ColumnWithStats extends ColumnFactory {
   class IntColumn(initialSize: Int) extends Column.IntColumn(initialSize)
     with ColumnWithStats[Int] {
 
-    override val stats = new RangeStats.NumericRangeStats[Int]
+    override val stats = new ColumnStats.Numeric[Int]
 
     override def add(o: Object, oi: ObjectInspector) {
       stats.add(oi.asInstanceOf[IntObjectInspector].get(o))
@@ -82,7 +82,7 @@ object ColumnWithStats extends ColumnFactory {
   class LongColumn(initialSize: Int) extends Column.LongColumn(initialSize)
     with ColumnWithStats[Long] {
 
-    override val stats = new RangeStats.NumericRangeStats[Long]
+    override val stats = new ColumnStats.Numeric[Long]
 
     override def add(o: Object, oi: ObjectInspector) {
       stats.add(oi.asInstanceOf[LongObjectInspector].get(o))
@@ -93,7 +93,7 @@ object ColumnWithStats extends ColumnFactory {
   class FloatColumn(initialSize: Int) extends Column.FloatColumn(initialSize)
     with ColumnWithStats[Float] {
 
-    override val stats = new RangeStats.NumericRangeStats[Float]
+    override val stats = new ColumnStats.Numeric[Float]
 
     override def add(o: Object, oi: ObjectInspector) {
       stats.add(oi.asInstanceOf[FloatObjectInspector].get(o))
@@ -104,7 +104,7 @@ object ColumnWithStats extends ColumnFactory {
   class DoubleColumn(initialSize: Int) extends Column.DoubleColumn(initialSize)
     with ColumnWithStats[Double] {
 
-    override val stats = new RangeStats.NumericRangeStats[Double]
+    override val stats = new ColumnStats.Numeric[Double]
 
     override def add(o: Object, oi: ObjectInspector) {
       stats.add(oi.asInstanceOf[DoubleObjectInspector].get(o))
@@ -115,7 +115,7 @@ object ColumnWithStats extends ColumnFactory {
   class StringColumn(initialSize: Int) extends Column.StringColumn(initialSize)
     with ColumnWithStats[Text] {
 
-    override val stats = new RangeStats.TextRangeStats
+    override val stats = new ColumnStats.HadoopText
 
     override def add(o: Object, oi: ObjectInspector) {
       stats.add(oi.asInstanceOf[StringObjectInspector].getPrimitiveWritableObject(o))

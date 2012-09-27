@@ -25,7 +25,8 @@ class ColumnarStructObjectInspector(fields: JList[StructField]) extends StructOb
   override def getAllStructFieldRefs(): JList[_ <: StructField] = fields
 
   override def getStructFieldData(data: Object, fieldRef: StructField): Object =
-    data.asInstanceOf[ColumnarStruct].getField(fieldRef.asInstanceOf[IDStructField].fieldID)
+    data.asInstanceOf[ColumnarStruct].getField(
+        fieldRef.asInstanceOf[ColumnarStructObjectInspector.IDStructField].fieldID)
 
   override def getStructFieldsDataAsList(data: Object): JList[Object] =
     if (data == null) null else data.asInstanceOf[ColumnarStruct].getFieldsAsList()
@@ -56,16 +57,16 @@ object ColumnarStructObjectInspector {
     }
     new ColumnarStructObjectInspector(fields)
   }
+
+  class IDStructField(
+      val fieldID: Int,
+      val fieldName: String,
+      val fieldObjectInspector: ObjectInspector)
+    extends StructField {
+  
+    override def getFieldName: String = fieldName
+    override def getFieldObjectInspector: ObjectInspector = fieldObjectInspector
+    override def toString(): String = "" + fieldID + ":" + fieldName
+  }
 }
 
-
-class IDStructField(
-    val fieldID: Int,
-    val fieldName: String,
-    val fieldObjectInspector: ObjectInspector)
-  extends StructField {
-
-  override def getFieldName: String = fieldName
-  override def getFieldObjectInspector: ObjectInspector = fieldObjectInspector
-  override def toString(): String = "" + fieldID + ":" + fieldName
-}

@@ -17,8 +17,10 @@ import org.apache.hadoop.io.Writable
 
 import scala.reflect.BeanProperty
 
-import shark.SharkEnv
+import org.apache.hadoop.hive.ql.exec.MapSplitPruning
+import shark.{SharkConfVars, SharkEnv}
 import shark.memstore.{CacheKey, RDDSerializer, TableStats}
+import shark.memstore.SharkRDD._
 import spark.{RDD, UnionRDD, Split}
 
 
@@ -92,21 +94,35 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
   def loadRddFromCache(tableKey: CacheKey[String], rdd: RDD[_]): RDD[_] = {
     logInfo("Loading table from cache " + tableKey)
 
-    val stats: collection.Map[Int, TableStats] = SharkEnv.cache.keyToStats(tableKey)
-    println("%s contains %d splits".format(tableKey, stats.size))
-    stats.foreach { case(split, stats) =>
-      println("split " + split)
-      stats.stats.zipWithIndex.foreach { case(s, i) =>
-        s.foreach { ss =>
-          print("  column %d ")
-          print("min " + ss.asInstanceOf[shark.memstore.RangeStats[_]].min + " ")
-          print("max " + ss.asInstanceOf[shark.memstore.RangeStats[_]].max + " ")
-          println("")
+    val rddPruned: RDD[_] =
+      if (SharkConfVars.getBoolVar(localHconf, SharkConfVars.MAP_PRUNING) &&
+          childOperators(0).isInstanceOf[FilterOperator]) {
+        val startTime = System.currentTimeMillis
+        val splitToStats: collection.Map[Int, TableStats] =
+          SharkEnv.cache.keyToStats(tableKey)
+        val printPruneDebug = SharkConfVars.getBoolVar(
+          localHconf, SharkConfVars.MAP_PRUNING_PRINT_DEBUG)
+        val filterOp = childOperators(0).asInstanceOf[FilterOperator]
+        filterOp.initializeOnSlave()
+        val pruned = rdd.pruneSplits { split =>
+          if (printPruneDebug) {
+            logInfo("Split " + split.index)
+            splitToStats(split.index).stats.zipWithIndex.foreach { case (s, i) =>
+              // s is an Option.
+              s.foreach { ss => logInfo("  column " + i + " [" + ss.min + ", " + ss.max + "]") }
+            }
+          }
+          MapSplitPruning.test(splitToStats(split.index), filterOp.conditionEvaluator)
         }
+        val timeTaken = System.currentTimeMillis - startTime
+        logInfo("Map pruning %d splits into %s splits took %d ms".format(
+            rdd.splits.size, pruned.splits.size, timeTaken))
+        pruned
+      } else {
+        rdd
       }
-    }
 
-    val deserializedRdd = rdd.mapPartitions { iter =>
+    val deserializedRdd = rddPruned.mapPartitions { iter =>
       val rddSerialzier = new RDDSerializer.Columnar(null)
       rddSerialzier.deserialize(iter)
     }

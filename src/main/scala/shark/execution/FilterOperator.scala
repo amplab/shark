@@ -14,6 +14,7 @@ import spark.Split
 class FilterOperator extends UnaryOperator[HiveFilterOperator] {
 
   @transient var conditionEvaluator: ExprNodeEvaluator = _
+  @transient var conditionInspector: PrimitiveObjectInspector = _
 
   @BeanProperty var conf: FilterDesc = _
 
@@ -24,15 +25,15 @@ class FilterOperator extends UnaryOperator[HiveFilterOperator] {
   override def initializeOnSlave() {
     try {
       conditionEvaluator = ExprNodeEvaluatorFactory.get(conf.getPredicate())
+
+      conditionInspector = conditionEvaluator.initialize(objectInspector)
+        .asInstanceOf[PrimitiveObjectInspector]
     } catch {
       case e: Throwable => throw new HiveException(e)
     }
   }
 
   override def processPartition(split: Split, iter: Iterator[_]) = {
-    val conditionInspector = conditionEvaluator.initialize(objectInspector)
-      .asInstanceOf[PrimitiveObjectInspector]
-
     iter.filter { row =>
       java.lang.Boolean.TRUE.equals(
         conditionInspector.getPrimitiveJavaObject(conditionEvaluator.evaluate(row)))

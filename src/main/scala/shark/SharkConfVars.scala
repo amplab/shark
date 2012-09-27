@@ -5,7 +5,7 @@ import org.apache.hadoop.hive.conf.HiveConf
 
 
 object SharkConfVars {
-  
+
   val EXEC_MODE = new ConfVar("shark.exec.mode", "shark")
   
   // This is created for testing. Hive's test script assumes a certain output
@@ -17,10 +17,16 @@ object SharkConfVars {
   // the number of rows by using: partition_size / (num_columns * avg_field_size).
   val COLUMN_INITIALSIZE = new ConfVar("shark.columnar.cache.initialSize",
     if (System.getenv("MASTER") == null) 100 else -1)
-
+  
   // If true, then cache any table whose name ends in "_cached".
   val CHECK_TABLENAME_FLAG = new ConfVar("shark.cache.flag.checkTableName", false)
-  
+
+  // Prune map splits for cached tables based on predicates in queries.
+  val MAP_PRUNING = new ConfVar("shark.mappruning", true)
+
+  // Print debug information for map pruning.
+  val MAP_PRUNING_PRINT_DEBUG = new ConfVar("shark.mappruning.debug", false)
+
   def getIntVar(conf: Configuration, variable: ConfVar): Int = {
     require(variable.valClass == classOf[Int])
     conf.getInt(variable.varname, variable.defaultIntVal)
