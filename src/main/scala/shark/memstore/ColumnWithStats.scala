@@ -8,118 +8,117 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.{BooleanObjectIns
 import org.apache.hadoop.io.Text
 
 
-trait ColumnWithStats[T] extends Column {
+sealed trait ColumnWithStats[T] extends ColumnBuilder {
   val stats: ColumnStats[T]
 }
 
+object ColumnWithStats extends ColumnBuilderFactory {
 
-object ColumnWithStats extends ColumnFactory {
-
-  override def create(oi: ObjectInspector, initialSize: Int): Column = {
+  override def createBuilder(oi: ObjectInspector, initialSize: Int): ColumnBuilder = {
     oi.getCategory match {
       case ObjectInspector.Category.PRIMITIVE => {
         oi.asInstanceOf[PrimitiveObjectInspector].getPrimitiveCategory match {
-          case PrimitiveCategory.BOOLEAN => new BooleanColumn(initialSize)
-          case PrimitiveCategory.BYTE => new ByteColumn(initialSize)
-          case PrimitiveCategory.SHORT => new ShortColumn(initialSize)
-          case PrimitiveCategory.INT => new IntColumn(initialSize)
-          case PrimitiveCategory.LONG => new LongColumn(initialSize)
-          case PrimitiveCategory.FLOAT => new FloatColumn(initialSize)
-          case PrimitiveCategory.DOUBLE => new DoubleColumn(initialSize)
-          case PrimitiveCategory.STRING => new StringColumn(initialSize)
-          case PrimitiveCategory.VOID => new Column.VoidColumn()
+          case PrimitiveCategory.BOOLEAN => new BooleanColumnBuilder(initialSize)
+          case PrimitiveCategory.BYTE => new ByteColumnBuilder(initialSize)
+          case PrimitiveCategory.SHORT => new ShortColumnBuilder(initialSize)
+          case PrimitiveCategory.INT => new IntColumnBuilder(initialSize)
+          case PrimitiveCategory.LONG => new LongColumnBuilder(initialSize)
+          case PrimitiveCategory.FLOAT => new FloatColumnBuilder(initialSize)
+          case PrimitiveCategory.DOUBLE => new DoubleColumnBuilder(initialSize)
+          case PrimitiveCategory.STRING => new StringColumnBuilder(initialSize)
+          case PrimitiveCategory.VOID => new Column.VoidColumn.Builder()
           case _ => throw new Exception("Invalid primitive object inspector category")
         }
       }
-      case _ => new Column.LazyColumn(oi, initialSize)
+      case _ => new Column.LazyColumn.Builder(oi, initialSize)
     }
   }
 
-  class BooleanColumn(initialSize: Int) extends Column.BooleanColumn(initialSize)
-    with ColumnWithStats[Boolean] {
-
+  class BooleanColumnBuilder(initialSize: Int) extends ColumnWithStats[Boolean] {
+    val column = new Column.BooleanColumn.Builder(initialSize)
     override val stats = new ColumnStats.Numeric[Boolean]
+    override def build: Column = column.build
 
     override def add(o: Object, oi: ObjectInspector) {
       stats.add(oi.asInstanceOf[BooleanObjectInspector].get(o))
-      super.add(o, oi)
+      column.add(o, oi)
     }
   }
 
-  class ByteColumn(initialSize: Int) extends Column.ByteColumn(initialSize)
-    with ColumnWithStats[Byte] {
-
+  class ByteColumnBuilder(initialSize: Int) extends ColumnWithStats[Byte] {
+    val column = new Column.ByteColumn.Builder(initialSize)
     override val stats = new ColumnStats.Numeric[Byte]
+    override def build: Column = column.build
 
     override def add(o: Object, oi: ObjectInspector) {
       stats.add(oi.asInstanceOf[ByteObjectInspector].get(o))
-      super.add(o, oi)
+      column.add(o, oi)
     }
   }
 
-  class ShortColumn(initialSize: Int) extends Column.ShortColumn(initialSize)
-    with ColumnWithStats[Short] {
-
+  class ShortColumnBuilder(initialSize: Int) extends ColumnWithStats[Short] {
+    val column = new Column.ShortColumn.Builder(initialSize)
     val stats = new ColumnStats.Numeric[Short]
+    override def build: Column = column.build
 
     override def add(o: Object, oi: ObjectInspector) {
       stats.add(oi.asInstanceOf[ShortObjectInspector].get(o))
-      super.add(o, oi)
+      column.add(o, oi)
     }
   }
 
-  class IntColumn(initialSize: Int) extends Column.IntColumn(initialSize)
-    with ColumnWithStats[Int] {
-
+  class IntColumnBuilder(initialSize: Int) extends ColumnWithStats[Int] {
+    val column = new Column.IntColumn.Builder(initialSize)
     override val stats = new ColumnStats.Numeric[Int]
+    override def build: Column = column.build
 
     override def add(o: Object, oi: ObjectInspector) {
       stats.add(oi.asInstanceOf[IntObjectInspector].get(o))
-      super.add(o, oi)
+      column.add(o, oi)
     }
   }
 
-  class LongColumn(initialSize: Int) extends Column.LongColumn(initialSize)
-    with ColumnWithStats[Long] {
-
+  class LongColumnBuilder(initialSize: Int) extends ColumnWithStats[Long] {
+    val column = new Column.LongColumn.Builder(initialSize)
     override val stats = new ColumnStats.Numeric[Long]
+    override def build: Column = column.build
 
     override def add(o: Object, oi: ObjectInspector) {
       stats.add(oi.asInstanceOf[LongObjectInspector].get(o))
-      super.add(o, oi)
+      column.add(o, oi)
     }
   }
 
-  class FloatColumn(initialSize: Int) extends Column.FloatColumn(initialSize)
-    with ColumnWithStats[Float] {
-
+  class FloatColumnBuilder(initialSize: Int) extends ColumnWithStats[Float] {
+    val column = new Column.FloatColumn.Builder(initialSize)
     override val stats = new ColumnStats.Numeric[Float]
+    override def build: Column = column.build
 
     override def add(o: Object, oi: ObjectInspector) {
       stats.add(oi.asInstanceOf[FloatObjectInspector].get(o))
-      super.add(o, oi)
+      column.add(o, oi)
     }
   }
 
-  class DoubleColumn(initialSize: Int) extends Column.DoubleColumn(initialSize)
-    with ColumnWithStats[Double] {
-
+  class DoubleColumnBuilder(initialSize: Int) extends ColumnWithStats[Double] {
+    val column = new Column.DoubleColumn.Builder(initialSize)
     override val stats = new ColumnStats.Numeric[Double]
+    override def build: Column = column.build
 
     override def add(o: Object, oi: ObjectInspector) {
       stats.add(oi.asInstanceOf[DoubleObjectInspector].get(o))
-      super.add(o, oi)
+      column.add(o, oi)
     }
   }
 
-  class StringColumn(initialSize: Int) extends Column.StringColumn(initialSize)
-    with ColumnWithStats[Text] {
-
+  class StringColumnBuilder(initialSize: Int) extends ColumnWithStats[Text] {
+    val column = new CompressedStringColumn.Builder(initialSize, 32)
     override val stats = new ColumnStats.HadoopText
+    override def build: Column = column.build
 
     override def add(o: Object, oi: ObjectInspector) {
       stats.add(oi.asInstanceOf[StringObjectInspector].getPrimitiveWritableObject(o))
-      super.add(o, oi)
+      column.add(o, oi)
     }
   }
 }

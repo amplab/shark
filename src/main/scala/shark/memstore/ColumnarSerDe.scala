@@ -20,13 +20,14 @@ import shark.{LogHelper, SharkConfVars}
 class ColumnarSerDe extends SerDe with LogHelper {
 
   var cachedObjectInspector: StructObjectInspector = _
+  var cachedWritableBuilder: ColumnarWritable.Builder = _
   var cachedWritable: ColumnarWritable = _
   var cachedStruct: ColumnarStruct = _
   var serDeParams: SerDeParameters = _
   var initialColumnSize: Int = _
   val serializeStream = new ByteStream.Output()
 
-  def columnFactory: ColumnFactory = Column
+  def columnFactory: ColumnBuilderFactory = Column
 
   override def initialize(conf: Configuration, tbl: Properties) {
     serDeParams = LazySimpleSerDe.initSerdeParams(conf, tbl, getClass().getName())
@@ -57,7 +58,8 @@ class ColumnarSerDe extends SerDe with LogHelper {
       }
     }
 
-    cachedWritable = new ColumnarWritable(cachedObjectInspector, initialColumnSize, columnFactory)
+    cachedWritableBuilder = new ColumnarWritable.Builder(
+      cachedObjectInspector, initialColumnSize, columnFactory)
   }
 
   override def deserialize(blob: Writable): Object = {
@@ -86,7 +88,7 @@ class ColumnarSerDe extends SerDe with LogHelper {
       val fieldOI = field.getFieldObjectInspector
       fieldOI.getCategory match {
         case ObjectInspector.Category.PRIMITIVE =>
-          cachedWritable.add(i, soi.getStructFieldData(obj, field), fieldOI)
+          cachedWritableBuilder.add(i, soi.getStructFieldData(obj, field), fieldOI)
         case other => {
           // We use LazySimpleSerDe to serialize nested data
           LazySimpleSerDe.serialize(
@@ -98,26 +100,25 @@ class ColumnarSerDe extends SerDe with LogHelper {
             serDeParams.isEscaped(),
             serDeParams.getEscapeChar(),
             serDeParams.getNeedsEscape())
-          cachedWritable.add(i, serializeStream, fieldOI)
+          cachedWritableBuilder.add(i, serializeStream, fieldOI)
           serializeStream.reset()
         }
       }
       i += 1
     }
-    cachedWritable
+    cachedWritableBuilder
   }
 }
 
 
 class ColumnarSerDeWithStats extends ColumnarSerDe {
-  override def columnFactory: ColumnFactory = ColumnWithStats
+  override def columnFactory: ColumnBuilderFactory = ColumnWithStats
 
-  def stats: TableStats = {
-    new TableStats(cachedWritable.columns.map {
+  def stats: TableStats =
+    new TableStats(cachedWritableBuilder.columns.map {
       case column: ColumnWithStats[_] => Some(column.stats)
       case _ => None
     })
-  }
 }
 
 

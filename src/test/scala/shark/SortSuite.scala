@@ -7,7 +7,7 @@ import spark.{RDD, SparkContext}
 import spark.SparkContext._
 
 
-class RDDSuite extends FunSuite {
+class SortSuite extends FunSuite {
 
   test("order by limit") {
     val sc = new SparkContext("local", "test")

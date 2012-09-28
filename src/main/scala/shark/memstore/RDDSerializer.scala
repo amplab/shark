@@ -29,8 +29,7 @@ object RDDSerializer {
         numRows += 1
       }
       if (v != null) {
-        v.asInstanceOf[ColumnarWritable].close
-        Iterator(numRows, v)
+        Iterator(numRows, v.asInstanceOf[ColumnarWritable.Builder].build)
       } else {
         // This partition is empty.
         Iterator()
@@ -43,7 +42,6 @@ object RDDSerializer {
         // and the second element is a writable object containing all rows.
         val numRows = iter.next().asInstanceOf[Int]
         val writable = iter.next().asInstanceOf[ColumnarWritable]
-        writable.close
         Iterator.continually({writable}).take(numRows) //Reuses writable across rows
       } else {
         // This partition is empty. Simply return the empty iterator.

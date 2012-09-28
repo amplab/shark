@@ -4,16 +4,16 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectIn
 import org.apache.hadoop.io.Text
 import org.scalatest.FunSuite
 
+
 class CompressionSuite extends FunSuite {
 
   test("CompressedStringColumn compressed") {
-    val c = new CompressedStringColumn(5, 3)
-    val data = Array[String]("0", "1", "2", null, "1")
+    val builder = new CompressedStringColumn.Builder(5, 3)
+    val data = Array[String]("0", "1", "2", null, "1", "1")
     val oi = PrimitiveObjectInspectorFactory.javaStringObjectInspector
-    data.map(c.add(_, oi))
-    c.close
+    data.map(builder.add(_, oi))
+    val c = builder.build.asInstanceOf[CompressedStringColumn]
 
-    assert(c.isCompressed)
     assert(c.backingColumn.isInstanceOf[DictionaryEncodedColumn])
     val backingColumn = c.backingColumn.asInstanceOf[DictionaryEncodedColumn]
 
@@ -27,13 +27,12 @@ class CompressionSuite extends FunSuite {
   }
 
   test("CompressedStringColumn uncompressed") {
-    val c = new CompressedStringColumn(5, 3)
+    val builder = new CompressedStringColumn.Builder(5, 3)
     val data = Array[String]("0", "1", "2", null, "1", "3")
     val oi = PrimitiveObjectInspectorFactory.javaStringObjectInspector
-    data.map(c.add(_, oi))
-    c.close
+    data.map(builder.add(_, oi))
+    val c = builder.build.asInstanceOf[CompressedStringColumn]
 
-    assert(!c.isCompressed)
     assert(c.backingColumn.isInstanceOf[Column.StringColumn])
 
     data.zipWithIndex.foreach { case(str, i) =>
@@ -43,11 +42,11 @@ class CompressionSuite extends FunSuite {
   }
 
   test("DictionaryEncodedColumn") {
-    val c = new DictionaryEncodedColumn(10)
+    val builder = new DictionaryEncodedColumn.Builder(10)
     val data = Array[String]("0", "1", "2", null, "1")
     val oi = PrimitiveObjectInspectorFactory.javaStringObjectInspector
-    data.map(c.add(_, oi))
-    c.close
+    data.map(builder.add(_, oi))
+    val c = builder.build.asInstanceOf[DictionaryEncodedColumn]
 
     // minus one to remove the null.
     assert(c.numDistinctWords == data.toSet.size - 1)
