@@ -27,9 +27,7 @@ class ColumnarWritable(
     columns(id).add(o, oi)
   }
 
-  def close() {
-    columns.foreach { _.close() }
-  }
+  def close = columns.foreach { c => c.close }
 
   // We don't use these, but want to maintain Writable interface for SerDe
   override def write(out: DataOutput) {}

@@ -27,16 +27,11 @@ import org.apache.hadoop.io.{BooleanWritable, FloatWritable, IntWritable, LongWr
  * methods to add objects using their object inspectors and return Hadoop
  * writable objects.
  */
-abstract class Column {
-
-  // A compressed bitmap to indicate whether an element is NULL.
-  val nulls = new EWAHCompressedBitmap()
-  var nullsIter: IntIterator = null
-  var nextNullIndex = -1
-
+trait Column {
   /**
    * Return a hadoop writable object for the field value in this column at
-   * index position i.
+   * index position i. Note that close function must have been called before
+   * calling apply().
    */
   def apply(i: Int): Object
 
@@ -46,7 +41,9 @@ abstract class Column {
    */
   def add(o: Object, oi: ObjectInspector)
 
-  def close(): Unit
+  def close: Unit
+
+  def size: Int
 
   //def asByteBuffers: Array[ByteBuffer]
 }
@@ -79,7 +76,14 @@ object Column extends ColumnFactory {
     }
   }
 
-  class BooleanColumn(initialSize: Int) extends Column {
+  abstract class ColumnWithNullBitmap extends Column {
+    // A compressed bitmap to indicate whether an element is NULL.
+    val nulls = new EWAHCompressedBitmap()
+    var nullsIter: IntIterator = null
+    var nextNullIndex = -1
+  }
+
+  class BooleanColumn(initialSize: Int) extends ColumnWithNullBitmap {
 
     val arr = new BooleanArrayList(initialSize)
     val w = new BooleanWritable()
@@ -108,10 +112,11 @@ object Column extends ColumnFactory {
       nextNullIndex = -1
       arr.trim()
     }
+
+    override def size: Int = arr.size
   }
 
-
-  class ByteColumn(initialSize: Int) extends Column {
+  class ByteColumn(initialSize: Int) extends ColumnWithNullBitmap {
 
     val arr = new ByteArrayList(initialSize)
     val w = new ByteWritable()
@@ -140,10 +145,11 @@ object Column extends ColumnFactory {
       nullsIter = nulls.intIterator
       arr.trim()
     }
+
+    override def size: Int = arr.size
   }
 
-
-  class ShortColumn(initialSize: Int) extends Column {
+  class ShortColumn(initialSize: Int) extends ColumnWithNullBitmap {
 
     val arr = new ShortArrayList(initialSize)
     val w = new ShortWritable()
@@ -172,10 +178,11 @@ object Column extends ColumnFactory {
       nullsIter = nulls.intIterator
       arr.trim()
     }
+
+    override def size: Int = arr.size
   }
 
-
-  class IntColumn(initialSize: Int) extends Column {
+  class IntColumn(initialSize: Int) extends ColumnWithNullBitmap {
 
     val arr = new IntArrayList(initialSize)
     val w = new IntWritable()
@@ -204,10 +211,11 @@ object Column extends ColumnFactory {
       nullsIter = nulls.intIterator
       arr.trim()
     }
+
+    override def size: Int = arr.size
   }
 
-
-  class LongColumn(initialSize: Int) extends Column {
+  class LongColumn(initialSize: Int) extends ColumnWithNullBitmap {
 
     val arr = new LongArrayList(initialSize)
     val w = new LongWritable()
@@ -236,10 +244,11 @@ object Column extends ColumnFactory {
       nullsIter = nulls.intIterator
       arr.trim()
     }
+
+    override def size: Int = arr.size
   }
 
-
-  class FloatColumn(initialSize: Int) extends Column {
+  class FloatColumn(initialSize: Int) extends ColumnWithNullBitmap {
 
     val arr = new FloatArrayList(initialSize)
     val w = new FloatWritable()
@@ -268,10 +277,11 @@ object Column extends ColumnFactory {
       nullsIter = nulls.intIterator
       arr.trim()
     }
+
+    override def size: Int = arr.size
   }
 
-
-  class DoubleColumn(initialSize: Int) extends Column {
+  class DoubleColumn(initialSize: Int) extends ColumnWithNullBitmap {
 
     val arr = new DoubleArrayList(initialSize)
     val w = new DoubleWritable()
@@ -300,20 +310,21 @@ object Column extends ColumnFactory {
       nullsIter = nulls.intIterator
       arr.trim()
     }
-  }
 
+    override def size: Int = arr.size
+  }
 
   /**
    * A string column. Store a collection of strings using a single byte array by
    * concatenating them together. An additional int array is used to index the
    * starting position of each string.
    */
-  class StringColumn(initialSize: Int) extends Column {
+  class StringColumn(initialSize: Int) extends ColumnWithNullBitmap {
 
     val arr = new ByteArrayList(initialSize * ColumnarSerDe.STRING_SIZE)
     // Start of each string.
     val starts = new IntArrayList(initialSize)
-    val w: Text = new Text()
+    val w = new Text
 
     starts.add(0)
 
@@ -333,7 +344,7 @@ object Column extends ColumnFactory {
         nulls.set(starts.size - 1)
         starts.add(arr.size)
       } else {
-        val text = oi.asInstanceOf[StringObjectInspector].getPrimitiveWritableObject(o)
+        val text: Text = oi.asInstanceOf[StringObjectInspector].getPrimitiveWritableObject(o)
         starts.add(arr.size() + text.getLength)
         arr.addElements(arr.size(), text.getBytes, 0, text.getLength)
       }
@@ -345,16 +356,18 @@ object Column extends ColumnFactory {
       arr.trim()
       starts.trim()
     }
-  }
 
+    override def size: Int = starts.size - 1
+  }
 
   class VoidColumn() extends Column {
     val void = NullWritable.get()
+    private var _size = 0
     override def apply(i: Int) = void
-    override def add(o: Object, oi: ObjectInspector) {}
-    override def close() {}
+    override def add(o: Object, oi: ObjectInspector) = _size += 1
+    override def close = ()
+    override def size: Int = _size
   }
-
 
   /**
    * For non-primitive columns, serialize the value and store them as a single
@@ -391,6 +404,7 @@ object Column extends ColumnFactory {
       starts.trim()
       ref.setData(arr.elements)
     }
-  }
 
+    override def size: Int = starts.size - 1
+  }
 }
