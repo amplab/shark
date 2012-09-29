@@ -99,7 +99,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     
     // Run map pruning if the flag is set, there exists a filter predicate on
     // the input table and we have statistics on the table.
-    val rddPruned: RDD[_] =
+    val prunedRdd: RDD[_] =
       if (SharkConfVars.getBoolVar(localHconf, SharkConfVars.MAP_PRUNING) &&
           childOperators(0).isInstanceOf[FilterOperator] && splitToStats.size > 0) {
 
@@ -113,7 +113,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         filterOp.initializeOnSlave()
 
         // Do the pruning.
-        val pruned = rdd.pruneSplits { split =>
+        val prunedRdd = rdd.pruneSplits { split =>
           if (printPruneDebug) {
             logInfo("\nSplit " + split + "\n" + splitToStats(split).toString)
           }
@@ -121,13 +121,13 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         }
         val timeTaken = System.currentTimeMillis - startTime
         logInfo("Map pruning %d splits into %s splits took %d ms".format(
-            rdd.splits.size, pruned.splits.size, timeTaken))
-        pruned
+            rdd.splits.size, prunedRdd.splits.size, timeTaken))
+        prunedRdd
       } else {
         rdd
       }
 
-    val deserializedRdd = rddPruned.mapPartitions { iter =>
+    val deserializedRdd = prunedRdd.mapPartitions { iter =>
       val rddSerialzier = new RDDSerializer.Columnar(null)
       rddSerialzier.deserialize(iter)
     }

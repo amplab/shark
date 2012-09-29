@@ -19,7 +19,7 @@ object EnhancedRDD {
  */
 class SplitsPruningRDD[T: ClassManifest](
     prev: RDD[T],
-    splitsFilterFunc: Int => Boolean)
+    @transient splitsFilterFunc: Int => Boolean)
   extends RDD[T](prev.context) {
 
   @transient

@@ -58,9 +58,6 @@ class ColumnarSerDe extends SerDe with LogHelper {
         logDebug("Estimated size of each row is: " + rowSize)
       }
     }
-
-    cachedWritableBuilder = new ColumnarWritable.Builder(
-      cachedObjectInspector, initialColumnSize, columnFactory)
   }
 
   override def deserialize(blob: Writable): Object = {
@@ -75,6 +72,11 @@ class ColumnarSerDe extends SerDe with LogHelper {
   override def getSerializedClass: Class[_ <: Writable] = classOf[ColumnarWritable]
 
   override def serialize(obj: Object, objInspector: ObjectInspector): Writable = {
+    if (cachedWritableBuilder == null) {
+      cachedWritableBuilder = new ColumnarWritable.Builder(
+        cachedObjectInspector, initialColumnSize, columnFactory)
+    }
+
     val soi = objInspector.asInstanceOf[StructObjectInspector]
     val fields: JList[_ <: StructField] = soi.getAllStructFieldRefs
 
