@@ -11,13 +11,12 @@ object CompressedIntColumn {
 
     def this(intArray: Array[Int]) = this(intArray, intArray.min, intArray.max)
 
+    override def get(i: Int): Int = _data(i) + base
+
     val base = (min + max) / 2
 
     private val _data = new Array[Byte](intArray.size)
 
-    override def get(i: Int): Int = _data(i) + base
-
-    init(intArray, min, max)
     private def init(intArray: Array[Int], min: Int, max: Int) {
       var i = 0
       while (i < intArray.size) {
@@ -25,19 +24,19 @@ object CompressedIntColumn {
         i+= 1
       }
     }
+
+    init(intArray, min, max)
   }
 
   class ShortArrayAsIntArray(intArray: Array[Int], min: Int, max: Int) extends BackingIntArray {
 
     def this(intArray: Array[Int]) = this(intArray, intArray.min, intArray.max)
 
+    override def get(i: Int): Int = _data(i) + base
+
     val base = (min + max) / 2
 
     private val _data = new Array[Short](intArray.size)
-
-    override def get(i: Int): Int = _data(i) + base
-
-    init(intArray, min, max)
     private def init(intArray: Array[Int], min: Int, max: Int) {
       var i = 0
       while (i < intArray.size) {
@@ -45,5 +44,7 @@ object CompressedIntColumn {
         i+= 1
       }
     }
+
+    init(intArray, min, max)
   }
 }
