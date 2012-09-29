@@ -22,5 +22,7 @@ class SortSuite extends FunSuite {
       assert(output.size == math.min(k, 4))
       assert(output == expected.take(math.min(k, 4)))
     }
+
+    sc.stop()
   }
 }

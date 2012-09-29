@@ -8,11 +8,10 @@ import org.apache.hadoop.hive.serde2.objectinspector.{StructField, StructObjectI
 import org.apache.hadoop.io.Writable
 
 
-class ColumnarWritable(oi: StructObjectInspector, val columns: Array[Column]) extends Writable {
+class ColumnarWritable private (
+  oi: StructObjectInspector, val columns: Array[Column]) extends Writable {
 
-  def getField(id: Int, rowId: Int): Object = {
-    columns(id)(rowId)
-  }
+  def getField(id: Int, rowId: Int): Object = columns(id)(rowId)
 
   // We don't use these, but want to maintain Writable interface for SerDe
   override def write(out: DataOutput) = ()

@@ -15,7 +15,7 @@ import scala.collection.mutable.ArrayBuffer
  * attempts to use dictionary encoding to compress the data. If there are too many
  * unique words, the class abandons compression and uses a normal string column.
  */
-class CompressedStringColumn(val backingColumn: Column) extends Column {
+class CompressedStringColumn private (val backingColumn: Column) extends Column {
   override def apply(i: Int): Object = backingColumn(i)
   override def size: Int = backingColumn.size
 }
@@ -56,7 +56,7 @@ object CompressedStringColumn {
 }
 
 
-class DictionaryEncodedColumn(
+class DictionaryEncodedColumn private (
   private val _dictionary: Array[Text],
   private val _data: Array[Short])
 extends Column {

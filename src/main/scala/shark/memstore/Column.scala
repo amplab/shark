@@ -67,7 +67,8 @@ object Column extends ColumnBuilderFactory {
     }
   }
 
-  class BooleanColumn(val arr: Array[Boolean], val nulls: EWAHCompressedBitmap) extends Column {
+  class BooleanColumn private (val arr: Array[Boolean], val nulls: EWAHCompressedBitmap)
+  extends Column {
     var nullsIter: IntIterator = nulls.intIterator
     var nextNullIndex = -1
     val w = new BooleanWritable
@@ -106,7 +107,7 @@ object Column extends ColumnBuilderFactory {
     }
   }
 
-  class ByteColumn(val arr: Array[Byte], val nulls: EWAHCompressedBitmap) extends Column {
+  class ByteColumn private (val arr: Array[Byte], val nulls: EWAHCompressedBitmap) extends Column {
     var nullsIter: IntIterator = nulls.intIterator
     var nextNullIndex = -1
     val w = new ByteWritable
@@ -145,7 +146,8 @@ object Column extends ColumnBuilderFactory {
     }
   }
 
-  class ShortColumn(val arr: Array[Short], val nulls: EWAHCompressedBitmap) extends Column {
+  class ShortColumn private (val arr: Array[Short], val nulls: EWAHCompressedBitmap)
+  extends Column {
     var nullsIter: IntIterator = nulls.intIterator
     var nextNullIndex = -1
     val w = new ShortWritable
@@ -184,7 +186,7 @@ object Column extends ColumnBuilderFactory {
     }
   }
 
-  class IntColumn(val arr: Array[Int], val nulls: EWAHCompressedBitmap) extends Column {
+  class IntColumn private (val arr: Array[Int], val nulls: EWAHCompressedBitmap) extends Column {
     var nullsIter: IntIterator = nulls.intIterator
     var nextNullIndex = -1
     val w = new IntWritable
@@ -223,7 +225,7 @@ object Column extends ColumnBuilderFactory {
     }
   }
 
-  class LongColumn(val arr: Array[Long], val nulls: EWAHCompressedBitmap) extends Column {
+  class LongColumn private (val arr: Array[Long], val nulls: EWAHCompressedBitmap) extends Column {
     var nullsIter: IntIterator = nulls.intIterator
     var nextNullIndex = -1
     val w = new LongWritable
@@ -262,7 +264,8 @@ object Column extends ColumnBuilderFactory {
     }
   }
 
-  class FloatColumn(val arr: Array[Float], val nulls: EWAHCompressedBitmap) extends Column {
+  class FloatColumn private (val arr: Array[Float], val nulls: EWAHCompressedBitmap)
+  extends Column {
     var nullsIter: IntIterator = nulls.intIterator
     var nextNullIndex = -1
     val w = new FloatWritable
@@ -301,7 +304,8 @@ object Column extends ColumnBuilderFactory {
     }
   }
 
-  class DoubleColumn(val arr: Array[Double], val nulls: EWAHCompressedBitmap) extends Column {
+  class DoubleColumn private (val arr: Array[Double], val nulls: EWAHCompressedBitmap)
+  extends Column {
     var nullsIter: IntIterator = nulls.intIterator
     var nextNullIndex = -1
     val w = new DoubleWritable
@@ -345,7 +349,7 @@ object Column extends ColumnBuilderFactory {
    * concatenating them together. An additional int array is used to index the
    * starting position of each string.
    */
-  class StringColumn(arr: Array[Byte], starts: Array[Int], val nulls: EWAHCompressedBitmap)
+  class StringColumn private (arr: Array[Byte], starts: Array[Int], val nulls: EWAHCompressedBitmap)
   extends Column {
     var nullsIter: IntIterator = nulls.intIterator
     var nextNullIndex = -1
@@ -390,7 +394,7 @@ object Column extends ColumnBuilderFactory {
     }
   }
 
-  class VoidColumn(val size: Int) extends Column {
+  class VoidColumn private (val size: Int) extends Column {
     val void = NullWritable.get()
     override def apply(i: Int) = void
   }
@@ -407,7 +411,7 @@ object Column extends ColumnBuilderFactory {
    * For non-primitive columns, serialize the value and store them as a single
    * byte array.
    */
-  class LazyColumn(
+  class LazyColumn private (
     arr: Array[Byte], 
     starts: Array[Int],
     ref: ByteArrayRef,

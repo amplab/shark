@@ -69,16 +69,11 @@ class ColumnarSerDe extends SerDe with LogHelper {
     cachedStruct
   }
 
-  override def getObjectInspector(): ObjectInspector = {
-    return cachedObjectInspector
-  }
+  override def getObjectInspector: ObjectInspector = cachedObjectInspector
 
-  override def getSerializedClass(): Class[_ <: Writable] = {
-    return classOf[ColumnarWritable]
-  }
+  override def getSerializedClass: Class[_ <: Writable] = classOf[ColumnarWritable]
 
   override def serialize(obj: Object, objInspector: ObjectInspector): Writable = {
-
     val soi = objInspector.asInstanceOf[StructObjectInspector]
     val fields = soi.getAllStructFieldRefs
 
@@ -188,6 +183,6 @@ object ColumnarSerDe {
       }
       case _ => throw new Exception("Invalid primitive object inspector category")
     }
-    return size
+    size
   }
 }
