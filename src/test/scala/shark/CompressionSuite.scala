@@ -1,60 +1,76 @@
-package shark.memstore
+package shark
 
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.io.Text
 import org.scalatest.FunSuite
+import shark.memstore._
 
 
 class CompressionSuite extends FunSuite {
 
+  import ColumnSuite._
+
   test("CompressedStringColumn compressed") {
-    val builder = new CompressedStringColumn.Builder(5, 3)
-    val data = Array[String]("0", "1", "2", null, "1", "1")
-    val oi = PrimitiveObjectInspectorFactory.javaStringObjectInspector
-    data.map(builder.add(_, oi))
-    val c = builder.build.asInstanceOf[CompressedStringColumn]
+    var c: CompressedStringColumn = null
 
-    assert(c.backingColumn.isInstanceOf[DictionaryEncodedColumn])
-    val backingColumn = c.backingColumn.asInstanceOf[DictionaryEncodedColumn]
+    c = testStringColumn(
+      Array[java.lang.String](),
+      new CompressedStringColumn.Builder(5, 10)).asInstanceOf[CompressedStringColumn]
 
-    // minus one to remove the null.
-    assert(backingColumn.numDistinctWords == data.toSet.size - 1)
+    c = testStringColumn(
+      Array[java.lang.String](null),
+      new CompressedStringColumn.Builder(5, 10)).asInstanceOf[CompressedStringColumn]
 
-    data.zipWithIndex.foreach { case(str, i) =>
-      if (str == null) assert(c(i) == null)
-      else assert(c(i).asInstanceOf[Text].compareTo(new Text(str)) == 0)
-    }
+    c = testStringColumn(
+      Array[java.lang.String](""),
+      new CompressedStringColumn.Builder(5, 10)).asInstanceOf[CompressedStringColumn]
+
+    c = testStringColumn(
+      Array[java.lang.String]("abcd"),
+      new CompressedStringColumn.Builder(5, 10)).asInstanceOf[CompressedStringColumn]
+
+    val data = Array[String]("0", "1", "2", null, "1")
+    c = testStringColumn(
+      data, new CompressedStringColumn.Builder(5, 10)).asInstanceOf[CompressedStringColumn]
   }
 
   test("CompressedStringColumn uncompressed") {
-    val builder = new CompressedStringColumn.Builder(5, 3)
-    val data = Array[String]("0", "1", "2", null, "1", "3")
-    val oi = PrimitiveObjectInspectorFactory.javaStringObjectInspector
-    data.map(builder.add(_, oi))
-    val c = builder.build.asInstanceOf[CompressedStringColumn]
-
+    val c = testPrimitiveColumn(
+      Array[String]("0", "1", "2", null, "1", "3"),
+      new CompressedStringColumn.Builder(5, 3),
+      PrimitiveObjectInspectorFactory.javaStringObjectInspector,
+      PrimitiveObjectInspectorFactory.writableStringObjectInspector
+    ).asInstanceOf[CompressedStringColumn]
     assert(c.backingColumn.isInstanceOf[Column.StringColumn])
-
-    data.zipWithIndex.foreach { case(str, i) =>
-      if (str == null) assert(c(i) == null)
-      else assert(c(i).asInstanceOf[Text].compareTo(new Text(str)) == 0)
-    }
   }
 
   test("DictionaryEncodedColumn") {
-    val builder = new DictionaryEncodedColumn.Builder(10)
+
+    var c: DictionaryEncodedColumn = null
+
+    c = testStringColumn(
+      Array[java.lang.String](),
+      new DictionaryEncodedColumn.Builder(5)).asInstanceOf[DictionaryEncodedColumn]
+    assert(c.numDistinctWords == 0)
+
+    c = testStringColumn(
+      Array[java.lang.String](null),
+      new DictionaryEncodedColumn.Builder(5)).asInstanceOf[DictionaryEncodedColumn]
+    assert(c.numDistinctWords == 0)
+
+    c = testStringColumn(
+      Array[java.lang.String](""),
+      new DictionaryEncodedColumn.Builder(5)).asInstanceOf[DictionaryEncodedColumn]
+    assert(c.numDistinctWords == 1)
+
+    c = testStringColumn(
+      Array[java.lang.String]("abcd"),
+      new DictionaryEncodedColumn.Builder(5)).asInstanceOf[DictionaryEncodedColumn]
+    assert(c.numDistinctWords == 1)
+
     val data = Array[String]("0", "1", "2", null, "1")
-    val oi = PrimitiveObjectInspectorFactory.javaStringObjectInspector
-    data.map(builder.add(_, oi))
-    val c = builder.build.asInstanceOf[DictionaryEncodedColumn]
-
-    // minus one to remove the null.
+    c = testStringColumn(
+      data, new DictionaryEncodedColumn.Builder(5)).asInstanceOf[DictionaryEncodedColumn]
     assert(c.numDistinctWords == data.toSet.size - 1)
-
-    data.zipWithIndex.foreach { case(str, i) =>
-      if (str == null) assert(c(i) == null)
-      else assert(c(i).asInstanceOf[Text].compareTo(new Text(str)) == 0)
-    }
   }
-
 }

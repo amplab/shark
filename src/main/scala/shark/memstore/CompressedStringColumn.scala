@@ -58,7 +58,8 @@ object CompressedStringColumn {
 
 class DictionaryEncodedColumn(
   private val _dictionary: Array[Text],
-  private val _data: Array[Short]) extends Column {
+  private val _data: Array[Short])
+extends Column {
 
   override def apply(i: Int): Text = _dictionary(_data(i))
   override def size: Int = _data.size
