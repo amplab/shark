@@ -437,7 +437,7 @@ object Column extends ColumnBuilderFactory {
       val ref = new ByteArrayRef()
       val o = LazyFactory.createLazyObject(outputOI)
 
-      // The object is already a serialized bytearray.
+      // The object is already a serialized bytearray, serialized by ColumnarSerDe.
       override def add(o: Object, oi: ObjectInspector) {
         val bytes = o.asInstanceOf[ByteStream.Output]
         starts.add(arr.size() + bytes.getCount)

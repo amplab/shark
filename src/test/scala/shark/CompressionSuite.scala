@@ -8,7 +8,8 @@ import shark.memstore._
 
 class CompressionSuite extends FunSuite {
 
-  import ColumnSuite._
+  import ColumnSuite.testStringColumn
+  import ColumnSuite.testPrimitiveColumn
 
   test("CompressedStringColumn compressed") {
     var c: CompressedStringColumn = null

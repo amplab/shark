@@ -1,6 +1,6 @@
 package shark.memstore
 
-import java.util.Properties
+import java.util.{List => JList, Properties}
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hdfs.DFSConfigKeys
@@ -8,7 +8,8 @@ import org.apache.hadoop.hive.serde2.{ByteStream, SerDe}
 import org.apache.hadoop.hive.serde2.`lazy`.{LazyFactory, LazySimpleSerDe}
 import org.apache.hadoop.hive.serde2.`lazy`.LazySimpleSerDe.SerDeParameters
 import org.apache.hadoop.hive.serde2.objectinspector.{ListObjectInspector, MapObjectInspector,
-  ObjectInspector, PrimitiveObjectInspector, StructObjectInspector, UnionObjectInspector}
+  ObjectInspector, PrimitiveObjectInspector, StructField, StructObjectInspector,
+  UnionObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
 import org.apache.hadoop.io.Writable
 
@@ -30,7 +31,7 @@ class ColumnarSerDe extends SerDe with LogHelper {
   def columnFactory: ColumnBuilderFactory = Column
 
   override def initialize(conf: Configuration, tbl: Properties) {
-    serDeParams = LazySimpleSerDe.initSerdeParams(conf, tbl, getClass().getName())
+    serDeParams = LazySimpleSerDe.initSerdeParams(conf, tbl, this.getClass.getName)
     // Create oi & writable.
     cachedObjectInspector = ColumnarStructObjectInspector(serDeParams)
 
@@ -75,12 +76,12 @@ class ColumnarSerDe extends SerDe with LogHelper {
 
   override def serialize(obj: Object, objInspector: ObjectInspector): Writable = {
     val soi = objInspector.asInstanceOf[StructObjectInspector]
-    val fields = soi.getAllStructFieldRefs
+    val fields: JList[_ <: StructField] = soi.getAllStructFieldRefs
 
     var i = 0
     while (i < fields.size) {
       val field = fields.get(i)
-      val fieldOI = field.getFieldObjectInspector
+      val fieldOI: ObjectInspector = field.getFieldObjectInspector
       fieldOI.getCategory match {
         case ObjectInspector.Category.PRIMITIVE =>
           cachedWritableBuilder.add(i, soi.getStructFieldData(obj, field), fieldOI)
@@ -161,16 +162,18 @@ object ColumnarSerDe {
       }
       case ObjectInspector.Category.LIST => {
         val listOISize = getFieldSize(
-          oi.asInstanceOf[ListObjectInspector].getListElementObjectInspector())
+          oi.asInstanceOf[ListObjectInspector].getListElementObjectInspector)
         LIST_SIZE * listOISize
       }
       case ObjectInspector.Category.STRUCT => {
-        val fieldRefs = oi.asInstanceOf[StructObjectInspector].getAllStructFieldRefs()
+        val fieldRefs: JList[_ <: StructField] =
+          oi.asInstanceOf[StructObjectInspector].getAllStructFieldRefs
         fieldRefs.foldLeft(0)((sum, structField) =>
           sum + getFieldSize(structField.getFieldObjectInspector))
       }
       case ObjectInspector.Category.UNION => {
-        val unionOIs = oi.asInstanceOf[UnionObjectInspector].getObjectInspectors()
+        val unionOIs: JList[ObjectInspector] =
+          oi.asInstanceOf[UnionObjectInspector].getObjectInspectors
         val unionOISizes = unionOIs.foldLeft(0)((sum, unionOI) =>
           sum + getFieldSize(unionOI))
         unionOISizes / unionOIs.size

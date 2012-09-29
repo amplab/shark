@@ -36,7 +36,7 @@ object ColumnWithStats extends ColumnBuilderFactory {
 
   class BooleanColumnBuilder(initialSize: Int) extends ColumnWithStats[Boolean] {
     val column = new Column.BooleanColumn.Builder(initialSize)
-    override val stats = new ColumnStats.Numeric[Boolean]
+    override val stats = new ColumnStats.BooleanColumnStats
     override def build: Column = column.build
 
     override def add(o: Object, oi: ObjectInspector) {
@@ -47,7 +47,7 @@ object ColumnWithStats extends ColumnBuilderFactory {
 
   class ByteColumnBuilder(initialSize: Int) extends ColumnWithStats[Byte] {
     val column = new Column.ByteColumn.Builder(initialSize)
-    override val stats = new ColumnStats.Numeric[Byte]
+    override val stats = new ColumnStats.ByteColumnStats
     override def build: Column = column.build
 
     override def add(o: Object, oi: ObjectInspector) {
@@ -58,7 +58,7 @@ object ColumnWithStats extends ColumnBuilderFactory {
 
   class ShortColumnBuilder(initialSize: Int) extends ColumnWithStats[Short] {
     val column = new Column.ShortColumn.Builder(initialSize)
-    val stats = new ColumnStats.Numeric[Short]
+    override val stats = new ColumnStats.ShortColumnStats
     override def build: Column = column.build
 
     override def add(o: Object, oi: ObjectInspector) {
@@ -69,7 +69,7 @@ object ColumnWithStats extends ColumnBuilderFactory {
 
   class IntColumnBuilder(initialSize: Int) extends ColumnWithStats[Int] {
     val column = new Column.IntColumn.Builder(initialSize)
-    override val stats = new ColumnStats.Numeric[Int]
+    override val stats = new ColumnStats.IntColumnStats
     override def build: Column = column.build
 
     override def add(o: Object, oi: ObjectInspector) {
@@ -80,7 +80,7 @@ object ColumnWithStats extends ColumnBuilderFactory {
 
   class LongColumnBuilder(initialSize: Int) extends ColumnWithStats[Long] {
     val column = new Column.LongColumn.Builder(initialSize)
-    override val stats = new ColumnStats.Numeric[Long]
+    override val stats = new ColumnStats.LongColumnStats
     override def build: Column = column.build
 
     override def add(o: Object, oi: ObjectInspector) {
@@ -91,7 +91,7 @@ object ColumnWithStats extends ColumnBuilderFactory {
 
   class FloatColumnBuilder(initialSize: Int) extends ColumnWithStats[Float] {
     val column = new Column.FloatColumn.Builder(initialSize)
-    override val stats = new ColumnStats.Numeric[Float]
+    override val stats = new ColumnStats.FloatColumnStats
     override def build: Column = column.build
 
     override def add(o: Object, oi: ObjectInspector) {
@@ -102,7 +102,7 @@ object ColumnWithStats extends ColumnBuilderFactory {
 
   class DoubleColumnBuilder(initialSize: Int) extends ColumnWithStats[Double] {
     val column = new Column.DoubleColumn.Builder(initialSize)
-    override val stats = new ColumnStats.Numeric[Double]
+    override val stats = new ColumnStats.DoubleColumnStats
     override def build: Column = column.build
 
     override def add(o: Object, oi: ObjectInspector) {
@@ -113,7 +113,7 @@ object ColumnWithStats extends ColumnBuilderFactory {
 
   class StringColumnBuilder(initialSize: Int) extends ColumnWithStats[Text] {
     val column = new CompressedStringColumn.Builder(initialSize, 32)
-    override val stats = new ColumnStats.HadoopText
+    override val stats = new ColumnStats.TextColumnStats
     override def build: Column = column.build
 
     override def add(o: Object, oi: ObjectInspector) {
