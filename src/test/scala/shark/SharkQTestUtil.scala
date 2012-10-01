@@ -15,6 +15,10 @@ class SharkQTestUtil(outDir: String, logDir: String) extends QTestUtil(outDir, l
 
   var cliDrv: SharkCliDriver = null
 
+  val maskPatternsMethod = this.getClass.getSuperclass.getDeclaredMethod(
+    "maskPatterns", classOf[Array[String]], classOf[String])
+  maskPatternsMethod.setAccessible(true)
+
   override def cliInit(tname:String, recreate:Boolean) {
     //HiveConf.setVar(conf, HiveConf.ConfVars.HIVE_AUTHENTICATOR_MANAGER,
     //"org.apache.hadoop.hive.ql.security.DummyAuthenticator")
@@ -50,33 +54,43 @@ class SharkQTestUtil(outDir: String, logDir: String) extends QTestUtil(outDir, l
 
   override def checkCliDriverResults(tname: String): Int = {
     val outFileName = outPath(outDir, tname + ".out")
+
     val cmdArray: Array[String] = Array(
       "diff", "-a",
-      "-I", "file:",
-      "-I", "pfile:",
-      "-I", "hdfs:",
-      "-I", "/tmp/",
-      "-I", "invalidscheme:",
-      "-I", "lastUpdateTime",
-      "-I", "lastAccessTime",
-      "-I", "[Oo]wner",
-      "-I", "CreateTime",
-      "-I", "LastAccessTime",
-      "-I", "Location",
-      "-I", "transient_lastDdlTime",
-      "-I", "last_modified_",
-      "-I", "java.lang.RuntimeException",
-      "-I", "at org",
-      "-I", "at sun",
-      "-I", "at java",
-      "-I", "at junit",
-      "-I", "Caused by:",
-      "-I", "LOCK_QUERYID:",
-      "-I", "grantTime",
-      "-I", "[.][.][.] [0-9]* more",
-      "-I", "USING 'java -cp",
       "-I", "PREHOOK",
       "-I", "POSTHOOK")
+
+    val patterns: Array[String] = Array(
+        ".*file:.*",
+        ".*pfile:.*",
+        ".*hdfs:.*",
+        ".*/tmp/.*",
+        ".*invalidscheme:.*",
+        ".*lastUpdateTime.*",
+        ".*lastAccessTime.*",
+        ".*lastModifiedTime.*",
+        ".*[Oo]wner.*",
+        ".*CreateTime.*",
+        ".*LastAccessTime.*",
+        ".*Location.*",
+        ".*LOCATION '.*",
+        ".*transient_lastDdlTime.*",
+        ".*last_modified_.*",
+        ".*java.lang.RuntimeException.*",
+        ".*at org.*",
+        ".*at sun.*",
+        ".*at java.*",
+        ".*at junit.*",
+        ".*Caused by:.*",
+        ".*LOCK_QUERYID:.*",
+        ".*LOCK_TIME:.*",
+        ".*grantTime.*",
+        ".*[.][.][.] [0-9]* more.*",
+        ".*job_[0-9]*_[0-9]*.*",
+        ".*USING 'java -cp.*",
+        "^Deleted.*")
+
+    maskPatternsMethod.invoke(this, patterns, (new File(logDir, tname + ".out")).getPath());
 
     val cmdString = 
       "\"" +
