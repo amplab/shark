@@ -1,15 +1,9 @@
-package shark
+package shark.memstore
 
-import org.apache.hadoop.hive.serde2.objectinspector.{
-  PrimitiveObjectInspector,
-  ObjectInspectorFactory,
-  StandardListObjectInspector,
-  StandardMapObjectInspector
-}
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.{
-  PrimitiveObjectInspectorUtils,
-  PrimitiveObjectInspectorFactory
-}
+import org.apache.hadoop.hive.serde2.objectinspector.{PrimitiveObjectInspector,
+  ObjectInspectorFactory, StandardListObjectInspector, StandardMapObjectInspector}
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.{PrimitiveObjectInspectorUtils,
+  PrimitiveObjectInspectorFactory}
 import org.apache.hadoop.io.Text
 import org.scalatest.FunSuite
 import scala.collection.JavaConversions._

@@ -18,7 +18,10 @@ import scala.collection.JavaConversions._
 import shark.{LogHelper, SharkConfVars}
 
 
-class ColumnarSerDe extends SerDe with LogHelper {
+class ColumnarSerDe(builderFunc: ColumnBuilderCreateFunc.TYPE)
+  extends SerDe with LogHelper {
+
+  def this() = this(null)
 
   var cachedObjectInspector: StructObjectInspector = _
   var cachedWritableBuilder: ColumnarWritable.Builder = _
@@ -26,9 +29,7 @@ class ColumnarSerDe extends SerDe with LogHelper {
   var cachedStruct: ColumnarStruct = _
   var serDeParams: SerDeParameters = _
   var initialColumnSize: Int = _
-  val serializeStream = new ByteStream.Output()
-
-  def columnFactory: ColumnBuilderFactory = Column
+  val serializeStream = new ByteStream.Output
 
   override def initialize(conf: Configuration, tbl: Properties) {
     serDeParams = LazySimpleSerDe.initSerdeParams(conf, tbl, this.getClass.getName)
@@ -74,7 +75,7 @@ class ColumnarSerDe extends SerDe with LogHelper {
   override def serialize(obj: Object, objInspector: ObjectInspector): Writable = {
     if (cachedWritableBuilder == null) {
       cachedWritableBuilder = new ColumnarWritable.Builder(
-        cachedObjectInspector, initialColumnSize, columnFactory)
+        cachedObjectInspector, initialColumnSize, builderFunc)
     }
 
     val soi = objInspector.asInstanceOf[StructObjectInspector]
@@ -86,7 +87,7 @@ class ColumnarSerDe extends SerDe with LogHelper {
       val fieldOI: ObjectInspector = field.getFieldObjectInspector
       fieldOI.getCategory match {
         case ObjectInspector.Category.PRIMITIVE =>
-          cachedWritableBuilder.add(i, soi.getStructFieldData(obj, field), fieldOI)
+          cachedWritableBuilder.append(i, soi.getStructFieldData(obj, field), fieldOI)
         case other => {
           // We use LazySimpleSerDe to serialize nested data
           LazySimpleSerDe.serialize(
@@ -98,7 +99,7 @@ class ColumnarSerDe extends SerDe with LogHelper {
             serDeParams.isEscaped(),
             serDeParams.getEscapeChar(),
             serDeParams.getNeedsEscape())
-          cachedWritableBuilder.add(i, serializeStream, fieldOI)
+          cachedWritableBuilder.append(i, serializeStream, fieldOI)
           serializeStream.reset()
         }
       }
@@ -106,19 +107,17 @@ class ColumnarSerDe extends SerDe with LogHelper {
     }
     cachedWritableBuilder
   }
+
+  def buildWritable: ColumnarWritable = {
+    cachedWritable = cachedWritableBuilder.build
+    cachedWritable
+  }
+
+  def stats = {
+    if (cachedWritable == null) cachedWritable = cachedWritableBuilder.build
+    cachedWritable.stats
+  }
 }
-
-
-class ColumnarSerDeWithStats extends ColumnarSerDe {
-  override def columnFactory: ColumnBuilderFactory = ColumnWithStats
-
-  def stats: TableStats =
-    new TableStats(cachedWritableBuilder.columns.map {
-      case column: ColumnWithStats[_] => Some(column.stats)
-      case _ => None
-    })
-}
-
 
 // Companion object, used to determine the row size, which is then used to
 // determine the initial capacity to allocate as fastutil buffer.

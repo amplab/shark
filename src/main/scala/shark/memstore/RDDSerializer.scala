@@ -29,7 +29,7 @@ object RDDSerializer {
         numRows += 1
       }
       if (v != null) {
-        Iterator(numRows, v.asInstanceOf[ColumnarWritable.Builder].build)
+        Iterator(numRows, serDe.asInstanceOf[ColumnarSerDe].buildWritable)
       } else {
         // This partition is empty.
         Iterator()

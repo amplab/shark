@@ -125,13 +125,15 @@ class CacheSinkOperator(
     val rdd = inputRdd.mapPartitionsWithSplit { case(split, iter) =>
       op.initializeOnSlave()
 
-      val serde = if (op.collectStats) new ColumnarSerDeWithStats else new ColumnarSerDe
+      val serde = new ColumnarSerDe(
+        if (op.collectStats) ColumnBuilderCreateFunc.uncompressedArrayFormatWithStats
+        else ColumnBuilderCreateFunc.uncompressedArrayFormat)
       serde.initialize(op.hconf, op.localHiveOp.getConf.getTableInfo.getProperties())
       val rddSerialzier = new RDDSerializer.Columnar(serde)
       val iterToReturn = rddSerialzier.serialize(iter, op.objectInspector)
 
       if (op.collectStats)
-        statsAcc += (split, serde.asInstanceOf[ColumnarSerDeWithStats].stats)
+        statsAcc += (split, serde.stats)
 
       iterToReturn
     }

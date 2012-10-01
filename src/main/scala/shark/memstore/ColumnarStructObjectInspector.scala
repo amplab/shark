@@ -15,14 +15,14 @@ import shark.{SharkConfVars, SharkEnv}
 
 class ColumnarStructObjectInspector(fields: JList[StructField]) extends StructObjectInspector {
 
-  override def getCategory(): Category = Category.STRUCT
+  override def getCategory: Category = Category.STRUCT
 
-  override def getTypeName(): String = ObjectInspectorUtils.getStandardStructTypeName(this)
+  override def getTypeName: String = ObjectInspectorUtils.getStandardStructTypeName(this)
 
   override def getStructFieldRef(fieldName: String): StructField =
     ObjectInspectorUtils.getStandardStructFieldRef(fieldName, fields)
 
-  override def getAllStructFieldRefs(): JList[_ <: StructField] = fields
+  override def getAllStructFieldRefs: JList[_ <: StructField] = fields
 
   override def getStructFieldData(data: Object, fieldRef: StructField): Object =
     data.asInstanceOf[ColumnarStruct].getField(

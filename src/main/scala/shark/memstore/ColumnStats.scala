@@ -8,12 +8,17 @@ import org.apache.hadoop.io.Text
 /**
  * Column level statistics, including range (min, max).
  */
-trait ColumnStats[T] {
-  def add(v: T)
+sealed trait ColumnStats[T] {
+  def append(v: T)
+  def appendNull() {}
   def min: T
   def max: T
+  def build = this
   override def toString = "[" + min + ", " + max + "]"
 }
+
+
+sealed trait ColumnNoStats[T] extends ColumnStats[T]
 
 
 // For all columns, we track the range (i.e. min and max).
@@ -24,7 +29,7 @@ object ColumnStats {
   class BooleanColumnStats extends ColumnStats[Boolean] {
     private var _max = false
     private var _min = true
-    override def add(v: Boolean) {
+    override def append(v: Boolean) {
       if (v) _max = v
       else _min = v
     }
@@ -32,38 +37,26 @@ object ColumnStats {
     override def max = _max
   }
 
-  class BooleanColumnNoStats extends BooleanColumnStats {
-    override def add(v: Boolean) {}
-  }
-
   class ByteColumnStats extends ColumnStats[Byte] {
     private var _max = Byte.MinValue
     private var _min = Byte.MaxValue
-    override def add(v: Byte) {
+    override def append(v: Byte) {
       if (v > _max) _max = v
       if (v < _min) _min = v
     }
     override def min = _min
     override def max = _max
-  }
-
-  class ByteColumnNoStats extends ByteColumnStats {
-    override def add(v: Byte) {}
   }
 
   class ShortColumnStats extends ColumnStats[Short] {
     private var _max = Short.MinValue
     private var _min = Short.MaxValue
-    override def add(v: Short) {
+    override def append(v: Short) {
       if (v > _max) _max = v
       if (v < _min) _min = v
     }
     override def min = _min
     override def max = _max
-  }
-
-  class ShortColumnNoStats extends ShortColumnStats {
-    override def add(v: Short) {}
   }
 
   class IntColumnStats extends ColumnStats[Int] {
@@ -87,7 +80,7 @@ object ColumnStats {
     def isOrdered = isAscending || isDescending
     def maxDelta = _maxDelta
 
-    override def add(v: Int) {
+    override def append(v: Int) {
       if (v > _max) _max = v
       if (v < _min) _min = v
 
@@ -116,53 +109,37 @@ object ColumnStats {
     }
   }
 
-  class IntColumnNoStats extends IntColumnStats {
-    override def add(v: Int) {}
-  }
-
   class LongColumnStats extends ColumnStats[Long] {
     private var _max = Long.MinValue
     private var _min = Long.MaxValue
-    override def add(v: Long) {
+    override def append(v: Long) {
       if (v > _max) _max = v
       if (v < _min) _min = v
     }
     override def min = _min
     override def max = _max
-  }
-
-  class LongColumnNoStats extends LongColumnStats {
-    override def add(v: Long) {}
   }
 
   class FloatColumnStats extends ColumnStats[Float] {
     private var _max = Float.MinValue
     private var _min = Float.MaxValue
-    override def add(v: Float) {
+    override def append(v: Float) {
       if (v > _max) _max = v
       if (v < _min) _min = v
     }
     override def min = _min
     override def max = _max
-  }
-
-  class FloatColumnNoStats extends FloatColumnStats {
-    override def add(v: Float) {}
   }
 
   class DoubleColumnStats extends ColumnStats[Double] {
     private var _max = Double.MinValue
     private var _min = Double.MaxValue
-    override def add(v: Double) {
+    override def append(v: Double) {
       if (v > _max) _max = v
       if (v < _min) _min = v
     }
     override def min = _min
     override def max = _max
-  }
-
-  class DoubleColumnNoStats extends DoubleColumnStats {
-    override def add(v: Double) {}
   }
 
   class TextColumnStats extends ColumnStats[Text] {
@@ -170,7 +147,7 @@ object ColumnStats {
     private var _min: Text = null
     override def max = _max
     override def min = _min
-    override def add(v: Text) {
+    override def append(v: Text) {
       // Need to make a copy of Text since Text is not immutable and we reuse
       // the same Text object in serializer to mitigate frequent GC.
       if (max == null || v.compareTo(_max) > 0) _max = new Text(v)
@@ -178,7 +155,57 @@ object ColumnStats {
     }
   }
 
-  class TextColumnNoStats extends TextColumnStats {
-    override def add(v: Text) {}
+  implicit object BooleanColumnNoStats extends ColumnStats[Boolean] {
+    override def append(v: Boolean) {}
+    override def min = false
+    override def max = false 
+  }
+
+  implicit object ByteColumnNoStats extends ColumnStats[Byte] {
+    override def append(v: Byte) {}
+    override def min = 0
+    override def max = 0 
+  }
+
+  implicit object ShortColumnNoStats extends ColumnStats[Short] {
+    override def append(v: Short) {}
+    override def min = 0
+    override def max = 0 
+  }
+
+  implicit object IntColumnNoStats extends ColumnStats[Int] {
+    override def append(v: Int) {}
+    override def min = 0
+    override def max = 0 
+  }
+
+  implicit object LongColumnNoStats extends ColumnStats[Long] {
+    override def append(v: Long) {}
+    override def min = 0
+    override def max = 0 
+  }
+
+  implicit object FloatColumnNoStats extends ColumnStats[Float] {
+    override def append(v: Float) {}
+    override def min = 0
+    override def max = 0 
+  }
+
+  implicit object DoubleColumnNoStats extends ColumnStats[Double] {
+    override def append(v: Double) {}
+    override def min = 0
+    override def max = 0 
+  }
+
+  implicit object TextColumnNoStats extends ColumnStats[Text] {
+    override def append(v: Text) {}
+    override def min = null
+    override def max = null
+  }
+
+  implicit object GenericColumnNoStats extends ColumnStats[Object] {
+    override def append(v: Object) {}
+    override def min = null
+    override def max = null
   }
 }

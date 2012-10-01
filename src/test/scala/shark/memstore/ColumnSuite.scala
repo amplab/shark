@@ -1,4 +1,4 @@
-package shark
+package shark.memstore
 
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.{
@@ -10,179 +10,214 @@ import org.apache.hadoop.io.{BooleanWritable, FloatWritable, IntWritable, LongWr
 
 import org.scalatest.FunSuite
 
-import shark.memstore._
+import shark.memstore.ColumnStats._
 
 
 class ColumnSuite extends FunSuite {
+  // TODO(rxin): Add unit tests for void and lazy columns.
 
   import ColumnSuite._
 
   test("BooleanColumn") {
-    testPrimitiveColumn(
+    testUncompressedPrimitiveColumn(
       Array[java.lang.Boolean](),
-      new Column.BooleanColumn.Builder(5),
       PrimitiveObjectInspectorFactory.javaBooleanObjectInspector,
       PrimitiveObjectInspectorFactory.writableBooleanObjectInspector)
 
-    testPrimitiveColumn(
+    testUncompressedPrimitiveColumn(
       Array[java.lang.Boolean](null),
-      new Column.BooleanColumn.Builder(5),
       PrimitiveObjectInspectorFactory.javaBooleanObjectInspector,
       PrimitiveObjectInspectorFactory.writableBooleanObjectInspector)
 
-    testPrimitiveColumn(
+    testUncompressedPrimitiveColumn(
       Array[java.lang.Boolean](false),
-      new Column.BooleanColumn.Builder(5),
       PrimitiveObjectInspectorFactory.javaBooleanObjectInspector,
       PrimitiveObjectInspectorFactory.writableBooleanObjectInspector)
 
-    testPrimitiveColumn(
+    testUncompressedPrimitiveColumn(
       Array[java.lang.Boolean](true, false, null, true, null, true, true, null, null),
-      new Column.BooleanColumn.Builder(5),
       PrimitiveObjectInspectorFactory.javaBooleanObjectInspector,
       PrimitiveObjectInspectorFactory.writableBooleanObjectInspector)
   }
 
   test("ByteColumn") {
-    testPrimitiveColumn(
+    testUncompressedPrimitiveColumn(
       Array[java.lang.Byte](),
-      new Column.ByteColumn.Builder(5),
       PrimitiveObjectInspectorFactory.javaByteObjectInspector,
       PrimitiveObjectInspectorFactory.writableByteObjectInspector)
 
-    testPrimitiveColumn(
+    testUncompressedPrimitiveColumn(
       Array[java.lang.Byte](null),
-      new Column.ByteColumn.Builder(5),
       PrimitiveObjectInspectorFactory.javaByteObjectInspector,
       PrimitiveObjectInspectorFactory.writableByteObjectInspector)
 
-    testPrimitiveColumn(
+    testUncompressedPrimitiveColumn(
       Array[java.lang.Byte](0),
-      new Column.ByteColumn.Builder(5),
       PrimitiveObjectInspectorFactory.javaByteObjectInspector,
       PrimitiveObjectInspectorFactory.writableByteObjectInspector)
 
-    testPrimitiveColumn(
+    testUncompressedPrimitiveColumn(
       Array[java.lang.Byte](1, 2, 3, 4, null, -3, null, 32),
-      new Column.ByteColumn.Builder(5),
       PrimitiveObjectInspectorFactory.javaByteObjectInspector,
       PrimitiveObjectInspectorFactory.writableByteObjectInspector)
   }
 
   test("ShortColumn") {
-    testPrimitiveColumn(
+    testUncompressedPrimitiveColumn(
       Array[java.lang.Short](),
-      new Column.ShortColumn.Builder(5),
       PrimitiveObjectInspectorFactory.javaShortObjectInspector,
       PrimitiveObjectInspectorFactory.writableShortObjectInspector)
 
-    testPrimitiveColumn(
+    testUncompressedPrimitiveColumn(
       Array[java.lang.Short](null),
-      new Column.ShortColumn.Builder(5),
       PrimitiveObjectInspectorFactory.javaShortObjectInspector,
       PrimitiveObjectInspectorFactory.writableShortObjectInspector)
 
-    testPrimitiveColumn(
+    testUncompressedPrimitiveColumn(
       Array[java.lang.Short](0),
-      new Column.ShortColumn.Builder(5),
       PrimitiveObjectInspectorFactory.javaShortObjectInspector,
       PrimitiveObjectInspectorFactory.writableShortObjectInspector)
 
-    testPrimitiveColumn(
+    testUncompressedPrimitiveColumn(
       Array[java.lang.Short](1, 2, 3, 4, null, -3, null, 32),
-      new Column.ShortColumn.Builder(5),
       PrimitiveObjectInspectorFactory.javaShortObjectInspector,
       PrimitiveObjectInspectorFactory.writableShortObjectInspector)
   }
 
   test("IntColumn") {
-    testPrimitiveColumn(
+    testUncompressedPrimitiveColumn(
       Array[java.lang.Integer](),
-      new Column.IntColumn.Builder(5),
       PrimitiveObjectInspectorFactory.javaIntObjectInspector,
       PrimitiveObjectInspectorFactory.writableIntObjectInspector)
 
-    testPrimitiveColumn(
+    testUncompressedPrimitiveColumn(
       Array[java.lang.Integer](null),
-      new Column.IntColumn.Builder(5),
       PrimitiveObjectInspectorFactory.javaIntObjectInspector,
       PrimitiveObjectInspectorFactory.writableIntObjectInspector)
 
-    testPrimitiveColumn(
+    testUncompressedPrimitiveColumn(
       Array[java.lang.Integer](0),
-      new Column.IntColumn.Builder(5),
       PrimitiveObjectInspectorFactory.javaIntObjectInspector,
       PrimitiveObjectInspectorFactory.writableIntObjectInspector)
 
-    testPrimitiveColumn(
+    testUncompressedPrimitiveColumn(
       Array[java.lang.Integer](1, 2, 3, 4, null, -3, null, 32),
-      new Column.IntColumn.Builder(5),
       PrimitiveObjectInspectorFactory.javaIntObjectInspector,
       PrimitiveObjectInspectorFactory.writableIntObjectInspector)
   }
 
   test("LongColumn") {
-    testPrimitiveColumn(
+    testUncompressedPrimitiveColumn(
       Array[java.lang.Long](),
-      new Column.LongColumn.Builder(5),
       PrimitiveObjectInspectorFactory.javaLongObjectInspector,
       PrimitiveObjectInspectorFactory.writableLongObjectInspector)
 
-    testPrimitiveColumn(
+    testUncompressedPrimitiveColumn(
       Array[java.lang.Long](null),
-      new Column.LongColumn.Builder(5),
       PrimitiveObjectInspectorFactory.javaLongObjectInspector,
       PrimitiveObjectInspectorFactory.writableLongObjectInspector)
 
-    testPrimitiveColumn(
+    testUncompressedPrimitiveColumn(
       Array[java.lang.Long](14),
-      new Column.LongColumn.Builder(5),
       PrimitiveObjectInspectorFactory.javaLongObjectInspector,
       PrimitiveObjectInspectorFactory.writableLongObjectInspector)
 
-    testPrimitiveColumn(
+    testUncompressedPrimitiveColumn(
       Array[java.lang.Long](1, 2, 3, 4, null, -3, null, 32),
-      new Column.LongColumn.Builder(5),
       PrimitiveObjectInspectorFactory.javaLongObjectInspector,
       PrimitiveObjectInspectorFactory.writableLongObjectInspector)
   }
 
-  test("StringColumn") {
-    testStringColumn(
-      Array[java.lang.String](),
-      new Column.StringColumn.Builder(5))
+  test("FloatColumn") {
+    testUncompressedPrimitiveColumn(
+      Array[java.lang.Float](),
+      PrimitiveObjectInspectorFactory.javaFloatObjectInspector,
+      PrimitiveObjectInspectorFactory.writableFloatObjectInspector)
+
+    testUncompressedPrimitiveColumn(
+      Array[java.lang.Float](null),
+      PrimitiveObjectInspectorFactory.javaFloatObjectInspector,
+      PrimitiveObjectInspectorFactory.writableFloatObjectInspector)
+
+    testUncompressedPrimitiveColumn(
+      Array[java.lang.Float](14.1F),
+      PrimitiveObjectInspectorFactory.javaFloatObjectInspector,
+      PrimitiveObjectInspectorFactory.writableFloatObjectInspector)
+
+    testUncompressedPrimitiveColumn(
+      Array[java.lang.Float](1.1F, 2.2F, 3.3F, 4.5F, null, -3.2F, null, 32.5F),
+      PrimitiveObjectInspectorFactory.javaFloatObjectInspector,
+      PrimitiveObjectInspectorFactory.writableFloatObjectInspector)
+  }
+
+  test("DoubleColumn") {
+    testUncompressedPrimitiveColumn(
+      Array[java.lang.Double](),
+      PrimitiveObjectInspectorFactory.javaDoubleObjectInspector,
+      PrimitiveObjectInspectorFactory.writableDoubleObjectInspector)
+
+    testUncompressedPrimitiveColumn(
+      Array[java.lang.Double](null),
+      PrimitiveObjectInspectorFactory.javaDoubleObjectInspector,
+      PrimitiveObjectInspectorFactory.writableDoubleObjectInspector)
+
+    testUncompressedPrimitiveColumn(
+      Array[java.lang.Double](14.1),
+      PrimitiveObjectInspectorFactory.javaDoubleObjectInspector,
+      PrimitiveObjectInspectorFactory.writableDoubleObjectInspector)
+
+    testUncompressedPrimitiveColumn(
+      Array[java.lang.Double](1.1, 2.2, 3.3, 4.5, null, -3.2, null, 32.5),
+      PrimitiveObjectInspectorFactory.javaDoubleObjectInspector,
+      PrimitiveObjectInspectorFactory.writableDoubleObjectInspector)
+  }
+
+  test("TextColumn") {
+    testStringColumn(Array[java.lang.String](), new Column.TextColumnBuilder(
+      new UncompressedColumnFormat.TextColumnFormat(5), TextColumnNoStats))
 
     testStringColumn(
-      Array[java.lang.String](null),
-      new Column.StringColumn.Builder(5))
+      Array[java.lang.String](null), new Column.TextColumnBuilder(
+      new UncompressedColumnFormat.TextColumnFormat(5), TextColumnNoStats))
 
     testStringColumn(
-      Array[java.lang.String](""),
-      new Column.StringColumn.Builder(5))
+      Array[java.lang.String](""), new Column.TextColumnBuilder(
+      new UncompressedColumnFormat.TextColumnFormat(5), TextColumnNoStats))
 
     testStringColumn(
-      Array[java.lang.String]("abcd"),
-      new Column.StringColumn.Builder(5))
+      Array[java.lang.String]("abcd"), new Column.TextColumnBuilder(
+      new UncompressedColumnFormat.TextColumnFormat(5), TextColumnNoStats))
 
     testStringColumn(
       Array[java.lang.String]("abcd", "d", null, "null", null, "e", "ffff"),
-      new Column.StringColumn.Builder(5))
+      new Column.TextColumnBuilder(
+        new UncompressedColumnFormat.TextColumnFormat(5), TextColumnNoStats))
   }
 }
-
 
 object ColumnSuite {
 
   implicit def int2Byte(v: Int): java.lang.Byte = v.toByte
   implicit def int2Short(v: Int): java.lang.Short = v.toShort
 
+  def testUncompressedPrimitiveColumn(
+    data: Array[_ <: Object],
+    javaOi: AbstractPrimitiveJavaObjectInspector,
+    writableOi: AbstractPrimitiveWritableObjectInspector): Column = {
+    testPrimitiveColumn(
+      data,
+      ColumnBuilderCreateFunc.uncompressedArrayFormat(javaOi, 5),
+      javaOi,
+      writableOi)
+  }
+
   def testPrimitiveColumn(
     data: Array[_ <: Object],
-    builder: ColumnBuilder,
+    builder: Column.ColumnBuilder,
     javaOi: AbstractPrimitiveJavaObjectInspector,
     writableOi: AbstractPrimitiveWritableObjectInspector): Column = {
 
-    data foreach(builder.add(_, javaOi))
+    data foreach(builder.append(_, javaOi))
     val column = builder.build
     assert(column.size == data.size)
 
@@ -198,7 +233,7 @@ object ColumnSuite {
     column
   }
 
-  def testStringColumn(data: Array[String], builder: ColumnBuilder): Column =
+  def testStringColumn(data: Array[String], builder: Column.ColumnBuilder): Column =
     testPrimitiveColumn(
       data,
       builder,

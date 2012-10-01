@@ -1,77 +1,81 @@
-package shark
+package shark.memstore
 
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.io.Text
 import org.scalatest.FunSuite
 import shark.memstore._
+import shark.memstore.CompressedTextColumnFormat.DictionaryEncodedColumnFormat
 
 
 class CompressionSuite extends FunSuite {
 
   import ColumnSuite.testStringColumn
-  import ColumnSuite.testPrimitiveColumn
+
+  def createCompressedBuilder = new Column.TextColumnBuilder(
+    new CompressedTextColumnFormat(5, 5), ColumnStats.TextColumnNoStats)
+
+  def createDictionaryEncodedBuilder = new Column.TextColumnBuilder(
+    new DictionaryEncodedColumnFormat(5), ColumnStats.TextColumnNoStats)
 
   test("CompressedStringColumn compressed") {
-    var c: CompressedStringColumn = null
+    var c: Column = null
 
     c = testStringColumn(
       Array[java.lang.String](),
-      new CompressedStringColumn.Builder(5, 10)).asInstanceOf[CompressedStringColumn]
+      createCompressedBuilder)
 
     c = testStringColumn(
       Array[java.lang.String](null),
-      new CompressedStringColumn.Builder(5, 10)).asInstanceOf[CompressedStringColumn]
+      createCompressedBuilder)
 
     c = testStringColumn(
       Array[java.lang.String](""),
-      new CompressedStringColumn.Builder(5, 10)).asInstanceOf[CompressedStringColumn]
+      createCompressedBuilder)
 
     c = testStringColumn(
       Array[java.lang.String]("abcd"),
-      new CompressedStringColumn.Builder(5, 10)).asInstanceOf[CompressedStringColumn]
+      createCompressedBuilder)
 
     val data = Array[String]("0", "1", "2", null, "1")
     c = testStringColumn(
-      data, new CompressedStringColumn.Builder(5, 10)).asInstanceOf[CompressedStringColumn]
+      data,
+      createCompressedBuilder)
   }
 
   test("CompressedStringColumn uncompressed") {
-    val c = testPrimitiveColumn(
+    val c = testStringColumn(
       Array[String]("0", "1", "2", null, "1", "3"),
-      new CompressedStringColumn.Builder(5, 3),
-      PrimitiveObjectInspectorFactory.javaStringObjectInspector,
-      PrimitiveObjectInspectorFactory.writableStringObjectInspector
-    ).asInstanceOf[CompressedStringColumn]
-    assert(c.backingColumn.isInstanceOf[Column.StringColumn])
+      createCompressedBuilder).asInstanceOf[CompressedTextColumnFormat]
+    assert(c.backingColumn.isInstanceOf[UncompressedColumnFormat.TextColumnFormat])
   }
 
   test("DictionaryEncodedColumn") {
-
-    var c: DictionaryEncodedColumn = null
+    var c: DictionaryEncodedColumnFormat = null
 
     c = testStringColumn(
       Array[java.lang.String](),
-      new DictionaryEncodedColumn.Builder(5)).asInstanceOf[DictionaryEncodedColumn]
+      createDictionaryEncodedBuilder).asInstanceOf[DictionaryEncodedColumnFormat]
     assert(c.numDistinctWords == 0)
 
     c = testStringColumn(
       Array[java.lang.String](null),
-      new DictionaryEncodedColumn.Builder(5)).asInstanceOf[DictionaryEncodedColumn]
+      createDictionaryEncodedBuilder).asInstanceOf[DictionaryEncodedColumnFormat]
     assert(c.numDistinctWords == 0)
 
     c = testStringColumn(
       Array[java.lang.String](""),
-      new DictionaryEncodedColumn.Builder(5)).asInstanceOf[DictionaryEncodedColumn]
+      createDictionaryEncodedBuilder).asInstanceOf[DictionaryEncodedColumnFormat]
     assert(c.numDistinctWords == 1)
 
     c = testStringColumn(
       Array[java.lang.String]("abcd"),
-      new DictionaryEncodedColumn.Builder(5)).asInstanceOf[DictionaryEncodedColumn]
+      createDictionaryEncodedBuilder).asInstanceOf[DictionaryEncodedColumnFormat]
     assert(c.numDistinctWords == 1)
 
     val data = Array[String]("0", "1", "2", null, "1")
     c = testStringColumn(
-      data, new DictionaryEncodedColumn.Builder(5)).asInstanceOf[DictionaryEncodedColumn]
+      data,
+      createDictionaryEncodedBuilder).asInstanceOf[DictionaryEncodedColumnFormat]
     assert(c.numDistinctWords == data.toSet.size - 1)
   }
 }
