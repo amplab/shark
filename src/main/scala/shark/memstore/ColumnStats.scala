@@ -158,43 +158,43 @@ object ColumnStats {
   implicit object BooleanColumnNoStats extends ColumnStats[Boolean] {
     override def append(v: Boolean) {}
     override def min = false
-    override def max = false 
+    override def max = false
   }
 
   implicit object ByteColumnNoStats extends ColumnStats[Byte] {
     override def append(v: Byte) {}
     override def min = 0
-    override def max = 0 
+    override def max = 0
   }
 
   implicit object ShortColumnNoStats extends ColumnStats[Short] {
     override def append(v: Short) {}
     override def min = 0
-    override def max = 0 
+    override def max = 0
   }
 
   implicit object IntColumnNoStats extends ColumnStats[Int] {
     override def append(v: Int) {}
     override def min = 0
-    override def max = 0 
+    override def max = 0
   }
 
   implicit object LongColumnNoStats extends ColumnStats[Long] {
     override def append(v: Long) {}
     override def min = 0
-    override def max = 0 
+    override def max = 0
   }
 
   implicit object FloatColumnNoStats extends ColumnStats[Float] {
     override def append(v: Float) {}
     override def min = 0
-    override def max = 0 
+    override def max = 0
   }
 
   implicit object DoubleColumnNoStats extends ColumnStats[Double] {
     override def append(v: Double) {}
     override def min = 0
-    override def max = 0 
+    override def max = 0
   }
 
   implicit object TextColumnNoStats extends ColumnStats[Text] {

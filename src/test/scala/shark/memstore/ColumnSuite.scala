@@ -224,9 +224,10 @@ object ColumnSuite {
     var i = 0
     while (i < column.size) {
       //println(data(i) + " " + column(i))
-      assert(
-        (data(i) == null && column(i) == null) ||
-        writableOi.getPrimitiveJavaObject(column(i)) == data(i))
+      val expected = data(i)
+      val reality = writableOi.getPrimitiveJavaObject(column(i))
+      assert((expected == null && reality == null) || reality == expected,
+        "expected " + expected + ", but saw " + reality)
       i += 1
     }
 

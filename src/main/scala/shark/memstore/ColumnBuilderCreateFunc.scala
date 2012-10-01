@@ -68,4 +68,22 @@ object ColumnBuilderCreateFunc {
       case _ => new LazyColumnBuilder(oi, initialSize)
     }
   }
+
+  val compressedFormatWithStats: TYPE = (oi: ObjectInspector, initialSize: Int) => {
+    import UncompressedColumnFormat._
+    oi.getCategory match {
+      case ObjectInspector.Category.PRIMITIVE => {
+        oi.asInstanceOf[PrimitiveObjectInspector].getPrimitiveCategory match {
+          case PrimitiveCategory.INT =>
+            val cf = new CompressedIntColumnFormat(initialSize)
+            new IntColumnBuilder(cf, cf.stats)
+          case PrimitiveCategory.STRING =>
+            val cf = new CompressedTextColumnFormat(initialSize, 128)
+            new TextColumnBuilder(cf, new TextColumnStats)
+          case _ => uncompressedArrayFormatWithStats(oi, initialSize)
+        }
+      }
+      case _ => uncompressedArrayFormatWithStats(oi, initialSize)
+    }
+  }
 }
