@@ -1,5 +1,6 @@
 package shark
 
+import java.io.{FileOutputStream, IOException, PrintStream, UnsupportedEncodingException}
 import java.util.{ArrayList, List => JavaList}
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.conf.Configuration
@@ -15,7 +16,8 @@ import org.apache.thrift.TProcessor
 import org.apache.thrift.protocol.TBinaryProtocol
 import org.apache.thrift.server.TThreadPoolServer
 import org.apache.thrift.transport.{TTransport, TTransportFactory, TServerSocket}
-import spark.SparkContext
+import spark.{SparkContext, SparkEnv}
+
 
 object SharkServer {
 
@@ -24,6 +26,8 @@ object SharkServer {
   SharkEnv.sc = new SparkContext(
     if (System.getenv("MASTER") == null) "local" else System.getenv("MASTER"),
     "Shark::" + java.net.InetAddress.getLocalHost.getHostName)
+
+  val serverEnv = SparkEnv.get
 
   def main(args: Array[String]) {
     LogUtils.initHiveLog4j();
@@ -46,12 +50,13 @@ object SharkServer {
   }
 }
 
-class SharkHiveProcessingFactory(processor: TProcessor, conf: HiveConf) extends ThriftHiveProcessorFactory(processor, conf) {
+class SharkHiveProcessingFactory(processor: TProcessor, conf: HiveConf)
+  extends ThriftHiveProcessorFactory(processor, conf) {
 
   override def getProcessor(trans: TTransport) = new ThriftHive.Processor(new SharkServerHandler)
 }
 
-class SharkServerHandler extends HiveServerHandler {
+class SharkServerHandler extends HiveServerHandler with LogHelper {
 
   private val ss = SessionState.get()
 
@@ -62,6 +67,9 @@ class SharkServerHandler extends HiveServerHandler {
     d.init()
     d
   }
+
+  // Make sure the ThreadLocal SparkEnv reference is the same for all threads.
+  SparkEnv.set(SharkServer.serverEnv)
 
   private var isSharkQuery = false
 
@@ -83,9 +91,10 @@ class SharkServerHandler extends HiveServerHandler {
         response = Option(driver.run(cmd))
       } else {
         isSharkQuery = false
+        // Need to reset output for each non-Shark query.
+        setupSessionIO(ss)
         response = Option(proc.run(cmd_1))
       }
-
     }
 
     response match {
@@ -98,12 +107,40 @@ class SharkServerHandler extends HiveServerHandler {
     }
   }
 
+  // Called once per non-Shark query.
+  def setupSessionIO(session: SessionState) {
+    try {
+      val tmpOutputFile = session.getTmpOutputFile()
+      logInfo("Putting temp output to file " + tmpOutputFile.toString())
+      // Open a per-session/command file for writing temp results.
+      session.out = new PrintStream(new FileOutputStream(tmpOutputFile), true, "UTF-8")
+      session.err = new PrintStream(System.err, true, "UTF-8")
+    } catch {
+      case e: IOException => {
+        try {
+          session.in = null;
+          session.out = new PrintStream(System.out, true, "UTF-8");
+          session.err = new PrintStream(System.err, true, "UTF-8");
+      	} catch {
+          case ee: UnsupportedEncodingException => {
+      	    ee.printStackTrace();
+      	    session.out = null;
+      	    session.err = null;
+      	  }
+        }
+      }
+    }
+  }
+
   override def fetchAll(): JavaList[String] = {
     val res = new ArrayList[String]()
     if (isSharkQuery) {
       driver.getResults(res)
+      res
+    } else {
+      // Returns all results if second arg (numRows) <= 0
+      super.fetchAll()
     }
-    res
   }
 
   override def fetchN(numRows: Int): JavaList[String] = {
@@ -111,8 +148,10 @@ class SharkServerHandler extends HiveServerHandler {
     if (isSharkQuery) {
       driver.setMaxRows(numRows)
       driver.getResults(res)
+      res
+    } else {
+      super.fetchN(numRows)
     }
-    res
   }
 
   override def fetchOne(): String = {

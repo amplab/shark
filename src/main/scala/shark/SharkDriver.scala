@@ -58,9 +58,11 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
   val planField = this.getClass.getSuperclass.getDeclaredField("plan")
   val contextField = this.getClass.getSuperclass.getDeclaredField("ctx")
   val schemaField = this.getClass.getSuperclass.getDeclaredField("schema")
+  val errorMessageField = this.getClass.getSuperclass.getDeclaredField("errorMessage")
   contextField.setAccessible(true)
   planField.setAccessible(true)
   schemaField.setAccessible(true)
+  errorMessageField.setAccessible(true)
   
   val doAuthMethod = this.getClass.getSuperclass.getDeclaredMethod(
     "doAuthorization", classOf[BaseSemanticAnalyzer])
@@ -78,7 +80,10 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
 
   def schema = schemaField.get(this).asInstanceOf[Schema]
   def schema_= (value: Schema): Unit = schemaField.set(this, value)
-  
+
+  def errorMessage = errorMessageField.get(this).asInstanceOf[String]
+  def errorMessage_= (value: String): Unit = errorMessageField.set(this, value)
+
   var useTableRddSink = false
 
   override def init(): Unit = {
@@ -107,8 +112,7 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
   override def compile(cmd: String): Int = {
     
     val now = new Date().getTime
-    
-        
+
     if (plan != null) {
       close()
       plan = null
@@ -169,17 +173,17 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
       0
     } catch {
       case e: SemanticException => {
-        val errorMessage = "FAILED: Error in semantic analysis: " + e.getMessage()
+        errorMessage = "FAILED: Error in semantic analysis: " + e.getMessage()
         logError(errorMessage, "\n" + StringUtils.stringifyException(e))
         10
       }
       case e: ParseException => {
-        val errorMessage = "FAILED: Parse Error: " + e.getMessage()
+        errorMessage = "FAILED: Parse Error: " + e.getMessage()
         logError(errorMessage, "\n" + StringUtils.stringifyException(e))
         11
       }
       case e: Exception => {
-        val errorMessage = "FAILED: Hive Internal Error: " + Utilities.getNameMessage(e)
+        errorMessage = "FAILED: Hive Internal Error: " + Utilities.getNameMessage(e)
         logError(errorMessage, "\n" + StringUtils.stringifyException(e))
         12
       } 
