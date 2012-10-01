@@ -5,7 +5,7 @@ import java.io.File
 
 import org.apache.hadoop.hive.metastore.api.FieldSchema
 import org.apache.hadoop.hive.ql.{Context, DriverContext}
-import org.apache.hadoop.hive.ql.exec.{ExecDriver, TableScanOperator => HiveTableScanOperator, Utilities}
+import org.apache.hadoop.hive.ql.exec.{TableScanOperator => HiveTableScanOperator, Utilities}
 import org.apache.hadoop.hive.ql.metadata.{Partition, Table}
 import org.apache.hadoop.hive.ql.optimizer.ppr.PartitionPruner
 import org.apache.hadoop.hive.ql.parse._
@@ -40,18 +40,16 @@ with java.io.Serializable with LogHelper {
     logInfo("Executing " + this.getClass.getName)
     
     val ctx = driverContext.getCtx()
+
     // Adding files to the SparkContext
-    // The getResourceFiles method is protected, let's make it accessible
-    val m = classOf[ExecDriver].getDeclaredMethod("getResourceFiles",
-      classOf[org.apache.hadoop.conf.Configuration], classOf[SessionState.ResourceType])
-    m.setAccessible(true)
-    // Add required files
-    val files = m.invoke(null, conf, SessionState.ResourceType.FILE).asInstanceOf[String]
+    // Added required files
+    val files = Utilities.getResourceFiles(conf, SessionState.ResourceType.FILE)
     files.split(",").filterNot(_.isEmpty).foreach { SharkEnv.sc.addFile(_) }
-    // Add required jars
-    val jars = m.invoke(null, conf, SessionState.ResourceType.JAR).asInstanceOf[String]
+
+    // Added required jars
+    val jars = Utilities.getResourceFiles(conf, SessionState.ResourceType.JAR)
     jars.split(",").filterNot(_.isEmpty).foreach { SharkEnv.sc.addJar(_) }
-    
+
     Operator.hconf = conf
 
     // Replace Hive physical plan with Shark plan.

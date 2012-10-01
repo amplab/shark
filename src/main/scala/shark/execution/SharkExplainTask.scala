@@ -22,7 +22,7 @@ class SharkExplainWork(
   rootTasks: JavaList[Task[_ <: java.io.Serializable]],
   astStringTree: String,
   extended: Boolean)
- extends ExplainWork(resFile, rootTasks, astStringTree, extended)
+ extends ExplainWork(resFile, rootTasks, astStringTree, extended, false)
 
 
 /**
@@ -42,14 +42,14 @@ class SharkExplainTask extends Task[SharkExplainWork] with java.io.Serializable 
       val out = new PrintStream(outS)
       
       // Print out the parse AST
-      hiveExplainTask.outputAST(work.getAstStringTree, out, 0)
+      ExplainTask.outputAST(work.getAstStringTree, out, false, 0)
       out.println()
 
-      hiveExplainTask.outputDependencies(out, work.getRootTasks, 0)
+      ExplainTask.outputDependencies(out, work.isFormatted(), work.getRootTasks, 0)
       out.println()
 
       // Go over all the tasks and dump out the plans
-      hiveExplainTask.outputStagePlans(out, work.getRootTasks, 0)
+      ExplainTask.outputStagePlans(out, work, work.getRootTasks, 0)
       
       // Print the Shark query plan if applicable.
       if (work != null && work.getRootTasks != null && work.getRootTasks.size > 0) {
