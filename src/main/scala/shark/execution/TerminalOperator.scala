@@ -72,7 +72,7 @@ class FileSinkOperator extends TerminalOperator with Serializable {
     }
 
     // Create missing parent directories so that the HiveFileSinkOperator can rename
-    // temp files without complaining about missing parent directories.
+    // temp file without complaining.
 
     // Two rounds of reflection are needed, since the FSPaths reference is private, and
     // the FSPaths' finalPaths reference isn't publicly accessible.
@@ -87,8 +87,21 @@ class FileSinkOperator extends TerminalOperator with Serializable {
     val fileSystem = FileSystem.get(localHconf)
 
     for (idx <- 0 until finalPaths.length) {
-      val finalPath = finalPaths(idx)
+      var finalPath = finalPaths(idx)
+
+      if (finalPath == null) {
+        // If a query results in no output rows, then file paths for renaming will be
+        // created in localHiveOp.closeOp instead of processOp. But we need them before 
+        // that to check for missing parent directories.
+        val createFilesMethod = localHiveOp.getClass.getDeclaredMethod(
+          "createBucketFiles", classOf[HiveFileSinkOperator#FSPaths])
+        createFilesMethod.setAccessible(true)
+        createFilesMethod.invoke(localHiveOp, fileSystemPaths)
+        finalPath = finalPaths(idx)
+      }
+
       if (!fileSystem.exists(finalPath.getParent())) fileSystem.mkdirs(finalPath.getParent())
+
     }
 
     localHiveOp.closeOp(false)
