@@ -18,10 +18,8 @@ import scala.reflect.BeanProperty
 
 import spark.{OneToOneDependency, RDD, SparkEnv, Split}
 
-
 /**
- * An operator that runs an external script. We use a customized version of
- * PipedRDD (CustomPipedRdd) to call the external script.
+ * An operator that runs an external script.
  *
  * Example: select transform(key) using 'cat' as cola from src;
  */
@@ -42,32 +40,71 @@ class ScriptOperator extends UnaryOperator[HiveScriptOperator] {
     val inputRdd = executeParents().head._2
 
     val op = OperatorSerializationWrapper(this)
-    // Serialize the data so it is recognizable by the script.
-    val rdd = inputRdd.mapPartitions { part =>
-      op.initializeOnSlave()
-      op.serializeForScript(part)
-    }
-
-    val outRecordReaderClass = hiveOp.getConf().getOutRecordReaderClass()
-    val inRecordWriterClass = hiveOp.getConf().getInRecordWriterClass()
-
+    val (command, envs) = getCommandAndEnvs()
+    val outRecordReaderClass: Class[_ <: RecordReader] = hiveOp.getConf().getOutRecordReaderClass()
+    val inRecordWriterClass: Class[_ <: RecordWriter] = hiveOp.getConf().getInRecordWriterClass()
     logInfo("Using %s and %s".format(outRecordReaderClass, inRecordWriterClass))
 
-    // Create a piped rdd (this executes the script).
-    val (command, envs) = getCommandAndEnvs()
-    val piped = new CustomPipedRdd(
-        rdd,
-        command,
-        envs,
-        outRecordReaderClass,
-        inRecordWriterClass,
-        XmlSerializer.serialize(hconf),
-        hiveOp.getConf().getScriptOutputInfo().getProperties())
-
     // Deserialize the output from script back to what Hive understands.
-    piped.mapPartitions { part =>
+    inputRdd.mapPartitions { part =>
       op.initializeOnSlave()
-      op.deserializeFromScript(part)
+
+      // Serialize the data so it is recognizable by the script.
+      val iter = op.serializeForScript(part)
+
+      val workingDir = System.getProperty("user.dir")
+      val newCmd = command.map { arg =>
+        if (new File(workingDir + "/" + arg).exists()) "./" + arg else arg
+      }
+      val pb = new ProcessBuilder(newCmd.toSeq)
+      pb.directory(new File(workingDir))
+      // Add the environmental variables to the process.
+      val currentEnvVars = pb.environment()
+      envs.foreach { case(variable, value) => currentEnvVars.put(variable, value) }
+
+      val proc = pb.start()
+      val hconf = op.localHconf
+
+      // Get the thread local SparkEnv so we can pass it into the new thread.
+      val sparkEnv = SparkEnv.get
+
+      // Start a thread to print the process's stderr to ours
+      new Thread("stderr reader for " + command) {
+        override def run() {
+          for(line <- Source.fromInputStream(proc.getErrorStream).getLines) {
+            System.err.println(line)
+          }
+        }
+      }.start()
+
+      // Start a thread to feed the process input from our parent's iterator
+      new Thread("stdin writer for " + command) {
+        override def run() {
+          // Set the thread local SparkEnv.
+          SparkEnv.set(sparkEnv)
+          val recordWriter = inRecordWriterClass.newInstance
+          recordWriter.initialize(proc.getOutputStream, op.localHconf)
+          for(elem <- iter) {
+            recordWriter.write(elem)
+          }
+          recordWriter.close()
+        }
+      }.start()
+
+      // Return an iterator that reads outputs from RecordReader. Use our own
+      // BinaryRecordReader if necessary because Hive's has a bug (see below).
+      val recordReader: RecordReader =
+        if (outRecordReaderClass == classOf[org.apache.hadoop.hive.ql.exec.BinaryRecordReader]) {
+          new ScriptOperator.CustomBinaryRecordReader
+        } else {
+          outRecordReaderClass.newInstance
+        }
+      recordReader.initialize(
+        proc.getInputStream,
+        op.localHconf,
+        op.localHiveOp.getConf().getScriptOutputInfo().getProperties())
+
+      op.deserializeFromScript(new ScriptOperator.RecordReaderIterator(recordReader))
     }
   }
 
@@ -96,7 +133,7 @@ class ScriptOperator extends UnaryOperator[HiveScriptOperator] {
    * Generate the command and the environmental variables for running the
    * script. This is called on the master.
    */
-  def getCommandAndEnvs(): (Array[String], Map[String, String]) = {
+  def getCommandAndEnvs(): (Seq[String], Map[String, String]) = {
 
     val scriptOpHelper = new ScriptOperatorHelper(new HiveScriptOperator)
     alias = scriptOpHelper.getAlias
@@ -114,8 +151,8 @@ class ScriptOperator extends UnaryOperator[HiveScriptOperator] {
       }
     }
 
-    val wrappedCmdArgs = addWrapper(cmdArgs)
-    logInfo("Executing " + wrappedCmdArgs.toSeq)
+    val wrappedCmdArgs = addWrapper(cmdArgs).toSeq
+    logInfo("Executing " + wrappedCmdArgs)
     logInfo("tablename=" + hconf.get(HiveConf.ConfVars.HIVETABLENAME.varname))
     logInfo("partname=" + hconf.get(HiveConf.ConfVars.HIVEPARTITIONNAME.varname))
     logInfo("alias=" + alias)
@@ -136,9 +173,8 @@ class ScriptOperator extends UnaryOperator[HiveScriptOperator] {
     (wrappedCmdArgs, Map.empty ++ envs)
   }
 
-  override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
-    throw new Exception("UnionOperator.processPartition() should've never been called.")
-  }
+  override def processPartition[T](split: Int, iter: Iterator[T]): Iterator[_] =
+    throw new UnsupportedOperationException
 
   /**
    * Wrap the script in a wrapper that allows admins to control.
@@ -153,160 +189,76 @@ class ScriptOperator extends UnaryOperator[HiveScriptOperator] {
     }
   }
 
-  def serializeForScript[T](iter: Iterator[T]): Iterator[Writable] = {
-    iter.map { row =>
-      scriptInputSerializer.serialize(row, objectInspector)
-    }
-  }
+  def serializeForScript[T](iter: Iterator[T]): Iterator[Writable] =
+    iter.map { row => scriptInputSerializer.serialize(row, objectInspector) }
 
-  def deserializeFromScript(iter: Iterator[Writable]): Iterator[_] = {
-    iter.map { row =>
-      scriptOutputDeserializer.deserialize(row)
-    }
-  }
+  def deserializeFromScript(iter: Iterator[Writable]): Iterator[_] =
+    iter.map { row => scriptOutputDeserializer.deserialize(row) }
 }
 
+object ScriptOperator {
 
-/**
- * An RDD that pipes the contents of each parent partition through an external
- * command and returns the output as a collection. We cannot use Spark's
- * PipedRDD because it only supports String inputs/outputs. We implement our own
- * customized version to support Hive's RecordReader and RecordWriter.
- *
- * TODO: We don't actually need a new RDD. We can merge this into the call to
- * mapPartitions of the previous RDD in ScriptOperator.
- */
-class CustomPipedRdd(
-    parent: RDD[Writable],
-    command: Seq[String],
-    envVars: Map[String, String],
-    recordReaderClass: Class[_ <: RecordReader],
-    recordWriterClass: Class[_ <: RecordWriter],
-    hconfSerialized: Array[Byte], // HiveConf is not Java serializable.
-    recordReaderProperties: java.util.Properties)
-  extends RDD[Writable](parent.context) {
+  /**
+   * An iterator that wraps around a Hive RecordReader.
+   */
+  class RecordReaderIterator(recordReader: RecordReader) extends Iterator[Writable] {
 
-  override def splits = parent.splits
+    // This creates a simple circular buffer. We need it because RecordReader
+    // doesn't provide a way to test "hasNext()". We implement hasNext() by always
+    // prefetching a record from RecordReader and saves it in our circular buffer
+    // of size two.
+    private val _buffer = Array(recordReader.createRow(), recordReader.createRow())
 
-  override val dependencies = List(new OneToOneDependency(parent))
+    // Hopefully this won't overflow... We don't really expect users to pipe
+    // billions of records into a script. If it really overflows, we can simply
+    // wrap it around.
+    private var _index: Int = 0
+    private var _numBytesNextRecord = recordReader.next(_buffer(_index))
 
-  override def compute(split: Split): Iterator[Writable] = {
-    val workingDir = System.getProperty("user.dir")
-    val newCmd = command.map { arg =>
-      if (new File(workingDir + "/" + arg).exists()) "./" + arg else arg
+    override def hasNext(): Boolean = _numBytesNextRecord > 0
+
+    override def next(): Writable = {
+      _index += 1
+      _numBytesNextRecord = recordReader.next(_buffer(_index % 2))
+      _buffer((_index - 1) % 2)
     }
-    val pb = new ProcessBuilder(newCmd)
-    pb.directory(new File(workingDir))
-    // Add the environmental variables to the process.
-    val currentEnvVars = pb.environment()
-    envVars.foreach { case(variable, value) => currentEnvVars.put(variable, value) }
+  }
 
-    val proc = pb.start()
-    val env = SparkEnv.get
+  /**
+   * A custom implementation of Hive's BinaryRecordReader. This one fixes a bug
+   * in Hive's code.
+   *
+   * Read from a binary stream and treat each 1000 bytes (configurable via
+   * hive.binary.record.max.length) as a record.  The last record before the
+   * end of stream can have less than 1000 bytes.
+   */
+  private class CustomBinaryRecordReader extends RecordReader {
 
-    val hconf = XmlSerializer.deserialize[HiveConf](hconfSerialized)
+    private var in: InputStream = _
+    private var maxRecordLength: Int = _
 
-    // Start a thread to print the process's stderr to ours
-    new Thread("stderr reader for " + command) {
-      override def run() {
-        for(line <- Source.fromInputStream(proc.getErrorStream).getLines) {
-          System.err.println(line)
-        }
+    override def initialize(inStream: InputStream, conf: Configuration, tbl: Properties) {
+      in = inStream
+      maxRecordLength = conf.getInt("hive.binary.record.max.length", 1000)
+    }
+
+    override def createRow(): Writable = {
+      val bytes = new BytesWritable
+      bytes.setCapacity(maxRecordLength)
+      return bytes
+    }
+
+    def next(row: Writable): Int = {
+      // The Hive version doesn't read stuff into the passed row ...
+      // It simply reuses the last row.
+      val bytesWritable = row.asInstanceOf[BytesWritable]
+      val recordLength = in.read(bytesWritable.getBytes(), 0, maxRecordLength)
+      if (recordLength >= 0) {
+        bytesWritable.setSize(recordLength)
       }
-    }.start()
-
-    // Start a thread to feed the process input from our parent's iterator
-    new Thread("stdin writer for " + command) {
-      override def run() {
-        SparkEnv.set(env)
-        val recordWriter = recordWriterClass.newInstance
-        recordWriter.initialize(proc.getOutputStream, hconf)
-        for(elem <- parent.iterator(split)) {
-          recordWriter.write(elem)
-        }
-        recordWriter.close()
-      }
-    }.start()
-
-    // Return an iterator that reads outputs from RecordReader. Use our own
-    // BinaryRecordReader if necessary because Hive's has a bug (see below).
-    val recordReader =
-      if (recordReaderClass == classOf[org.apache.hadoop.hive.ql.exec.BinaryRecordReader]) {
-        new CustomBinaryRecordReader
-      } else {
-        recordReaderClass.newInstance
-      }
-    recordReader.initialize(proc.getInputStream, hconf, recordReaderProperties)
-    new RecordReaderIterator(recordReader)
-  }
-}
-
-
-/**
- * An iterator that wraps around a Hive RecordReader.
- */
-class RecordReaderIterator(recordReader: RecordReader) extends Iterator[Writable] {
-
-  // This creates a simple circular buffer. We need it because RecordReader
-  // doesn't provide a way to test "hasNext()". We implement hasNext() by always
-  // prefetching a record from RecordReader and saves it in our circular buffer
-  // of size two.
-  private val _buffer = Array(recordReader.createRow(), recordReader.createRow())
-
-  // Hopefully this won't overflow... We don't really expect users to pipe
-  // billions of records into a script. If it really overflows, we can simply
-  // wrap it around.
-  private var _index: Int = 0
-  private var _numBytesNextRecord = recordReader.next(_buffer(_index))
-
-  override def hasNext(): Boolean = {
-    _numBytesNextRecord > 0
-  }
-
-  override def next(): Writable = {
-    _index += 1
-    _numBytesNextRecord = recordReader.next(_buffer(_index % 2))
-    _buffer((_index - 1) % 2)
-  }
-}
-
-
-/**
- * A custom implementation of Hive's BinaryRecordReader. This one fixes a bug
- * in Hive's code.
- *
- * Read from a binary stream and treat each 1000 bytes (configurable via
- * hive.binary.record.max.length) as a record.  The last record before the
- * end of stream can have less than 1000 bytes.
- */
-class CustomBinaryRecordReader extends RecordReader {
-
-  private var in: InputStream = _
-  private var maxRecordLength: Int = _
-
-  override def initialize(inStream: InputStream, conf: Configuration, tbl: Properties) {
-    in = inStream
-    maxRecordLength = conf.getInt("hive.binary.record.max.length", 1000)
-  }
-
-  override def createRow(): Writable = {
-    val bytes = new BytesWritable
-    bytes.setCapacity(maxRecordLength)
-    return bytes
-  }
-
-  def next(row: Writable): Int = {
-    // The Hive version doesn't read stuff into the passed row ...
-    // It simply reuses the last row.
-    val bytesWritable = row.asInstanceOf[BytesWritable]
-    val recordLength = in.read(bytesWritable.get(), 0, maxRecordLength)
-    if (recordLength >= 0) {
-      bytesWritable.setSize(recordLength)
+      return recordLength;
     }
-    return recordLength;
+
+    override def close() { if (in != null) { in.close() } }
   }
-
-  override def close() { if (in != null) { in.close() } }
 }
-
-

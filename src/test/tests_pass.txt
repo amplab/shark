@@ -221,7 +221,6 @@ testCliDriver_load_dyn_part9
 testCliDriver_load_fs
 testCliDriver_load_overwrite
 testCliDriver_loadpart1
-testCliDriver_loadpart_err
 testCliDriver_lock1
 testCliDriver_lock2
 testCliDriver_lock3

@@ -2,6 +2,7 @@ package org.apache.hadoop.hive.ql.exec
 
 import java.util.{ArrayList, HashMap => JHashMap}
 
+import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{GroupByOperator => HiveGroupByOperator}
 import org.apache.hadoop.hive.ql.plan.{AggregationDesc, ExprNodeDesc, ExprNodeColumnDesc, GroupByDesc}
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator
@@ -25,6 +26,8 @@ import spark.SparkContext._
 class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
 
   @BeanProperty var conf: GroupByDesc = _
+  @BeanProperty var minReductionHashAggr: Float = _
+  @BeanProperty var numRowsCompareHashAggr: Int = _
 
   @transient var keyFactory: KeyWrapperFactory = _
   @transient var rowInspector: ObjectInspector = _
@@ -43,6 +46,8 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
 
   override def initializeOnMaster() {
     conf = hiveOp.getConf()
+    minReductionHashAggr = hconf.get(HiveConf.ConfVars.HIVEMAPAGGRHASHMINREDUCTION.varname).toFloat
+    numRowsCompareHashAggr = hconf.get(HiveConf.ConfVars.HIVEGROUPBYMAPINTERVAL.varname).toInt
   }
 
   override def initializeOnSlave() {
@@ -85,11 +90,19 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
 
   override def processPartition(split: Int, iter: Iterator[_]) = {
     logInfo("Running Pre-Shuffle Group-By")
+    var numRowsInput = 0
+    var numRowsHashTbl = 0
+    var useHashAggr = true
 
     // Do aggregation on map side using hashAggregations hash table.
     val hashAggregations = new JHashMap[KeyWrapper, Array[AggregationBuffer]]()
+
     val newKeys: KeyWrapper = keyFactory.getKeyWrapper()
-    iter.foreach { case row: AnyRef =>
+
+    while (iter.hasNext() && useHashAggr) {
+      val row = iter.next().asInstanceOf[AnyRef]
+      numRowsInput += 1
+
       newKeys.getNewKey(row, rowInspector)
       newKeys.setHashKey()
 
@@ -100,22 +113,56 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
         val newKeyProber = newKeys.copyKey()
         aggs = newAggregations()
         hashAggregations.put(newKeyProber, aggs)
+        numRowsHashTbl += 1
       }
       aggregate(row, aggs, isNewKey)
+
+      // Disable partial hash-based aggregation if desired minimum reduction is 
+      // not observed after initial interval.
+      if (numRowsInput == numRowsCompareHashAggr) {
+        if (numRowsHashTbl > numRowsInput * minReductionHashAggr) {
+          useHashAggr = false
+          logInfo("Mapside hash aggregation disabled")
+        } else {
+          logInfo("Mapside hash aggregation enabled")
+        }
+        logInfo("#hash table="+numRowsHashTbl+" #rows="+
+          numRowsInput+" reduction="+numRowsHashTbl.toFloat/numRowsInput+
+          " minReduction="+minReductionHashAggr)
+      }
     }
 
     // Generate an iterator for the aggregation output from hashAggregations.
     val outputCache = new Array[Object](keyFields.length + aggregationEvals.length)
     hashAggregations.toIterator.map { case(key, aggrs) =>
-      val arr = key.getKeyArray()
+      val keyArr = key.getKeyArray()
       var i = 0
-      while (i < arr.length) {
-        outputCache(i) = arr(i)
+      while (i < keyArr.length) {
+        outputCache(i) = keyArr(i)
         i += 1
       }
       i = 0
       while (i < aggrs.length) {
-        outputCache(i + arr.length) = aggregationEvals(i).evaluate(aggrs(i))
+        outputCache(i + keyArr.length) = aggregationEvals(i).evaluate(aggrs(i))
+        i += 1
+      }
+      outputCache
+    } ++ 
+    // Concatenate with iterator for remaining rows not in hashAggregations.
+    iter.map { case row: AnyRef => 
+      newKeys.getNewKey(row, rowInspector)
+      val newAggrKey = newKeys.copyKey()
+      val aggrs = newAggregations()
+      aggregate(row, aggrs, true)
+      val keyArr = newAggrKey.getKeyArray()
+      var i = 0
+      while (i < keyArr.length) {
+        outputCache(i) = keyArr(i)
+        i += 1
+      }
+      i = 0 
+      while (i < aggrs.length) {
+        outputCache(i + keyArr.length) = aggregationEvals(i).evaluate(aggrs(i))
         i += 1
       }
       outputCache

@@ -106,3 +106,5 @@ testCliDriver_union17
 testCliDriver_union22
 testCliDriver_uniquejoin
 testCliDriver_virtual_column
+# testCliDriver_loadpart_err is flaky. Appears that Hive doesn't run it either.
+testCliDriver_loadpart_err
