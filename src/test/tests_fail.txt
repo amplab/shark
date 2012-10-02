@@ -108,3 +108,5 @@ testCliDriver_uniquejoin
 testCliDriver_virtual_column
 # testCliDriver_loadpart_err is flaky. Appears that Hive doesn't run it either.
 testCliDriver_loadpart_err
+# Indeterministic sort by. We produce the correct result, it's just different from Hive's.
+testCliDriver_input3_limit
