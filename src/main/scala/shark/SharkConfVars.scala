@@ -20,6 +20,9 @@ object SharkConfVars {
 
   // If true, then cache any table whose name ends in "_cached".
   val CHECK_TABLENAME_FLAG = new ConfVar("shark.cache.flag.checkTableName", false)
+
+  // If true, then query plans are compressed before being sent
+  val COMPRESS_QUERY_PLAN = new ConfVar("shark.compressQueryPlan", true)
   
   def getIntVar(conf: Configuration, variable: ConfVar): Int = {
     require(variable.valClass == classOf[Int])
