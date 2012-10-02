@@ -78,11 +78,13 @@ class SharkQTestUtil(outDir: String, logDir: String) extends QTestUtil(outDir, l
       "-I", "PREHOOK",
       "-I", "POSTHOOK")
 
+    val truncFloatCmd = "perl -pe 's/(\\d\\.\\d{5})\\d*/\\1/g'"
+
     val cmdString = 
       "\"" +
       StringUtils.join(cmdArray.asInstanceOf[Array[Object]], "\" \"") + "\" " + 
-      "<(sort " + (new File(logDir, tname + ".out")).getPath() + ") " + 
-      "<(sort " + outFileName + ")"
+      "<(sort " + (new File(logDir, tname + ".out")).getPath() + " | " + truncFloatCmd + ") " + 
+      "<(sort " + outFileName + " | " + truncFloatCmd + ")"
 
     println(cmdString)
     val bashCmdArray = Array("bash", "-c", cmdString)
