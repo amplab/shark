@@ -130,7 +130,7 @@ with HiveTopOperator {
       val parts = SharkEnv.sc.hadoopFile(
         tablePath, ifc, classOf[Writable], classOf[Writable]).map(_._2)
 
-      val serializedHconf = XmlSerializer.serialize(localHconf)
+      val serializedHconf = XmlSerializer.serialize(localHconf, localHconf)
       val partRDD = parts.mapPartitions { iter =>
         // Map each tuple to a row object
         val hconf = XmlSerializer.deserialize(serializedHconf).asInstanceOf[HiveConf]
