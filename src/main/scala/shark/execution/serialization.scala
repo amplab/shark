@@ -4,13 +4,15 @@ import java.beans.{XMLDecoder, XMLEncoder, PersistenceDelegate}
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, ObjectOutput, ObjectInput}
 import java.nio.ByteBuffer
 
+import com.ning.compress.lzf.{LZFEncoder, LZFDecoder}
+
+import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hive.ql.exec.Utilities.EnumDelegate
 import org.apache.hadoop.hive.ql.plan.GroupByDesc
 import org.apache.hadoop.hive.ql.plan.PlanUtils.ExpressionTypes
-import com.ning.compress.lzf.{LZFEncoder, LZFDecoder}
 
 import shark.{SharkConfVars, LogHelper}
-import org.apache.hadoop.conf.Configuration
+
 
 
 /**
@@ -74,6 +76,7 @@ object OperatorSerializationWrapper {
  * serialize byte arrays because it is extremely inefficient.
  */
 object XmlSerializer {
+  // We prepend the buffer with a byte indicating whether payload is compressed
   val COMPRESSION_ENABLED : Byte = 1;
   val COMPRESSION_DISABLED : Byte = 0;
 
