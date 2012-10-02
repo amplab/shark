@@ -1,6 +1,6 @@
 package shark
 
-import java.util.{ArrayList => JavaArrayList, List => JavaList}
+import java.util.{ArrayList => JavaArrayList, List => JavaList, Date}
 
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.Schema
@@ -53,20 +53,22 @@ object SharkDriver extends LogHelper {
  * The driver to execute queries in Shark.
  */
 class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
-
+  
   // Use reflection to make some private members accessible.
   val planField = this.getClass.getSuperclass.getDeclaredField("plan")
   val contextField = this.getClass.getSuperclass.getDeclaredField("ctx")
   val schemaField = this.getClass.getSuperclass.getDeclaredField("schema")
+  val errorMessageField = this.getClass.getSuperclass.getDeclaredField("errorMessage")
   contextField.setAccessible(true)
   planField.setAccessible(true)
   schemaField.setAccessible(true)
+  errorMessageField.setAccessible(true)
   
   val doAuthMethod = this.getClass.getSuperclass.getDeclaredMethod(
     "doAuthorization", classOf[BaseSemanticAnalyzer])
   doAuthMethod.setAccessible(true)
   val saHooksMethod = this.getClass.getSuperclass.getDeclaredMethod(
-    "getSemanticAnalyzerHooks")
+    "getHooks", classOf[HiveConf.ConfVars], classOf[Class[_]])
   saHooksMethod.setAccessible(true)
   
   // Helper methods to access the private members made accessible using reflection.
@@ -78,7 +80,10 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
 
   def schema = schemaField.get(this).asInstanceOf[Schema]
   def schema_= (value: Schema): Unit = schemaField.set(this, value)
-  
+
+  def errorMessage = errorMessageField.get(this).asInstanceOf[String]
+  def errorMessage_= (value: String): Unit = errorMessageField.set(this, value)
+
   var useTableRddSink = false
 
   override def init(): Unit = {
@@ -105,6 +110,9 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
    * Overload compile to use Shark's semantic analyzers.
    */
   override def compile(cmd: String): Int = {
+    
+    val now = new Date().getTime
+
     if (plan != null) {
       close()
       plan = null
@@ -119,7 +127,8 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
       val sem = SharkSemanticAnalyzerFactory.get(conf, tree)
       
       // Do semantic analysis and plan generation
-      val saHooks = saHooksMethod.invoke(this).asInstanceOf[JavaList[AbstractSemanticAnalyzerHook]]
+      val saHooks = saHooksMethod.invoke(this, HiveConf.ConfVars.SEMANTIC_ANALYZER_HOOK,
+        classOf[AbstractSemanticAnalyzerHook]).asInstanceOf[JavaList[AbstractSemanticAnalyzerHook]]
       if (saHooks != null) {
         val hookCtx = new HiveSemanticAnalyzerHookContextImpl()
         hookCtx.setConf(conf);
@@ -134,7 +143,7 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
       
       sem.validate()
       
-      plan = new QueryPlan(command, sem)
+      plan = new QueryPlan(command, sem, now)
       
       // Initialize FetchTask right here. Somehow Hive initializes it twice...
       if (sem.getFetchTask != null) {
@@ -164,20 +173,20 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
       0
     } catch {
       case e: SemanticException => {
-        val errorMessage = "FAILED: Error in semantic analysis: " + e.getMessage()
+        errorMessage = "FAILED: Error in semantic analysis: " + e.getMessage()
         logError(errorMessage, "\n" + StringUtils.stringifyException(e))
         10
       }
       case e: ParseException => {
-        val errorMessage = "FAILED: Parse Error: " + e.getMessage()
+        errorMessage = "FAILED: Parse Error: " + e.getMessage()
         logError(errorMessage, "\n" + StringUtils.stringifyException(e))
         11
       }
       case e: Exception => {
-        val errorMessage = "FAILED: Hive Internal Error: " + Utilities.getNameMessage(e)
+        errorMessage = "FAILED: Hive Internal Error: " + Utilities.getNameMessage(e)
         logError(errorMessage, "\n" + StringUtils.stringifyException(e))
         12
-      }
+      } 
     }
   }
   

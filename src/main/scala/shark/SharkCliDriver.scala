@@ -1,13 +1,14 @@
 package shark
 
-import spark.SparkContext
-
+import java.io.{File, FileNotFoundException, IOException, PrintStream, UnsupportedEncodingException}
+import java.util.ArrayList
 import jline.{History, ConsoleReader}
 
 import org.apache.commons.lang.StringUtils
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hive.cli.{CliDriver, CliSessionState, OptionsProcessor}
+import org.apache.hadoop.hive.common.LogUtils
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.{FieldSchema, Schema}
 import org.apache.hadoop.hive.ql.Driver
@@ -18,16 +19,15 @@ import org.apache.hadoop.hive.ql.processors.CommandProcessorFactory
 import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hadoop.hive.shims.ShimLoader
 
-import java.io.{File, FileNotFoundException, IOException, PrintStream, UnsupportedEncodingException}
-import java.util.ArrayList
-
 import scala.collection.JavaConversions._
+
+import spark.SparkContext
 
 
 object SharkCliDriver {
 
-  val prompt  = "shark"
-  val prompt2 = "     " // when ';' is not yet seen
+  var prompt  = "shark"
+  var prompt2 = "     " // when ';' is not yet seen.
 
   // The testing script uses SharkCliDriver but doesn't go through the main
   // routine. We initialize SparkContext here. Make sure something in this
@@ -37,15 +37,15 @@ object SharkCliDriver {
     "Shark::" + java.net.InetAddress.getLocalHost.getHostName)
 
   def main(args: Array[String]) {
-    
-    val oproc = new OptionsProcessor();
+
+    val oproc = new OptionsProcessor()
     if (!oproc.process_stage1(args)) {
       System.exit(1)
     }
 
     // NOTE: It is critical to do this here so that log4j is reinitialized
     // before any of the other core hive classes are loaded
-    SessionState.initHiveLog4j()
+    LogUtils.initHiveLog4j()
 
     var ss = new CliSessionState(new HiveConf(classOf[SessionState]))
     ss.in = System.in
@@ -60,13 +60,13 @@ object SharkCliDriver {
       System.exit(2)
     }
 
-    // set all properties specified via command line
-    val conf:HiveConf = ss.getConf()
+    // Set all properties specified via command line.
+    val conf: HiveConf = ss.getConf()
     ss.cmdProperties.entrySet().foreach { item: java.util.Map.Entry[Object, Object] =>
       conf.set(item.getKey().asInstanceOf[String], item.getValue().asInstanceOf[String])
     }
 
-    // Drop cached tables from the metastore after we exit
+    // Drop cached tables from the metastore after we exit.
     Runtime.getRuntime().addShutdownHook(
       new Thread() {
         override def run() {
@@ -78,10 +78,20 @@ object SharkCliDriver {
       }
     )
 
-    if (!ShimLoader.getHadoopShims().usesJobShell()) {
-      // hadoop-20 and above - we need to augment classpath using hiveconf
-      // components
-      // see also: code in ExecDriver.java
+    // "-h" option has been passed, so connect to Shark Server.
+    if (ss.getHost() != null) {
+      ss.connect()
+      if (ss.isRemoteMode()) {
+        prompt = "[" + ss.getHost + ':' + ss.getPort + "] " + prompt
+        val spaces = Array.tabulate(prompt.length)(_ => ' ')
+        prompt2 = new String(spaces)
+      }
+    }
+
+    if (!ss.isRemoteMode() && !ShimLoader.getHadoopShims().usesJobShell()) {
+      // Hadoop-20 and above - we need to augment classpath using hiveconf
+      // components.
+      // See also: code in ExecDriver.java
       var loader = conf.getClassLoader()
       val auxJars = HiveConf.getVar(conf, HiveConf.ConfVars.HIVEAUXJARS)
       if (StringUtils.isNotBlank(auxJars)) {
@@ -106,7 +116,7 @@ object SharkCliDriver {
         System.exit(cli.processFile(ss.fileName))
       }
     } catch {
-      case e: FileNotFoundException => 
+      case e: FileNotFoundException =>
         System.err.println("Could not open input file for reading. (" + e.getMessage() + ")")
         System.exit(3)
     }
@@ -141,7 +151,7 @@ object SharkCliDriver {
           }
       } else {
         prefix = prefix + line
-        curPrompt = 
+        curPrompt =
           if (SharkConfVars.getVar(conf, SharkConfVars.EXEC_MODE) == "shark") {
             SharkCliDriver.prompt2
           } else {
@@ -168,19 +178,19 @@ class SharkCliDriver extends CliDriver with LogHelper {
 
   // Force initializing the SparkContext in SharkCliDriver object.
   SharkCliDriver.prompt
-  
+
   override def processCmd(cmd: String): Int = {
     val ss: SessionState = SessionState.get()
     val cmd_trimmed: String = cmd.trim()
     val tokens: Array[String] = cmd_trimmed.split("\\s+")
     val cmd_1: String = cmd_trimmed.substring(tokens(0).length()).trim()
     var ret = 0
-
     if (cmd_trimmed.toLowerCase().equals("quit") ||
       cmd_trimmed.toLowerCase().equals("exit") ||
       tokens(0).equalsIgnoreCase("source") ||
       cmd_trimmed.startsWith("!") ||
-      tokens(0).toLowerCase().equals("list")) {
+      tokens(0).toLowerCase().equals("list") ||
+      ss.asInstanceOf[CliSessionState].isRemoteMode()) {
       super.processCmd(cmd)
     } else {
       val hconf = conf.asInstanceOf[HiveConf]
@@ -196,7 +206,7 @@ class SharkCliDriver extends CliDriver with LogHelper {
             } else {
               proc.asInstanceOf[Driver]
             }
-          
+
           logInfo("Execution Mode: " + SharkConfVars.getVar(conf, SharkConfVars.EXEC_MODE))
 
           qp.init()
@@ -213,15 +223,15 @@ class SharkCliDriver extends CliDriver with LogHelper {
           }
 
           val res = new ArrayList[String]()
-          
+
           if (HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_CLI_PRINT_HEADER)) {
-            // Print the column names
+            // Print the column names.
             val fieldSchemas = qp.getSchema.getFieldSchemas
             if (fieldSchemas != null) {
               out.println(fieldSchemas.map(_.getName).mkString("\t"))
             }
           }
-          
+
           try {
             while (!out.checkError() && qp.getResults(res)) {
               res.foreach(out.println(_))
@@ -256,4 +266,3 @@ class SharkCliDriver extends CliDriver with LogHelper {
     ret
   }
 }
-

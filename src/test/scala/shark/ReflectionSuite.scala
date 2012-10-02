@@ -19,7 +19,8 @@ class ReflectionSuite extends FunSuite {
     m.setAccessible(true)
     assert(m.getReturnType === Void.TYPE)
 
-    m = c.getDeclaredMethod("getSemanticAnalyzerHooks")
+    m = c.getDeclaredMethod("getHooks",
+      classOf[org.apache.hadoop.hive.conf.HiveConf.ConfVars], classOf[Class[_]])
     m.setAccessible(true)
     assert(m.getReturnType === classOf[java.util.List[_]])
 
@@ -51,20 +52,22 @@ class ReflectionSuite extends FunSuite {
     assert(m.getReturnType === classOf[java.util.List[_]])
   }
 
-  test("ExecDriver") {
-    val c = classOf[org.apache.hadoop.hive.ql.exec.ExecDriver]
-    var m = c.getDeclaredMethod(
-      "getResourceFiles",
-      classOf[org.apache.hadoop.conf.Configuration],
-      classOf[org.apache.hadoop.hive.ql.session.SessionState.ResourceType])
-    m.setAccessible(true)
-    assert(m.getReturnType === classOf[String])
-  }
-
   test("UnionOperator") {
     val c = classOf[org.apache.hadoop.hive.ql.exec.UnionOperator]
     var f = c.getDeclaredField("needsTransform")
     f.setAccessible(true)
     assert(f.getType === classOf[Array[Boolean]])
+  }
+
+  test("FileSinkOperator") {
+    val fileSinkCls = classOf[org.apache.hadoop.hive.ql.exec.FileSinkOperator]
+    var f = fileSinkCls.getDeclaredField("fsp")
+    f.setAccessible(true)
+    assert(f.getType === classOf[org.apache.hadoop.hive.ql.exec.FileSinkOperator#FSPaths])
+
+    val fspCls  = classOf[org.apache.hadoop.hive.ql.exec.FileSinkOperator#FSPaths]
+    f = fspCls.getDeclaredField("finalPaths")
+    f.setAccessible(true)
+    assert(f.getType === classOf[Array[org.apache.hadoop.fs.Path]])
   }
 }
