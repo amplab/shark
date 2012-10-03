@@ -102,7 +102,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     }
 
     // Used to protect against recursive views in getMetaData().
-    SharkDriver.viewsExpandedField.set(this, new ArrayList[String]())
+    SharkSemanticAnalyzer.viewsExpandedField.set(this, new ArrayList[String]())
 
     logInfo("Completed phase 1 of Shark Semantic Analysis")
     getMetaData(qb)
@@ -281,7 +281,7 @@ object SharkSemanticAnalyzer extends LogHelper {
   convertRowSchemaToViewSchemaMethod.setAccessible(true)
 
   /**
-   * The reflection object used to get a reference to SemanticAnalyzer.viewExpanded,
+   * The reflection object used to get a reference to SemanticAnalyzer.viewsExpanded,
    * so we can initialize it.
    */
   val viewsExpandedField = classOf[SemanticAnalyzer].getDeclaredField("viewsExpanded")
