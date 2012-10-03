@@ -127,7 +127,8 @@ public class SharkQTestUtil extends QTestUtil {
     };
 
     // Only keep 5 digits of precision for floating point numbers.
-    String truncFloatCmd = "perl -pe 's/(\\d\\.\\d{5})\\d*/\\1/g'";
+    // Also trim trailing whitespace.
+    String truncFloatCmd = "perl -p -e 's/(\\d\\.\\d{5})\\d*/\\1/g;' -e 's/\\s+$/\\n/g'";
 
     String cmdString = "\""
         + StringUtils.join(cmdArray, "\" \"")
