@@ -50,7 +50,6 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     pctx.setParseTree(ast)
     init(pctx)
     var child: ASTNode = ast
-    val viewsExpanded = new ArrayList[String]()
 
     logInfo("Starting Shark Semantic Analysis")
 
@@ -91,7 +90,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       SessionState.get().setCommandType(HiveOperation.QUERY)
     }
 
-    // Delete create view and analyze to Hive.
+    // Delegate create view and analyze to Hive.
     val astTokenType = ast.getToken().getType()
     if (astTokenType == HiveParser.TOK_CREATEVIEW || astTokenType == HiveParser.TOK_ANALYZE) {
       return super.analyzeInternal(ast)
@@ -101,6 +100,9 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     if (!doPhase1(child, qb, initPhase1Ctx())) {
       return
     }
+
+    // Used to protect against recursive views in getMetaData().
+    SharkSemanticAnalyzer.viewsExpandedField.set(this, new ArrayList[String]())
 
     logInfo("Completed phase 1 of Shark Semantic Analysis")
     getMetaData(qb)
@@ -278,6 +280,13 @@ object SharkSemanticAnalyzer extends LogHelper {
   val convertRowSchemaToViewSchemaMethod = classOf[SemanticAnalyzer].getDeclaredMethod(
     "convertRowSchemaToViewSchema", classOf[RowResolver])
   convertRowSchemaToViewSchemaMethod.setAccessible(true)
+
+  /**
+   * The reflection object used to get a reference to SemanticAnalyzer.viewsExpanded,
+   * so we can initialize it.
+   */
+  val viewsExpandedField = classOf[SemanticAnalyzer].getDeclaredField("viewsExpanded")
+  viewsExpandedField.setAccessible(true)
 
   /**
    * Given a Hive top operator (e.g. TableScanOperator), find all the file sink
