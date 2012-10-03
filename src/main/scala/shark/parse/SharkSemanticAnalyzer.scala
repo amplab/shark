@@ -50,6 +50,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     pctx.setParseTree(ast)
     init(pctx)
     var child: ASTNode = ast
+    val viewsExpanded = new ArrayList[String]()
 
     logInfo("Starting Shark Semantic Analysis")
 
@@ -97,12 +98,15 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     }
 
     // Continue analyzing from the child ASTNode.
-    doPhase1(child, qb, initPhase1Ctx())
+    if (!doPhase1(child, qb, initPhase1Ctx())) {
+      return
+    }
+
     logInfo("Completed phase 1 of Shark Semantic Analysis")
     getMetaData(qb)
     logInfo("Completed getting MetaData in Shark Semantic Analysis")
 
-    if (shouldReset) reset()
+    //if (shouldReset) reset()
 
     // Save the result schema derived from the sink operator produced
     // by genPlan. This has the correct column names, which clients

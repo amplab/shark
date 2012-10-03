@@ -35,6 +35,10 @@ class ReflectionSuite extends FunSuite {
     f = c.getDeclaredField("schema")
     f.setAccessible(true)
     assert(f.getType === classOf[org.apache.hadoop.hive.metastore.api.Schema])
+
+    f = c.getDeclaredField("LOG")
+    f.setAccessible(true)
+    assert(f.getType === classOf[org.apache.commons.logging.Log])
   }
 
   test("SemanticAnalyzer") {
