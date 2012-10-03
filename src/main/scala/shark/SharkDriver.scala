@@ -1,35 +1,35 @@
 package shark
 
 import java.util.{ArrayList => JavaArrayList, List => JavaList, Date}
+
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.Schema
 import org.apache.hadoop.hive.ql.{Context, Driver, QueryPlan}
 import org.apache.hadoop.hive.ql.exec._
 import org.apache.hadoop.hive.ql.exec.OperatorFactory.OpTuple
+import org.apache.hadoop.hive.ql.log.PerfLogger
 import org.apache.hadoop.hive.ql.metadata.AuthorizationException
 import org.apache.hadoop.hive.ql.parse._
 import org.apache.hadoop.hive.ql.plan._
 import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hadoop.util.StringUtils
+
 import scala.collection.JavaConversions._
+
 import shark.execution.{SharkExplainTask, SharkExplainWork, SparkTask, SparkWork, TableRDD}
 import shark.parse.{QueryContext, SharkSemanticAnalyzerFactory}
-import org.apache.hadoop.hive.ql.log.PerfLogger
 
 
 /**
  * This static object is responsible for two things:
- * 1. Replace OperatorFactory.opvec with Shark specific operators.
- * 2. Add Shark specific tasks to TaskFactory.taskvec.
- * 
+ * - Add Shark specific tasks to TaskFactory.taskvec.
+ * - Use reflection to get access to private fields and methods in Hive Driver.
+ *
  * See below for the SharkDriver class.
  */
 object SharkDriver extends LogHelper {
-  
-  /**
-   * A dummy static method so we can make sure the following static code are
-   * executed.
-   */
+
+  // A dummy static method so we can make sure the following static code are executed.
   def runStaticCode() {
     logInfo("Initializing object SharkDriver")
   }
@@ -67,7 +67,8 @@ object SharkDriver extends LogHelper {
 
   /**
    * Hold state variables specific to each query being executed, that may not
-   * be consistent in the overall SessionState
+   * be consistent in the overall SessionState. Unfortunately this class was
+   * a private static class in Driver. Too hard to use reflection ...
    */
   class QueryState {
     private var op: HiveOperation = _
@@ -91,7 +92,7 @@ object SharkDriver extends LogHelper {
  * The driver to execute queries in Shark.
  */
 class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
-  
+
   // Helper methods to access the private members made accessible using reflection.
   def plan = getPlan
   def plan_= (value: QueryPlan): Unit = SharkDriver.planField.set(this, value)
@@ -112,11 +113,11 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
   override def init(): Unit = {
     // Forces the static code in SharkDriver to execute.
     SharkDriver.runStaticCode()
-    
+
     // Init Hive Driver.
     super.init()
   }
-  
+
   def tableRdd(cmd:String): TableRDD = {
     useTableRddSink = true
     val response = run(cmd)
@@ -148,7 +149,7 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
       TaskFactory.resetId()
     }
     saveSession(queryState)
-    
+
     try {
       val command = new VariableSubstitution().substitute(conf, cmd)
       context = new QueryContext(conf, useTableRddSink)
@@ -157,7 +158,7 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
 
       val tree = ParseUtils.findRootNonNullToken((new ParseDriver()).parse(command, context))
       val sem = SharkSemanticAnalyzerFactory.get(conf, tree)
-      
+
       // Do semantic analysis and plan generation
       val saHooks = SharkDriver.saHooksMethod.invoke(this, HiveConf.ConfVars.SEMANTIC_ANALYZER_HOOK,
         classOf[AbstractSemanticAnalyzerHook]).asInstanceOf[JavaList[AbstractSemanticAnalyzerHook]]
@@ -173,20 +174,20 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
       }
 
       logInfo("Semantic Analysis Completed")
-      
+
       sem.validate()
-      
+
       plan = new QueryPlan(command, sem,  perfLogger.getStartTime(PerfLogger.DRIVER_RUN))
       // Initialize FetchTask right here. Somehow Hive initializes it twice...
       if (sem.getFetchTask != null) {
         sem.getFetchTask.initialize(conf, plan, null)
       }
-      
+
       // get the output schema
       schema = Driver.getSchema(sem, conf)
-      
+
       // skip the testing serialization code
-      
+
       // do the authorization check
       if (HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_AUTHORIZATION_ENABLED)) {
         try {
@@ -221,7 +222,7 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
         errorMessage = "FAILED: Hive Internal Error: " + Utilities.getNameMessage(e)
         logError(errorMessage, "\n" + StringUtils.stringifyException(e))
         12
-      } 
+      }
     } finally {
       perfLogger.PerfLogEnd(LOG, PerfLogger.COMPILE)
       restoreSession(queryState)

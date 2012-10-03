@@ -16,10 +16,9 @@ import org.apache.hadoop.hive.ql.session.SessionState
 
 import scala.collection.JavaConversions._
 
-import shark.LogHelper
+import shark.{LogHelper, SharkConfVars}
 import shark.execution.{HiveOperator, Operator, OperatorFactory, ReduceSinkOperator, SparkWork,
   TerminalAbstractOperator, TerminalOperator}
-import shark.SharkConfVars
 
 
 /**
