@@ -255,6 +255,11 @@ class SharkCliDriver extends CliDriver with LogHelper {
             console.printInfo("Time taken: " + timeTaken + " seconds", null)
           }
 
+          // Destroy the driver to release all the locks.
+          if (qp.isInstanceOf[SharkDriver]) {
+            qp.destroy()
+          }
+
         } else {
           if (ss.getIsVerbose()) {
             ss.out.println(tokens(0) + " " + cmd_1)
