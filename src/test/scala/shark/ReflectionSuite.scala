@@ -54,6 +54,10 @@ class ReflectionSuite extends FunSuite {
       classOf[org.apache.hadoop.hive.ql.parse.RowResolver])
     m.setAccessible(true)
     assert(m.getReturnType === classOf[java.util.List[_]])
+
+    val f = c.getDeclaredField("viewsExpanded")
+    f.setAccessible(true)
+    assert(f.getType === classOf[java.util.ArrayList[_]])
   }
 
   test("UnionOperator") {
