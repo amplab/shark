@@ -15,7 +15,7 @@ import org.apache.hadoop.hive.ql.Driver
 import org.apache.hadoop.hive.ql.exec.{FunctionRegistry, Utilities}
 import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.hadoop.hive.ql.parse.ParseDriver
-import org.apache.hadoop.hive.ql.processors.CommandProcessorFactory
+import org.apache.hadoop.hive.ql.processors.{CommandProcessor, CommandProcessorFactory}
 import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hadoop.hive.shims.ShimLoader
 
@@ -194,7 +194,7 @@ class SharkCliDriver extends CliDriver with LogHelper {
       super.processCmd(cmd)
     } else {
       val hconf = conf.asInstanceOf[HiveConf]
-      val proc = CommandProcessorFactory.get(tokens(0), hconf)
+      val proc: CommandProcessor = CommandProcessorFactory.get(tokens(0), hconf)
       if (proc != null) {
         if (proc.isInstanceOf[Driver]) {
           // There is a small overhead here to create a new instance of
