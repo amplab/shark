@@ -79,29 +79,30 @@ class FileSinkOperator extends TerminalOperator with Serializable {
     val fspField = localHiveOp.getClass.getDeclaredField("fsp")
     fspField.setAccessible(true)
     val fileSystemPaths = fspField.get(localHiveOp).asInstanceOf[HiveFileSinkOperator#FSPaths]
-    val finalPathsField = fileSystemPaths.getClass.getDeclaredField("finalPaths")
-    finalPathsField.setAccessible(true)
-    val finalPaths = finalPathsField.get(fileSystemPaths).asInstanceOf[Array[Path]]
 
-    // Get a reference to the FileSystem. No need for reflection here.
-    val fileSystem = FileSystem.get(localHconf)
+    // File paths for dynamic partitioning are determined separately. See FileSinkOperator.java.
+    if (fileSystemPaths != null) {
+      val finalPathsField = fileSystemPaths.getClass.getDeclaredField("finalPaths")
+      finalPathsField.setAccessible(true)
+      val finalPaths = finalPathsField.get(fileSystemPaths).asInstanceOf[Array[Path]]
 
-    for (idx <- 0 until finalPaths.length) {
-      var finalPath = finalPaths(idx)
+      // Get a reference to the FileSystem. No need for reflection here.
+      val fileSystem = FileSystem.get(localHconf)
 
-      if (finalPath == null) {
-        // If a query results in no output rows, then file paths for renaming will be
-        // created in localHiveOp.closeOp instead of processOp. But we need them before 
-        // that to check for missing parent directories.
-        val createFilesMethod = localHiveOp.getClass.getDeclaredMethod(
-          "createBucketFiles", classOf[HiveFileSinkOperator#FSPaths])
-        createFilesMethod.setAccessible(true)
-        createFilesMethod.invoke(localHiveOp, fileSystemPaths)
-        finalPath = finalPaths(idx)
+      for (idx <- 0 until finalPaths.length) {
+        var finalPath = finalPaths(idx)
+        if (finalPath == null) {
+          // If a query results in no output rows, then file paths for renaming will be
+          // created in localHiveOp.closeOp instead of processOp. But we need them before
+          // that to check for missing parent directories.
+          val createFilesMethod = localHiveOp.getClass.getDeclaredMethod(
+            "createBucketFiles", classOf[HiveFileSinkOperator#FSPaths])
+          createFilesMethod.setAccessible(true)
+          createFilesMethod.invoke(localHiveOp, fileSystemPaths)
+          finalPath = finalPaths(idx)
+        }
+        if (!fileSystem.exists(finalPath.getParent())) fileSystem.mkdirs(finalPath.getParent())
       }
-
-      if (!fileSystem.exists(finalPath.getParent())) fileSystem.mkdirs(finalPath.getParent())
-
     }
 
     localHiveOp.closeOp(false)
