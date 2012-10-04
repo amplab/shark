@@ -9,10 +9,23 @@ if [ -e $FWDIR/conf/shark-env.sh ] ; then
 fi
 
 # Hive related section.
-if [ -z $HIVE_HOME ] ; then
-  echo "No HIVE_HOME specified. Please set HIVE_HOME"
+if [ -z $HIVE_DEV_HOME ] ; then
+  echo "No HIVE_DEV_HOME specified. Please set HIVE_DEV_HOME"
   exit 1
 fi
+
+# Hive related section.
+if [ -z $HADOOP_HOME ] ; then
+  echo "No HADOOP_HOME specified. Please set HADOOP_HOME"
+  exit 1
+fi
+
+# Check for SCALA_HOME
+if [ -z $SCALA_HOME ] ; then
+  echo "No SCALA_HOME specified. Please set SCALA_HOME"
+  exit 1
+fi
+
 
 CLASSPATH+=:${HIVE_DEV_HOME}/build/ql/test/classes
 CLASSPATH+=:${HIVE_DEV_HOME}/build/ivy/lib/test/hadoop-test-0.20.2.jar
