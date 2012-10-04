@@ -62,13 +62,14 @@ with HiveTopOperator {
     valueSer.initialize(null, valueTableDesc.getProperties())
   }
 
-  def initializeKeyWrapperFactories() {
-
-    distinctKeyAggrs.keySet.iterator.foreach { unionId => {
+  private def initializeKeyWrapperFactories() {
+    distinctKeyAggrs.keySet.iterator.foreach { unionId =>
       val aggrIndices = distinctKeyAggrs.get(unionId)
-      val evals = aggrIndices.map( i => aggregationParameterFields(i) ).toArray
-      val ois = aggrIndices.map( i => aggregationParameterObjectInspectors(i) ).toArray
-      val writableOis = ois.map( oi => oi.map( k => ObjectInspectorUtils.getStandardObjectInspector(k, ObjectInspectorCopyOption.WRITABLE) )).toArray
+      val evals = aggrIndices.map(i => aggregationParameterFields(i)).toArray
+      val ois = aggrIndices.map(i => aggregationParameterObjectInspectors(i)).toArray
+      val writableOis: Array[Array[ObjectInspector]] = ois.map { oi => oi.map { k =>
+        ObjectInspectorUtils.getStandardObjectInspector(k, ObjectInspectorCopyOption.WRITABLE)
+      }}.toArray
 
       val keys = new ArrayList[KeyWrapperFactory]()
       val hashSets = new ArrayList[JHashSet[KeyWrapper]]()
@@ -78,10 +79,10 @@ with HiveTopOperator {
       }
       distinctHashSets.put(unionId, hashSets)
       distinctKeyWrapperFactories.put(unionId, keys)
-    }}
+    }
   }
-
-  def initializeUnionExprEvaluator(rowInspector: ObjectInspector): ExprNodeEvaluator = {
+    
+  private def initializeUnionExprEvaluator(rowInspector: ObjectInspector): ExprNodeEvaluator = {
     val sfs = rowInspector.asInstanceOf[StructObjectInspector].getAllStructFieldRefs
     var unionExprEval: ExprNodeEvaluator = null
     if (sfs.size > 0) {
@@ -112,7 +113,7 @@ with HiveTopOperator {
    * This is used to initialize evaluators for distinct keys stored in
    * the union component of the key.
    */
-  def initializeKeyUnionAggregators() {
+  private def initializeKeyUnionAggregators() {
     val aggrs = conf.getAggregators
     for (i <- 0 until aggrs.size) {
       val aggr = aggrs.get(i)
@@ -187,91 +188,86 @@ with HiveTopOperator {
     val bytes = new BytesWritable()
     logInfo("Running Post Shuffle Group-By")
     val outputCache = new Array[Object](keyFields.length + aggregationEvals.length)
+
     // The reusedRow is used to conform to Hive's expected row format.
     // It is an array of [key, value] that is reused across rows
     val reusedRow = new Array[Any](2)
+
     val keys = keyFactory.getKeyWrapper()
     val aggrs = newAggregations()
-    val newIter = iter.map(pair => {
-      pair match {
-        case (key: ReduceKey, values: Seq[_]) => {
 
-          bytes.set(key.bytes)
-          val deserializedKey = deserializeKey(bytes)
-          reusedRow(0) = deserializedKey
-          resetAggregations(aggrs)
-          values.foreach(v => {
-            v match {
-              case v: Array[Byte] => {
-                bytes.set(v)
-                val deserializedValue = deserializeValue(bytes)
-                reusedRow(1) = deserializedValue
-                aggregate(reusedRow, aggrs, false)
-              }
-              case (key: Array[Byte], value: Array[Byte]) => {
-                bytes.set(key)
-                val deserializedUnionKey = deserializeKey(bytes)
-                bytes.set(value)
-                val deserializedValue = deserializeValue(bytes)
-                val row = Array(deserializedUnionKey, deserializedValue)
-                keys.getNewKey(row, rowInspector)
-                val uo =  unionExprEvaluator.evaluate(row).asInstanceOf[UnionObject]
-                val unionTag = uo.getTag().toInt
-                // Handle non-distincts in the key-union
-                if (nonDistinctKeyAggrs.get(unionTag) != null) {
-                  nonDistinctKeyAggrs.get(unionTag).foreach { i => {
-                    val o = aggregationParameterFields(i).map(_.evaluate(row)).toArray
-                    aggregationEvals(i).aggregate(aggrs(i), o)
-                  }}
-                }
-                // Handle non-distincts in the value
-                if (unionTag == 0) {
-                  nonDistinctAggrs.foreach { i => {
-                    val o = aggregationParameterFields(i).map(_.evaluate(row)).toArray
-                    aggregationEvals(i).aggregate(aggrs(i), o)
-                  }}
-                }
-                // Handle distincts
-                if (distinctKeyAggrs.get(unionTag) != null) {
-                  // This assumes that we traverse the aggr Params in the same order
-                  val aggrIndices = distinctKeyAggrs.get(unionTag).iterator
-                  val factories = distinctKeyWrapperFactories.get(unionTag)
-                  val hashes = distinctHashSets.get(unionTag)
-                  for (i <- 0 until factories.size) {
-                    val aggrIndex = aggrIndices.next
-                    val key: KeyWrapper = factories.get(i).getKeyWrapper()
-                    key.getNewKey(row, rowInspector)
-                    key.setHashKey()
-                    var seen = hashes(i).contains(key)
-                    if (!seen) {
-                      aggregationEvals(aggrIndex).aggregate(aggrs(aggrIndex), key.getKeyArray)
-                      hashes(i).add(key.copyKey())
-                    }
-                  }
-                }
+    val newIter = iter.map { case (key: ReduceKey, values: Seq[_]) =>
+      bytes.set(key.bytes)
+      val deserializedKey = deserializeKey(bytes)
+      reusedRow(0) = deserializedKey
+      resetAggregations(aggrs)
+      values.foreach {
+        case v: Array[Byte] => {
+          bytes.set(v)
+          reusedRow(1) = deserializeValue(bytes)
+          aggregate(reusedRow, aggrs, false)
+        }
+        case (key: Array[Byte], value: Array[Byte]) => {
+          bytes.set(key)
+          val deserializedUnionKey = deserializeKey(bytes)
+          bytes.set(value)
+          val deserializedValue = deserializeValue(bytes)
+          val row = Array(deserializedUnionKey, deserializedValue)
+          keys.getNewKey(row, rowInspector)
+          val uo =  unionExprEvaluator.evaluate(row).asInstanceOf[UnionObject]
+          val unionTag = uo.getTag().toInt
+          // Handle non-distincts in the key-union
+          if (nonDistinctKeyAggrs.get(unionTag) != null) {
+            nonDistinctKeyAggrs.get(unionTag).foreach { i =>
+              val o = aggregationParameterFields(i).map(_.evaluate(row)).toArray
+              aggregationEvals(i).aggregate(aggrs(i), o)
+            }
+          }
+          // Handle non-distincts in the value
+          if (unionTag == 0) {
+            nonDistinctAggrs.foreach { i =>
+              val o = aggregationParameterFields(i).map(_.evaluate(row)).toArray
+              aggregationEvals(i).aggregate(aggrs(i), o)
+            }
+          }
+          // Handle distincts
+          if (distinctKeyAggrs.get(unionTag) != null) {
+            // This assumes that we traverse the aggr Params in the same order
+            val aggrIndices = distinctKeyAggrs.get(unionTag).iterator
+            val factories = distinctKeyWrapperFactories.get(unionTag)
+            val hashes = distinctHashSets.get(unionTag)
+            for (i <- 0 until factories.size) {
+              val aggrIndex = aggrIndices.next
+              val key: KeyWrapper = factories.get(i).getKeyWrapper()
+              key.getNewKey(row, rowInspector)
+              key.setHashKey()
+              var seen = hashes(i).contains(key)
+              if (!seen) {
+                aggregationEvals(aggrIndex).aggregate(aggrs(aggrIndex), key.getKeyArray)
+                hashes(i).add(key.copyKey())
               }
             }
-          })
-          // Reset hash sets for next group-by key
-          distinctHashSets.values.foreach { hashSet =>
-              hashSet.foreach { _.clear() }
           }
-
-          // Copy output keys and values to our reused output cache
-          var i = 0
-          var numKeys = keyFields.length
-          while (i < numKeys) {
-            outputCache(i) = keyFields(i).evaluate(reusedRow)
-            i += 1
-          }
-          while (i < numKeys + aggrs.length) {
-            outputCache(i) = aggregationEvals(i - numKeys).evaluate(aggrs(i - numKeys))
-            i += 1
-          }
-          outputCache
         }
       }
-    })
+
+      // Reset hash sets for next group-by key
+      distinctHashSets.values.foreach { hashSet => hashSet.foreach { _.clear() } }
+
+      // Copy output keys and values to our reused output cache
+      var i = 0
+      var numKeys = keyFields.length
+      while (i < numKeys) {
+        outputCache(i) = keyFields(i).evaluate(reusedRow)
+        i += 1
+      }
+      while (i < numKeys + aggrs.length) {
+        outputCache(i) = aggregationEvals(i - numKeys).evaluate(aggrs(i - numKeys))
+        i += 1
+      }
+      outputCache
+    }
+
     if (!newIter.hasNext && keyFields.size == 0) {
       Iterator(createEmptyRow()) // We return null if there are no rows
     } else {
@@ -279,7 +275,7 @@ with HiveTopOperator {
     }
   }
 
-  def createEmptyRow(): Array[Object] = {
+  private def createEmptyRow(): Array[Object] = {
     val aggrs = newAggregations()
     val output = new Array[Object](aggrs.size)
     for (i <- 0 until aggrs.size) {
@@ -293,22 +289,17 @@ with HiveTopOperator {
     output
   }
 
-  def deserializeKey(bytes: BytesWritable) = {
-    keySer.asInstanceOf[Deserializer].deserialize(bytes)
-  }
+  private def deserializeKey(bytes: BytesWritable): Object = keySer.deserialize(bytes)
 
-  def deserializeValue(bytes: BytesWritable) = {
-    valueSer.asInstanceOf[Deserializer].deserialize(bytes)
-  }
+  private def deserializeValue(bytes: BytesWritable): Object = valueSer.deserialize(bytes)
 
-  def resetAggregations(aggs: Array[AggregationBuffer]) {
+  private def resetAggregations(aggs: Array[AggregationBuffer]) {
     var i = 0
     while (i < aggs.length) {
       aggregationEvals(i).reset(aggs(i))
       i += 1
     }
   }
-
 }
 
 
@@ -317,6 +308,3 @@ object GroupByAggregator {
   def mergeValue(buf: ArrayBuffer[Any], v: Any) = buf += v
   def mergeCombiners(b1: ArrayBuffer[Any], b2: ArrayBuffer[Any]) = b1 ++= b2
 }
-
-
-

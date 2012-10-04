@@ -169,7 +169,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
     }
   }
 
-  def aggregate(row: AnyRef, aggregations: Array[AggregationBuffer], isNewKey: Boolean) {
+  protected def aggregate(row: AnyRef, aggregations: Array[AggregationBuffer], isNewKey: Boolean) {
     var i = 0
     while (i < aggregations.length) {
       if (!aggregationIsDistinct(i) || isNewKey) {
@@ -180,7 +180,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
     }
   }
   
-  def newAggregations(): Array[AggregationBuffer] = {
+  protected def newAggregations(): Array[AggregationBuffer] = {
     aggregationEvals.map(eval => eval.getNewAggregationBuffer)
   }
 }
