@@ -176,6 +176,8 @@ class SharkCliDriver extends CliDriver with LogHelper {
 
   private val conf: Configuration = if (ss != null) ss.getConf() else new Configuration()
 
+  SharkConfVars.initializeWithDefaults(conf);
+
   // Force initializing the SparkContext in SharkCliDriver object.
   SharkCliDriver.prompt
 

@@ -23,6 +23,18 @@ object SharkConfVars {
 
   // If true, then query plans are compressed before being sent
   val COMPRESS_QUERY_PLAN = new ConfVar("shark.compressQueryPlan", true)
+
+  // Add Shark configuration variables and their default values to the given conf,
+  // so default values show up in 'set'.
+  def initializeWithDefaults(conf: Configuration) {
+    conf.set(EXEC_MODE.varname, EXEC_MODE.defaultVal)
+    conf.set(EXPLAIN_MODE.varname, EXPLAIN_MODE.defaultVal)
+
+    conf.setInt(COLUMN_INITIALSIZE.varname, COLUMN_INITIALSIZE.defaultIntVal)
+
+    conf.setBoolean(CHECK_TABLENAME_FLAG.varname, CHECK_TABLENAME_FLAG.defaultBoolVal)
+    conf.setBoolean(COMPRESS_QUERY_PLAN.varname, COMPRESS_QUERY_PLAN.defaultBoolVal)
+  }
   
   def getIntVar(conf: Configuration, variable: ConfVar): Int = {
     require(variable.valClass == classOf[Int])
