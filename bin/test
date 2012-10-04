@@ -34,15 +34,14 @@ export CLASSPATH
 
 BUILD_PATH=$HIVE_DEV_HOME/build/ql
 
-JAVA_OPTS=""
-JAVA_OPTS+="-Dbuild.dir.hive=${HIVE_DEV_HOME}/build "
-JAVA_OPTS+="-Dbuild.dir=${HIVE_DEV_HOME}/build/ql "
-JAVA_OPTS+="-Duser.dir=${HIVE_DEV_HOME}/ql "
-JAVA_OPTS+="-Dtest.output.overwrite=false "
-JAVA_OPTS+="-Dtest.tmp.dir=${BUILD_PATH}/tmp "
-JAVA_OPTS+="-Dtest.log.dir=${BUILD_PATH}/test/logs "
-JAVA_OPTS+="-Dtest.warehouse.dir=${BUILD_PATH}/test/data/warehouse "
-JAVA_OPTS+="-Dlog4j.configuration=file://${HIVE_DEV_HOME}/data/conf/hive-log4j.properties "
-export JAVA_OPTS
+TEST_JAVA_OPTS="-Dbuild.dir.hive=${HIVE_DEV_HOME}/build "
+TEST_JAVA_OPTS+="-Dbuild.dir=${HIVE_DEV_HOME}/build/ql "
+TEST_JAVA_OPTS+="-Duser.dir=${HIVE_DEV_HOME}/ql "
+TEST_JAVA_OPTS+="-Dtest.output.overwrite=false "
+TEST_JAVA_OPTS+="-Dtest.tmp.dir=${BUILD_PATH}/tmp "
+TEST_JAVA_OPTS+="-Dtest.log.dir=${BUILD_PATH}/test/logs "
+TEST_JAVA_OPTS+="-Dtest.warehouse.dir=${BUILD_PATH}/test/data/warehouse "
+TEST_JAVA_OPTS+="-Dlog4j.configuration=file://${HIVE_DEV_HOME}/data/conf/hive-log4j.properties "
+export TEST_JAVA_OPTS
 
 exec $FWDIR/run junit.textui.TestRunner shark.TestSharkCliDriver "$@"
