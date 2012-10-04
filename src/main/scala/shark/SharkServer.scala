@@ -62,6 +62,8 @@ class SharkServerHandler extends HiveServerHandler with LogHelper {
 
   private val conf: Configuration = if (ss != null) ss.getConf() else new Configuration()
 
+  SharkConfVars.initializeWithDefaults(conf);
+
   private val driver = {
     val d = new SharkDriver(conf.asInstanceOf[HiveConf])
     d.init()
