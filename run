@@ -77,7 +77,7 @@ fi
 export SPARK_MEM # So that the process sees it and can report it to Mesos
 
 # Set JAVA_OPTS to be able to load native libraries and to set heap size
-JAVA_OPTS+="$SPARK_JAVA_OPTS"
+JAVA_OPTS="$SPARK_JAVA_OPTS"
 JAVA_OPTS+=" -Djava.library.path=$SPARK_LIBRARY_PATH"
 JAVA_OPTS+=" -Xms$SPARK_MEM -Xmx$SPARK_MEM"
 # Load extra JAVA_OPTS from conf/java-opts, if it exists
@@ -96,7 +96,7 @@ else
 fi
 
 if [ "x$RUNNER" == "x" ] ; then
-    RUNNER="$SCALA -cp $CLASSPATH" 
+    RUNNER="$SCALA -cp $CLASSPATH"
 fi
 
 exec $RUNNER "$@"
