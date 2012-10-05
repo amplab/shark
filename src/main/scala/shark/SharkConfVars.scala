@@ -5,9 +5,9 @@ import org.apache.hadoop.hive.conf.HiveConf
 
 
 object SharkConfVars {
-  
+
   val EXEC_MODE = new ConfVar("shark.exec.mode", "shark")
-  
+
   // This is created for testing. Hive's test script assumes a certain output
   // format. To pass the test scripts, we need to use Hive's EXPLAIN.
   val EXPLAIN_MODE = new ConfVar("shark.explain.mode", "shark")
@@ -27,15 +27,18 @@ object SharkConfVars {
   // Add Shark configuration variables and their default values to the given conf,
   // so default values show up in 'set'.
   def initializeWithDefaults(conf: Configuration) {
-    conf.set(EXEC_MODE.varname, EXEC_MODE.defaultVal)
-    conf.set(EXPLAIN_MODE.varname, EXPLAIN_MODE.defaultVal)
-
-    conf.setInt(COLUMN_INITIALSIZE.varname, COLUMN_INITIALSIZE.defaultIntVal)
-
-    conf.setBoolean(CHECK_TABLENAME_FLAG.varname, CHECK_TABLENAME_FLAG.defaultBoolVal)
-    conf.setBoolean(COMPRESS_QUERY_PLAN.varname, COMPRESS_QUERY_PLAN.defaultBoolVal)
+    if (conf.get(EXEC_MODE.varname) == null)
+      conf.set(EXEC_MODE.varname, EXEC_MODE.defaultVal)
+    if (conf.get(EXPLAIN_MODE.varname) == null)
+      conf.set(EXPLAIN_MODE.varname, EXPLAIN_MODE.defaultVal)
+    if (conf.get(COLUMN_INITIALSIZE.varname) == null)
+      conf.setInt(COLUMN_INITIALSIZE.varname, COLUMN_INITIALSIZE.defaultIntVal)
+    if (conf.get(CHECK_TABLENAME_FLAG.varname) == null)
+      conf.setBoolean(CHECK_TABLENAME_FLAG.varname, CHECK_TABLENAME_FLAG.defaultBoolVal)
+    if (conf.get(COMPRESS_QUERY_PLAN.varname) == null)
+      conf.setBoolean(COMPRESS_QUERY_PLAN.varname, COMPRESS_QUERY_PLAN.defaultBoolVal)
   }
-  
+
   def getIntVar(conf: Configuration, variable: ConfVar): Int = {
     require(variable.valClass == classOf[Int])
     conf.getInt(variable.varname, variable.defaultIntVal)
@@ -50,12 +53,12 @@ object SharkConfVars {
     require(variable.valClass == classOf[Float])
     conf.getFloat(variable.varname, variable.defaultFloatVal)
   }
-  
+
   def getBoolVar(conf: Configuration, variable: ConfVar): Boolean = {
     require(variable.valClass == classOf[Boolean])
     conf.getBoolean(variable.varname, variable.defaultBoolVal)
   }
-  
+
   def getVar(conf: Configuration, variable: ConfVar): String = {
     require(variable.valClass == classOf[String])
     conf.get(variable.varname, variable.defaultVal)
@@ -66,25 +69,25 @@ object SharkConfVars {
     conf.set(variable.varname, value)
   }
 
-  def getIntVar(conf: Configuration, variable: HiveConf.ConfVars) 
+  def getIntVar(conf: Configuration, variable: HiveConf.ConfVars)
     = HiveConf.getIntVar _
-  def getLongVar(conf: Configuration, variable: HiveConf.ConfVars) 
+  def getLongVar(conf: Configuration, variable: HiveConf.ConfVars)
     = HiveConf.getLongVar(conf, variable)
-  def getLongVar(conf: Configuration, variable: HiveConf.ConfVars, defaultVal: Long) 
+  def getLongVar(conf: Configuration, variable: HiveConf.ConfVars, defaultVal: Long)
     = HiveConf.getLongVar(conf, variable, defaultVal)
-  def getFloatVar(conf: Configuration, variable: HiveConf.ConfVars) 
+  def getFloatVar(conf: Configuration, variable: HiveConf.ConfVars)
     = HiveConf.getFloatVar(conf, variable)
-  def getFloatVar(conf: Configuration, variable: HiveConf.ConfVars, defaultVal: Float) 
+  def getFloatVar(conf: Configuration, variable: HiveConf.ConfVars, defaultVal: Float)
     = HiveConf.getFloatVar(conf, variable, defaultVal)
-  def getBoolVar(conf: Configuration, variable: HiveConf.ConfVars) 
+  def getBoolVar(conf: Configuration, variable: HiveConf.ConfVars)
     = HiveConf.getBoolVar(conf, variable)
-  def getBoolVar(conf: Configuration, variable: HiveConf.ConfVars, defaultVal: Boolean) 
+  def getBoolVar(conf: Configuration, variable: HiveConf.ConfVars, defaultVal: Boolean)
     = HiveConf.getBoolVar(conf, variable, defaultVal)
-  def getVar(conf: Configuration, variable: HiveConf.ConfVars) 
+  def getVar(conf: Configuration, variable: HiveConf.ConfVars)
     = HiveConf.getVar(conf, variable)
-  def getVar(conf: Configuration, variable: HiveConf.ConfVars, defaultVal: String) 
+  def getVar(conf: Configuration, variable: HiveConf.ConfVars, defaultVal: String)
     = HiveConf.getVar(conf, variable, defaultVal)
-  
+
 }
 
 
