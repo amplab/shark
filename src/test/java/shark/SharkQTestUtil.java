@@ -69,10 +69,15 @@ public class SharkQTestUtil extends QTestUtil {
     SessionState.start(ss);
 
     cliDrv = new SharkCliDriver();
-    //    if (tname.equals("init_file.q"))
-    //      ss.initFiles.add("../data/scripts/test_init_file.sql")
+    if (tname.equals("init_file.q")) {
+      File testInitFile = new File("../data/scripts/test_init_file.sql");
+      try {
+        ss.initFiles.add(testInitFile.getAbsolutePath());
+      } catch (Exception e) {
+        System.out.println("Exceptione is =" + e.getMessage());
+      }
+    }
     cliDrv.processInitFiles(ss);
-
   }
 
   @Override
