@@ -50,7 +50,6 @@ testCliDriver_create_nested_type
 testCliDriver_create_struct_table
 testCliDriver_create_union_table
 testCliDriver_ct_case_insensitive
-testCliDriver_ctas
 testCliDriver_database
 testCliDriver_database_properties
 testCliDriver_ddltime
@@ -594,3 +593,4 @@ testCliDriver_groupby7_map_skew
 testCliDriver_groupby7_noskew
 testCliDriver_create_udaf
 testCliDriver_create_view
+testCliDriver_join_empty

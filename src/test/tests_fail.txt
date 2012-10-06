@@ -37,7 +37,6 @@ testCliDriver_join18_multi_distinct
 testCliDriver_join21
 testCliDriver_join7
 testCliDriver_join_1to1
-testCliDriver_join_empty
 testCliDriver_join_filters
 testCliDriver_join_map_ppr
 testCliDriver_join_nulls
@@ -87,3 +86,4 @@ testCliDriver_virtual_column
 testCliDriver_loadpart_err
 # Indeterministic sort by. We produce the correct result, it's just different from Hive's.
 testCliDriver_input3_limit
+testCliDriver_ctas
