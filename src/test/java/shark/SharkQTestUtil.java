@@ -7,6 +7,7 @@ import java.lang.reflect.Method;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.hive.cli.CliSessionState;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.QTestUtil;
 import org.apache.hadoop.hive.ql.exec.Utilities.StreamPrinter;
 import org.apache.hadoop.hive.ql.session.SessionState;
@@ -51,6 +52,9 @@ public class SharkQTestUtil extends QTestUtil {
       cleanUp();
       createSources();
     }
+
+    HiveConf.setVar(conf, HiveConf.ConfVars.HIVE_AUTHENTICATOR_MANAGER,
+      "org.apache.hadoop.hive.ql.security.DummyAuthenticator");
 
     CliSessionState ss = new CliSessionState(conf);
     assert(ss != null);
