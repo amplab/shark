@@ -17,7 +17,8 @@ import org.apache.hadoop.io.Writable
 import scala.reflect.BeanProperty
 
 import shark.{CacheKey, SharkEnv}
-import spark.{RDD, UnionRDD}
+import spark.RDD
+import spark.rdd.UnionRDD
 
 
 class TableScanOperator extends TopOperator[HiveTableScanOperator]
@@ -59,21 +60,21 @@ with HiveTopOperator {
         val partObjectInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
             partNames, partObjectInspectors)
         val oiList = Arrays.asList(
-            tableDeser.getObjectInspector().asInstanceOf[StructObjectInspector], 
+            tableDeser.getObjectInspector().asInstanceOf[StructObjectInspector],
             partObjectInspector.asInstanceOf[StructObjectInspector])
         // new oi is union of table + partition object inspectors
         ObjectInspectorFactory.getUnionStructObjectInspector(oiList)
       }
     }
-    
+
     setInputObjectInspector(0, rowObjectInspector)
     super.initializeHiveTopOperator()
   }
-  
+
   override def initializeOnMaster() {
     localHconf = super.hconf
   }
-  
+
   override def execute(): RDD[_] = {
     assert(parentOperators.size == 0)
     val tableKey = new CacheKey(tableDesc.getTableName.split('.')(1))
@@ -106,18 +107,18 @@ with HiveTopOperator {
   override def processPartition[T](iter: Iterator[T]): Iterator[_] = {
     val deserializer = tableDesc.getDeserializerClass().newInstance()
     deserializer.initialize(localHconf, tableDesc.getProperties)
-    iter.map { value => 
+    iter.map { value =>
       value match {
         case rowWithPart: Array[Object] => rowWithPart
         case v: Writable => deserializer.deserialize(v)
       }
     }
   }
-  
+
   def makePartitionRDD[T](rdd: RDD[T]): RDD[_] = {
     val partitions = parts
     val rdds = new Array[RDD[Any]](partitions.size)
-    
+
     var i = 0
     partitions.foreach { part =>
       val partition = part.asInstanceOf[Partition]

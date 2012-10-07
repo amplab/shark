@@ -13,7 +13,8 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
-import spark.{CoGroupedRDD, UnionRDD, RDD}
+import spark.RDD
+import spark.rdd.UnionRDD
 import spark.SparkContext.rddToPairRDDFunctions
 
 
@@ -49,7 +50,7 @@ abstract class CommonJoinOperator[JOINDESCTYPE <: JoinDesc, T <: HiveCommonJoinO
 
     assert(joinConditions.size + 1 == numTables)
   }
-  
+
   override def initializeOnSlave() {
 
     noOuterJoin = conf.isNoOuterJoin
@@ -72,7 +73,7 @@ abstract class CommonJoinOperator[JOINDESCTYPE <: JoinDesc, T <: HiveCommonJoinO
 
 
 class CartesianProductIterator(val bufs: IndexedSeq[Seq[Any]]) {
-  
+
 }
 
 

@@ -20,7 +20,8 @@ import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
 import shark.execution.{HiveTopOperator, ReduceKey}
-import spark.{Aggregator, HashPartitioner, RDD, ShuffledAggregatedRDD}
+import spark.{Aggregator, HashPartitioner, RDD}
+import spark.rdd.ShuffledAggregatedRDD
 import spark.SparkContext._
 
 
@@ -81,7 +82,7 @@ with HiveTopOperator {
       distinctKeyWrapperFactories.put(unionId, keys)
     }
   }
-    
+
   private def initializeUnionExprEvaluator(rowInspector: ObjectInspector): ExprNodeEvaluator = {
     val sfs = rowInspector.asInstanceOf[StructObjectInspector].getAllStructFieldRefs
     var unionExprEval: ExprNodeEvaluator = null

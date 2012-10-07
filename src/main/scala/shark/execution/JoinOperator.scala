@@ -13,7 +13,8 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
-import spark.{UnionRDD, RDD}
+import spark.RDD
+import spark.rdd.UnionRDD
 import spark.SparkContext._
 
 
@@ -23,16 +24,16 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
   @BeanProperty var valueTableDescMap: JavaHashMap[Int, TableDesc] = _
 
   @transient var tagToValueSer: JavaHashMap[Int, Deserializer] = _
-  
+
   override def initializeOnMaster() {
     super.initializeOnMaster()
     valueTableDescMap = new JavaHashMap[Int, TableDesc]
     valueTableDescMap ++= keyValueTableDescs.map { case(tag, kvdescs) => (tag, kvdescs._2) }
-    
+
     // Call initializeOnSlave to initialize the join filters, etc.
     initializeOnSlave()
   }
-  
+
   override def initializeOnSlave() {
     super.initializeOnSlave()
 
@@ -136,14 +137,14 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
     }
   }
 
-  def deserialize(serDe: Deserializer, bytes: BytesWritable) = {    
+  def deserialize(serDe: Deserializer, bytes: BytesWritable) = {
     serDe.deserialize(bytes)
   }
 }
 
 
 object JoinOperator {
-  
+
   // Different join types.
   val INNER_JOIN = JoinDesc.INNER_JOIN
   val LEFT_OUTER_JOIN = JoinDesc.LEFT_OUTER_JOIN
@@ -151,7 +152,7 @@ object JoinOperator {
   val FULL_OUTER_JOIN = JoinDesc.FULL_OUTER_JOIN
   val UNIQUE_JOIN = JoinDesc.UNIQUE_JOIN
   val LEFT_SEMI_JOIN = JoinDesc.LEFT_SEMI_JOIN
-  
+
   def createDeserializerFromTableDesc(tableDesc: TableDesc): Deserializer = {
     val deserializer = tableDesc.getDeserializerClass.
       newInstance().asInstanceOf[Deserializer]
