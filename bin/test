@@ -35,7 +35,7 @@ if [ -z $SCALA_HOME ] ; then
   exit 1
 fi
 
-if [ -n $TEST_FILE ] ; then
+if [ -n "$TEST_FILE" ] ; then
   TEST_FILE=`get_abs_path $TEST_FILE`
   export TEST_FILE
 fi
