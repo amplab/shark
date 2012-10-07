@@ -1,6 +1,7 @@
 package shark
 
-import java.io.{File, FileNotFoundException, IOException, PrintStream, UnsupportedEncodingException}
+import java.io.{File, FileNotFoundException, IOException, PrintStream,
+  UnsupportedEncodingException}
 import java.util.ArrayList
 import jline.{History, ConsoleReader}
 
@@ -9,6 +10,7 @@ import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hive.cli.{CliDriver, CliSessionState, OptionsProcessor}
 import org.apache.hadoop.hive.common.LogUtils
+import org.apache.hadoop.hive.common.LogUtils.LogInitializationException
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.{FieldSchema, Schema}
 import org.apache.hadoop.hive.ql.Driver
@@ -45,12 +47,21 @@ object SharkCliDriver {
 
     // NOTE: It is critical to do this here so that log4j is reinitialized
     // before any of the other core hive classes are loaded
-    LogUtils.initHiveLog4j()
+    var logInitFailed = false
+    var logInitDetailMessage: String = null
+    try {
+      logInitDetailMessage = LogUtils.initHiveLog4j()
+    } catch {
+      case e: LogInitializationException =>
+        logInitFailed = true
+        logInitDetailMessage = e.getMessage()
+    }
 
     var ss = new CliSessionState(new HiveConf(classOf[SessionState]))
     ss.in = System.in
     try {
       ss.out = new PrintStream(System.out, true, "UTF-8")
+      ss.info = new PrintStream(System.err, true, "UTF-8");
       ss.err = new PrintStream(System.err, true, "UTF-8")
     } catch {
       case e: UnsupportedEncodingException => System.exit(3)
@@ -60,13 +71,22 @@ object SharkCliDriver {
       System.exit(2)
     }
 
+    if (!ss.getIsSilent()) {
+      if (logInitFailed) System.err.println(logInitDetailMessage)
+      else SessionState.getConsole().printInfo(logInitDetailMessage)
+    }
+
     // Set all properties specified via command line.
     val conf: HiveConf = ss.getConf()
     ss.cmdProperties.entrySet().foreach { item: java.util.Map.Entry[Object, Object] =>
       conf.set(item.getKey().asInstanceOf[String], item.getValue().asInstanceOf[String])
+      ss.getOverriddenConfigurations().put(
+        item.getKey().asInstanceOf[String], item.getValue().asInstanceOf[String])
     }
 
-    // Drop cached tables from the metastore after we exit.
+    SessionState.start(ss)
+
+    // Shark specific: Drop cached tables from the metastore after we exit.
     Runtime.getRuntime().addShutdownHook(
       new Thread() {
         override def run() {
@@ -100,7 +120,6 @@ object SharkCliDriver {
       conf.setClassLoader(loader)
       Thread.currentThread().setContextClassLoader(loader)
     }
-    SessionState.start(ss)
 
     var cli = new SharkCliDriver()
 
@@ -126,40 +145,60 @@ object SharkCliDriver {
     // reader.setDebug(new PrintWriter(new FileWriter("writer.debug", true)))
     reader.addCompletor(CliDriver.getCommandCompletor())
 
-    var line:String = ""
+    var line: String = null
     val HISTORYFILE = ".hivehistory"
-    val historyFile = System.getProperty("user.home") + File.separator + HISTORYFILE
-    reader.setHistory(new History(new File(historyFile)))
+    val historyDirectory = System.getProperty("user.home")
+    try {
+      if ((new File(historyDirectory)).exists()) {
+        val historyFile = historyDirectory + File.separator + HISTORYFILE
+        reader.setHistory(new History(new File(historyFile)))
+      } else {
+        System.err.println("WARNING: Directory for Hive history file: " + historyDirectory +
+                           " does not exist.   History will not be available during this session.")
+      }
+    } catch {
+      case e: Exception =>
+        System.err.println("WARNING: Encountered an error while trying to initialize Hive's " +
+                           "history file.  History will not be available during this session.")
+        System.err.println(e.getMessage())
+    }
+
+    // Use reflection to get access to the two fields.
+    val getFormattedDbMethod = classOf[CliDriver].getDeclaredMethod(
+      "getFormattedDb", classOf[HiveConf], classOf[CliSessionState])
+    getFormattedDbMethod.setAccessible(true)
+
+    val spacesForStringMethod = classOf[CliDriver].getDeclaredMethod(
+      "spacesForString", classOf[String])
+    spacesForStringMethod.setAccessible(true)
+
     var ret = 0
 
     var prefix = ""
-    var curPrompt = SharkCliDriver.prompt
+    var curDB = getFormattedDbMethod.invoke(null, conf, ss).asInstanceOf[String]
+    var curPrompt = SharkCliDriver.prompt + curDB
+    var dbSpaces = spacesForStringMethod.invoke(null, curDB).asInstanceOf[String]
+
     line = reader.readLine(curPrompt + "> ")
     while (line != null) {
       if (!prefix.equals("")) {
         prefix += '\n'
       }
+      val sharkMode = SharkConfVars.getVar(conf, SharkConfVars.EXEC_MODE) == "shark"
       if (line.trim().endsWith(";") && !line.trim().endsWith("\\;")) {
         line = prefix + line
         ret = cli.processLine(line)
         prefix = ""
-        curPrompt =
-          if (SharkConfVars.getVar(conf, SharkConfVars.EXEC_MODE) == "shark") {
-            SharkCliDriver.prompt
-          } else {
-            CliDriver.prompt
-          }
+        curPrompt = if (sharkMode) SharkCliDriver.prompt else CliDriver.prompt
       } else {
         prefix = prefix + line
-        curPrompt =
-          if (SharkConfVars.getVar(conf, SharkConfVars.EXEC_MODE) == "shark") {
-            SharkCliDriver.prompt2
-          } else {
-            CliDriver.prompt2
-          }
+        curPrompt = if (sharkMode) SharkCliDriver.prompt2 else CliDriver.prompt2
+        curPrompt += dbSpaces
       }
       line = reader.readLine(curPrompt + "> ")
     }
+
+    ss.close()
 
     System.exit(ret)
   }

@@ -11,6 +11,20 @@ import org.scalatest.FunSuite
  */
 class ReflectionSuite extends FunSuite {
 
+  test("CliDriver") {
+    val c = classOf[org.apache.hadoop.hive.cli.CliDriver]
+    var m = c.getDeclaredMethod("getFormattedDb",
+      classOf[org.apache.hadoop.hive.conf.HiveConf],
+      classOf[org.apache.hadoop.hive.cli.CliSessionState])
+    m.setAccessible(true)
+    assert(m.getReturnType == classOf[String])
+
+    m = c.getDeclaredMethod(
+      "spacesForString", classOf[String])
+    m.setAccessible(true)
+    assert(m.getReturnType == classOf[String])
+  }
+
   test("Driver") {
     val c = classOf[org.apache.hadoop.hive.ql.Driver]
 
