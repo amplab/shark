@@ -51,16 +51,15 @@ class UnionOperator extends NaryOperator[HiveUnionOperator] {
     parentFields = parentObjInspectors.map(_.getAllStructFieldRefs())
 
     // Get columnNames from the first parent
-    val columns = parentFields.head.size()
+    val numColumns = parentFields.head.size()
     val columnNames = parentFields.head.map(_.getFieldName())
 
     // Get outputFieldOIs
-    columnTypeResolvers = new Array[ReturnObjectInspectorResolver](columns)
-    for (c <- 0 until columns) columnTypeResolvers(c) = new ReturnObjectInspectorResolver()
+    columnTypeResolvers = Array.fill(numColumns)(new ReturnObjectInspectorResolver(true))
 
     for (p <- 0 until numParents) {
-      assert(parentFields(p).size() == columns)
-      for (c <- 0 until columns) {
+      assert(parentFields(p).size() == numColumns)
+      for (c <- 0 until numColumns) {
         columnTypeResolvers(c).update(parentFields(p).get(c).getFieldObjectInspector())
       }
     }
@@ -110,9 +109,9 @@ class UnionOperator extends NaryOperator[HiveUnionOperator] {
     rdd.mapPartitions { part =>
       op.initializeOnSlave()
 
-      val columns = op.parentFields.head.size()
-      val outputRow = new ArrayList[Object](columns)
-      for (c <- 0 until columns) outputRow.add(null)
+      val numColumns = op.parentFields.head.size()
+      val outputRow = new ArrayList[Object](numColumns)
+      for (c <- 0 until numColumns) outputRow.add(null)
 
       part.map { row =>
         val soi = op.parentObjInspectors(tag)
