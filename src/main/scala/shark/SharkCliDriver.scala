@@ -184,14 +184,15 @@ object SharkCliDriver {
       if (!prefix.equals("")) {
         prefix += '\n'
       }
-      val sharkMode = SharkConfVars.getVar(conf, SharkConfVars.EXEC_MODE) == "shark"
       if (line.trim().endsWith(";") && !line.trim().endsWith("\\;")) {
         line = prefix + line
         ret = cli.processLine(line)
         prefix = ""
+        val sharkMode = SharkConfVars.getVar(conf, SharkConfVars.EXEC_MODE) == "shark"
         curPrompt = if (sharkMode) SharkCliDriver.prompt else CliDriver.prompt
       } else {
         prefix = prefix + line
+        val sharkMode = SharkConfVars.getVar(conf, SharkConfVars.EXEC_MODE) == "shark"
         curPrompt = if (sharkMode) SharkCliDriver.prompt2 else CliDriver.prompt2
         curPrompt += dbSpaces
       }
