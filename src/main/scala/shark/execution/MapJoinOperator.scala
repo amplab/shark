@@ -131,8 +131,10 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
           val container = new MapJoinRowContainer[Array[Object]]
           mapEntry = new MapJoinObjectValue(posByte, container)
           hashTable.put(wrappedKey, mapEntry)
+          container.setList(wrappedValue.getObj.getList())
+        } else {
+          wrappedValue.getObj.getList().foreach(mapEntry.getObj().add)
         }
-        mapEntry.getObj().add(wrappedValue.getObj.getList().get(0))
       }
       val hashTime = System.currentTimeMillis() - startHash
       logInfo("Input %d (%d rows) took %d ms to collect and %s ms to build hash table.".format(
