@@ -21,7 +21,7 @@ import shark.SharkEnv
 
 
 /**
- * Converts a collection of rows into key, value pairs. This is usually the
+ * Converts a collection of rows into key, value pairs. This is the
  * upstream operator for joins and groupbys.
  */
 class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
@@ -191,7 +191,6 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
         i += 1
       }
 
-      // Note: we currently only support BinarySerDe's (not Text)
       val key = keySer.serialize(evaluatedKey, keyObjInspector).asInstanceOf[BytesWritable]
       val value = valueSer.serialize(evaluatedValue, valObjInspector).asInstanceOf[BytesWritable]
       val keyArr = new ReduceKey(new Array[Byte](key.getLength))

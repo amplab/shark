@@ -5,7 +5,7 @@ import java.util.{HashMap => JavaHashMap, List => JavaList}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, JoinUtil}
 import org.apache.hadoop.hive.ql.exec.{CommonJoinOperator => HiveCommonJoinOperator}
-import org.apache.hadoop.hive.ql.plan.{ExprNodeDesc, JoinCondDesc, JoinDesc}
+import org.apache.hadoop.hive.ql.plan.{ExprNodeDesc, JoinCondDesc, JoinDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.Deserializer
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, PrimitiveObjectInspector}
 
@@ -13,6 +13,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
+import shark.SharkConfVars
 import spark.RDD
 import spark.rdd.UnionRDD
 import spark.SparkContext.rddToPairRDDFunctions
@@ -27,6 +28,7 @@ abstract class CommonJoinOperator[JOINDESCTYPE <: JoinDesc, T <: HiveCommonJoinO
   // condn determines join property (left, right, outer joins).
   @BeanProperty var joinConditions: Array[JoinCondDesc] = _
   @BeanProperty var numTables: Int = _
+  @BeanProperty var nullCheck: Boolean = _
 
   @transient
   var joinVals: JavaHashMap[java.lang.Byte, JavaList[ExprNodeEvaluator]] = _
@@ -47,6 +49,7 @@ abstract class CommonJoinOperator[JOINDESCTYPE <: JoinDesc, T <: HiveCommonJoinO
     order = conf.getTagOrder()
     joinConditions = conf.getConds()
     numTables = parentOperators.size
+    nullCheck = SharkConfVars.getBoolVar(hconf, SharkConfVars.JOIN_CHECK_NULL)
 
     assert(joinConditions.size + 1 == numTables)
   }
@@ -56,7 +59,8 @@ abstract class CommonJoinOperator[JOINDESCTYPE <: JoinDesc, T <: HiveCommonJoinO
     noOuterJoin = conf.isNoOuterJoin
 
     joinVals = new JavaHashMap[java.lang.Byte, JavaList[ExprNodeEvaluator]]
-    JoinUtil.populateJoinKeyValue(joinVals, conf.getExprs(), order, CommonJoinOperator.NOTSKIPBIGTABLE)
+    JoinUtil.populateJoinKeyValue(
+      joinVals, conf.getExprs(), order, CommonJoinOperator.NOTSKIPBIGTABLE)
 
     joinFilters = new JavaHashMap[java.lang.Byte, JavaList[ExprNodeEvaluator]]
     JoinUtil.populateJoinKeyValue(
@@ -69,11 +73,6 @@ abstract class CommonJoinOperator[JOINDESCTYPE <: JoinDesc, T <: HiveCommonJoinO
     joinValuesStandardObjectInspectors = JoinUtil.getStandardObjectInspectors(
       joinValuesObjectInspectors, CommonJoinOperator.NOTSKIPBIGTABLE)
   }
-}
-
-
-class CartesianProductIterator(val bufs: IndexedSeq[Seq[Any]]) {
-
 }
 
 
