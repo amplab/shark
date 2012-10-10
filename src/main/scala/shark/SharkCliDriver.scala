@@ -86,14 +86,11 @@ object SharkCliDriver {
 
     SessionState.start(ss)
 
-    // Shark specific: Drop cached tables from the metastore after we exit.
+    // Clean up after we exit
     Runtime.getRuntime().addShutdownHook(
       new Thread() {
         override def run() {
-          val db = Hive.get(conf.asInstanceOf[HiveConf])
-          SharkEnv.cache.getAllKeyStrings foreach { key =>
-            db.dropTable("default", key, false, true)
-          }
+          SharkEnv.stop()
         }
       }
     )
