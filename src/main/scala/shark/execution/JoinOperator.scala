@@ -13,8 +13,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
-import spark.RDD
-import spark.rdd.UnionRDD
+import spark.{CoGroupedRDD, HashPartitioner, RDD}
 import spark.SparkContext._
 
 
@@ -85,42 +84,27 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
       rddsJavaMap.get(inputIndex.byteValue.toInt).asInstanceOf[RDD[(ReduceKey, Any)]]
     }
 
-    val labeledRdds = rddsInJoinOrder.zipWithIndex.map { case(rdd, index) =>
-      rdd.map { case(k, v) => (k, (index.toByte, new BytesWritable(v.asInstanceOf[Array[Byte]]))) }
-    }
-    val union = new UnionRDD(rddsInJoinOrder.head.context, labeledRdds)
+    // val labeledRdds = rddsInJoinOrder.zipWithIndex.map { case(rdd, index) =>
+    //   rdd.map { case(k, v) => (k, (index.toByte, new BytesWritable(v.asInstanceOf[Array[Byte]]))) }
+    // }
+
+    val part = new HashPartitioner(numReduceTasks)
+    val cogrouped = new CoGroupedRDD[ReduceKey](
+      rddsInJoinOrder.toSeq.asInstanceOf[Seq[RDD[(_, _)]]], part)
 
     val op = OperatorSerializationWrapper(this)
-    union.groupByKey(numReduceTasks).mapPartitions { part =>
+
+    cogrouped.mapPartitions { part =>
       op.initializeOnSlave()
 
-      val bufs = Array.fill(op.numTables)(new ArrayBuffer[Any])
+      //val bufs = Array.fill(op.numTables)(new ArrayBuffer[Any])
       val tmp = new Array[Object](2)
       val writable = new BytesWritable
       val nullSafes = op.conf.getNullSafes()
 
       val cp = new CartesianProduct[Any](op.numTables)
 
-      part.flatMap { case (k, seq) =>
-
-        bufs.foreach(_.clear())
-        seq.foreach { case(label, value) =>
-          bufs(label) += value
-          /* Ignore Hive's join filters because of its weird semantics.
-          if (op.joinFilters == null || op.joinFilters.size() == 0) {
-            bufs(label) += value
-          } else {
-            // If there are join filters, we deserialize the tuples twice. Once
-            // here in checking for join filters, and one more in processPartition.
-            tmp(1) = op.deserialize(op.tagToValueSer.get(label.toInt), value)
-            if (!CommonJoinOperator.isFiltered(
-              tmp, op.joinFilters(label), op.joinFilterObjectInspectors(label))) {
-              bufs(label) += value
-            }
-          }
-          */
-        }
-
+      part.flatMap { case (k: ReduceKey, bufs: Array[ArrayBuffer[Any]]) =>
         writable.set(k.bytes)
 
         if (op.nullCheck &&
@@ -146,7 +130,7 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
 
     val tupleOrder = CommonJoinOperator.computeTupleOrder(joinConditions)
 
-    //val bytes = new BytesWritable()
+    val bytes = new BytesWritable()
     val tmp = new Array[Object](2)
 
     val tupleSizes = (0 until joinVals.size).map { i => joinVals.get(i.toByte).size() }.toIndexedSeq
@@ -158,7 +142,7 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
     iter.map { elements: Array[Any] =>
       var index = 0
       while (index < numTables) {
-        val element = elements(index)
+        val element = elements(index).asInstanceOf[Array[Byte]]
         var i = 0
         if (element == null) {
           while (i < joinVals.get(index.toByte).size) {
@@ -166,7 +150,8 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
             i += 1
           }
         } else {
-          tmp(1) = tagToValueSer.get(index).deserialize(element.asInstanceOf[BytesWritable])
+          bytes.set(element, 0, element.length)
+          tmp(1) = tagToValueSer.get(index).deserialize(bytes)
           val joinVal = joinVals.get(index.toByte)
           while (i < joinVal.size) {
             outputRow(i + offsets(index)) = joinVal(i).evaluate(tmp)
