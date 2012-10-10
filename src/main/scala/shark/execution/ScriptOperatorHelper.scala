@@ -1,4 +1,5 @@
 package org.apache.hadoop.hive.ql.exec
+// Put this file in Hive's exec package to access package level visible fields and methods.
 
 import java.util.{Map => JMap}
 
@@ -11,7 +12,7 @@ import org.apache.hadoop.conf.Configuration;
  * static/public.
  */
 class ScriptOperatorHelper(val op: ScriptOperator) extends ScriptOperator {
-  
+
   def newPathFinderInstance(envpath: String): op.PathFinder = {
     new op.PathFinder(envpath)
   }

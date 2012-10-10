@@ -244,18 +244,18 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
 
     val joinKeyEval = joinKeys.get(bigTableAlias.toByte)
     val joinValueEval = joinVals.get(bigTableAlias.toByte)
-    val bufs = new Array[Seq[Array[java.lang.Object]]](numTables)
+    val bufs = new Array[Seq[Array[Object]]](numTables)
     val nullSafes = conf.getNullSafes()
 
-    val cp = new CartesianProduct[Array[java.lang.Object]](numTables)
+    val cp = new CartesianProduct[Array[Object]](numTables)
 
-    val jointRows: Iterator[Array[Array[java.lang.Object]]] = iter.flatMap { row =>
+    val jointRows: Iterator[Array[Array[Object]]] = iter.flatMap { row =>
       // Build the join key and value for the row in the large table.
       val key: AbstractMapJoinKey = JoinUtil.computeMapJoinKeys(
         row,
         joinKeyEval,
         joinKeysObjectInspectors.get(bigTableAliasByte))
-      val value: Array[java.lang.Object] = JoinUtil.computeMapJoinValues(
+      val value: Array[Object] = JoinUtil.computeMapJoinValues(
         row,
         joinValueEval,
         joinValuesObjectInspectors.get(bigTableAliasByte),
@@ -264,24 +264,24 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
         noOuterJoin)
 
       if (nullCheck && key.hasAnyNulls(nullSafes)) {
-        val bufsNull = Array.fill[Seq[Array[java.lang.Object]]](numTables)(Seq())
+        val bufsNull = Array.fill[Seq[Array[Object]]](numTables)(Seq())
         bufsNull(bigTableAlias) = Seq(value)
-        cp.product(bufsNull.asInstanceOf[Array[Seq[Array[java.lang.Object]]]], joinConditions)
+        cp.product(bufsNull.asInstanceOf[Array[Seq[Array[Object]]]], joinConditions)
       } else {
         // Build the join bufs.
         var i = 0
         while ( i < numTables) {
           if (i == bigTableAlias) {
-            bufs(i) = Seq[Array[java.lang.Object]](value)
+            bufs(i) = Seq[Array[Object]](value)
           } else {
             val smallTableValues: MapJoinObjectValue = hashtables.getOrElse(i, null).get(key)
             bufs(i) =
-              if (smallTableValues == null) Seq[Array[java.lang.Object]]()
-              else smallTableValues.getObj().getList().asInstanceOf[ArrayList[Array[java.lang.Object]]]
+              if (smallTableValues == null) Seq[Array[Object]]()
+              else smallTableValues.getObj().getList().asInstanceOf[ArrayList[Array[Object]]]
           }
           i += 1
         }
-        cp.product(bufs.asInstanceOf[Array[Seq[Array[java.lang.Object]]]], joinConditions)
+        cp.product(bufs.asInstanceOf[Array[Seq[Array[Object]]]], joinConditions)
       }
     }
 
@@ -289,7 +289,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
     val rowToReturn = new Array[Object](rowSize)
 
     // For each row, combine the tuples from multiple tables into a single tuple.
-    jointRows.map { row: Array[Array[java.lang.Object]] =>
+    jointRows.map { row: Array[Array[Object]] =>
       var tupleIndex = 0
       var fieldIndex = 0
       row.foreach { tuple =>
@@ -304,7 +304,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
           }
         } else {
           while (fieldIndex < stop) {
-            rowToReturn(fieldIndex) = tuple.asInstanceOf[Array[java.lang.Object]](fieldInTuple)
+            rowToReturn(fieldIndex) = tuple.asInstanceOf[Array[Object]](fieldInTuple)
             fieldInTuple += 1
             fieldIndex += 1
           }

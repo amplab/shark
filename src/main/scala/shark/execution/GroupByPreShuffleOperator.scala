@@ -1,4 +1,5 @@
 package org.apache.hadoop.hive.ql.exec
+// Put this file in Hive's exec package to access package level visible fields and methods.
 
 import java.util.{ArrayList, HashMap => JHashMap}
 
@@ -57,12 +58,12 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
     keyFields = conf.getKeys().map(k => ExprNodeEvaluatorFactory.get(k)).toArray
     val keyObjectInspectors: Array[ObjectInspector] = keyFields.map(k => k.initialize(rowInspector))
     val currentKeyObjectInspectors = SharkEnv.objectInspectorLock.synchronized {
-      keyObjectInspectors.map { k => 
+      keyObjectInspectors.map { k =>
         ObjectInspectorUtils.getStandardObjectInspector(k, ObjectInspectorCopyOption.WRITABLE)
       }
     }
 
-    aggregationParameterFields = conf.getAggregators.toArray.map { aggr => 
+    aggregationParameterFields = conf.getAggregators.toArray.map { aggr =>
       aggr.asInstanceOf[AggregationDesc].getParameters.toArray.map { param =>
         ExprNodeEvaluatorFactory.get(param.asInstanceOf[ExprNodeDesc])
       }
@@ -117,7 +118,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
       }
       aggregate(row, aggs, isNewKey)
 
-      // Disable partial hash-based aggregation if desired minimum reduction is 
+      // Disable partial hash-based aggregation if desired minimum reduction is
       // not observed after initial interval.
       if (numRowsInput == numRowsCompareHashAggr) {
         if (numRowsHashTbl > numRowsInput * minReductionHashAggr) {
@@ -147,9 +148,9 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
         i += 1
       }
       outputCache
-    } ++ 
+    } ++
     // Concatenate with iterator for remaining rows not in hashAggregations.
-    iter.map { case row: AnyRef => 
+    iter.map { case row: AnyRef =>
       newKeys.getNewKey(row, rowInspector)
       val newAggrKey = newKeys.copyKey()
       val aggrs = newAggregations()
@@ -160,7 +161,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
         outputCache(i) = keyArr(i)
         i += 1
       }
-      i = 0 
+      i = 0
       while (i < aggrs.length) {
         outputCache(i + keyArr.length) = aggregationEvals(i).evaluate(aggrs(i))
         i += 1
@@ -179,7 +180,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
       i += 1
     }
   }
-  
+
   protected def newAggregations(): Array[AggregationBuffer] = {
     aggregationEvals.map(eval => eval.getNewAggregationBuffer)
   }

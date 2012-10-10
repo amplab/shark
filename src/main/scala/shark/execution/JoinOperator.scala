@@ -102,6 +102,7 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
       part.flatMap { case (k: ReduceKey, bufs: Array[ArrayBuffer[Any]]) =>
         writable.set(k.bytes)
 
+        // If nullCheck is false, we can skip deserializing the key.
         if (op.nullCheck &&
             SerDeUtils.hasAnyNullObject(
               op.keyDeserializer.deserialize(writable).asInstanceOf[JList[_]],
@@ -110,12 +111,10 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
           bufs.zipWithIndex.flatMap { case (buf, label) =>
             val bufsNull = Array.fill(op.numTables)(ArrayBuffer[Any]())
             bufsNull(label) = buf
-            op.generateTuples(
-              cp.product(bufsNull.asInstanceOf[Array[Seq[Any]]], op.joinConditions))
+            op.generateTuples(cp.product(bufsNull.asInstanceOf[Array[Seq[Any]]], op.joinConditions))
           }
         } else {
-          op.generateTuples(
-            cp.product(bufs.asInstanceOf[Array[Seq[Any]]], op.joinConditions))
+          op.generateTuples(cp.product(bufs.asInstanceOf[Array[Seq[Any]]], op.joinConditions))
         }
       }
     }

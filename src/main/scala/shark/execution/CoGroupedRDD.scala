@@ -8,6 +8,9 @@ import java.util.{HashMap => JHashMap}
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ArrayBuffer
 
+// A version of CoGroupedRDD with the following changes:
+// - Disable map-side aggregation.
+// - Enforce return type to Array[ArrayBuffer].
 
 sealed trait CoGroupSplitDep extends Serializable
 case class NarrowCoGroupSplitDep(rdd: RDD[_], split: Split) extends CoGroupSplitDep
@@ -19,6 +22,7 @@ class CoGroupSplit(idx: Int, val deps: Seq[CoGroupSplitDep]) extends Split with 
   override def hashCode(): Int = idx
 }
 
+// Disable map-side combine for the aggregation.
 class CoGroupAggregator
   extends Aggregator[Any, Any, ArrayBuffer[Any]](
     { x => ArrayBuffer(x) },
@@ -86,16 +90,11 @@ class CoGroupedRDD[K](@transient rdds: Seq[RDD[(_, _)]], part: Partitioner)
     for ((dep, depNum) <- split.deps.zipWithIndex) dep match {
       case NarrowCoGroupSplitDep(rdd, itsSplit) => {
         // Read them from the parent
-        for ((k, v) <- rdd.iterator(itsSplit)) {
-          getSeq(k.asInstanceOf[K])(depNum) += v
-        }
+        for ((k, v) <- rdd.iterator(itsSplit)) { getSeq(k.asInstanceOf[K])(depNum) += v }
       }
       case ShuffleCoGroupSplitDep(shuffleId) => {
         // Read map outputs of shuffle
-        def mergePair(k: K, vs: Any) {
-          val mySeq = getSeq(k)
-          mySeq(depNum) += vs
-        }
+        def mergePair(k: K, v: Any) { getSeq(k)(depNum) += v }
         val fetcher = SparkEnv.get.shuffleFetcher
         fetcher.fetch[K, Any](shuffleId, split.index, mergePair)
       }
