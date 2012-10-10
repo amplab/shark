@@ -95,9 +95,8 @@ class CartesianProduct[T >: Null : ClassManifest](val numTables: Int) {
     while (i < joinConditions.length) {
       val joinCondition = joinConditions(i)
       i += 1
-      val joinType = joinCondition.getType()
 
-      partial = joinType match {
+      partial = joinCondition.getType() match {
         case CommonJoinOperator.INNER_JOIN =>
           if (bufs(joinCondition.getLeft).size == 0 || bufs(joinCondition.getRight).size == 0) {
             createBase(EMPTY_LIST, i)
