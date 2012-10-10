@@ -60,6 +60,11 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
     }
   }
 
+  override def execute(): RDD[_] = {
+    val inputRdds = executeParents()
+    combineMultipleRdds(inputRdds)
+  }
+
   override def combineMultipleRdds(rdds: Seq[(Int, RDD[_])]): RDD[_] = {
     // Determine the number of reduce tasks to run.
     var numReduceTasks = hconf.getIntVar(HiveConf.ConfVars.HADOOPNUMREDUCERS)
@@ -94,6 +99,8 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
       val writable = new BytesWritable
       val nullSafes = op.conf.getNullSafes()
 
+      val cp = new CartesianProduct[Any](op.numTables)
+
       part.flatMap { case (k, seq) =>
 
         bufs.foreach(_.clear())
@@ -121,51 +128,58 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
               op.keyDeserializer.deserialize(writable).asInstanceOf[JList[_]],
               op.keyObjectInspector,
               nullSafes)) {
-
           bufs.zipWithIndex.flatMap { case (buf, label) =>
-            val bufsNull = Array.fill[Seq[Any]](op.numTables)(Seq())
+            val bufsNull = Array.fill(op.numTables)(ArrayBuffer[Any]())
             bufsNull(label) = buf
-            CommonJoinOperator.cartesianProduct(
-              bufsNull.asInstanceOf[Array[Seq[Any]]], op.joinConditions)
+            op.generateTuples(
+              cp.product(bufsNull.asInstanceOf[Array[Seq[Any]]], op.joinConditions))
           }
         } else {
-          CommonJoinOperator.cartesianProduct(bufs.asInstanceOf[Array[Seq[Any]]], op.joinConditions)
+          op.generateTuples(
+            cp.product(bufs.asInstanceOf[Array[Seq[Any]]], op.joinConditions))
         }
       }
     }
   }
 
-  override def processPartition[T](iter: Iterator[T]): Iterator[_] = {
+  def generateTuples(iter: Iterator[Array[Any]]): Iterator[_] = {
 
     val tupleOrder = CommonJoinOperator.computeTupleOrder(joinConditions)
 
     //val bytes = new BytesWritable()
     val tmp = new Array[Object](2)
 
-    val tupleSizes = (0 until joinVals.size).map { i => joinVals(i.toByte).size() }.toIndexedSeq
+    val tupleSizes = (0 until joinVals.size).map { i => joinVals.get(i.toByte).size() }.toIndexedSeq
     val offsets = tupleSizes.scanLeft(0)(_ + _)
 
     val rowSize = offsets.last
-    val row = new Array[Object](rowSize)
+    val outputRow = new Array[Object](rowSize)
 
-    // TODO: zipWithIndex is inefficient in a loop ...
-    iter.map { elements =>
-      elements.asInstanceOf[Seq[java.lang.Object]].zipWithIndex.foreach { case(element, index) =>
+    iter.map { elements: Array[Any] =>
+      var index = 0
+      while (index < numTables) {
+        val element = elements(index)
+        var i = 0
         if (element == null) {
-          var i = 0
-          while (i < joinVals(index.toByte).size) {
-            row(i + offsets(index)) = null
+          while (i < joinVals.get(index.toByte).size) {
+            outputRow(i + offsets(index)) = null
             i += 1
           }
         } else {
           tmp(1) = tagToValueSer.get(index).deserialize(element.asInstanceOf[BytesWritable])
-          joinVals(index.toByte).zipWithIndex.foreach { case(eval, i) =>
-            row(i + offsets(index)) = eval.evaluate(tmp)
+          val joinVal = joinVals.get(index.toByte)
+          while (i < joinVal.size) {
+            outputRow(i + offsets(index)) = joinVal(i).evaluate(tmp)
+            i += 1
           }
         }
+        index += 1
       }
-      //println("row: " + row.toSeq)
-      row
+
+      outputRow
     }
   }
+
+  override def processPartition[T](iter: Iterator[T]): Iterator[_] =
+    throw new UnsupportedOperationException("JoinOperator.processPartition()")
 }

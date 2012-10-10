@@ -76,6 +76,98 @@ abstract class CommonJoinOperator[JOINDESCTYPE <: JoinDesc, T <: HiveCommonJoinO
 }
 
 
+class CartesianProduct[T >: Null : ClassManifest](val numTables: Int) {
+
+  val SINGLE_NULL_LIST = Seq[T](null)
+  val EMPTY_LIST = Seq[T]()
+
+  // The output buffer array. The product function returns an iterator that will
+  // always return this outputBuffer. Downstream operations need to make sure
+  // they are just streaming through the output.
+  val outputBuffer = new Array[T](numTables)
+
+  def product(bufs: Array[Seq[T]], joinConditions: Array[JoinCondDesc]): Iterator[Array[T]] = {
+
+    // This can be done with a foldLeft, but it will be too confusing if we
+    // need to zip the bufs with a list of join descriptors...
+    var partial: Iterator[Array[T]] = createBase(bufs(joinConditions.head.getLeft), 0)
+    var i = 0
+    while (i < joinConditions.length) {
+      val joinCondition = joinConditions(i)
+      i += 1
+      val joinType = joinCondition.getType()
+
+      partial = joinType match {
+        case CommonJoinOperator.INNER_JOIN =>
+          if (bufs(joinCondition.getLeft).size == 0 || bufs(joinCondition.getRight).size == 0) {
+            createBase(EMPTY_LIST, i)
+          } else {
+            product2(partial, bufs(joinCondition.getRight), i)
+          }
+
+        case CommonJoinOperator.FULL_OUTER_JOIN =>
+          if (bufs(joinCondition.getLeft()).size == 0 || !partial.hasNext) {
+            // If both right/left are empty, then the right side returns an empty
+            // iterator and product2 also returns an empty iterator.
+            product2(createBase(SINGLE_NULL_LIST, i - 1), bufs(joinCondition.getRight), i)
+          } else if (bufs(joinCondition.getRight).size == 0) {
+            product2(partial, SINGLE_NULL_LIST, i)
+          } else {
+            product2(partial, bufs(joinCondition.getRight), i)
+          }
+
+        case CommonJoinOperator.LEFT_OUTER_JOIN =>
+          if (bufs(joinCondition.getLeft()).size == 0) {
+            createBase(EMPTY_LIST, i)
+          } else if (bufs(joinCondition.getRight).size == 0) {
+            product2(partial, SINGLE_NULL_LIST, i)
+          } else {
+            product2(partial, bufs(joinCondition.getRight), i)
+          }
+
+        case CommonJoinOperator.RIGHT_OUTER_JOIN =>
+          if (bufs(joinCondition.getRight).size == 0) {
+            createBase(EMPTY_LIST, i)
+          } else if (bufs(joinCondition.getLeft).size == 0 || !partial.hasNext) {
+            product2(createBase(SINGLE_NULL_LIST, i - 1), bufs(joinCondition.getRight), i)
+          } else {
+            product2(partial, bufs(joinCondition.getRight), i)
+          }
+
+        case CommonJoinOperator.LEFT_SEMI_JOIN =>
+          // For semi join, we only need one element from the table on the right
+          // to verify an row exists.
+          if (bufs(joinCondition.getLeft).size == 0 || bufs(joinCondition.getRight).size == 0) {
+            createBase(EMPTY_LIST, i)
+          } else {
+            product2(partial, SINGLE_NULL_LIST, i)
+          }
+      }
+    }
+    partial
+  }
+
+  def product2(left: Iterator[Array[T]], right: Seq[T], pos: Int): Iterator[Array[T]] = {
+    for (l <- left; r <- right.iterator) yield {
+      outputBuffer(pos) = r
+      outputBuffer
+    }
+  }
+
+  def createBase(left: Seq[T], pos: Int): Iterator[Array[T]] = {
+    var i = 0
+    while (i <= pos) {
+      outputBuffer(i) = null
+      i += 1
+    }
+    left.iterator.map { l =>
+      outputBuffer(pos) = l
+      outputBuffer
+    }
+  }
+}
+
+
 object CommonJoinOperator {
 
   val NOTSKIPBIGTABLE = -1
@@ -87,105 +179,6 @@ object CommonJoinOperator {
   val FULL_OUTER_JOIN = JoinDesc.FULL_OUTER_JOIN
   val UNIQUE_JOIN = JoinDesc.UNIQUE_JOIN // We don't support UNIQUE JOIN.
   val LEFT_SEMI_JOIN = JoinDesc.LEFT_SEMI_JOIN
-
-  def join[K: ClassManifest](
-    rdds: Seq[RDD[(K, Any)]],
-    joinConditions: Array[JoinCondDesc],
-    numSplits: Int)
-  : RDD[Seq[Any]] = {
-
-    val numTables = rdds.size
-    assert(joinConditions.size == numTables - 1)
-
-    val labeledRdds = rdds.zipWithIndex.map { case(rdd, index) =>
-      rdd.map { case(k, v) => (k, (index.toByte, v)) }
-    }
-    val union = new UnionRDD(rdds.head.context, labeledRdds)
-
-    union.groupByKey(numSplits).mapPartitions { part =>
-      val bufs = new Array[ArrayBuffer[Any]](numTables)
-      for (i <- 0 until numTables) bufs(i) = new ArrayBuffer[Any]
-
-      part.flatMap { case (k, seq) =>
-        bufs.foreach(_.clear())
-        seq.foreach { case(label, value) =>
-          bufs(label) += value
-        }
-        cartesianProduct(bufs.asInstanceOf[Array[Seq[Any]]], joinConditions)
-      }
-    }
-  }
-
-  def cartesianProduct(bufs: Array[Seq[Any]], joinConditions: Array[JoinCondDesc])
-  : Iterator[Seq[Any]] = {
-
-    val tupleSize = bufs.size
-
-    // This can be done with a foldLeft, but it will be too confusing if we
-    // need to zip the bufs with a list of join descriptors...
-    var partialProduct: Iterator[Seq[Any]] = bufs(joinConditions.head.getLeft()).map(Seq(_)).iterator
-    var i = 0
-    joinConditions.foreach { joinCondition =>
-      i += 1
-      val joinType = joinCondition.getType()
-
-      if (joinType == INNER_JOIN) {
-        if (bufs(joinCondition.getLeft()).size == 0 || bufs(joinCondition.getRight()).size == 0) {
-          partialProduct = Iterator.empty
-        } else {
-          partialProduct = cartesianProduct2(partialProduct, bufs(joinCondition.getRight()))
-        }
-      } else if (joinType == FULL_OUTER_JOIN) {
-
-        if (bufs(joinCondition.getLeft()).size == 0 || !partialProduct.hasNext) {
-          // If both right/left are empty, then the right side returns an empty
-          // iterator and cartesianProduct2 also returns an empty iterator.
-          partialProduct = cartesianProduct2(
-            Iterator.single(Array.fill[Null](i)(null).toSeq), bufs(joinCondition.getRight()))
-        } else if (bufs(joinCondition.getRight()).size == 0) {
-          partialProduct = cartesianProduct2(partialProduct, Seq(null))
-        } else {
-          partialProduct = cartesianProduct2(partialProduct, bufs(joinCondition.getRight()))
-        }
-      } else if (joinType == LEFT_OUTER_JOIN) {
-
-        if (bufs(joinCondition.getLeft()).size == 0) {
-          partialProduct = Iterator.empty
-        } else if (bufs(joinCondition.getRight()).size == 0) {
-          partialProduct = cartesianProduct2(partialProduct, Seq(null))
-        } else {
-          partialProduct = cartesianProduct2(
-            partialProduct, bufs(joinCondition.getRight()))
-        }
-      } else if (joinType == RIGHT_OUTER_JOIN) {
-
-        if (bufs(joinCondition.getRight()).size == 0) {
-          partialProduct = Iterator.empty
-        } else if (bufs(joinCondition.getLeft()).size == 0 || !partialProduct.hasNext) {
-          partialProduct = cartesianProduct2(
-            Iterator.single(Array.fill[Null](i)(null).toSeq), bufs(joinCondition.getRight()))
-        } else {
-          partialProduct = cartesianProduct2(partialProduct, bufs(joinCondition.getRight()))
-        }
-      } else if (joinType == LEFT_SEMI_JOIN) {
-        // For semi join, we only need one element from the table on the right
-        // to verify an row exists.
-        if (bufs(joinCondition.getLeft()).size == 0 || bufs(joinCondition.getRight()).size == 0) {
-          partialProduct = Iterator.empty
-        } else {
-          partialProduct = cartesianProduct2(partialProduct, Seq(null))
-        }
-      }
-    }
-    partialProduct
-  }
-
-  /**
-   * Cartesian product of two.
-   */
-  def cartesianProduct2(left: Iterator[Seq[Any]], right: Seq[Any]): Iterator[Seq[Any]] = {
-    for (l <- left; r <- right.iterator) yield(l :+ r)
-  }
 
   /**
    * Handles join filters in Hive. It is kind of buggy and not used at the moment.
