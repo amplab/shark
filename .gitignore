@@ -4,6 +4,7 @@ metastore_db/
 project/boot
 lib_managed/
 TempStatsStore
+work/
 
 # Compiled Source
 *.class
