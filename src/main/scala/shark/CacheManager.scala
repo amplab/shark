@@ -4,13 +4,12 @@ import spark.RDD
 import scala.collection.mutable.HashMap
 
 
-case class CacheKey[T](val key: T) {
+case class CacheKey(val keyStr: String) {
+  val key: String = keyStr.toLowerCase()
+
   override def equals(o: Any): Boolean = {
     o match {
-      case ck: CacheKey[_] => ck.key match {
-        case k: T => k == key
-        case _ => false
-      }
+      case ck: CacheKey => key.equals(ck.key)
       case _ => false
     }
   }
@@ -22,14 +21,14 @@ case class CacheKey[T](val key: T) {
 
 
 class CacheManager {
-  val keyToRdd = new HashMap[CacheKey[_], RDD[_]]()
+  val keyToRdd = new HashMap[CacheKey, RDD[_]]()
 
-  def put(key: CacheKey[_], rdd: RDD[_]) {
+  def put(key: CacheKey, rdd: RDD[_]) {
     keyToRdd(key) = rdd
     rdd.cache()
   }
 
-  def get(key: CacheKey[_]): Option[RDD[_]] = {
+  def get(key: CacheKey): Option[RDD[_]] = {
     keyToRdd.get(key) match {
       case Some(rdd) => Some(RDDUtils.deserialize(rdd))
       case None => None
