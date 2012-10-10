@@ -3,9 +3,10 @@ package spark
 import java.net.URL
 import java.io.EOFException
 import java.io.ObjectInputStream
+import java.util.{HashMap => JHashMap}
 
+import scala.collection.JavaConversions._
 import scala.collection.mutable.ArrayBuffer
-import scala.collection.mutable.HashMap
 
 
 sealed trait CoGroupSplitDep extends Serializable
@@ -22,7 +23,8 @@ class CoGroupAggregator
   extends Aggregator[Any, Any, ArrayBuffer[Any]](
     { x => ArrayBuffer(x) },
     { (b, x) => b += x },
-    { (b1, b2) => b1 ++ b2 })
+    null,
+    false)
   with Serializable
 
 class CoGroupedRDD[K](@transient rdds: Seq[RDD[(_, _)]], part: Partitioner)
@@ -72,9 +74,14 @@ class CoGroupedRDD[K](@transient rdds: Seq[RDD[(_, _)]], part: Partitioner)
   override def compute(s: Split): Iterator[(K, Array[ArrayBuffer[Any]])] = {
     val split = s.asInstanceOf[CoGroupSplit]
     val numRdds = split.deps.size
-    val map = new HashMap[K, Array[ArrayBuffer[Any]]]
+    val map = new JHashMap[K, Array[ArrayBuffer[Any]]]
     def getSeq(k: K): Array[ArrayBuffer[Any]] = {
-      map.getOrElseUpdate(k, Array.fill(numRdds)(new ArrayBuffer[Any]))
+      var values = map.get(k)
+      if (values == null) {
+        values = Array.fill(numRdds)(new ArrayBuffer[Any])
+        map.put(k, values)
+      }
+      values
     }
     for ((dep, depNum) <- split.deps.zipWithIndex) dep match {
       case NarrowCoGroupSplitDep(rdd, itsSplit) => {
@@ -85,13 +92,12 @@ class CoGroupedRDD[K](@transient rdds: Seq[RDD[(_, _)]], part: Partitioner)
       }
       case ShuffleCoGroupSplitDep(shuffleId) => {
         // Read map outputs of shuffle
-        def mergePair(k: K, vs: Seq[Any]) {
+        def mergePair(k: K, vs: Any) {
           val mySeq = getSeq(k)
-          for (v <- vs)
-            mySeq(depNum) += v
+          mySeq(depNum) += vs
         }
         val fetcher = SparkEnv.get.shuffleFetcher
-        fetcher.fetch[K, Seq[Any]](shuffleId, split.index, mergePair)
+        fetcher.fetch[K, Any](shuffleId, split.index, mergePair)
       }
     }
     map.iterator

@@ -1,6 +1,6 @@
 package shark.execution
 
-import java.util.{HashMap => JavaHashMap, List => JList}
+import java.util.{HashMap => JHashMap, List => JList}
 
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{JoinOperator => HiveJoinOperator}
@@ -20,16 +20,16 @@ import spark.SparkContext._
 class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
   with HiveTopOperator {
 
-  @BeanProperty var valueTableDescMap: JavaHashMap[Int, TableDesc] = _
+  @BeanProperty var valueTableDescMap: JHashMap[Int, TableDesc] = _
   @BeanProperty var keyTableDesc: TableDesc = _
 
-  @transient var tagToValueSer: JavaHashMap[Int, Deserializer] = _
+  @transient var tagToValueSer: JHashMap[Int, Deserializer] = _
   @transient var keyDeserializer: Deserializer = _
   @transient var keyObjectInspector: StandardStructObjectInspector = _
 
   override def initializeOnMaster() {
     super.initializeOnMaster()
-    valueTableDescMap = new JavaHashMap[Int, TableDesc]
+    valueTableDescMap = new JHashMap[Int, TableDesc]
     valueTableDescMap ++= keyValueTableDescs.map { case(tag, kvdescs) => (tag, kvdescs._2) }
     keyTableDesc = keyValueTableDescs.head._2._1
 
@@ -40,7 +40,7 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
   override def initializeOnSlave() {
     super.initializeOnSlave()
 
-    tagToValueSer = new JavaHashMap[Int, Deserializer]
+    tagToValueSer = new JHashMap[Int, Deserializer]
     valueTableDescMap foreach { case(tag, tableDesc) =>
       logDebug("tableDescs (tag %d): %s".format(tag, tableDesc))
 
@@ -74,7 +74,7 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
     // Turn the RDD into a map. Use a Java HashMap to avoid Scala's annoying
     // Some/Option. Add an assert for sanity check. If ReduceSink's join tags
     // are wrong, the hash entries might collide.
-    val rddsJavaMap = new JavaHashMap[Int, RDD[_]]
+    val rddsJavaMap = new JHashMap[Int, RDD[_]]
     rddsJavaMap ++= rdds
     assert(rdds.size == rddsJavaMap.size, {
       logError("rdds.size (%d) != rddsJavaMap.size (%d)".format(rdds.size, rddsJavaMap.size))
@@ -83,10 +83,6 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
     val rddsInJoinOrder = order.map { inputIndex =>
       rddsJavaMap.get(inputIndex.byteValue.toInt).asInstanceOf[RDD[(ReduceKey, Any)]]
     }
-
-    // val labeledRdds = rddsInJoinOrder.zipWithIndex.map { case(rdd, index) =>
-    //   rdd.map { case(k, v) => (k, (index.toByte, new BytesWritable(v.asInstanceOf[Array[Byte]]))) }
-    // }
 
     val part = new HashPartitioner(numReduceTasks)
     val cogrouped = new CoGroupedRDD[ReduceKey](
@@ -97,7 +93,6 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
     cogrouped.mapPartitions { part =>
       op.initializeOnSlave()
 
-      //val bufs = Array.fill(op.numTables)(new ArrayBuffer[Any])
       val tmp = new Array[Object](2)
       val writable = new BytesWritable
       val nullSafes = op.conf.getNullSafes()
