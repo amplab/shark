@@ -45,9 +45,23 @@ object SharkServer {
     ttServerArgs.transportFactory(new TTransportFactory())
     ttServerArgs.protocolFactory(new TBinaryProtocol.Factory())
     val server = new TThreadPoolServer(ttServerArgs)
+
+    // Stop the server and clean up the Shark environment when we exit
+    Runtime.getRuntime().addShutdownHook(
+      new Thread() {
+        override def run() {
+          if (server != null) {
+            server.stop()
+          }
+          SharkEnv.stop()
+        }
+      }
+    )
+    
     LOG.info("Starting shark server on port " + port)
     server.serve()
   }
+
 }
 
 class SharkHiveProcessingFactory(processor: TProcessor, conf: HiveConf)
