@@ -1,6 +1,8 @@
 package shark
 
 import spark.SparkContext
+import org.apache.hadoop.hive.ql.metadata.Hive
+import org.apache.hadoop.hive.conf.HiveConf
 
 object SharkEnv extends LogHelper {
 
@@ -33,6 +35,24 @@ object SharkEnv extends LogHelper {
    * that object in a synchronized lock on this.
    */
   val objectInspectorLock: AnyRef = new Object()
+
+  /**
+   * Cleans up and shuts down the Shark environments.
+   * Stops the SparkContext and drops cached tables.
+  */
+  def stop() {
+    logInfo("Shutting down Shark Environment")
+    // Drop cached tables
+    val db = Hive.get(new HiveConf)
+    SharkEnv.cache.getAllKeyStrings foreach { key =>
+      logInfo("Dropping cached table " + key)
+      db.dropTable("default", key, false, true)
+    }
+    // Stop the SparkContext
+    if (SharkEnv.sc != null) {
+      sc.stop()
+    }
+  }
 
 }
 
