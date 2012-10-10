@@ -99,7 +99,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
 
     val newKeys: KeyWrapper = keyFactory.getKeyWrapper()
 
-    while (iter.hasNext() && useHashAggr) {
+    while (iter.hasNext && useHashAggr) {
       val row = iter.next().asInstanceOf[AnyRef]
       numRowsInput += 1
 
@@ -117,7 +117,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
       }
       aggregate(row, aggs, isNewKey)
 
-      // Disable partial hash-based aggregation if desired minimum reduction is 
+      // Disable partial hash-based aggregation if desired minimum reduction is
       // not observed after initial interval.
       if (numRowsInput == numRowsCompareHashAggr) {
         if (numRowsHashTbl > numRowsInput * minReductionHashAggr) {
@@ -147,9 +147,9 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
         i += 1
       }
       outputCache
-    } ++ 
+    } ++
     // Concatenate with iterator for remaining rows not in hashAggregations.
-    iter.map { case row: AnyRef => 
+    iter.map { case row: AnyRef =>
       newKeys.getNewKey(row, rowInspector)
       val newAggrKey = newKeys.copyKey()
       val aggrs = newAggregations()
@@ -160,7 +160,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
         outputCache(i) = keyArr(i)
         i += 1
       }
-      i = 0 
+      i = 0
       while (i < aggrs.length) {
         outputCache(i + keyArr.length) = aggregationEvals(i).evaluate(aggrs(i))
         i += 1
@@ -169,7 +169,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
     }
   }
 
-  def aggregate(row: AnyRef, aggregations: Array[AggregationBuffer], isNewKey: Boolean) {
+  protected def aggregate(row: AnyRef, aggregations: Array[AggregationBuffer], isNewKey: Boolean) {
     var i = 0
     while (i < aggregations.length) {
       if (!aggregationIsDistinct(i) || isNewKey) {
@@ -180,7 +180,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
     }
   }
 
-  def newAggregations(): Array[AggregationBuffer] = {
+  protected def newAggregations(): Array[AggregationBuffer] = {
     aggregationEvals.map(eval => eval.getNewAggregationBuffer)
   }
 }

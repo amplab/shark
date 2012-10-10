@@ -1,15 +1,17 @@
 package shark
 
-import java.util.{ArrayList => JavaArrayList, List => JavaList}
+import java.util.{ArrayList => JavaArrayList, List => JavaList, Date}
 
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.Schema
 import org.apache.hadoop.hive.ql.{Context, Driver, QueryPlan}
 import org.apache.hadoop.hive.ql.exec._
 import org.apache.hadoop.hive.ql.exec.OperatorFactory.OpTuple
+import org.apache.hadoop.hive.ql.log.PerfLogger
 import org.apache.hadoop.hive.ql.metadata.AuthorizationException
 import org.apache.hadoop.hive.ql.parse._
 import org.apache.hadoop.hive.ql.plan._
+import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hadoop.util.StringUtils
 
 import scala.collection.JavaConversions._
@@ -21,17 +23,14 @@ import shark.parse.{QueryContext, SharkSemanticAnalyzerFactory}
 
 /**
  * This static object is responsible for two things:
- * 1. Replace OperatorFactory.opvec with Shark specific operators.
- * 2. Add Shark specific tasks to TaskFactory.taskvec.
+ * - Add Shark specific tasks to TaskFactory.taskvec.
+ * - Use reflection to get access to private fields and methods in Hive Driver.
  *
  * See below for the SharkDriver class.
  */
 object SharkDriver extends LogHelper {
 
-  /**
-   * A dummy static method so we can make sure the following static code are
-   * executed.
-   */
+  // A dummy static method so we can make sure the following static code are executed.
   def runStaticCode() {
     logInfo("Initializing object SharkDriver")
   }
@@ -47,6 +46,46 @@ object SharkDriver extends LogHelper {
   // Start the dashboard. Disabled by default. This was developed for the demo
   // at SIGMOD. We might turn it on later for general consumption.
   //dashboard.Dashboard.start()
+
+  // Use reflection to make some private members accessible.
+  val planField = classOf[Driver].getDeclaredField("plan")
+  val contextField = classOf[Driver].getDeclaredField("ctx")
+  val schemaField = classOf[Driver].getDeclaredField("schema")
+  val errorMessageField = classOf[Driver].getDeclaredField("errorMessage")
+  val logField = classOf[Driver].getDeclaredField("LOG")
+  contextField.setAccessible(true)
+  planField.setAccessible(true)
+  schemaField.setAccessible(true)
+  errorMessageField.setAccessible(true)
+  logField.setAccessible(true)
+
+  val doAuthMethod = classOf[Driver].getDeclaredMethod(
+    "doAuthorization", classOf[BaseSemanticAnalyzer])
+  doAuthMethod.setAccessible(true)
+  val saHooksMethod = classOf[Driver].getDeclaredMethod(
+    "getHooks", classOf[HiveConf.ConfVars], classOf[Class[_]])
+  saHooksMethod.setAccessible(true)
+
+  /**
+   * Hold state variables specific to each query being executed, that may not
+   * be consistent in the overall SessionState. Unfortunately this class was
+   * a private static class in Driver. Too hard to use reflection ...
+   */
+  class QueryState {
+    private var op: HiveOperation = _
+    private var cmd: String = _
+    private var init = false;
+
+    def init(op: HiveOperation, cmd: String) {
+      this.op = op;
+      this.cmd = cmd;
+      this.init = true;
+    }
+
+    def isInitialized(): Boolean = this.init
+    def getOp = this.op
+    def getCmd() = this.cmd
+  }
 }
 
 
@@ -55,30 +94,20 @@ object SharkDriver extends LogHelper {
  */
 class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
 
-  // Use reflection to make some private members accessible.
-  val planField = this.getClass.getSuperclass.getDeclaredField("plan")
-  val contextField = this.getClass.getSuperclass.getDeclaredField("ctx")
-  val schemaField = this.getClass.getSuperclass.getDeclaredField("schema")
-  contextField.setAccessible(true)
-  planField.setAccessible(true)
-  schemaField.setAccessible(true)
-
-  val doAuthMethod = this.getClass.getSuperclass.getDeclaredMethod(
-    "doAuthorization", classOf[BaseSemanticAnalyzer])
-  doAuthMethod.setAccessible(true)
-  val saHooksMethod = this.getClass.getSuperclass.getDeclaredMethod(
-    "getSemanticAnalyzerHooks")
-  saHooksMethod.setAccessible(true)
-
   // Helper methods to access the private members made accessible using reflection.
   def plan = getPlan
-  def plan_= (value: QueryPlan): Unit = planField.set(this, value)
+  def plan_= (value: QueryPlan): Unit = SharkDriver.planField.set(this, value)
 
-  def context = contextField.get(this).asInstanceOf[QueryContext]
-  def context_= (value: QueryContext): Unit = contextField.set(this, value)
+  def context = SharkDriver.contextField.get(this).asInstanceOf[QueryContext]
+  def context_= (value: QueryContext): Unit = SharkDriver.contextField.set(this, value)
 
-  def schema = schemaField.get(this).asInstanceOf[Schema]
-  def schema_= (value: Schema): Unit = schemaField.set(this, value)
+  def schema = SharkDriver.schemaField.get(this).asInstanceOf[Schema]
+  def schema_= (value: Schema): Unit = SharkDriver.schemaField.set(this, value)
+
+  def errorMessage = SharkDriver.errorMessageField.get(this).asInstanceOf[String]
+  def errorMessage_= (value: String): Unit = SharkDriver.errorMessageField.set(this, value)
+
+  def LOG = SharkDriver.logField.get(null).asInstanceOf[org.apache.commons.logging.Log]
 
   var useTableRddSink = false
 
@@ -105,27 +134,41 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
   /**
    * Overload compile to use Shark's semantic analyzers.
    */
-  override def compile(cmd: String): Int = {
+  override def compile(cmd: String, resetTaskIds: Boolean): Int = {
+    val perfLogger: PerfLogger = PerfLogger.getPerfLogger()
+    perfLogger.PerfLogBegin(LOG, PerfLogger.COMPILE)
+
+    //holder for parent command type/string when executing reentrant queries
+    val queryState = new SharkDriver.QueryState
+
     if (plan != null) {
       close()
       plan = null
     }
 
-    TaskFactory.resetId()
+    if (resetTaskIds) {
+      TaskFactory.resetId()
+    }
+    saveSession(queryState)
 
     try {
       val command = new VariableSubstitution().substitute(conf, cmd)
       context = new QueryContext(conf, useTableRddSink)
+      context.setCmd(cmd)
+      context.setTryCount(getTryCount())
+
       val tree = ParseUtils.findRootNonNullToken((new ParseDriver()).parse(command, context))
       val sem = SharkSemanticAnalyzerFactory.get(conf, tree)
 
       // Do semantic analysis and plan generation
-      val saHooks = saHooksMethod.invoke(this).asInstanceOf[JavaList[AbstractSemanticAnalyzerHook]]
+      val saHooks = SharkDriver.saHooksMethod.invoke(this, HiveConf.ConfVars.SEMANTIC_ANALYZER_HOOK,
+        classOf[AbstractSemanticAnalyzerHook]).asInstanceOf[JavaList[AbstractSemanticAnalyzerHook]]
       if (saHooks != null) {
         val hookCtx = new HiveSemanticAnalyzerHookContextImpl()
-        hookCtx.setConf(conf);
+        hookCtx.setConf(conf)
         saHooks.foreach(_.preAnalyze(hookCtx, tree))
         sem.analyze(tree, context)
+        hookCtx.update(sem)
         saHooks.foreach(_.postAnalyze(hookCtx, sem.getRootTasks()))
       } else {
         sem.analyze(tree, context)
@@ -135,11 +178,11 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
 
       sem.validate()
 
-      plan = new QueryPlan(command, sem)
+      plan = new QueryPlan(command, sem,  perfLogger.getStartTime(PerfLogger.DRIVER_RUN))
 
       // Initialize FetchTask right here. Somehow Hive initializes it twice...
       if (sem.getFetchTask != null) {
-        sem.getFetchTask.initialize(conf, null, null)
+        sem.getFetchTask.initialize(conf, plan, null)
       }
 
       // get the output schema
@@ -150,14 +193,17 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
       // do the authorization check
       if (HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_AUTHORIZATION_ENABLED)) {
         try {
+          perfLogger.PerfLogBegin(LOG, PerfLogger.DO_AUTHORIZATION)
           // Use reflection to invoke doAuthorization().
-          doAuthMethod.invoke(this, sem)
+          SharkDriver.doAuthMethod.invoke(this, sem)
         } catch {
           case authExp: AuthorizationException => {
             logError("Authorization failed:" + authExp.getMessage()
               + ". Use show grant to get more details.")
             return 403
           }
+        } finally {
+          perfLogger.PerfLogEnd(LOG, PerfLogger.DO_AUTHORIZATION)
         }
       }
 
@@ -165,22 +211,38 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
       0
     } catch {
       case e: SemanticException => {
-        val errorMessage = "FAILED: Error in semantic analysis: " + e.getMessage()
+        errorMessage = "FAILED: Error in semantic analysis: " + e.getMessage()
         logError(errorMessage, "\n" + StringUtils.stringifyException(e))
         10
       }
       case e: ParseException => {
-        val errorMessage = "FAILED: Parse Error: " + e.getMessage()
+        errorMessage = "FAILED: Parse Error: " + e.getMessage()
         logError(errorMessage, "\n" + StringUtils.stringifyException(e))
         11
       }
       case e: Exception => {
-        val errorMessage = "FAILED: Hive Internal Error: " + Utilities.getNameMessage(e)
+        errorMessage = "FAILED: Hive Internal Error: " + Utilities.getNameMessage(e)
         logError(errorMessage, "\n" + StringUtils.stringifyException(e))
         12
       }
+    } finally {
+      perfLogger.PerfLogEnd(LOG, PerfLogger.COMPILE)
+      restoreSession(queryState)
     }
   }
 
-}
+  def saveSession(qs: SharkDriver.QueryState) {
+    val oldss: SessionState = SessionState.get();
+    if (oldss != null && oldss.getHiveOperation() != null) {
+      qs.init(oldss.getHiveOperation(), oldss.getCmd())
+    }
+  }
 
+  def restoreSession(qs: SharkDriver.QueryState) {
+    val ss: SessionState = SessionState.get()
+    if (ss != null && qs != null && qs.isInitialized()) {
+      ss.setCmd(qs.getCmd())
+      ss.setCommandType(qs.getOp)
+    }
+  }
+}

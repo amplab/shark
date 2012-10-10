@@ -104,7 +104,7 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
    * Initialize the object inspectors, evaluators, and serializers. Used on
    * both the master and the slave.
    */
-  def initializeOisAndSers(conf: ReduceSinkDesc, rowInspector: ObjectInspector) {
+  private def initializeOisAndSers(conf: ReduceSinkDesc, rowInspector: ObjectInspector) {
     keyEval = conf.getKeyCols.map(ExprNodeEvaluatorFactory.get(_)).toArray
     val numDistributionKeys = conf.getNumDistributionKeys()
     val distinctColIndices = conf.getDistinctColumnIndices()

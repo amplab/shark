@@ -4,7 +4,7 @@ import java.util.{List => JList, Properties}
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hdfs.DFSConfigKeys
-import org.apache.hadoop.hive.serde2.{ByteStream, SerDe}
+import org.apache.hadoop.hive.serde2.{ByteStream, SerDe, SerDeStats}
 import org.apache.hadoop.hive.serde2.`lazy`.{LazyFactory, LazySimpleSerDe}
 import org.apache.hadoop.hive.serde2.`lazy`.LazySimpleSerDe.SerDeParameters
 import org.apache.hadoop.hive.serde2.objectinspector.{ListObjectInspector, MapObjectInspector,
@@ -66,6 +66,11 @@ class ColumnarSerDe(builderFunc: ColumnBuilderCreateFunc.TYPE)
       cachedStruct = new ColumnarStruct(blob.asInstanceOf[ColumnarWritable])
     cachedStruct.initializeNextRow()
     cachedStruct
+  }
+
+  override def getSerDeStats: SerDeStats = {
+    // TODO: Stats are not collected yet.
+    new SerDeStats
   }
 
   override def getObjectInspector: ObjectInspector = cachedObjectInspector

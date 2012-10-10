@@ -11,6 +11,20 @@ import org.scalatest.FunSuite
  */
 class ReflectionSuite extends FunSuite {
 
+  test("CliDriver") {
+    val c = classOf[org.apache.hadoop.hive.cli.CliDriver]
+    var m = c.getDeclaredMethod("getFormattedDb",
+      classOf[org.apache.hadoop.hive.conf.HiveConf],
+      classOf[org.apache.hadoop.hive.cli.CliSessionState])
+    m.setAccessible(true)
+    assert(m.getReturnType == classOf[String])
+
+    m = c.getDeclaredMethod(
+      "spacesForString", classOf[String])
+    m.setAccessible(true)
+    assert(m.getReturnType == classOf[String])
+  }
+
   test("Driver") {
     val c = classOf[org.apache.hadoop.hive.ql.Driver]
 
@@ -19,7 +33,8 @@ class ReflectionSuite extends FunSuite {
     m.setAccessible(true)
     assert(m.getReturnType === Void.TYPE)
 
-    m = c.getDeclaredMethod("getSemanticAnalyzerHooks")
+    m = c.getDeclaredMethod("getHooks",
+      classOf[org.apache.hadoop.hive.conf.HiveConf.ConfVars], classOf[Class[_]])
     m.setAccessible(true)
     assert(m.getReturnType === classOf[java.util.List[_]])
 
@@ -34,6 +49,10 @@ class ReflectionSuite extends FunSuite {
     f = c.getDeclaredField("schema")
     f.setAccessible(true)
     assert(f.getType === classOf[org.apache.hadoop.hive.metastore.api.Schema])
+
+    f = c.getDeclaredField("LOG")
+    f.setAccessible(true)
+    assert(f.getType === classOf[org.apache.commons.logging.Log])
   }
 
   test("SemanticAnalyzer") {
@@ -49,16 +68,10 @@ class ReflectionSuite extends FunSuite {
       classOf[org.apache.hadoop.hive.ql.parse.RowResolver])
     m.setAccessible(true)
     assert(m.getReturnType === classOf[java.util.List[_]])
-  }
 
-  test("ExecDriver") {
-    val c = classOf[org.apache.hadoop.hive.ql.exec.ExecDriver]
-    var m = c.getDeclaredMethod(
-      "getResourceFiles",
-      classOf[org.apache.hadoop.conf.Configuration],
-      classOf[org.apache.hadoop.hive.ql.session.SessionState.ResourceType])
-    m.setAccessible(true)
-    assert(m.getReturnType === classOf[String])
+    val f = c.getDeclaredField("viewsExpanded")
+    f.setAccessible(true)
+    assert(f.getType === classOf[java.util.ArrayList[_]])
   }
 
   test("UnionOperator") {
@@ -66,5 +79,17 @@ class ReflectionSuite extends FunSuite {
     var f = c.getDeclaredField("needsTransform")
     f.setAccessible(true)
     assert(f.getType === classOf[Array[Boolean]])
+  }
+
+  test("FileSinkOperator") {
+    val fileSinkCls = classOf[org.apache.hadoop.hive.ql.exec.FileSinkOperator]
+    var f = fileSinkCls.getDeclaredField("fsp")
+    f.setAccessible(true)
+    assert(f.getType === classOf[org.apache.hadoop.hive.ql.exec.FileSinkOperator#FSPaths])
+
+    val fspCls  = classOf[org.apache.hadoop.hive.ql.exec.FileSinkOperator#FSPaths]
+    f = fspCls.getDeclaredField("finalPaths")
+    f.setAccessible(true)
+    assert(f.getType === classOf[Array[org.apache.hadoop.fs.Path]])
   }
 }

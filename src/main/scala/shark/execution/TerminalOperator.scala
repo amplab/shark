@@ -2,6 +2,7 @@ package shark.execution
 
 import java.util.{Date, HashMap => JHashMap}
 
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.io.Text
 import org.apache.hadoop.io.BytesWritable
 import org.apache.hadoop.hive.conf.HiveConf
@@ -14,8 +15,8 @@ import scala.reflect.BeanProperty
 
 import shark.{RDDUtils, SharkConfVars, SharkEnv}
 import shark.memstore._
-import shark.memstore.EnhancedRDD._
 import spark.{GrowableAccumulableParam, RDD, TaskContext}
+import spark.EnhancedRDD._
 import spark.SparkContext._
 
 
@@ -72,6 +73,41 @@ class FileSinkOperator extends TerminalOperator with Serializable {
     iter.foreach { row =>
       localHiveOp.processOp(row, 0)
     }
+
+    // Create missing parent directories so that the HiveFileSinkOperator can rename
+    // temp file without complaining.
+
+    // Two rounds of reflection are needed, since the FSPaths reference is private, and
+    // the FSPaths' finalPaths reference isn't publicly accessible.
+    val fspField = localHiveOp.getClass.getDeclaredField("fsp")
+    fspField.setAccessible(true)
+    val fileSystemPaths = fspField.get(localHiveOp).asInstanceOf[HiveFileSinkOperator#FSPaths]
+
+    // File paths for dynamic partitioning are determined separately. See FileSinkOperator.java.
+    if (fileSystemPaths != null) {
+      val finalPathsField = fileSystemPaths.getClass.getDeclaredField("finalPaths")
+      finalPathsField.setAccessible(true)
+      val finalPaths = finalPathsField.get(fileSystemPaths).asInstanceOf[Array[Path]]
+
+      // Get a reference to the FileSystem. No need for reflection here.
+      val fileSystem = FileSystem.get(localHconf)
+
+      for (idx <- 0 until finalPaths.length) {
+        var finalPath = finalPaths(idx)
+        if (finalPath == null) {
+          // If a query results in no output rows, then file paths for renaming will be
+          // created in localHiveOp.closeOp instead of processOp. But we need them before
+          // that to check for missing parent directories.
+          val createFilesMethod = localHiveOp.getClass.getDeclaredMethod(
+            "createBucketFiles", classOf[HiveFileSinkOperator#FSPaths])
+          createFilesMethod.setAccessible(true)
+          createFilesMethod.invoke(localHiveOp, fileSystemPaths)
+          finalPath = finalPaths(idx)
+        }
+        if (!fileSystem.exists(finalPath.getParent())) fileSystem.mkdirs(finalPath.getParent())
+      }
+    }
+
     localHiveOp.closeOp(false)
     iter
   }
@@ -173,4 +209,3 @@ class CacheSinkOperator(
  * Collect the output as a TableRDD.
  */
 class TableRddSinkOperator extends TerminalOperator {}
-

@@ -13,7 +13,8 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
-import spark.{UnionRDD, RDD}
+import spark.RDD
+import spark.rdd.UnionRDD
 import spark.SparkContext._
 
 

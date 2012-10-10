@@ -22,7 +22,10 @@ export SPARK_MEM=2g
 
 # Java options
 # On EC2, change the local.dir to /mnt/tmp
-export SPARK_JAVA_OPTS="-Dspark.local.dir=/tmp -Dspark.kryoserializer.buffer.mb=10  -verbose:gc -XX:-PrintGCDetails -XX:+PrintGCTimeStamps"
+SPARK_JAVA_OPTS="-Dspark.local.dir=/tmp "
+SPARK_JAVA_OPTS+="-Dspark.kryoserializer.buffer.mb=10 "
+SPARK_JAVA_OPTS+="-verbose:gc -XX:-PrintGCDetails -XX:+PrintGCTimeStamps "
+export SPARK_JAVA_OPTS
 
 # HIVE_HOME, point to Hive binary distribution
 export HIVE_HOME=""
@@ -39,4 +42,3 @@ export SCALA_HOME=""
 # The following is only needed for development and testing (SBT test uses this).
 #export HIVE_DEV_HOME=""
 #export HIVE_HOME=$HIVE_DEV_HOME/build/dist
-

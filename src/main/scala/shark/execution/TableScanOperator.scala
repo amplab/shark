@@ -20,8 +20,9 @@ import scala.reflect.BeanProperty
 import org.apache.hadoop.hive.ql.exec.MapSplitPruning
 import shark.{SharkConfVars, SharkEnv}
 import shark.memstore.{CacheKey, RDDSerializer, TableStats}
-import shark.memstore.EnhancedRDD._
-import spark.{RDD, UnionRDD}
+import spark.RDD
+import spark.EnhancedRDD._
+import spark.rdd.UnionRDD
 
 
 class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopOperator {
@@ -96,7 +97,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
 
     // Stats used for map pruning.
     val splitToStats: collection.Map[Int, TableStats] = SharkEnv.cache.keyToStats(tableKey)
-    
+
     // Run map pruning if the flag is set, there exists a filter predicate on
     // the input table and we have statistics on the table.
     val prunedRdd: RDD[_] =
@@ -162,7 +163,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     }
   }
 
-  def makePartitionRDD(rdd: RDD[_]): RDD[_] = {
+  def makePartitionRDD[T](rdd: RDD[T]): RDD[_] = {
     val partitions = parts
     val rdds = new Array[RDD[Any]](partitions.size)
 
@@ -178,7 +179,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
       val parts = SharkEnv.sc.hadoopFile(
         tablePath, ifc, classOf[Writable], classOf[Writable]).map(_._2)
 
-      val serializedHconf = XmlSerializer.serialize(localHconf)
+      val serializedHconf = XmlSerializer.serialize(localHconf, localHconf)
       val partRDD = parts.mapPartitions { iter =>
         // Map each tuple to a row object
         val hconf = XmlSerializer.deserialize(serializedHconf).asInstanceOf[HiveConf]

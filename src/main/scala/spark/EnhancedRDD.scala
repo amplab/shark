@@ -1,6 +1,4 @@
-package shark.memstore
-
-import spark.{OneToOneDependency, RDD, Split}
+package spark
 
 class EnhancedRDD[T: ClassManifest](self: RDD[T]) {
   def pruneSplits(splitsFilterFunc: Int => Boolean): RDD[T] =

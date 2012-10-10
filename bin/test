@@ -1,0 +1,69 @@
+#!/bin/bash
+
+get_abs_path() {
+    local PARENT_DIR=$(dirname "$1")
+    cd "$PARENT_DIR"
+    local ABS_PATH="$(pwd)"/"$(basename $1)"
+    cd - >/dev/null
+    echo $ABS_PATH
+}
+
+CURRENTFILE=`get_abs_path $0`
+BINDIR="`dirname $CURRENTFILE`"
+FWDIR="`dirname $BINDIR`"
+
+# Load environment variables from conf/shark-env.sh, if it exists
+if [ -e $FWDIR/conf/shark-env.sh ] ; then
+  . $FWDIR/conf/shark-env.sh
+fi
+
+# Hive related section.
+if [ -z $HIVE_DEV_HOME ] ; then
+  echo "No HIVE_DEV_HOME specified. Please set HIVE_DEV_HOME"
+  exit 1
+fi
+
+# Hive related section.
+if [ -z $HADOOP_HOME ] ; then
+  echo "No HADOOP_HOME specified. Please set HADOOP_HOME"
+  exit 1
+fi
+
+# Check for SCALA_HOME
+if [ -z $SCALA_HOME ] ; then
+  echo "No SCALA_HOME specified. Please set SCALA_HOME"
+  exit 1
+fi
+
+if [ -n "$TEST_FILE" ] ; then
+  TEST_FILE=`get_abs_path $TEST_FILE`
+  export TEST_FILE
+fi
+
+
+CLASSPATH+=:${HIVE_DEV_HOME}/build/ql/test/classes
+CLASSPATH+=:${HIVE_DEV_HOME}/build/ivy/lib/test/hadoop-test-0.20.2.jar
+CLASSPATH+=:${HIVE_DEV_HOME}/data/conf
+export CLASSPATH
+
+BUILD_PATH=$HIVE_DEV_HOME/build/ql
+
+# Set variables used by unit tests (ex. create_like.q).
+TEST_JAVA_OPTS="-Dbuild.dir=${HIVE_DEV_HOME}/build/ql "
+TEST_JAVA_OPTS+="-Dbuild.dir.hive=${HIVE_DEV_HOME}/build "
+TEST_JAVA_OPTS+="-Dbuild.ivy.lib.dir=${HIVE_DEV_HOME}/build/ivy/lib "
+TEST_JAVA_OPTS+="-Dderby.version=10.4.2.0 "
+TEST_JAVA_OPTS+="-Dlog4j.configuration=file://${HIVE_DEV_HOME}/data/conf/hive-log4j.properties "
+TEST_JAVA_OPTS+="-Dtest.log.dir=${BUILD_PATH}/test/logs "
+TEST_JAVA_OPTS+="-Dtest.output.overwrite=false "
+TEST_JAVA_OPTS+="-Dtest.src.data.dir=${HIVE_DEV_HOME}/data "
+TEST_JAVA_OPTS+="-Dtest.tmp.dir=${BUILD_PATH}/tmp "
+TEST_JAVA_OPTS+="-Dtest.warehouse.dir=${BUILD_PATH}/test/data/warehouse "
+#TEST_JAVA_OPTS+="-Duser.dir=${HIVE_DEV_HOME}/ql "
+
+export TEST_JAVA_OPTS
+
+# Set the current directory to hive/ql since lots of tests use relative path.
+cd ${HIVE_DEV_HOME}/ql
+
+exec $FWDIR/run junit.textui.TestRunner shark.TestSharkCliDriver "$@"

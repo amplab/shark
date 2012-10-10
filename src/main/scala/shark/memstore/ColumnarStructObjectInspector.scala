@@ -61,12 +61,17 @@ object ColumnarStructObjectInspector {
   class IDStructField(
       val fieldID: Int,
       val fieldName: String,
-      val fieldObjectInspector: ObjectInspector)
+      val fieldObjectInspector: ObjectInspector,
+      val fieldComment: String)
     extends StructField {
-  
+
+    def this(fieldID: Int, fieldName: String, fieldObjectInspector: ObjectInspector) =
+      this(fieldID, fieldName, fieldObjectInspector, null)
+
     override def getFieldName: String = fieldName
     override def getFieldObjectInspector: ObjectInspector = fieldObjectInspector
     override def toString(): String = "" + fieldID + ":" + fieldName
+    override def getFieldComment() : String = fieldComment
   }
 }
 

@@ -22,7 +22,7 @@ if [ -z $SCALA_HOME ] ; then
 fi
 
 CLASSPATH+=:${HIVE_DEV_HOME}/build/ql/test/classes
-CLASSPATH+=:${HIVE_DEV_HOME}/build/hadoopcore/hadoop-0.20.1/hadoop-0.20.1-test.jar
+CLASSPATH+=:${HIVE_DEV_HOME}/build/ivy/lib/test/hadoop-test-0.20.2.jar
 CLASSPATH+=:${HIVE_DEV_HOME}/data/conf
 
 # Add Scala JARS

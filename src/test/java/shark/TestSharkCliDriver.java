@@ -12,6 +12,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import junit.framework.Test;
+import junit.framework.TestCase;
 import junit.framework.TestSuite;
 
 import org.apache.hadoop.hive.cli.TestCliDriver;
@@ -28,7 +29,7 @@ public class TestSharkCliDriver extends TestCliDriver {
   static {
     // Replace qt in Hive's TestCliDriver with SharkQTestUtil.
     try {
-      
+
       Field qtField = TestCliDriver.class.getDeclaredField("qt");
       qtField.setAccessible(true);
 
@@ -42,8 +43,9 @@ public class TestSharkCliDriver extends TestCliDriver {
       String logDir = (String) logDirField.get(qt);
 
       qt = new SharkQTestUtil(outDir, logDir);
-      qt.cleanUp();
-      qt.createSources();
+      // cleanUp / createSources are already called in TestCliDriver.
+      //qt.cleanUp();
+      //qt.createSources();
 
       qtField.set(null, qt);
 
@@ -59,10 +61,10 @@ public class TestSharkCliDriver extends TestCliDriver {
   public static Test suite() {
     TestSuite suite = new TestSuite();
     TestSuite hiveSuite = (TestSuite) TestCliDriver.suite();
-    
+
     @SuppressWarnings("unchecked")
-    Enumeration<TestCliDriver> tests = (Enumeration<TestCliDriver>) hiveSuite.tests();
-    
+    Enumeration<Test> tests = (Enumeration<Test>) hiveSuite.tests();
+
     String fileName = System.getenv("TEST_FILE");
     Set<String> regTestsFromFile = new HashSet<String>();
     if (fileName != null && fileName.length() > 0) {
@@ -80,13 +82,13 @@ public class TestSharkCliDriver extends TestCliDriver {
         System.exit(1);
       }
     }
-    
+
     Pattern regexPattern = null;
     String pattern = System.getenv("TEST");
     if (pattern != null && pattern.length() > 0) {
       regexPattern = Pattern.compile(System.getenv("TEST"));
     }
-    
+
     System.out.println("---------------------------------------------------");
     System.out.println("---------------------------------------------------");
     System.out.println("---------------------------------------------------");
@@ -94,36 +96,37 @@ public class TestSharkCliDriver extends TestCliDriver {
     System.out.println(TestSharkCliDriver.class.getName());
 
     while (tests.hasMoreElements()) {
-      TestCliDriver test = tests.nextElement();
-      
+      @SuppressWarnings("unchecked")
+      TestCase test = (TestCase) tests.nextElement();
+
       boolean passRegex = (regexPattern == null);
       boolean passFile = (regTestsFromFile.size() == 0);
-      
+
       if (regexPattern != null) {
         Matcher m = regexPattern.matcher(test.getName());
         if (m.find() || test.getName() == "testCliDriver_shutdown") {
           passRegex = true;
         }
       }
-      
+
       if (regTestsFromFile.size() > 0) {
         passFile = regTestsFromFile.contains(test.getName());
       }
-      
+
       if (passRegex && passFile) {
         suite.addTest(test);
         System.out.println("TestSharkCliDriver: " + test.getName());
       }
     }
-    
+
     System.out.println("TestSharkCliDriver total test to run: " + suite.countTestCases());
-    
+
     System.out.println("---------------------------------------------------");
     System.out.println("---------------------------------------------------");
     System.out.println("---------------------------------------------------");
     System.out.println("---------------------------------------------------");
 
-    
+
     return suite;
   }
 }
