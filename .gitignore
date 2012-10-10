@@ -6,6 +6,8 @@ lib_managed/
 TempStatsStore
 work/
 
+conf/shark-env.sh
+
 # Compiled Source
 *.class
 
