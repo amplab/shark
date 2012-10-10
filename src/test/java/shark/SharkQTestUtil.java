@@ -138,12 +138,13 @@ public class SharkQTestUtil extends QTestUtil {
     // Only keep 5 digits of precision for floating point numbers.
     // Also trim trailing whitespace.
     String truncFloatCmd = "perl -p -e 's/(\\d\\.\\d{5})\\d*/\\1/g;' -e 's/\\s+$/\\n/g'";
+    String expectedFile = (new File(logDir, tname + ".out")).getPath();
 
     String cmdString = "\""
-        + StringUtils.join(cmdArray, "\" \"")
-        + "\" " + "<(sort " + (new File(logDir, tname + ".out")).getPath()
-        + " | " + truncFloatCmd + ") " + "<(sort " + outFileName + " | "
-        + truncFloatCmd + ")";
+        + StringUtils.join(cmdArray, "\" \"") + "\" "
+        + "<(sort " + expectedFile + " | " + truncFloatCmd + ") "
+        + "<(sort " + outFileName + " | " + truncFloatCmd + ")";
+    System.out.println("Comparing: " + expectedFile + " " + outFileName);
     System.out.println(cmdString);
 
     //System.out.println(org.apache.commons.lang.StringUtils.join(cmdArray, ' '));
