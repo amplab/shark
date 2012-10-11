@@ -6,10 +6,7 @@ import org.apache.hadoop.hive.ql.exec.{ ExprNodeEvaluator, JoinUtil }
 import org.apache.hadoop.hive.ql.exec.persistence.AbstractMapJoinKey
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 
-import scala.collection.immutable.Map
-
 import shark.SharkEnv
-import shark.collections.Conversions._
 import spark.RDD
 
 
@@ -19,17 +16,17 @@ import spark.RDD
  * and read them back in on the slave nodes.
  */
 trait MapJoinHashTablesFetcher {
-  def get: Map[Int, MapJoinHashTable]
+  def get: Map[Int, MapJoinOperator.MapJoinHashTable]
 }
 
 
 /**
  * Uses Spark's broadcast variable to fetch the hash tables on slaves.
  */
-class MapJoinHashTablesBroadcast(hashtables: Map[Int, MapJoinHashTable])
+class MapJoinHashTablesBroadcast(hashtables: Map[Int, MapJoinOperator.MapJoinHashTable])
   extends MapJoinHashTablesFetcher with Serializable
 {
   val broadcast = SharkEnv.sc.broadcast(hashtables) 
-  def get: Map[Int, MapJoinHashTable] = broadcast.value
+  def get: Map[Int, MapJoinOperator.MapJoinHashTable] = broadcast.value
 }
 

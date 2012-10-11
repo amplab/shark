@@ -92,7 +92,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     }
   }
 
-  def loadRddFromCache(tableKey: CacheKey[String], rdd: RDD[_]): RDD[_] = {
+  def loadRddFromCache(tableKey: CacheKey, rdd: RDD[_]): RDD[_] = {
     logInfo("Loading table from cache " + tableKey)
 
     // Stats used for map pruning.

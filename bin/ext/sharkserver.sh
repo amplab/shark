@@ -4,7 +4,7 @@ export SERVICE_LIST="${SERVICE_LIST}${THISSERVICE} "
 
 sharkserver() {
   echo "Starting the Shark Server"
-  $FWDIR/run shark.SharkServer "$@"
+  exec $FWDIR/run shark.SharkServer "$@"
 }
 
 sharkserver_help() {

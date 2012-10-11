@@ -12,6 +12,9 @@ object SharkConfVars {
   // format. To pass the test scripts, we need to use Hive's EXPLAIN.
   val EXPLAIN_MODE = new ConfVar("shark.explain.mode", "shark")
 
+  // If true, keys that are NULL are equal. For strict SQL standard, set this to true.
+  val JOIN_CHECK_NULL = new ConfVar("shark.join.checknull", true)
+
   // Specify the initial capacity for ArrayLists used to represent columns in columnar
   // cache. The default -1 for non-local mode means that Shark will try to estimate
   // the number of rows by using: partition_size / (num_columns * avg_field_size).
@@ -19,7 +22,7 @@ object SharkConfVars {
     if (System.getenv("MASTER") == null) 100 else -1)
 
   // If true, then cache any table whose name ends in "_cached".
-  val CHECK_TABLENAME_FLAG = new ConfVar("shark.cache.flag.checkTableName", false)
+  val CHECK_TABLENAME_FLAG = new ConfVar("shark.cache.flag.checkTableName", true)
 
   // Prune map splits for cached tables based on predicates in queries.
   val MAP_PRUNING = new ConfVar("shark.mappruning", true)

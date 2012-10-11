@@ -20,12 +20,14 @@ trait HiveTopOperator extends LogHelper {
    * upstream operators (i.e. ReduceSink) or in the case of TableScan, passed
    * by the init code in SparkTask.
    */
+  @transient
   val inputObjectInspectors = new scala.collection.mutable.HashMap[Int, ObjectInspector]
 
   /**
    * Stores the deser for operators downstream from ReduceSink. This is set by
    * ReduceSink.initializeDownStreamHiveOperators().
    */
+  @transient
   val keyValueTableDescs = new scala.collection.mutable.HashMap[Int, (TableDesc, TableDesc)]
 
   /**

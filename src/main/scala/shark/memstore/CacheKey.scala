@@ -1,15 +1,17 @@
 package shark.memstore
 
-case class CacheKey[T](val key: T) {
+case class CacheKey(keyStr: String) {
+
+  val key: String = keyStr.toLowerCase()
+
   override def equals(o: Any): Boolean = {
     o match {
-      case ck: CacheKey[_] => ck.key match {
-        case k: T => k == key
-        case _ => false
-      }
+      case ck: CacheKey => key.equals(ck.key)
       case _ => false
     }
   }
 
-  override def hashCode(): Int = key.hashCode()
+  override def hashCode(): Int = {
+    key.hashCode()
+  }
 }

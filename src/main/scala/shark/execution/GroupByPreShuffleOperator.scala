@@ -1,4 +1,5 @@
 package org.apache.hadoop.hive.ql.exec
+// Put this file in Hive's exec package to access package level visible fields and methods.
 
 import java.util.{ArrayList, HashMap => JHashMap}
 

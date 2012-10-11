@@ -43,11 +43,19 @@ with java.io.Serializable with LogHelper {
     // Adding files to the SparkContext
     // Added required files
     val files = Utilities.getResourceFiles(conf, SessionState.ResourceType.FILE)
-    files.split(",").filterNot(_.isEmpty).foreach { SharkEnv.sc.addFile(_) }
+    files.split(",").filterNot(x => x.isEmpty || SharkEnv.addedFiles.contains(x)).foreach { x =>
+      logInfo("Adding file "  + x )
+      SharkEnv.addedFiles.add(x)
+      SharkEnv.sc.addFile(x)
+    }
 
     // Added required jars
     val jars = Utilities.getResourceFiles(conf, SessionState.ResourceType.JAR)
-    jars.split(",").filterNot(_.isEmpty).foreach { SharkEnv.sc.addJar(_) }
+    jars.split(",").filterNot(x => x.isEmpty || SharkEnv.addedJars.contains(x)).foreach { x => 
+      logInfo("Adding jar "  + x )
+      SharkEnv.addedJars.add(x)
+      SharkEnv.sc.addJar(x) 
+    }
 
     Operator.hconf = conf
 

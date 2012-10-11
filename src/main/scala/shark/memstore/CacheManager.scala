@@ -4,16 +4,16 @@ import spark.RDD
 
 class CacheManager {
 
-  val keyToRdd = new collection.mutable.HashMap[CacheKey[_], RDD[_]]()
+  val keyToRdd = new collection.mutable.HashMap[CacheKey, RDD[_]]()
 
-  val keyToStats = new collection.mutable.HashMap[CacheKey[_], collection.Map[Int, TableStats]]
+  val keyToStats = new collection.mutable.HashMap[CacheKey, collection.Map[Int, TableStats]]
 
-  def put(key: CacheKey[_], rdd: RDD[_]) {
+  def put(key: CacheKey, rdd: RDD[_]) {
     keyToRdd(key) = rdd
     rdd.cache()
   }
 
-  def get(key: CacheKey[_]): Option[RDD[_]] = keyToRdd.get(key)
+  def get(key: CacheKey): Option[RDD[_]] = keyToRdd.get(key)
 
   /**
    * Find all keys that are strings. Used to drop tables after exiting.

@@ -1,4 +1,5 @@
 package org.apache.hadoop.hive.ql.exec
+// Put this file in Hive's exec package to access package level visible fields and methods.
 
 import java.util.ArrayList
 import java.util.{HashMap => JHashMap, HashSet => JHashSet, Set => JSet}
@@ -25,6 +26,8 @@ import spark.rdd.ShuffledAggregatedRDD
 import spark.SparkContext._
 
 
+// The final phase of group by.
+// TODO(rxin): For multiple distinct aggregations, use sort-based shuffle.
 class GroupByPostShuffleOperator extends GroupByPreShuffleOperator
 with HiveTopOperator {
 
