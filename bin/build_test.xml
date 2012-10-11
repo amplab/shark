@@ -5,15 +5,18 @@
   <property environment="env"/>
 
   <target name="test" description="Run tests">
-    <mkdir dir="${test.build.dir}"/>
+    <mkdir dir="test-results"/>
     <junit showoutput="true" printsummary="yes" haltonfailure="no"
-      fork="yes" maxmemory="512m" dir="../" timeout="18200000"
+      maxmemory="2g" dir="../" timeout="18200000"
       errorProperty="tests.failed" failureProperty="tests.failed" filtertrace="off">
 
       <sysproperty key="user.dir" value="${user.dir}"/>
       <sysproperty key="test.tmp.dir" value="${test.tmp.dir}"/>
       <sysproperty key="test.warehouse.dir" value="${test.warehouse.dir}"/>
+      <sysproperty key="test.log.dir" value="${test.log.dir}"/>
+      <sysproperty key="test.src.data.dir" value="${test.src.data.dir}"/>
       <sysproperty key="build.dir" value="${build.dir}"/>
+      <sysproperty key="build.ivy.lib.dir" value="${build.ivy.lib.dir}"/>
       <sysproperty key="build.dir.hive" value="${build.dir.hive}"/>
       <sysproperty key="test.output.overwrite" value="${test.output.overwrite}"/>
       <sysproperty key="test.user.dir" value="${user.dir}"/>
@@ -22,7 +25,7 @@
       <formatter type="xml" usefile="true" />
       <classpath path="${env.CLASSPATH}"/>
       <assertions> <enable /> </assertions>
-      <test name="shark.TestSharkCliDriver" todir="${test.build.dir}" />
+      <test name="shark.TestSharkCliDriver" todir="test-results" />
     </junit>
   </target>
 </project>
