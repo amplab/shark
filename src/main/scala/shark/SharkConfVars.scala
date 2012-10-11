@@ -22,7 +22,7 @@ object SharkConfVars {
     if (System.getenv("MASTER") == null) 100 else -1)
 
   // If true, then cache any table whose name ends in "_cached".
-  val CHECK_TABLENAME_FLAG = new ConfVar("shark.cache.flag.checkTableName", false)
+  val CHECK_TABLENAME_FLAG = new ConfVar("shark.cache.flag.checkTableName", true)
 
   // If true, then query plans are compressed before being sent
   val COMPRESS_QUERY_PLAN = new ConfVar("shark.compressQueryPlan", true)
