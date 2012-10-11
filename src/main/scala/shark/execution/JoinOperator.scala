@@ -99,7 +99,7 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
 
       val cp = new CartesianProduct[Any](op.numTables)
 
-      part.flatMap { case (k: ReduceKey, bufs: Array[ArrayBuffer[Any]]) =>
+      part.flatMap { case (k: ReduceKey, bufs: Array[_]) =>
         writable.set(k.bytes)
 
         // If nullCheck is false, we can skip deserializing the key.
