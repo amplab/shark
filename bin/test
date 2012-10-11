@@ -70,6 +70,7 @@ if [ "$TEST_WITH_ANT" == "1" ] ; then
   CLASSPATH+=":$SCALA_HOME/lib/scala-library.jar"
   CLASSPATH+=":$SCALA_HOME/lib/scala-compiler.jar"
   CLASSPATH+=":$SCALA_HOME/lib/jline.jar"
+  export CLASSPATH
   export RUNNER="ant -noclasspath -nouserlib -f $FWDIR/bin/build_test.xml test"
   exec $FWDIR/run "$@"
 else
