@@ -12,6 +12,7 @@ class SharkServerSuite extends SharkCliSuite {
   before {
     val serverPb = new ProcessBuilder("./bin/shark", "--service", "sharkserver")
     val serverEnv = serverPb.environment()
+    serverEnv.put("SHARK_LAUNCH_WITH_JAVA", "1")
     serverProcess = serverPb.start()
     serverInputReader = new BufferedReader(new InputStreamReader(serverProcess.getInputStream))
     serverErrorReader = new BufferedReader(new InputStreamReader(serverProcess.getErrorStream))
@@ -22,7 +23,7 @@ class SharkServerSuite extends SharkCliSuite {
     outputWriter = new PrintWriter(process.getOutputStream, true)
     inputReader = new BufferedReader(new InputStreamReader(process.getInputStream))
     errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream))
-    waitForOutput(inputReader, "shark>", 25000)
+    waitForOutput(inputReader, "shark>")
   }
 
   after {
@@ -49,6 +50,7 @@ class SharkServerSuite extends SharkCliSuite {
     executeQuery("load data local inpath '" + dataFilePath+ "' overwrite into table test;")
     val out = executeQuery("select * from test where key = 407;")
     assert(out.contains("val_407"))
+    //executeQuery("exit;")
   }
 
 }
