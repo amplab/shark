@@ -1,10 +1,26 @@
 package shark
 
 import java.io.File
+import java.io.{BufferedReader, InputStreamReader, PrintWriter}
+import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
-class CachedSuite extends SharkShellCliSuite {
+class CachedSuite extends FunSuite with BeforeAndAfterAll with CliTestToolkit {
 
   val wareHousePath = "/user/hive/warehouse"
+
+  override def beforeAll() {
+    val pb = new ProcessBuilder("./bin/shark")
+    process = pb.start()
+    outputWriter = new PrintWriter(process.getOutputStream, true)
+    inputReader = new BufferedReader(new InputStreamReader(process.getInputStream))
+    errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream))
+    waitForOutput(inputReader, "shark>")
+  }
+
+  override def afterAll() {
+    process.destroy()
+    process.waitFor()
+  }
 
   test("Cached table with simple types") {
     val dataFilePath = System.getenv("HIVE_DEV_HOME") + "/data/files/kv1.txt"
@@ -32,7 +48,7 @@ class CachedSuite extends SharkShellCliSuite {
 
   test("Tables are not cached by default") {
     val dataFilePath = System.getenv("HIVE_DEV_HOME") + "/data/files/kv1.txt"
-    executeQuery("drop table if exists shark_test3;");
+    executeQuery("set shark.cache.flag.checkTableName=false; drop table if exists shark_test3;")
     executeQuery("drop table if exists shark_test3_cached;");
     executeQuery("create table shark_test3(key int, val string);")
     executeQuery("load data local inpath '" + dataFilePath+ "' overwrite into table shark_test3;")
@@ -66,11 +82,8 @@ class CachedSuite extends SharkShellCliSuite {
     assert(isCachedTable("sharkTest5Cached"))
   }
 
-
-
   def isCachedTable(tableName: String) : Boolean = {
     val dir = new File(wareHousePath + "/" + tableName)
     dir.isDirectory && dir.listFiles.isEmpty
   }
-
 }

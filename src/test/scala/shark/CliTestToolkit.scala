@@ -1,9 +1,8 @@
 package shark
 
 import java.io.{BufferedReader, InputStreamReader, PrintWriter}
-import org.scalatest.{BeforeAndAfter, FunSuite}
 
-abstract class SharkCliSuite extends FunSuite with BeforeAndAfter {
+trait CliTestToolkit {
 
   var process : Process = null
   var outputWriter : PrintWriter = null
@@ -27,7 +26,8 @@ abstract class SharkCliSuite extends FunSuite with BeforeAndAfter {
     }
   }
 
-  protected def waitForOutput(reader: BufferedReader, str: String, timeout: Long) : Boolean = {
+  protected def waitForOutput(
+    reader: BufferedReader, str: String, timeout: Long = 10000) : Boolean = {
     val startTime = System.currentTimeMillis
     var out = ""
     while (!out.contains(str) && (System.currentTimeMillis) < (startTime + timeout)) {
@@ -41,7 +41,7 @@ abstract class SharkCliSuite extends FunSuite with BeforeAndAfter {
     // Remove GC Messages
     val filteredOutput = output.lines.filterNot(x => x.contains("[GC") || x.contains("[Full GC"))
       .mkString("\n")
-    filteredOutput 
+    filteredOutput
   }
 
   protected def readFrom(reader: BufferedReader) : String = {

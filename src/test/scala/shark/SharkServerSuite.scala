@@ -3,7 +3,7 @@ package shark
 import java.io.{BufferedReader, InputStreamReader, PrintWriter}
 import org.scalatest.{BeforeAndAfter, FunSuite}
 
-class SharkServerSuite extends SharkCliSuite {
+class SharkServerSuite extends FunSuite with BeforeAndAfter with CliTestToolkit {
 
   var serverProcess : Process = null
   var serverInputReader : BufferedReader = null
