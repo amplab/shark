@@ -1,6 +1,6 @@
 package shark.execution
 
-import java.util.Date
+import java.util.{Date, HashMap => JavaHashMap}
 
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.io.Text
@@ -12,7 +12,7 @@ import org.apache.hadoop.mapred.{TaskID, TaskAttemptID, HadoopWriter}
 
 import scala.reflect.BeanProperty
 
-import shark.{CacheKey, RDDUtils, SharkEnv}
+import shark.{CacheKey, RDDUtils, SharkConfVars, SharkEnv}
 import spark.{RDD, TaskContext}
 
 
@@ -49,6 +49,14 @@ class TerminalOperator extends TerminalAbstractOperator[HiveFileSinkOperator] {
 
 class FileSinkOperator extends TerminalOperator with Serializable {
 
+  // Pass the file extension ConfVar used by HiveFileSinkOperator.
+  @BeanProperty var outputFileExtension: String = _
+
+  override def initializeOnMaster() {
+    super.initializeOnMaster()
+    outputFileExtension = HiveConf.getVar(localHconf, HiveConf.ConfVars.OUTPUT_FILE_EXTENSION)
+  }
+
   def initializeOnSlave(context: TaskContext) {
     setConfParams(localHconf, context)
     initializeOnSlave()
@@ -64,6 +72,11 @@ class FileSinkOperator extends TerminalOperator with Serializable {
     conf.set("mapred.task.id", taID.toString)
     conf.setBoolean("mapred.task.is.map", true)
     conf.setInt("mapred.task.partition", splitID)
+
+    // Variables used by FileSinkOperator.
+    if (outputFileExtension != null) {
+      conf.setVar(HiveConf.ConfVars.OUTPUT_FILE_EXTENSION, outputFileExtension)
+    }
   }
 
   override def processPartition[T](iter: Iterator[T]): Iterator[_] = {
@@ -144,7 +157,19 @@ object FileSinkOperator {
  */
 class CacheSinkOperator(@BeanProperty var tableName: String) extends TerminalOperator {
 
+  @BeanProperty var initialColumnSize: Int = _
+
   def this() = this(null)
+
+  override def initializeOnMaster() {
+    super.initializeOnMaster()
+    initialColumnSize = SharkConfVars.getIntVar(localHconf, SharkConfVars.COLUMN_INITIALSIZE)
+  }
+
+  override def initializeOnSlave() {
+    super.initializeOnSlave()
+    localHconf.setInt(SharkConfVars.COLUMN_INITIALSIZE.varname, initialColumnSize)
+  }
 
   override def processPartition[T](iter: Iterator[T]): Iterator[_] = {
     RDDUtils.serialize(
