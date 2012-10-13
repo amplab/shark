@@ -1,8 +1,10 @@
 package shark
 
+import java.io.{FileOutputStream, IOException, PrintStream, UnsupportedEncodingException}
 import java.util.{ArrayList, List => JavaList}
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.hive.common.LogUtils
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.Schema
 import org.apache.hadoop.hive.ql.Driver
@@ -14,18 +16,20 @@ import org.apache.thrift.TProcessor
 import org.apache.thrift.protocol.TBinaryProtocol
 import org.apache.thrift.server.TThreadPoolServer
 import org.apache.thrift.transport.{TTransport, TTransportFactory, TServerSocket}
-import spark.SparkContext
+import spark.{SparkContext, SparkEnv}
+
 
 object SharkServer {
 
   private val LOG = LogFactory.getLog("SharkServer")
 
-  SharkEnv.sc = new SparkContext(
-    if (System.getenv("MASTER") == null) "local" else System.getenv("MASTER"),
-    "Shark::" + java.net.InetAddress.getLocalHost.getHostName)
+  // Force initialization of SharkEnv.
+  SharkEnv.init
+
+  val serverEnv = SparkEnv.get
 
   def main(args: Array[String]) {
-    SessionState.initHiveLog4j();
+    LogUtils.initHiveLog4j();
 
     var port = 10000;
     var minWorkerThreads = 100 // default number of threads serving the Hive server
@@ -33,33 +37,54 @@ object SharkServer {
     if (args.length >= 2) minWorkerThreads = Integer.parseInt(args.apply(1))
 
     val serverTransport = new TServerSocket(port);
-    val hfactory = new SharkHiveProcessingFactory(null)
-    val options = new TThreadPoolServer.Options()
-    options.minWorkerThreads = minWorkerThreads
-    val server = new TThreadPoolServer(hfactory, serverTransport,
-      new TTransportFactory(), new TTransportFactory(),
-      new TBinaryProtocol.Factory(), new TBinaryProtocol.Factory(), options)
+    val hfactory = new SharkHiveProcessingFactory(null, new HiveConf())
+    val ttServerArgs = new TThreadPoolServer.Args(serverTransport)
+    ttServerArgs.processorFactory(hfactory)
+    ttServerArgs.minWorkerThreads(minWorkerThreads)
+    ttServerArgs.transportFactory(new TTransportFactory())
+    ttServerArgs.protocolFactory(new TBinaryProtocol.Factory())
+    val server = new TThreadPoolServer(ttServerArgs)
+
+    // Stop the server and clean up the Shark environment when we exit
+    Runtime.getRuntime().addShutdownHook(
+      new Thread() {
+        override def run() {
+          if (server != null) {
+            server.stop()
+          }
+          SharkEnv.stop()
+        }
+      }
+    )
+
     LOG.info("Starting shark server on port " + port)
     server.serve()
   }
+
 }
 
-class SharkHiveProcessingFactory(processor: TProcessor) extends ThriftHiveProcessorFactory(processor) {
+class SharkHiveProcessingFactory(processor: TProcessor, conf: HiveConf)
+  extends ThriftHiveProcessorFactory(processor, conf) {
 
   override def getProcessor(trans: TTransport) = new ThriftHive.Processor(new SharkServerHandler)
 }
 
-class SharkServerHandler extends HiveServerHandler {
+class SharkServerHandler extends HiveServerHandler with LogHelper {
 
   private val ss = SessionState.get()
 
   private val conf: Configuration = if (ss != null) ss.getConf() else new Configuration()
+
+  SharkConfVars.initializeWithDefaults(conf);
 
   private val driver = {
     val d = new SharkDriver(conf.asInstanceOf[HiveConf])
     d.init()
     d
   }
+
+  // Make sure the ThreadLocal SparkEnv reference is the same for all threads.
+  SparkEnv.set(SharkServer.serverEnv)
 
   private var isSharkQuery = false
 
@@ -81,9 +106,10 @@ class SharkServerHandler extends HiveServerHandler {
         response = Option(driver.run(cmd))
       } else {
         isSharkQuery = false
+        // Need to reset output for each non-Shark query.
+        setupSessionIO(ss)
         response = Option(proc.run(cmd_1))
       }
-
     }
 
     response match {
@@ -96,12 +122,40 @@ class SharkServerHandler extends HiveServerHandler {
     }
   }
 
+  // Called once per non-Shark query.
+  def setupSessionIO(session: SessionState) {
+    try {
+      val tmpOutputFile = session.getTmpOutputFile()
+      logInfo("Putting temp output to file " + tmpOutputFile.toString())
+      // Open a per-session/command file for writing temp results.
+      session.out = new PrintStream(new FileOutputStream(tmpOutputFile), true, "UTF-8")
+      session.err = new PrintStream(System.err, true, "UTF-8")
+    } catch {
+      case e: IOException => {
+        try {
+          session.in = null;
+          session.out = new PrintStream(System.out, true, "UTF-8");
+          session.err = new PrintStream(System.err, true, "UTF-8");
+      	} catch {
+          case ee: UnsupportedEncodingException => {
+      	    ee.printStackTrace();
+      	    session.out = null;
+      	    session.err = null;
+      	  }
+        }
+      }
+    }
+  }
+
   override def fetchAll(): JavaList[String] = {
     val res = new ArrayList[String]()
     if (isSharkQuery) {
       driver.getResults(res)
+      res
+    } else {
+      // Returns all results if second arg (numRows) <= 0
+      super.fetchAll()
     }
-    res
   }
 
   override def fetchN(numRows: Int): JavaList[String] = {
@@ -109,8 +163,10 @@ class SharkServerHandler extends HiveServerHandler {
     if (isSharkQuery) {
       driver.setMaxRows(numRows)
       driver.getResults(res)
+      res
+    } else {
+      super.fetchN(numRows)
     }
-    res
   }
 
   override def fetchOne(): String = {

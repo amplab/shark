@@ -4,7 +4,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.scalatest.FunSuite
 import scala.collection.mutable.ArrayBuffer
-import shark.exec.{KryoSerializationWrapper, kryoWrapper2object}
+import shark.execution.{KryoSerializationWrapper, kryoWrapper2object}
 import spark.JavaSerializer
 
 class SerializationSuite extends FunSuite {
@@ -24,15 +24,19 @@ class SerializationSuite extends FunSuite {
   }
 
   test("Java serializing operators") {
-    val operator = new shark.exec.FileSinkOperator
+
+    import shark.execution.{FileSinkOperator => SharkFileSinkOperator}
+    import shark.execution.OperatorSerializationWrapper
+
+    val operator = new SharkFileSinkOperator
     operator.localHconf = new org.apache.hadoop.hive.conf.HiveConf
     operator.localHiveOp = new org.apache.hadoop.hive.ql.exec.FileSinkOperator
-    val opWrapped = shark.exec.OperatorSerializationWrapper(operator)
+    val opWrapped = shark.execution.OperatorSerializationWrapper(operator)
 
     val ser = new JavaSerializer
     val bytes = ser.newInstance().serialize(opWrapped)
     val desered = ser.newInstance()
-      .deserialize[shark.exec.OperatorSerializationWrapper[shark.exec.FileSinkOperator]](bytes)
+      .deserialize[OperatorSerializationWrapper[SharkFileSinkOperator]](bytes)
 
     assert(desered.value != null)
     assert(desered.value.localHconf != null)

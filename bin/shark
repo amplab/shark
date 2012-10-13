@@ -1,8 +1,7 @@
 #!/bin/sh
 bin="`dirname $0`"
-FWDIR="`dirname $bin`"
 bin=`cd "$bin"; pwd`
-
+export FWDIR="`dirname $bin`"
 
 SERVICE=""
 HELP=""

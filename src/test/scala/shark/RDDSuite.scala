@@ -2,7 +2,7 @@ package shark
 
 import org.apache.hadoop.hive.ql.plan.JoinCondDesc
 import org.scalatest.{BeforeAndAfter, FunSuite}
-import shark.exec.ReduceKey
+import shark.execution.ReduceKey
 import spark.{RDD, SparkContext}
 import spark.SparkContext._
 
@@ -22,5 +22,6 @@ class RDDSuite extends FunSuite {
       assert(output.size == math.min(k, 4))
       assert(output == expected.take(math.min(k, 4)))
     }
+    sc.stop()
   }
 }

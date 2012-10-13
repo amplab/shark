@@ -26,8 +26,6 @@ import spark.SparkContext._
  * to Spark's built-in abstractions.
  */
 object RDDUtils {
-
-  val INITIAL_BUFFER_SIZE = 100000 // 10MB
   
   /**
    * Used to serialize an RDD using a Hive SerDe before caching in a
@@ -38,14 +36,14 @@ object RDDUtils {
     val serializer = td.getDeserializerClass().newInstance().asInstanceOf[SerDe]
     serializer.initialize(hconf, td.getProperties())
     var v: Object = null
-    var i: Int = 0
+    var numRows: Int = 0
     iter.foreach { row =>
       v = serializer.serialize(row, oi)
-      i += 1
+      numRows += 1
     }
     if (v != null) {
       v.asInstanceOf[ColumnarWritable].close()
-      Iterator(i, v)
+      Iterator(numRows, v)
     } else {
       Iterator()
     }

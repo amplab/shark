@@ -4,6 +4,9 @@ metastore_db/
 project/boot
 lib_managed/
 TempStatsStore
+work/
+
+conf/shark-env.sh
 
 # Compiled Source
 *.class
@@ -34,3 +37,10 @@ paper.pdf
 paper.blg
 paper.bbl
 paper.aux
+
+# IntelliJ IDE files
+.idea
+*.iml
+
+# Test Reports
+TEST*.xml
