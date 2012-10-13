@@ -25,10 +25,8 @@ object SharkEnv extends LogHelper {
     if (System.getenv("MASTER") == null) "local" else System.getenv("MASTER"),
     "Shark::" + java.net.InetAddress.getLocalHost.getHostName)
 
-  sc.putExecutorEnv("SPARK_MEM", getEnv("SPARK_SLAVE_MEM"))
+  sc.putExecutorEnv("SPARK_MEM", getEnv("SPARK_MEM"))
   sc.putExecutorEnv("SPARK_CLASSPATH", getEnv("SPARK_CLASSPATH"))
-  sc.putExecutorEnv("HIVE_HOME", getEnv("HIVE_HOME"))
-  sc.putExecutorEnv("HIVE_DEV_HOME", getEnv("HIVE_DEV_HOME"))
   sc.putExecutorEnv("HADOOP_HOME", getEnv("HADOOP_HOME"))
   sc.putExecutorEnv("JAVA_HOME", getEnv("JAVA_HOME"))
 

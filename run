@@ -1,17 +1,23 @@
 #!/bin/bash
 
-# This file is used to launch Shark, both on masters and slaves.
+# This file is used to launch Shark on the master.
 
-# Figure out where the Scala framework is installed
+# Figure out where the framework is installed
 FWDIR="$(cd `dirname $0`; pwd)"
 
 # Export this as SPARK_HOME
-export SPARK_HOME="$FWDIR"
 export SHARK_HOME="$FWDIR"
 
 # Load environment variables from conf/shark-env.sh, if it exists
 if [ -e $SHARK_HOME/conf/shark-env.sh ] ; then
   . $SHARK_HOME/conf/shark-env.sh
+fi
+
+if [ -n "$MASTER" ] ; then
+  if [ -z $SPARK_HOME ] ; then
+    echo "No SPARK_HOME specified. Please set SPARK_HOME for cluster mode."
+    exit 1
+  fi
 fi
 
 # Hive related section.
@@ -69,28 +75,17 @@ fi
 export SPARK_CLASSPATH
 export CLASSPATH=$SPARK_CLASSPATH # Needed for spark-shell
 
-# Mesos related section.
-MESOS_CLASSPATH=""
-if [ "x$MESOS_JAR" != "x" ] ; then
-  MESOS_CLASSPATH="$MESOS_JAR"
-fi
+export SPARK_JAVA_OPTS+=" $TEST_JAVA_OPTS"
 
-if [ "x$SPARK_MEM" == "x" ] ; then
-  SPARK_MEM="512m"
-fi
 
-export SPARK_MEM # So that the process sees it and can report it to Mesos
+if [ "x$SHARK_MASTER_MEM" == "x" ] ; then
+  SHARK_MASTER_MEM="512m"
+fi
 
 # Set JAVA_OPTS to be able to load native libraries and to set heap size
 JAVA_OPTS="$SPARK_JAVA_OPTS"
-JAVA_OPTS+=" $TEST_JAVA_OPTS"
 JAVA_OPTS+=" -Djava.library.path=$SPARK_LIBRARY_PATH"
-JAVA_OPTS+=" -Xms$SPARK_MEM -Xmx$SPARK_MEM"
-# Load extra JAVA_OPTS from conf/java-opts, if it exists
-if [ -e $FWDIR/conf/java-opts ] ; then
-  JAVA_OPTS+=" `cat $FWDIR/conf/java-opts`"
-fi
-export JAVA_OPTS
+JAVA_OPTS+=" -Xms$SHARK_MASTER_MEM -Xmx$SHARK_MASTER_MEM"
 
 # In case we are running Ant
 export ANT_OPTS=$JAVA_OPTS
