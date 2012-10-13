@@ -25,8 +25,6 @@ class CompressedTextColumnFormat(
 
   def backingColumn = _column
 
-  override def apply(i: Int): Object = _column(i)
-
   override def size: Int = _column.size
 
   override def append(v: Text) {
@@ -35,12 +33,12 @@ class CompressedTextColumnFormat(
     if (_isCompressed &&
         _column.asInstanceOf[DictionaryEncodedColumnFormat].numDistinctWords > maxDistinctWords) {
       // Should turn compression off since there are too many distinct words.
-      val compressedColumn = _column.build
+      val compressedColumn = _column.build.asInstanceOf[DictionaryEncodedColumnFormat]
       val uncompressedColumn = new UncompressedColumnFormat.TextColumnFormat(
         math.max(initialSize, compressedColumn.size))
       var i = 0
       while (i < compressedColumn.size) {
-        val v = compressedColumn(i)
+        val v = compressedColumn.getObject(i)
         if (v == null) uncompressedColumn.appendNull()
         else uncompressedColumn.append(v.asInstanceOf[Text])
         i += 1
@@ -58,14 +56,14 @@ class CompressedTextColumnFormat(
     _column.build
     this
   }
+
+  override def iterator: ColumnFormatIterator = _column.iterator
 }
 
 
 object CompressedTextColumnFormat {
 
   class DictionaryEncodedColumnFormat(initialSize: Int) extends ColumnFormat[Text] {
-
-    override def apply(i: Int): Text = _dictionary(_data.getShort(i))
 
     override def size: Int = _data.size
 
@@ -91,6 +89,14 @@ object CompressedTextColumnFormat {
       _encodingMap = null
       _data.trim
       this
+    }
+
+    def getObject(i: Int) = _dictionary(_data.getShort(i))
+
+    override def iterator: ColumnFormatIterator = new ColumnFormatIterator {
+      var _position = -1
+      override def nextRow() { _position += 1 }
+      override def current: Object = getObject(_position)
     }
 
     // The value in "data" used to describe null.

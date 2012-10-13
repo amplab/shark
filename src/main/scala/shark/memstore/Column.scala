@@ -14,8 +14,8 @@ import org.apache.hadoop.io.Text
  * should be built by a ColumnBuilder.
  */
 class Column(val format: ColumnFormat[_], val stats: ColumnStats[_]) {
-  def apply(i: Int): Object = format(i)
   def size: Int = format.size
+  def iterator: ColumnFormatIterator = format.iterator
 }
 
 object Column {

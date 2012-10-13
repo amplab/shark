@@ -5,13 +5,11 @@ import javaewah.{EWAHCompressedBitmap, IntIterator}
 import org.apache.hadoop.io.IntWritable
 
 
-class CompressedIntColumnFormat(initialSize: Int) extends ColumnFormat[Int] {
+class CompressedIntColumnFormat(initialSize: Int) extends NullBitmapColumnFormat[Int] {
 
-  val stats = new ColumnStats.IntColumnStats
   val nulls = new EWAHCompressedBitmap
+  val stats = new ColumnStats.IntColumnStats
   val arr = new IntArrayList(initialSize)
-
-  override def apply(i: Int): Object = { throw new UnsupportedOperationException }
 
   override def size: Int = { throw new UnsupportedOperationException }
 
@@ -43,6 +41,8 @@ class CompressedIntColumnFormat(initialSize: Int) extends ColumnFormat[Int] {
         nulls)
     }
   }
+
+  override def iterator: ColumnFormatIterator = { throw new UnsupportedOperationException }
 }
 
 object CompressedIntColumnFormat {
@@ -51,26 +51,22 @@ object CompressedIntColumnFormat {
   val SHORT_RANGE = Short.MaxValue - Short.MinValue
 
   class Compressed(val arr: BackingIntArray, val nulls: EWAHCompressedBitmap)
-    extends ColumnFormat[Int] {
-
-    val writable = new IntWritable
-    val nullsIter = nulls.intIterator
-    var nextNullIndex = -1
-
-    override def apply(i: Int): Object = {
-      while(nullsIter.hasNext && nextNullIndex < i) nextNullIndex = nullsIter.next()
-      if (nextNullIndex == i) {
-        null
-      } else {
-        writable.set(arr(i))
-        writable
-      }
-    }
+    extends NullBitmapColumnFormat[Int] {
 
     override def size: Int = arr.size
     override def append(v: Int) { throw new UnsupportedOperationException }
     override def appendNull() { throw new UnsupportedOperationException }
     override def build: ColumnFormat[Int] = { throw new UnsupportedOperationException }
+
+    override def iterator: ColumnFormatIterator = {
+      new NullBitmapColumnIterator[Int](this) {
+        val writable = new IntWritable
+        override def getObject(i: Int): Object = {
+          writable.set(arr(i))
+          writable
+        }
+      }
+    }
   }
 
   trait BackingIntArray {

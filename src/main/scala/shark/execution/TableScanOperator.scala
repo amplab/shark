@@ -19,7 +19,7 @@ import scala.reflect.BeanProperty
 
 import org.apache.hadoop.hive.ql.exec.MapSplitPruning
 import shark.{SharkConfVars, SharkEnv}
-import shark.memstore.{CacheKey, RDDSerializer, TableStats}
+import shark.memstore.{CacheKey, TableStats, TableStorage}
 import spark.RDD
 import spark.EnhancedRDD._
 import spark.rdd.UnionRDD
@@ -116,7 +116,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         // Do the pruning.
         val prunedRdd = rdd.pruneSplits { split =>
           if (printPruneDebug) {
-            logInfo("\nSplit " + split + "\n" + splitToStats(split).toString)
+            logInfo("\nSplit " + split + "\n" + splitToStats(split))
           }
           MapSplitPruning.test(splitToStats(split), filterOp.conditionEvaluator)
         }
@@ -128,11 +128,14 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         rdd
       }
 
-    val deserializedRdd = prunedRdd.mapPartitions { iter =>
-      val rddSerialzier = new RDDSerializer.Columnar(null)
-      rddSerialzier.deserialize(iter)
+    prunedRdd.mapPartitions { iter =>
+      if (iter.hasNext) {
+        val tableStorage = iter.next.asInstanceOf[TableStorage]
+        tableStorage.iterator
+      } else {
+        Iterator()
+      }
     }
-    Operator.executeProcessPartition(this, deserializedRdd)
   }
 
   /**

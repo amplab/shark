@@ -218,16 +218,18 @@ object ColumnSuite {
     writableOi: AbstractPrimitiveWritableObjectInspector): Column = {
 
     data foreach(builder.append(_, javaOi))
-    val column = builder.build
+    val column: Column = builder.build
     assert(column.size == data.size)
 
     var i = 0
+    var columnIter: ColumnFormatIterator = column.iterator
     while (i < column.size) {
       //println(data(i) + " " + column(i))
+      columnIter.nextRow()
       val expected = data(i)
-      val reality = writableOi.getPrimitiveJavaObject(column(i))
+      val reality = writableOi.getPrimitiveJavaObject(columnIter.current())
       assert((expected == null && reality == null) || reality == expected,
-        "expected " + expected + ", but saw " + reality)
+        "at position " + i + " expected " + expected + ", but saw " + reality)
       i += 1
     }
 

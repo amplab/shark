@@ -3,21 +3,19 @@ package shark.memstore
 import java.util.{List => JList, ArrayList => JArrayList}
 
 
-class ColumnarStruct(val data: ColumnarWritable) {
+class ColumnarStruct(columnIterators: Array[ColumnFormatIterator]) {
 
-  var row = -1
-
-  def initializeNextRow() {
-    row += 1
+  def nextRow() {
+    columnIterators.foreach(_.nextRow)
   }
 
-  def getField(id: Int): Object = data.getField(id, row)
+  def getField(id: Int): Object = columnIterators(id).current
 
   def getFieldsAsList(): JList[Object] = {
-    val list = new JArrayList[Object](data.columns.length)
+    val list = new JArrayList[Object](columnIterators.length)
     var i = 0
-    while (i < data.columns.length) {
-      list.add(data.getField(i, row))
+    while (i < columnIterators.length) {
+      list.add(columnIterators(i).current)
       i += 1
     }
     list

@@ -18,15 +18,12 @@ import scala.collection.JavaConversions._
 import shark.{LogHelper, SharkConfVars}
 
 
-class ColumnarSerDe(builderFunc: ColumnBuilderCreateFunc.TYPE)
-  extends SerDe with LogHelper {
+class ColumnarSerDe(builderFunc: ColumnBuilderCreateFunc.TYPE) extends SerDe with LogHelper {
 
   def this() = this(null)
 
-  var cachedObjectInspector: StructObjectInspector = _
-  var cachedWritableBuilder: ColumnarWritable.Builder = _
-  var cachedWritable: ColumnarWritable = _
-  var cachedStruct: ColumnarStruct = _
+  var objectInspector: StructObjectInspector = _
+  var tableStorageBuilder: TableStorageBuilder = _
   var serDeParams: SerDeParameters = _
   var initialColumnSize: Int = _
   val serializeStream = new ByteStream.Output
@@ -34,7 +31,7 @@ class ColumnarSerDe(builderFunc: ColumnBuilderCreateFunc.TYPE)
   override def initialize(conf: Configuration, tbl: Properties) {
     serDeParams = LazySimpleSerDe.initSerdeParams(conf, tbl, this.getClass.getName)
     // Create oi & writable.
-    cachedObjectInspector = ColumnarStructObjectInspector(serDeParams)
+    objectInspector = ColumnarStructObjectInspector(serDeParams)
 
     // This null check is needed because Hive's SemanticAnalyzer.genFileSinkPlan() creates
     // an instance of the table's StructObjectInspector by creating an instance SerDe, which
@@ -53,7 +50,7 @@ class ColumnarSerDe(builderFunc: ColumnBuilderCreateFunc.TYPE)
 
         // Estimate the initial capacity for ArrayList columns using:
         // partition_size / (num_columns * avg_field_size).
-        val rowSize = ColumnarSerDe.getFieldSize(cachedObjectInspector).toLong
+        val rowSize = ColumnarSerDe.getFieldSize(objectInspector).toLong
         initialColumnSize = (partitionSize / rowSize).toInt
 
         logDebug("Estimated size of each row is: " + rowSize)
@@ -61,28 +58,25 @@ class ColumnarSerDe(builderFunc: ColumnBuilderCreateFunc.TYPE)
     }
   }
 
-  override def deserialize(blob: Writable): Object = {
-    if (cachedStruct == null)
-      cachedStruct = new ColumnarStruct(blob.asInstanceOf[ColumnarWritable])
-    cachedStruct.initializeNextRow()
-    cachedStruct
-  }
+  override def deserialize(blob: Writable): Object =
+    throw new UnsupportedOperationException("ColumnarSerDe.deserialize()")
 
   override def getSerDeStats: SerDeStats = {
     // TODO: Stats are not collected yet.
     new SerDeStats
   }
 
-  override def getObjectInspector: ObjectInspector = cachedObjectInspector
+  override def getObjectInspector: ObjectInspector = objectInspector
 
-  override def getSerializedClass: Class[_ <: Writable] = classOf[ColumnarWritable]
+  override def getSerializedClass: Class[_ <: Writable] = classOf[TableStorageBuilder]
 
   override def serialize(obj: Object, objInspector: ObjectInspector): Writable = {
-    if (cachedWritableBuilder == null) {
-      cachedWritableBuilder = new ColumnarWritable.Builder(
-        cachedObjectInspector, initialColumnSize, builderFunc)
+    if (tableStorageBuilder == null) {
+      tableStorageBuilder = new TableStorageBuilder(
+        objectInspector, initialColumnSize, builderFunc)
     }
 
+    tableStorageBuilder.incrementRowCount()
     val soi = objInspector.asInstanceOf[StructObjectInspector]
     val fields: JList[_ <: StructField] = soi.getAllStructFieldRefs
 
@@ -92,7 +86,7 @@ class ColumnarSerDe(builderFunc: ColumnBuilderCreateFunc.TYPE)
       val fieldOI: ObjectInspector = field.getFieldObjectInspector
       fieldOI.getCategory match {
         case ObjectInspector.Category.PRIMITIVE =>
-          cachedWritableBuilder.append(i, soi.getStructFieldData(obj, field), fieldOI)
+          tableStorageBuilder.append(i, soi.getStructFieldData(obj, field), fieldOI)
         case other => {
           // We use LazySimpleSerDe to serialize nested data
           LazySimpleSerDe.serialize(
@@ -104,23 +98,18 @@ class ColumnarSerDe(builderFunc: ColumnBuilderCreateFunc.TYPE)
             serDeParams.isEscaped(),
             serDeParams.getEscapeChar(),
             serDeParams.getNeedsEscape())
-          cachedWritableBuilder.append(i, serializeStream, fieldOI)
+          tableStorageBuilder.append(i, serializeStream, fieldOI)
           serializeStream.reset()
         }
       }
       i += 1
     }
-    cachedWritableBuilder
+    tableStorageBuilder
   }
 
-  def buildWritable: ColumnarWritable = {
-    cachedWritable = cachedWritableBuilder.build
-    cachedWritable
-  }
-
-  def stats = {
-    if (cachedWritable == null) cachedWritable = cachedWritableBuilder.build
-    cachedWritable.stats
+  def stats: TableStats = {
+    if (tableStorageBuilder == null) new TableStats(null, 0)
+    else tableStorageBuilder.stats
   }
 }
 
