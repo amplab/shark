@@ -3,7 +3,7 @@ package shark
 import spark.SparkContext
 import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.hadoop.hive.conf.HiveConf
-import scala.collection.mutable.HashSet
+import scala.collection.mutable.{HashMap, HashSet}
 
 /** A singleton object for the master program. The slaves should not access this. */
 object SharkEnv extends LogHelper {
@@ -21,14 +21,18 @@ object SharkEnv extends LogHelper {
   // Use Kryo to serialize closures. This is too buggy to be used.
   //System.setProperty("spark.closure.serializer", "spark.KryoSerializer")
 
+  val executorEnvVars = new HashMap[String, String]
+  executorEnvVars.put("SPARK_MEM", getEnv("SPARK_MEM"))
+  executorEnvVars.put("SPARK_CLASSPATH", getEnv("SPARK_CLASSPATH"))
+  executorEnvVars.put("HADOOP_HOME", getEnv("HADOOP_HOME"))
+  executorEnvVars.put("JAVA_HOME", getEnv("JAVA_HOME"))
+
   var sc: SparkContext = new SparkContext(
     if (System.getenv("MASTER") == null) "local" else System.getenv("MASTER"),
-    "Shark::" + java.net.InetAddress.getLocalHost.getHostName)
-
-  sc.putExecutorEnv("SPARK_MEM", getEnv("SPARK_MEM"))
-  sc.putExecutorEnv("SPARK_CLASSPATH", getEnv("SPARK_CLASSPATH"))
-  sc.putExecutorEnv("HADOOP_HOME", getEnv("HADOOP_HOME"))
-  sc.putExecutorEnv("JAVA_HOME", getEnv("JAVA_HOME"))
+    "Shark::" + java.net.InetAddress.getLocalHost.getHostName,
+    null,
+    Nil,
+    executorEnvVars)
 
   val cache: CacheManager = new CacheManager
 
