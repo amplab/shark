@@ -31,13 +31,6 @@ object SharkCliDriver {
   var prompt  = "shark"
   var prompt2 = "     " // when ';' is not yet seen.
 
-  // The testing script uses SharkCliDriver but doesn't go through the main
-  // routine. We initialize SparkContext here. Make sure something in this
-  // object is referenced to force initializing SparkContext.
-  SharkEnv.sc = new SparkContext(
-    if (System.getenv("MASTER") == null) "local" else System.getenv("MASTER"),
-    "Shark::" + java.net.InetAddress.getLocalHost.getHostName)
-
   def main(args: Array[String]) {
 
     val oproc = new OptionsProcessor()
@@ -215,8 +208,9 @@ class SharkCliDriver extends CliDriver with LogHelper {
 
   SharkConfVars.initializeWithDefaults(conf);
 
-  // Force initializing the SparkContext in SharkCliDriver object.
-  SharkCliDriver.prompt
+  // Force initializing SharkEnv. This is put here but not object SharkCliDriver
+  // because the Hive unit tests do not go through the main() code path.
+  SharkEnv.init
 
   override def processCmd(cmd: String): Int = {
     val ss: SessionState = SessionState.get()

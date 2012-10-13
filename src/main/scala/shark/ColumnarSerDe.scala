@@ -34,8 +34,6 @@ class ColumnarSerDe extends SerDe with LogHelper {
   var initialColumnSize: Int = _
   var stats : SerDeStats = _
   val serializeStream = new ByteStream.Output()
-  
-
 
   def initialize(conf: Configuration, tbl: Properties) {
     stats = new SerDeStats
@@ -68,7 +66,7 @@ class ColumnarSerDe extends SerDe with LogHelper {
     }
   }
 
-  def deserialize(blob: Writable): Object = {  
+  def deserialize(blob: Writable): Object = {
     if (cachedStruct == null)
       cachedStruct = new ColumnarStruct(blob.asInstanceOf[ColumnarWritable])
     cachedStruct.initializeNextRow()
@@ -82,12 +80,12 @@ class ColumnarSerDe extends SerDe with LogHelper {
   def getSerializedClass(): Class[_ <: Writable] = {
     return classOf[ColumnarWritable]
   }
-  
+
   def getSerDeStats(): SerDeStats = {
     // TODO: Stats are not collected yet.
     return new SerDeStats
   }
-  
+
   def serialize(obj: Object, objInspector: ObjectInspector): Writable = {
 
     if (cachedWritable == null) {
@@ -107,10 +105,10 @@ class ColumnarSerDe extends SerDe with LogHelper {
         case other => {
           // We use LazySimpleSerDe to serialize nested data
           LazySimpleSerDe.serialize(
-            serializeStream, soi.getStructFieldData(obj, field), 
+            serializeStream, soi.getStructFieldData(obj, field),
             fieldOI,
             serDeParams.getSeparators(),
-            1, 
+            1,
             serDeParams.getNullSequence(),
             serDeParams.isEscaped(),
             serDeParams.getEscapeChar(),
@@ -284,13 +282,13 @@ object ColumnarStructObjectInspector {
     for (i <- 0 until columnNames.size) {
       val typeInfo = columnTypes.get(i)
       val fieldOI = typeInfo.getCategory match {
-        case Category.PRIMITIVE => SharkEnv.objectInspectorLock.synchronized {
+        case Category.PRIMITIVE => SharkEnvSlave.objectInspectorLock.synchronized {
           PrimitiveObjectInspectorFactory.getPrimitiveWritableObjectInspector(
             typeInfo.asInstanceOf[PrimitiveTypeInfo].getPrimitiveCategory)
         }
-        case _ => SharkEnv.objectInspectorLock.synchronized {
+        case _ => SharkEnvSlave.objectInspectorLock.synchronized {
           LazyFactory.createLazyObjectInspector(
-            typeInfo, serDeParams.getSeparators(), 1, serDeParams.getNullSequence(), 
+            typeInfo, serDeParams.getSeparators(), 1, serDeParams.getNullSequence(),
             serDeParams.isEscaped(), serDeParams.getEscapeChar())
         }
       }
@@ -304,18 +302,18 @@ object ColumnarStructObjectInspector {
 class IDStructField(
   val fieldID: Int, val fieldName: String, val fieldObjectInspector: ObjectInspector, val fieldComment: String)
 extends StructField {
-  
-  def this(fieldID: Int, fieldName: String, fieldObjectInspector: ObjectInspector) 
+
+  def this(fieldID: Int, fieldName: String, fieldObjectInspector: ObjectInspector)
     = this(fieldID, fieldName, fieldObjectInspector, null)
-  
+
   def getFieldID(): Int = {
     return fieldID
   }
-  
+
   def getFieldName(): String =  {
     return fieldName
   }
-  
+
   override def getFieldObjectInspector(): ObjectInspector = {
     return fieldObjectInspector
   }
@@ -323,7 +321,7 @@ extends StructField {
   override def toString(): String =  {
     return "" + fieldID + ":" + fieldName
   }
-  
+
   override def getFieldComment() : String = {
     return fieldComment
   }

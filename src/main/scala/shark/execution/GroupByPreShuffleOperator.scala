@@ -15,7 +15,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.Object
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
-import shark.SharkEnv
+import shark.SharkEnvSlave
 import shark.execution.UnaryOperator
 import spark.RDD
 import spark.SparkContext._
@@ -57,7 +57,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
     rowInspector = objectInspector.asInstanceOf[StructObjectInspector]
     keyFields = conf.getKeys().map(k => ExprNodeEvaluatorFactory.get(k)).toArray
     val keyObjectInspectors: Array[ObjectInspector] = keyFields.map(k => k.initialize(rowInspector))
-    val currentKeyObjectInspectors = SharkEnv.objectInspectorLock.synchronized {
+    val currentKeyObjectInspectors = SharkEnvSlave.objectInspectorLock.synchronized {
       keyObjectInspectors.map { k =>
         ObjectInspectorUtils.getStandardObjectInspector(k, ObjectInspectorCopyOption.WRITABLE)
       }
@@ -82,7 +82,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
     val keyois = new ArrayList[ObjectInspector](totalFields)
     keyObjectInspectors.foreach(keyois.add(_))
 
-    keyObjectInspector = SharkEnv.objectInspectorLock.synchronized {
+    keyObjectInspector = SharkEnvSlave.objectInspectorLock.synchronized {
       ObjectInspectorFactory.getStandardStructObjectInspector(keyFieldNames, keyois)
     }
 

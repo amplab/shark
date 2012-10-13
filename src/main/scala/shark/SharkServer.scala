@@ -23,9 +23,8 @@ object SharkServer {
 
   private val LOG = LogFactory.getLog("SharkServer")
 
-  SharkEnv.sc = new SparkContext(
-    if (System.getenv("MASTER") == null) "local" else System.getenv("MASTER"),
-    "Shark::" + java.net.InetAddress.getLocalHost.getHostName)
+  // Force initialization of SharkEnv.
+  SharkEnv.init
 
   val serverEnv = SparkEnv.get
 
@@ -57,7 +56,7 @@ object SharkServer {
         }
       }
     )
-    
+
     LOG.info("Starting shark server on port " + port)
     server.serve()
   }

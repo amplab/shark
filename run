@@ -29,40 +29,45 @@ if [ -f "${HIVE_CONF_DIR}/hive-env.sh" ]; then
   . "${HIVE_CONF_DIR}/hive-env.sh"
 fi
 
-# Build up classpath
-CLASSPATH+=":$SPARK_CLASSPATH:$SHARK_HOME/target/scala-$SCALA_VERSION/classes"
-CLASSPATH+=":$SHARK_HOME/target/scala-$SCALA_VERSION/test-classes"
-CLASSPATH+=:$HIVE_CONF_DIR
-
-if [ "x$HADOOP_HOME" == "x" ] ; then
-    echo "No HADOOP_HOME specified. Shark will run in local-mode"
-else
-    CLASSPATH+=:$HADOOP_HOME/conf
-fi
-
 # Add Shark jars.
 for jar in `find $SHARK_HOME/lib -name '*jar'`; do
-  CLASSPATH+=:$jar
+  SPARK_CLASSPATH+=:$jar
 done
 for jar in `find $SHARK_HOME/lib_managed/jars -name '*jar'`; do
-  CLASSPATH+=:$jar
+  SPARK_CLASSPATH+=:$jar
 done
 for jar in `find $SHARK_HOME/lib_managed/bundles -name '*jar'`; do
-  CLASSPATH+=:$jar
+  SPARK_CLASSPATH+=:$jar
 done
 
 # Add Hive jars.
 for jar in `find $HIVE_HOME/lib -name '*jar'`; do
   # Ignore the logging library since it has already been included with the Spark jar.
   if [[ "$jar" != *slf4j* ]]; then
-    CLASSPATH+=:$jar
+    SPARK_CLASSPATH+=:$jar
   fi
 done
+
+SPARK_CLASSPATH+=:$HIVE_CONF_DIR
+
+
+# Build up classpath
+SPARK_CLASSPATH+=":$SHARK_HOME/target/scala-$SCALA_VERSION/classes"
+SPARK_CLASSPATH+=":$SHARK_HOME/target/scala-$SCALA_VERSION/test-classes"
+
+
+if [ "x$HADOOP_HOME" == "x" ] ; then
+    echo "No HADOOP_HOME specified. Shark will run in local-mode"
+else
+    SPARK_CLASSPATH+=:$HADOOP_HOME/conf
+fi
+
 
 # TODO(rxin): Check aux classpath and aux java opts.
 #CLASSPATH=${CLASSPATH}:${AUX_CLASSPATH}
 
-export CLASSPATH # Needed for spark-shell
+export SPARK_CLASSPATH
+export CLASSPATH=$SPARK_CLASSPATH # Needed for spark-shell
 
 # Mesos related section.
 MESOS_CLASSPATH=""

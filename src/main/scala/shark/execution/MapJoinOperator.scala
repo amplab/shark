@@ -25,7 +25,7 @@ import scala.reflect.BeanProperty
 
 import spark.broadcast.Broadcast
 import spark.RDD
-import shark.SharkEnv
+import shark.SharkEnvSlave
 
 object MapJoinOperator {
   type MapJoinHashTable = JHashMap[AbstractMapJoinKey, MapJoinObjectValue]
@@ -200,7 +200,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
     val keySerializer = keyTableDesc.getDeserializerClass().newInstance().asInstanceOf[SerDe]
     keySerializer.initialize(null, keyTableDesc.getProperties())
 
-    val standardOI = SharkEnv.objectInspectorLock.synchronized {
+    val standardOI = SharkEnvSlave.objectInspectorLock.synchronized {
       ObjectInspectorUtils.getStandardObjectInspector(
         keySerializer.getObjectInspector(), ObjectInspectorCopyOption.WRITABLE)
     }
@@ -223,7 +223,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
     val newNames = new java.util.ArrayList[String](length)
     for (i <- 0 until length) newNames.add(new String("tmp_" + i))
 
-    val standardOI = SharkEnv.objectInspectorLock.synchronized {
+    val standardOI = SharkEnvSlave.objectInspectorLock.synchronized {
       ObjectInspectorFactory.getStandardStructObjectInspector(newNames, newFields)
     }
 
