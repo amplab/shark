@@ -7,7 +7,7 @@ object SharkBuild extends Build {
 
   // Hadoop version to build against. For example, "0.20.2", "0.20.205.0", or
   // "1.0.1" for Apache releases, or "0.20.2-cdh3u3" for Cloudera Hadoop.
-  val HADOOP_VERSION = "1.0.3"
+  val HADOOP_VERSION = "0.20.205.0"
 
   // Spark version to build against.
   val SPARK_VERSION = "0.6.0"
