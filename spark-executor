@@ -1,7 +1,0 @@
-#!/bin/sh
-
-# This is used to launch Spark tasks on slave nodes.
-
-FWDIR="`dirname $0`"
-echo "Running spark-executor with framework dir = $FWDIR"
-exec $FWDIR/run spark.executor.MesosExecutorBackend
