@@ -7,10 +7,10 @@ object SharkBuild extends Build {
 
   // Hadoop version to build against. For example, "0.20.2", "0.20.205.0", or
   // "1.0.1" for Apache releases, or "0.20.2-cdh3u3" for Cloudera Hadoop.
-  val HADOOP_VERSION = "0.20.205.0"
+  val HADOOP_VERSION = "1.0.3"
 
   // Spark version to build against.
-  val SPARK_VERSION = "0.6.0-SNAPSHOT"
+  val SPARK_VERSION = "0.6.0"
 
   lazy val root = Project(
     id = "root",
@@ -21,7 +21,7 @@ object SharkBuild extends Build {
 
     name := "shark",
     organization := "edu.berkeley.cs.amplab",
-    version := "0.1",
+    version := "0.2",
     scalaVersion := "2.9.2",
     scalacOptions := Seq("-deprecation", "-unchecked", "-optimize"),
     parallelExecution in Test := false,
@@ -47,7 +47,7 @@ object SharkBuild extends Build {
       file(System.getenv("HIVE_DEV_HOME")) / "build" / "ql" / "test" / "classes",
       file(System.getenv("HIVE_DEV_HOME")) / "build/ivy/lib/test/hadoop-test-0.20.2.jar"
     ),
-    
+
     libraryDependencies ++= Seq(
       "org.spark-project" %% "spark-core" % SPARK_VERSION,
       "org.spark-project" %% "spark-repl" % SPARK_VERSION,
