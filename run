@@ -109,6 +109,7 @@ fi
 JAVA_OPTS+="$SPARK_JAVA_OPTS"
 JAVA_OPTS+=" -Djava.library.path=$SPARK_LIBRARY_PATH"
 JAVA_OPTS+=" -Xms$SHARK_MASTER_MEM -Xmx$SHARK_MASTER_MEM"
+export JAVA_OPTS
 
 # In case we are running Ant
 export ANT_OPTS=$JAVA_OPTS
