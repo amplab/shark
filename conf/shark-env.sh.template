@@ -1,24 +1,31 @@
 #!/usr/bin/env bash
 
-# Set Shark environment variables for your site in this file. Some useful
-# variables to set are:
-#
-# - MESOS_NATIVE_LIBRARY, to point to your Mesos native library (libmesos.so)
-# - SCALA_HOME, to point to your Scala installation.
-# - HIVE_HOME, to point to the Hive binary distribution.
-# - SPARK_CLASSPATH, to add elements to Spark's classpath.
-# - SPARK_JAVA_OPTS, to add JVM options.
-# - SPARK_MEM, to change the amount of memory used per node (this should
-#   be in the same format as the JVM's -Xmx option, e.g. 300m or 1g).
-# - SPARK_LIBRARY_PATH, optional, to add extra search paths for native
-#   libraries.
-# - HIVE_CONF_DIR, optional, to specify the path of Hive configuration files
-#   (default HIVE_HOME/conf)
+# (Required) Amount of memory used per slave node. This should be in the same
+# format as the JVM's -Xmx option, e.g. 300m or 1g.
+export SPARK_MEM=1g
 
+# (Required) Set the master program's memory
+export SHARK_MASTER_MEM=1g
+
+# (Required) Point to your Scala installation.
 export SCALA_VERSION=2.9.2
+export SCALA_HOME=""
 
-# Set Spark's memory per machine -- you might want to increase this
-export SPARK_MEM=2g
+# (Required) Point to the patched Hive binary distribution
+export HIVE_HOME=""
+
+# (Optional) Specify the location of Hive's configuration directory. By default,
+# it points to $HIVE_HOME/conf
+#export HIVE_CONF_DIR="$HIVE_HOME/conf"
+
+# For running Shark in distributed mode, set the following:
+#export HADOOP_HOME=""
+#export SPARK_HOME=""
+#export MASTER=""
+#export MESOS_NATIVE_LIBRARY=/usr/local/lib/libmesos.so
+
+# (Optional) Extra classpath
+#export SPARK_LIBRARY_PATH=""
 
 # Java options
 # On EC2, change the local.dir to /mnt/tmp
@@ -26,19 +33,3 @@ SPARK_JAVA_OPTS="-Dspark.local.dir=/tmp "
 SPARK_JAVA_OPTS+="-Dspark.kryoserializer.buffer.mb=10 "
 SPARK_JAVA_OPTS+="-verbose:gc -XX:-PrintGCDetails -XX:+PrintGCTimeStamps "
 export SPARK_JAVA_OPTS
-
-# HIVE_HOME, point to Hive binary distribution
-export HIVE_HOME=""
-
-# Point to your Scala installation.
-export SCALA_HOME=""
-
-# Set these options when running through spark-ec2 scripts
-#export MASTER=`cat /root/mesos-ec2/cluster-url`
-#export HADOOP_HOME=/root/ephemeral-hdfs
-#export MESOS_NATIVE_LIBRARY=/usr/local/lib/libmesos.so
-#export SCALA_HOME=/root/scala-$SCALA_VERSION.final
-
-# The following is only needed for development and testing (SBT test uses this).
-#export HIVE_DEV_HOME=""
-#export HIVE_HOME=$HIVE_DEV_HOME/build/dist
