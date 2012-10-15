@@ -41,10 +41,10 @@ if [ -n "$TEST_FILE" ] ; then
 fi
 
 
-CLASSPATH+=:${HIVE_DEV_HOME}/build/ql/test/classes
-CLASSPATH+=:${HIVE_DEV_HOME}/build/ivy/lib/test/hadoop-test-0.20.2.jar
-CLASSPATH+=:${HIVE_DEV_HOME}/data/conf
-export CLASSPATH
+SPARK_CLASSPATH+=":${HIVE_DEV_HOME}/build/ql/test/classes"
+SPARK_CLASSPATH+=":${HIVE_DEV_HOME}/build/ivy/lib/test/hadoop-test-0.20.2.jar"
+SPARK_CLASSPATH+=":${HIVE_DEV_HOME}/data/conf"
+export SPARK_CLASSPATH
 
 BUILD_PATH=$HIVE_DEV_HOME/build/ql
 
@@ -66,4 +66,17 @@ export TEST_JAVA_OPTS
 # Set the current directory to hive/ql since lots of tests use relative path.
 cd ${HIVE_DEV_HOME}/ql
 
-exec $FWDIR/run junit.textui.TestRunner shark.TestSharkCliDriver "$@"
+if [ "$TEST_WITH_ANT" == "1" ] ; then
+  CLASSPATH+=":$SCALA_HOME/lib/scala-library.jar"
+  CLASSPATH+=":$SCALA_HOME/lib/scala-compiler.jar"
+  CLASSPATH+=":$SCALA_HOME/lib/jline.jar"
+  export CLASSPATH
+  export RUNNER="ant -noclasspath -nouserlib -f $FWDIR/bin/build_test.xml test"
+  exec $FWDIR/run "$@"
+else
+  export SHARK_LAUNCH_WITH_JAVA=1
+  exec $FWDIR/run junit.textui.TestRunner shark.TestSharkCliDriver "$@"
+fi
+
+
+

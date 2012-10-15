@@ -1,6 +1,6 @@
 package shark.execution
 
-import java.util.{Date, HashMap => JHashMap}
+import java.util.Date
 
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.io.Text
@@ -52,6 +52,14 @@ class TerminalOperator extends UnaryOperator[HiveFileSinkOperator] {
 
 class FileSinkOperator extends TerminalOperator with Serializable {
 
+  // Pass the file extension ConfVar used by HiveFileSinkOperator.
+  @BeanProperty var outputFileExtension: String = _
+
+  override def initializeOnMaster() {
+    super.initializeOnMaster()
+    outputFileExtension = HiveConf.getVar(localHconf, HiveConf.ConfVars.OUTPUT_FILE_EXTENSION)
+  }
+
   def initializeOnSlave(context: TaskContext) {
     setConfParams(localHconf, context)
     initializeOnSlave()
@@ -67,6 +75,11 @@ class FileSinkOperator extends TerminalOperator with Serializable {
     conf.set("mapred.task.id", taID.toString)
     conf.setBoolean("mapred.task.is.map", true)
     conf.setInt("mapred.task.partition", splitID)
+
+    // Variables used by FileSinkOperator.
+    if (outputFileExtension != null) {
+      conf.setVar(HiveConf.ConfVars.OUTPUT_FILE_EXTENSION, outputFileExtension)
+    }
   }
 
   override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
@@ -148,8 +161,20 @@ class CacheSinkOperator(
   @BeanProperty var tableName: String, @BeanProperty var collectStats: Boolean)
   extends TerminalOperator {
 
+  @BeanProperty var initialColumnSize: Int = _
+
   // Zero-arg constructor for deserialization.
   def this() = this(null, false)
+
+  override def initializeOnMaster() {
+    super.initializeOnMaster()
+    initialColumnSize = SharkConfVars.getIntVar(localHconf, SharkConfVars.COLUMN_INITIALSIZE)
+  }
+
+  override def initializeOnSlave() {
+    super.initializeOnSlave()
+    localHconf.setInt(SharkConfVars.COLUMN_INITIALSIZE.varname, initialColumnSize)
+  }
 
   override def execute(): RDD[_] = {
     val inputRdd = if (parentOperators.size == 1) executeParents().head._2 else null
@@ -192,15 +217,8 @@ class CacheSinkOperator(
     rdd
   }
 
-  override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
-    throw new Exception("CacheSinkOperator.processPartition() should've never been called.")
-    iter
-  }
-
-  override def postprocessRdd(rdd: RDD[_]): RDD[_] = {
-    throw new Exception("CacheSinkOperator.postprocessRdd() should've never been called.")
-    rdd
-  }
+  override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] =
+    throw new UnsupportedOperationException("CacheSinkOperator.processPartition()")
 }
 
 

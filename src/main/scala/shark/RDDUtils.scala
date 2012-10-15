@@ -2,23 +2,10 @@ package shark
 
 import com.google.common.collect.{Ordering => GOrdering}
 
-import java.io.DataInputStream
-import java.io.DataOutputStream
-
-import it.unimi.dsi.fastutil.io.FastByteArrayInputStream
-import it.unimi.dsi.fastutil.io.FastByteArrayOutputStream
-
-import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.hadoop.hive.ql.plan.TableDesc
-import org.apache.hadoop.hive.serde2.SerDe
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
-import org.apache.hadoop.io.Text
-
 import scala.collection.mutable.{ArrayBuffer, Buffer}
 import scala.collection.JavaConverters._
 
-import shark.memstore.ColumnarWritable
-import spark._
+import spark.RDD
 import spark.SparkContext._
 
 
@@ -43,8 +30,7 @@ object RDDUtils {
         if (i1 < b1.size && (i2 >= b2.size || b1(i1)._1 <= b2(i2)._1)) {
           out += b1(i1)
           i1 += 1
-        }
-        else {
+        } else {
           out += b2(i2)
           i2 += 1
         }

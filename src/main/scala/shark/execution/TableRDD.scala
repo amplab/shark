@@ -1,6 +1,7 @@
 package shark.execution
 
-import spark.{OneToOneDependency, RDD, Serializer, Split}
+import spark.{OneToOneDependency, RDD, Split}
+import spark.serializer.Serializer
 
 import org.apache.hadoop.hive.metastore.api.FieldSchema
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, StructObjectInspector}
@@ -19,7 +20,7 @@ class RowWrapper(
   val rawdata: Any,
   val colname2indexMap: Map[String, Int],
   val oi: StructObjectInspector) {
-  
+
   def getBoolean(field: String): Boolean = getBoolean(colname2indexMap(field))
   def getByte(field: String): Byte = getByte(colname2indexMap(field))
   def getDouble(field: String): Double = getDouble(colname2indexMap(field))
@@ -28,43 +29,43 @@ class RowWrapper(
   def getLong(field: String): Long = getLong(colname2indexMap(field))
   def getShort(field: String): Short = getShort(colname2indexMap(field))
   def getString(field: String): String = getString(colname2indexMap(field))
-  
+
   def getBoolean(field: Int): Boolean = {
     val ref = oi.getAllStructFieldRefs.get(field)
     val data = oi.getStructFieldData(rawdata, ref)
     ref.getFieldObjectInspector.asInstanceOf[BooleanObjectInspector].get(data)
   }
-  
+
   def getByte(field: Int): Byte = {
     val ref = oi.getAllStructFieldRefs.get(field)
     val data = oi.getStructFieldData(rawdata, ref)
     ref.getFieldObjectInspector.asInstanceOf[ByteObjectInspector].get(data)
   }
-    
+
   def getDouble(field: Int): Double = {
     val ref = oi.getAllStructFieldRefs.get(field)
     val data = oi.getStructFieldData(rawdata, ref)
     ref.getFieldObjectInspector.asInstanceOf[DoubleObjectInspector].get(data)
   }
-  
+
   def getFloat(field: Int): Float = {
     val ref = oi.getAllStructFieldRefs.get(field)
     val data = oi.getStructFieldData(rawdata, ref)
     ref.getFieldObjectInspector.asInstanceOf[FloatObjectInspector].get(data)
   }
-  
+
   def getInt(field: Int): Int = {
     val ref = oi.getAllStructFieldRefs.get(field)
     val data = oi.getStructFieldData(rawdata, ref)
     ref.getFieldObjectInspector.asInstanceOf[IntObjectInspector].get(data)
   }
-  
+
   def getLong(field: Int): Long = {
     val ref = oi.getAllStructFieldRefs.get(field)
     val data = oi.getStructFieldData(rawdata, ref)
     ref.getFieldObjectInspector.asInstanceOf[LongObjectInspector].get(data)
   }
-  
+
   def getShort(field: Int): Short = {
     val ref = oi.getAllStructFieldRefs.get(field)
     val data = oi.getStructFieldData(rawdata, ref)
@@ -84,7 +85,7 @@ case class TableRDD(
   schema: JavaList[FieldSchema],
   @transient var oi: ObjectInspector)
   extends RDD[Any](prev.context) {
-  
+
   /**
    * ObjectInspector is not Java serializable. We serialize it using Kryo and
    * and save it as a byte array. On slave nodes, we deserialize this byte

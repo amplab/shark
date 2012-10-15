@@ -17,7 +17,7 @@ import scala.collection.Iterator
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
-import shark.SharkEnv
+import shark.SharkEnvSlave
 
 
 /**
@@ -78,7 +78,7 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
     ois.add(keySer.getObjectInspector)
     ois.add(valueSer.getObjectInspector)
 
-    val outputObjInspector = SharkEnv.objectInspectorLock.synchronized {
+    val outputObjInspector = SharkEnvSlave.objectInspectorLock.synchronized {
       ObjectInspectorFactory.getStandardStructObjectInspector(List("KEY","VALUE"), ois)
     }
 
@@ -123,7 +123,7 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
     valueSer.initialize(null, valueTableDesc.getProperties())
 
     // Initialize object inspector for key columns.
-    keyObjInspector = SharkEnv.objectInspectorLock.synchronized {
+    keyObjInspector = SharkEnvSlave.objectInspectorLock.synchronized {
       ReduceSinkOperatorHelper.initEvaluatorsAndReturnStruct(
         keyEval,
         distinctColIndices,
@@ -134,7 +134,7 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
 
     // Initialize object inspector for value columns.
     val valFieldInspectors = valueEval.map(eval => eval.initialize(rowInspector)).toList
-    valObjInspector = SharkEnv.objectInspectorLock.synchronized {
+    valObjInspector = SharkEnvSlave.objectInspectorLock.synchronized {
       ObjectInspectorFactory.getStandardStructObjectInspector(
         conf.getOutputValueColumnNames(), valFieldInspectors)
     }
