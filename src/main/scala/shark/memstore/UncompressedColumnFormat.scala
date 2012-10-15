@@ -246,7 +246,7 @@ object UncompressedColumnFormat {
 
   class LazyColumnFormat(outputOI: ObjectInspector, initialSize: Int)
     extends UncompressedColumnFormat[ByteStream.Output] {
-    val arr = new ByteArrayList(initialSize)
+    val arr = new ByteArrayList(initialSize * ColumnarSerDe.getFieldSize(outputOI))
     val ref = new ByteArrayRef()
 
     // starting position of each serialized object
@@ -260,7 +260,8 @@ object UncompressedColumnFormat {
       arr.addElements(arr.size(), v.getData, 0, v.getCount)
     }
 
-    override def appendNull = ()
+    override def appendNull =
+      throw new UnsupportedOperationException("LazyColumnFormat.appendNull()")
 
     override def build = {
       // Not sure if we should make a copy of the array

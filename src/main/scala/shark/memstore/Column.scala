@@ -178,7 +178,7 @@ object Column {
       format.append(bytes)
     }
 
-    override def build = new Column(format, ColumnStats.GenericColumnNoStats)
+    override def build = new Column(format.build, ColumnStats.GenericColumnNoStats)
   }
 }
 
