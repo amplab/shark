@@ -30,7 +30,9 @@ object SharkBuild extends Build {
     retrieveManaged := true,
     resolvers ++= Seq(
       "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
-      "JBoss Repository" at "http://repository.jboss.org/nexus/content/repositories/releases/"
+      "JBoss Repository" at "http://repository.jboss.org/nexus/content/repositories/releases/",
+      "Spray Repository" at "http://repo.spray.cc/",
+      "Cloudera Repository" at "http://repository.cloudera.com/artifactory/cloudera-repos/"
     ),
 
     testListeners <<= target.map(
