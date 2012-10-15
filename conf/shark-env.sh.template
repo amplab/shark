@@ -8,7 +8,6 @@ export SPARK_MEM=1g
 export SHARK_MASTER_MEM=1g
 
 # (Required) Point to your Scala installation.
-export SCALA_VERSION=2.9.2
 export SCALA_HOME=""
 
 # (Required) Point to the patched Hive binary distribution
