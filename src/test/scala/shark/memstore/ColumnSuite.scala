@@ -221,16 +221,19 @@ object ColumnSuite {
     val column: Column = builder.build
     assert(column.size == data.size)
 
-    var i = 0
-    var columnIter: ColumnFormatIterator = column.format.iterator
-    while (i < column.size) {
-      //println(data(i) + " " + column(i))
-      columnIter.nextRow()
-      val expected = data(i)
-      val reality = writableOi.getPrimitiveJavaObject(columnIter.current())
-      assert((expected == null && reality == null) || reality == expected,
-        "at position " + i + " expected " + expected + ", but saw " + reality)
-      i += 1
+    // Run the validation in parallel to test problems with concurrency.
+    (1 to 10).par.foreach { parallelIndex =>
+      var i = 0
+      var columnIter: ColumnFormatIterator = column.format.iterator
+      while (i < column.size) {
+        //println(data(i) + " " + column(i))
+        columnIter.nextRow()
+        val expected = data(i)
+        val reality = writableOi.getPrimitiveJavaObject(columnIter.current())
+        assert((expected == null && reality == null) || reality == expected,
+          "at position " + i + " expected " + expected + ", but saw " + reality)
+        i += 1
+      }
     }
 
     column
