@@ -10,10 +10,11 @@ import org.apache.hadoop.hive.ql.exec.{FileSinkOperator => HiveFileSinkOperator,
 import org.apache.hadoop.hive.serde2.Serializer
 import org.apache.hadoop.mapred.{TaskID, TaskAttemptID, HadoopWriter}
 
+import scala.collection.Map
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.BeanProperty
 
-import shark.{RDDUtils, SharkConfVars, SharkEnv}
+import shark.{RDDUtils, SharkConfVars, SharkEnv, Utils}
 import shark.memstore._
 import spark.{GrowableAccumulableParam, RDD, TaskContext}
 import spark.EnhancedRDD._
@@ -202,6 +203,18 @@ class CacheSinkOperator(
     val cacheKey = new CacheKey(tableName)
     SharkEnv.cache.put(cacheKey, rdd)
     rdd.foreach(_ => Unit)
+
+    // Report remaining memory.
+    val remainingMems: Map[String, (Long, Long)] = SharkEnv.sc.getSlavesMemoryStatus
+    remainingMems.foreach { case(slave, mem) =>
+      println("%s: %s / %s".format(
+        slave,
+        Utils.memoryBytesToString(mem._2),
+        Utils.memoryBytesToString(mem._1)))
+    }
+    println("Summary: %s / %s".format(
+      Utils.memoryBytesToString(remainingMems.map(_._2._2).sum),
+      Utils.memoryBytesToString(remainingMems.map(_._2._1).sum)))
 
     // Get the column statistics back to the cache manager.
     SharkEnv.cache.keyToStats.put(cacheKey, statsAcc.value.toMap)

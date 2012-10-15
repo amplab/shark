@@ -9,12 +9,22 @@ import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 import org.apache.hadoop.io.Writable
 
 
+/**
+ * TableStorage contains a whole partition of data in columnar format. It
+ * simply contains a list of columns. It should be built using a
+ * TableStorageBuilder.
+ */
 class TableStorage(val size: Int, val cfs: Array[ColumnFormat[_]]) {
 
+  /** Return an iterator for the partition. */
   def iterator = new TableIterator(this)
 }
 
 
+/**
+ * An iterator for a partition of data. Each element returns a ColumnarStruct
+ * that can be read by a ColumnarStructObjectInspector.
+ */
 class TableIterator(table: TableStorage) extends Iterator[ColumnarStruct] {
 
   val struct = new ColumnarStruct(table.cfs.map(_.iterator))
@@ -30,6 +40,10 @@ class TableIterator(table: TableStorage) extends Iterator[ColumnarStruct] {
 }
 
 
+/**
+ * Used to build a TableStorage. This is used in the serializer to convert a
+ * partition of data into columnar format and to generate a TableStorage.
+ */
 class TableStorageBuilder(
   oi: StructObjectInspector, initialColumnSize: Int, builderFunc: ColumnBuilderCreateFunc.TYPE)
 extends Writable {

@@ -15,7 +15,6 @@ import org.apache.hadoop.io.Text
  */
 class Column(val format: ColumnFormat[_], val stats: ColumnStats[_]) {
   def size: Int = format.size
-  def iterator: ColumnFormatIterator = format.iterator
 }
 
 object Column {

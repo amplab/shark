@@ -222,7 +222,7 @@ object ColumnSuite {
     assert(column.size == data.size)
 
     var i = 0
-    var columnIter: ColumnFormatIterator = column.iterator
+    var columnIter: ColumnFormatIterator = column.format.iterator
     while (i < column.size) {
       //println(data(i) + " " + column(i))
       columnIter.nextRow()
