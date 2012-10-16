@@ -46,14 +46,14 @@ class ColumnarSerDe(builderFunc: ColumnBuilderCreateFunc.TYPE) extends SerDe wit
         val partitionSize = conf.getLong(DFSConfigKeys.DFS_BLOCK_SIZE_KEY,
           conf.getLong("dfs.block.size", DFSConfigKeys.DFS_BLOCK_SIZE_DEFAULT))
 
-        logDebug("Estimated size of partition to cache is " + partitionSize)
+        logInfo("Estimated size of partition to cache is " + partitionSize)
 
         // Estimate the initial capacity for ArrayList columns using:
         // partition_size / (num_columns * avg_field_size).
         val rowSize = ColumnarSerDe.getFieldSize(objectInspector).toLong
         initialColumnSize = (partitionSize / rowSize).toInt
 
-        logDebug("Estimated size of each row is: " + rowSize)
+        logInfo("Estimated size of each row is: " + rowSize)
       }
     }
   }
