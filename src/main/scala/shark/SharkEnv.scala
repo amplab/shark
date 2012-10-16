@@ -4,7 +4,6 @@ import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.hadoop.hive.conf.HiveConf
 import scala.collection.mutable.{HashMap, HashSet}
 
-import shark.memstore.CacheManager
 import spark.SparkContext
 
 /** A singleton object for the master program. The slaves should not access this. */
