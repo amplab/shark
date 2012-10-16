@@ -1,17 +1,33 @@
 package shark
 
-import spark.SparkContext
+import scala.collection.mutable.{HashMap, HashSet}
+
 import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.hadoop.hive.conf.HiveConf
-import scala.collection.mutable.{HashMap, HashSet}
+
+import shark.memstore.CacheManager
+import spark.SparkContext
 
 /** A singleton object for the master program. The slaves should not access this. */
 object SharkEnv extends LogHelper {
 
-  /** A dummy method so we can make sure the following static code are executed.
-   * This method is idempotent so it can be called multiple times.
-   */
-  def init() {}
+  def init() {
+    sc = new SparkContext(
+        if (System.getenv("MASTER") == null) "local" else System.getenv("MASTER"),
+        "Shark::" + java.net.InetAddress.getLocalHost.getHostName,
+        null,
+        Nil,
+        executorEnvVars)
+  }
+
+  def initWithSharkContext(jobName: String) {
+    sc = new SharkContext(
+        if (System.getenv("MASTER") == null) "local" else System.getenv("MASTER"),
+        jobName,
+        null,
+        Nil,
+        executorEnvVars)
+  }
 
   logInfo("Initializing SharkEnv")
 
@@ -27,12 +43,7 @@ object SharkEnv extends LogHelper {
   executorEnvVars.put("HADOOP_HOME", getEnv("HADOOP_HOME"))
   executorEnvVars.put("JAVA_HOME", getEnv("JAVA_HOME"))
 
-  var sc: SparkContext = new SparkContext(
-    if (System.getenv("MASTER") == null) "local" else System.getenv("MASTER"),
-    "Shark::" + java.net.InetAddress.getLocalHost.getHostName,
-    null,
-    Nil,
-    executorEnvVars)
+  var sc: SparkContext = _
 
   val cache: CacheManager = new CacheManager
 

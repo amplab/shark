@@ -19,7 +19,7 @@ import shark.{SharkConfVars, LogHelper}
  * A wrapper around our operators so they can be serialized by standard Java
  * serialization. This really just delegates the serialization of the operators
  * to XML, and that of object inspectors to Kryo.
- * 
+ *
  * Use OperatorSerializationWrapper(operator) to create a wrapper.
  */
 class OperatorSerializationWrapper[T <: Operator[_ <: HiveOperator]]
@@ -122,25 +122,37 @@ object XmlSerializer {
  * sometimes is buggy to use. We use this mainly to serialize the object
  * inspectors.
  */
-object KryoSerializer extends shark.LogHelper {
+object KryoSerializer {
 
-  @transient val kryoSer = new spark.KryoSerializer
+  @transient val ser = new spark.KryoSerializer
 
   def serialize[T](o: T): Array[Byte] = {
-    kryoSer.newInstance().serialize(o).array()
+    ser.newInstance().serialize(o).array()
   }
 
   def deserialize[T](bytes: Array[Byte]): T  = {
-    kryoSer.newInstance().deserialize[T](ByteBuffer.wrap(bytes))
+    ser.newInstance().deserialize[T](ByteBuffer.wrap(bytes))
+  }
+}
+
+
+object JavaSerializer {
+  @transient val ser = new spark.JavaSerializer
+
+  def serialize[T](o: T): Array[Byte] = {
+    ser.newInstance().serialize(o).array()
   }
 
+  def deserialize[T](bytes: Array[Byte]): T  = {
+    ser.newInstance().deserialize[T](ByteBuffer.wrap(bytes))
+  }
 }
 
 
 /**
  * A wrapper around some unserializable objects that make them both Java
  * serializable. Internally, Kryo is used for serialization.
- * 
+ *
  * Use KryoSerializationWrapper(value) to create a wrapper.
  */
 class KryoSerializationWrapper[T] extends Serializable {
@@ -173,7 +185,7 @@ class KryoSerializationWrapper[T] extends Serializable {
 }
 
 
-object KryoSerializationWrapper {  
+object KryoSerializationWrapper {
   def apply[T](value: T): KryoSerializationWrapper[T] = {
     val wrapper = new KryoSerializationWrapper[T]
     wrapper.value = value
