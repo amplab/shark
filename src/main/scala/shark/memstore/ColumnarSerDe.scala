@@ -113,9 +113,12 @@ class ColumnarSerDe(builderFunc: ColumnBuilderCreateFunc.TYPE) extends SerDe wit
   }
 }
 
-// Companion object, used to determine the row size, which is then used to
-// determine the initial capacity to allocate as fastutil buffer.
+
 object ColumnarSerDe {
+
+  class Basic extends ColumnarSerDe(ColumnBuilderCreateFunc.uncompressedArrayFormat)
+  class WithStats extends ColumnarSerDe(ColumnBuilderCreateFunc.uncompressedArrayFormatWithStats)
+  class Compressed extends ColumnarSerDe(ColumnBuilderCreateFunc.compressedFormatWithStats)
 
   // Sizes of primitive types
   val BOOLEAN_SIZE = 1

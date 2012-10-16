@@ -12,6 +12,7 @@ import org.apache.hadoop.hive.ql.metadata.AuthorizationException
 import org.apache.hadoop.hive.ql.parse._
 import org.apache.hadoop.hive.ql.plan._
 import org.apache.hadoop.hive.ql.session.SessionState
+import org.apache.hadoop.hive.serde2.{SerDe, SerDeUtils}
 import org.apache.hadoop.util.StringUtils
 
 import scala.collection.JavaConversions._
@@ -35,8 +36,13 @@ object SharkDriver extends LogHelper {
     logInfo("Initializing object SharkDriver")
   }
 
-  org.apache.hadoop.hive.serde2.SerDeUtils.registerSerDe(
-    classOf[ColumnarSerDe].getName, classOf[ColumnarSerDe])
+  def registerSerDe(serdeClass: Class[_ <: SerDe]) {
+    SerDeUtils.registerSerDe(serdeClass.getName, serdeClass)
+  }
+
+  registerSerDe(classOf[ColumnarSerDe.Basic])
+  registerSerDe(classOf[ColumnarSerDe.WithStats])
+  registerSerDe(classOf[ColumnarSerDe.Compressed])
 
   // Task factory. Add Shark specific tasks.
   TaskFactory.taskvec.addAll(Seq(

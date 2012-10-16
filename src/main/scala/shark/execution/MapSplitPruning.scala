@@ -21,6 +21,8 @@ object MapSplitPruning {
    * Test whether we should keep the split as a candidate given the filter
    * predicates. Return true if the split should be kept as a candidate, false
    * if the split should be pruned.
+   *
+   * s and s.stats must not be null here.
    */
   def test(s: TableStats, e: ExprNodeEvaluator): Boolean = e match {
     case e: ExprNodeGenericFuncEvaluator => {
@@ -67,7 +69,7 @@ object MapSplitPruning {
       //  column op const, where op is <, >, =, <=, >=, !=.
       val field = columnEval.field.asInstanceOf[IDStructField]
       val value: Object = constEval.expr.getValue
-      
+
       s.stats(field.fieldID) match {
         case Some(columnStats) => {
           val min = columnStats.min

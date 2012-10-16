@@ -158,14 +158,13 @@ object FileSinkOperator {
 /**
  * Cache the RDD and force evaluate it (so the cache is filled).
  */
-class CacheSinkOperator(
-  @BeanProperty var tableName: String, @BeanProperty var collectStats: Boolean)
+class CacheSinkOperator(@BeanProperty var tableName: String)
   extends TerminalOperator {
 
   @BeanProperty var initialColumnSize: Int = _
 
   // Zero-arg constructor for deserialization.
-  def this() = this(null, false)
+  def this() = this(null)
 
   override def initializeOnMaster() {
     super.initializeOnMaster()
@@ -187,15 +186,15 @@ class CacheSinkOperator(
     val rdd = inputRdd.mapPartitionsWithSplit { case(split, iter) =>
       op.initializeOnSlave()
 
-      val serde = new ColumnarSerDe(
-        if (op.collectStats) ColumnBuilderCreateFunc.uncompressedArrayFormatWithStats
-        else ColumnBuilderCreateFunc.uncompressedArrayFormat)
+      val serdeClass = op.localHiveOp.getConf.getTableInfo.getDeserializerClass
+      op.logInfo("Using serde: " + serdeClass)
+      val serde = serdeClass.newInstance().asInstanceOf[ColumnarSerDe]
       serde.initialize(op.hconf, op.localHiveOp.getConf.getTableInfo.getProperties())
+
       val rddSerialzier = new RDDSerializer(serde)
       val iterToReturn = rddSerialzier.serialize(iter, op.objectInspector)
 
-      if (op.collectStats) statsAcc += (split, serde.stats)
-
+      statsAcc += (split, serde.stats)
       iterToReturn
     }
 

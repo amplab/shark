@@ -1,5 +1,7 @@
 package shark.memstore
 
+import java.io.{ObjectInput, ObjectOutput, Externalizable}
+
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, PrimitiveObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
 import org.apache.hadoop.io.Text
@@ -8,7 +10,7 @@ import org.apache.hadoop.io.Text
 /**
  * Column level statistics, including range (min, max).
  */
-sealed trait ColumnStats[T] {
+sealed trait ColumnStats[T] extends Serializable {
   def append(v: T)
   def appendNull() {}
   def min: T
@@ -59,13 +61,16 @@ object ColumnStats {
     override def max = _max
   }
 
-  class IntColumnStats extends ColumnStats[Int] {
-
+  object IntColumnStats {
     private val UNINITIALIZED = 0  // Haven't seen the first value yet.
     private val INITIALIAZED = 1   // Seen first, and processing second value.
     private val ASCENDING = 2
     private val DESCENDING = 3
     private val UNORDERED = 4
+  }
+
+  class IntColumnStats extends ColumnStats[Int] {
+    import IntColumnStats._
     private var _orderedState = UNINITIALIZED
 
     private var _max = Int.MinValue
@@ -142,7 +147,8 @@ object ColumnStats {
     override def max = _max
   }
 
-  class TextColumnStats extends ColumnStats[Text] {
+  class TextColumnStats extends ColumnStats[Text] with Externalizable {
+    // Note: this is not Java serializable because Text is not Java serializable.
     private var _max: Text = null
     private var _min: Text = null
     override def max = _max
@@ -153,57 +159,83 @@ object ColumnStats {
       if (max == null || v.compareTo(_max) > 0) _max = new Text(v)
       if (min == null || v.compareTo(_min) < 0) _min = new Text(v)
     }
+
+    override def readExternal(in: ObjectInput) {
+      if (in.readBoolean()) {
+        _max = new Text
+        _max.readFields(in)
+      }
+      if (in.readBoolean()) {
+        _min = new Text
+        _min.readFields(in)
+      }
+    }
+
+    override def writeExternal(out: ObjectOutput) {
+      if (_max == null) {
+        out.write(0)
+      } else {
+        out.write(1)
+        _max.write(out)
+      }
+      if (_min == null) {
+        out.write(0)
+      } else {
+        out.write(1)
+        _min.write(out)
+      }
+    }
   }
 
-  implicit object BooleanColumnNoStats extends ColumnStats[Boolean] {
+  implicit object BooleanColumnNoStats extends ColumnNoStats[Boolean] {
     override def append(v: Boolean) {}
     override def min = false
     override def max = false
   }
 
-  implicit object ByteColumnNoStats extends ColumnStats[Byte] {
+  implicit object ByteColumnNoStats extends ColumnNoStats[Byte] {
     override def append(v: Byte) {}
     override def min = 0
     override def max = 0
   }
 
-  implicit object ShortColumnNoStats extends ColumnStats[Short] {
+  implicit object ShortColumnNoStats extends ColumnNoStats[Short] {
     override def append(v: Short) {}
     override def min = 0
     override def max = 0
   }
 
-  implicit object IntColumnNoStats extends ColumnStats[Int] {
+  implicit object IntColumnNoStats extends ColumnNoStats[Int] {
     override def append(v: Int) {}
     override def min = 0
     override def max = 0
   }
 
-  implicit object LongColumnNoStats extends ColumnStats[Long] {
+  implicit object LongColumnNoStats extends ColumnNoStats[Long] {
     override def append(v: Long) {}
     override def min = 0
     override def max = 0
   }
 
-  implicit object FloatColumnNoStats extends ColumnStats[Float] {
+  implicit object FloatColumnNoStats extends ColumnNoStats[Float] {
     override def append(v: Float) {}
     override def min = 0
     override def max = 0
   }
 
-  implicit object DoubleColumnNoStats extends ColumnStats[Double] {
+  implicit object DoubleColumnNoStats extends ColumnNoStats[Double] {
     override def append(v: Double) {}
     override def min = 0
     override def max = 0
   }
 
-  implicit object TextColumnNoStats extends ColumnStats[Text] {
+  implicit object TextColumnNoStats extends ColumnNoStats[Text] {
     override def append(v: Text) {}
     override def min = null
     override def max = null
   }
 
-  implicit object GenericColumnNoStats extends ColumnStats[Object] {
+  implicit object GenericColumnNoStats extends ColumnNoStats[Object] {
     override def append(v: Object) {}
     override def min = null
     override def max = null

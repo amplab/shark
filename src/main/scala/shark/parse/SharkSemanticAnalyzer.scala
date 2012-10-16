@@ -16,7 +16,7 @@ import org.apache.hadoop.hive.ql.session.SessionState
 
 import scala.collection.JavaConversions._
 
-import shark.{LogHelper, SharkConfVars}
+import shark.{LogHelper, SharkConfVars, Utils}
 import shark.execution.{HiveOperator, Operator, OperatorFactory, ReduceSinkOperator, SparkWork,
   TerminalOperator}
 import shark.memstore.ColumnarSerDe
@@ -57,7 +57,6 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     //TODO: can probably reuse Hive code for this
     // analyze create table command
     var shouldCache = false
-    var shouldCollectStats = true
     var isCTAS = false
     var shouldReset = false
 
@@ -83,8 +82,12 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         shouldCache = td.getTblProps().getOrElse("shark.cache", "false").toBoolean ||
           (SharkConfVars.getBoolVar(conf, SharkConfVars.CHECK_TABLENAME_FLAG) &&
           td.getTableName.endsWith("_cached"))
-        shouldCollectStats = td.getTblProps().getOrElse("shark.collectStats", "true").toBoolean
-        if (shouldCache) td.setSerName(classOf[ColumnarSerDe].getName)
+
+        if (shouldCache && (td.getSerName == null || !td.getSerName.startsWith("shark.memstore"))) {
+          // By default use the Basic columnar ser de.
+          td.setSerName(classOf[ColumnarSerDe.Basic].getName)
+        }
+
         qb.setTableDesc(td)
         shouldReset = true
       }
@@ -142,8 +145,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       // destination (e.g. CTAS with table property "shark.cache" = "true").
       val terminalOp = {
         if (isCTAS && qb.getTableDesc != null && shouldCache) {
-          OperatorFactory.createSharkCacheOutputPlan(
-            hiveSinkOps.head, qb.getTableDesc.getTableName, shouldCollectStats)
+          OperatorFactory.createSharkCacheOutputPlan(hiveSinkOps.head, qb.getTableDesc.getTableName)
         } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink) {
           OperatorFactory.createSharkRddOutputPlan(hiveSinkOps.head)
         } else {

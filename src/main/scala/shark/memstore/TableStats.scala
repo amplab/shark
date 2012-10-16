@@ -1,7 +1,7 @@
 package shark.memstore
 
 
-class TableStats(val stats: Array[Option[ColumnStats[_]]], val numRows: Int) {
+class TableStats(val stats: Array[Option[ColumnStats[_]]], val numRows: Int) extends Serializable {
 
   override def toString =
     stats.zipWithIndex.map {

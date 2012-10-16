@@ -118,7 +118,11 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
           if (printPruneDebug) {
             logInfo("\nSplit " + split + "\n" + splitToStats(split))
           }
-          MapSplitPruning.test(splitToStats(split), filterOp.conditionEvaluator)
+          // Only test for pruning if we have stats on the column.
+          val splitStats = splitToStats(split)
+          if (splitStats != null && splitStats.stats != null)
+            MapSplitPruning.test(splitStats, filterOp.conditionEvaluator)
+          else true
         }
         val timeTaken = System.currentTimeMillis - startTime
         logInfo("Map pruning %d splits into %s splits took %d ms".format(

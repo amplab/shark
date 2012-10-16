@@ -11,7 +11,7 @@ import shark.LogHelper
  * Given a Hive plan, OperatorFactory creates the corresponding Shark plan.
  */
 object OperatorFactory extends LogHelper {
-  
+
   /**
    * Given a Hive plan (that is any operator in the tree), create the plan that
    * uses Shark operators. This function automatically finds the Hive terminal
@@ -23,15 +23,14 @@ object OperatorFactory extends LogHelper {
   }
 
   def createSharkCacheOutputPlan(
-    hiveTerminalOp: HiveOperator, tableName: String, collectStats: Boolean): TerminalOperator = {
+    hiveTerminalOp: HiveOperator, tableName: String): TerminalOperator = {
     val terminalOp = _newOperatorInstance(
       classOf[CacheSinkOperator], hiveTerminalOp).asInstanceOf[CacheSinkOperator]
     terminalOp.tableName = tableName
-    terminalOp.collectStats = collectStats
     _createAndSetParents(
       terminalOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }
-  
+
   def createSharkFileOutputPlan(hiveTerminalOp: HiveOperator): TerminalOperator = {
     val terminalOp = _newOperatorInstance(classOf[FileSinkOperator], hiveTerminalOp)
     _createAndSetParents(
@@ -43,7 +42,7 @@ object OperatorFactory extends LogHelper {
     _createAndSetParents(
       terminalOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }
-  
+
   /** Create a Shark operator given the Hive operator. */
   private def createSingleOperator(hiveOp: HiveOperator): Operator[_] = {
     // This is kind of annoying, but it works with strong typing ...
@@ -70,13 +69,13 @@ object OperatorFactory extends LogHelper {
         _newOperatorInstance(classOf[MapJoinOperator], hiveOp)
       case hop: org.apache.hadoop.hive.ql.exec.ScriptOperator =>
         _newOperatorInstance(classOf[ScriptOperator], hiveOp)
-      case hop: org.apache.hadoop.hive.ql.exec.LateralViewForwardOperator => 
+      case hop: org.apache.hadoop.hive.ql.exec.LateralViewForwardOperator =>
         _newOperatorInstance(classOf[LateralViewForwardOperator], hiveOp)
-      case hop: org.apache.hadoop.hive.ql.exec.LateralViewJoinOperator => 
+      case hop: org.apache.hadoop.hive.ql.exec.LateralViewJoinOperator =>
         _newOperatorInstance(classOf[LateralViewJoinOperator], hiveOp)
-      case hop: org.apache.hadoop.hive.ql.exec.UDTFOperator => 
+      case hop: org.apache.hadoop.hive.ql.exec.UDTFOperator =>
         _newOperatorInstance(classOf[UDTFOperator], hiveOp)
-      case hop: org.apache.hadoop.hive.ql.exec.ForwardOperator => 
+      case hop: org.apache.hadoop.hive.ql.exec.ForwardOperator =>
         _newOperatorInstance(classOf[ForwardOperator], hiveOp)
       case hop: org.apache.hadoop.hive.ql.exec.GroupByOperator => {
         // For GroupBy, we separate post shuffle from pre shuffle.
@@ -88,11 +87,11 @@ object OperatorFactory extends LogHelper {
       }
       case _ => throw new HiveException("Unsupported Hive operator: " + hiveOp.getClass.getName)
     }
-    
+
     logDebug("Replacing %s with %s".format(hiveOp.getClass.getName, sharkOp.getClass.getName))
     sharkOp
   }
-  
+
   private def _newOperatorInstance[T <: HiveOperator](
       cls: Class[_ <: Operator[T]], hiveOp: HiveOperator): Operator[_] = {
     val op = cls.newInstance()
@@ -108,7 +107,7 @@ object OperatorFactory extends LogHelper {
     }
     op
   }
-  
+
   /**
    * Given a terminal operator in Hive, create the plan that uses Shark physical
    * operators.
@@ -123,7 +122,7 @@ object OperatorFactory extends LogHelper {
       current
     }
   }
-  
+
   private def _findHiveTerminalOperator(hiveOp: HiveOperator): HiveOperator = {
     if (hiveOp.getChildOperators() == null || hiveOp.getChildOperators().size() == 0) {
       hiveOp
