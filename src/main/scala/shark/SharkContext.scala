@@ -8,23 +8,27 @@ import org.apache.hadoop.hive.ql.Driver
 import org.apache.hadoop.hive.ql.processors.{CommandProcessor, CommandProcessorFactory}
 import org.apache.hadoop.hive.ql.session.SessionState
 
+import scala.collection.Map
 import scala.collection.JavaConversions._
 
 import shark.execution.TableRDD
-import spark.SparkContext
+import spark.{SparkContext, SparkEnv}
 
 
 class SharkContext(
     master: String,
-    frameworkName: String,
-    sparkHome: String = null,
-    jars: Seq[String] = Nil)
-  extends SparkContext(master, frameworkName, sparkHome, jars) {
+    jobName: String,
+    sparkHome: String,
+    jars: Seq[String],
+    environment: Map[String, String])
+  extends SparkContext(master, jobName, sparkHome, jars, environment) {
 
-  val hiveconf = new HiveConf(classOf[SessionState])
+  @transient val sparkEnv = SparkEnv.get
+
+  @transient val hiveconf = new HiveConf(classOf[SessionState])
 
   //SessionState.initHiveLog4j()
-  val sessionState = new SessionState(hiveconf)
+  @transient val sessionState = new SessionState(hiveconf)
   sessionState.out = new PrintStream(System.out, true, "UTF-8")
   sessionState.err = new PrintStream(System.out, true, "UTF-8")
 
@@ -33,7 +37,7 @@ class SharkContext(
    * in the sequence is one row.
    */
   def sql(cmd: String): Seq[String] = {
-
+    SparkEnv.set(sparkEnv)
     val cmd_trimmed: String = cmd.trim()
     val tokens: Array[String] = cmd_trimmed.split("\\s+")
     val cmd_1: String = cmd_trimmed.substring(tokens(0).length()).trim()
@@ -65,6 +69,7 @@ class SharkContext(
    * Execute the command and return the results as a TableRDD.
    */
   def sql2rdd(cmd: String): TableRDD = {
+    SparkEnv.set(sparkEnv)
     SessionState.start(sessionState)
     val driver = new SharkDriver(hiveconf)
     driver.init()
@@ -75,6 +80,7 @@ class SharkContext(
    * Execute the command and print the results to console.
    */
   def sql2console(cmd: String) {
+    SparkEnv.set(sparkEnv)
     val results = sql(cmd)
     results.foreach(println)
   }
