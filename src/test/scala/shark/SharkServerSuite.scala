@@ -1,15 +1,17 @@
 package shark
 
 import java.io.{BufferedReader, InputStreamReader, PrintWriter}
-import org.scalatest.{BeforeAndAfter, FunSuite}
+import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
-class SharkServerSuite extends FunSuite with BeforeAndAfter with CliTestToolkit {
+class SharkServerSuite extends FunSuite with BeforeAndAfterAll with CliTestToolkit {
+
+  val WAREHOUSE_PATH = CliTestToolkit.getWarehousePath("server")
 
   var serverProcess : Process = null
   var serverInputReader : BufferedReader = null
   var serverErrorReader : BufferedReader = null
 
-  before {
+  override def beforeAll() {
     val serverPb = new ProcessBuilder("./bin/shark", "--service", "sharkserver")
     val serverEnv = serverPb.environment()
     serverEnv.put("SHARK_LAUNCH_WITH_JAVA", "1")
@@ -24,9 +26,12 @@ class SharkServerSuite extends FunSuite with BeforeAndAfter with CliTestToolkit 
     inputReader = new BufferedReader(new InputStreamReader(process.getInputStream))
     errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream))
     waitForOutput(inputReader, "shark>")
+    outputWriter.write("set hive.metastore.warehouse.dir=" + WAREHOUSE_PATH + ";\n")
+    outputWriter.flush()
+    waitForOutput(inputReader, "shark>")
   }
 
-  after {
+  override def afterAll() {
     process.destroy()
     process.waitFor()
     serverProcess.destroy()

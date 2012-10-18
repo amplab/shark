@@ -6,7 +6,7 @@ import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
 class CachedSuite extends FunSuite with BeforeAndAfterAll with CliTestToolkit {
 
-  val wareHousePath = "/user/hive/warehouse"
+  val WAREHOUSE_PATH = CliTestToolkit.getWarehousePath("cli")
 
   override def beforeAll() {
     val pb = new ProcessBuilder("./bin/shark")
@@ -14,6 +14,9 @@ class CachedSuite extends FunSuite with BeforeAndAfterAll with CliTestToolkit {
     outputWriter = new PrintWriter(process.getOutputStream, true)
     inputReader = new BufferedReader(new InputStreamReader(process.getInputStream))
     errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream))
+    waitForOutput(inputReader, "shark>")
+    outputWriter.write("set hive.metastore.warehouse.dir=" + WAREHOUSE_PATH + ";\n")
+    outputWriter.flush()
     waitForOutput(inputReader, "shark>")
   }
 
@@ -83,7 +86,7 @@ class CachedSuite extends FunSuite with BeforeAndAfterAll with CliTestToolkit {
   }
 
   def isCachedTable(tableName: String) : Boolean = {
-    val dir = new File(wareHousePath + "/" + tableName)
+    val dir = new File(WAREHOUSE_PATH + "/" + tableName.toLowerCase)
     dir.isDirectory && dir.listFiles.isEmpty
   }
 }

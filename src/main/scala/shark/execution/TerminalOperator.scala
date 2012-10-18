@@ -204,6 +204,7 @@ class CacheSinkOperator(@BeanProperty var tableName: String)
     rdd.foreach(_ => Unit)
 
     // Report remaining memory.
+    /* Commented out for now waiting for the reporting code to make into Spark.
     val remainingMems: Map[String, (Long, Long)] = SharkEnv.sc.getSlavesMemoryStatus
     remainingMems.foreach { case(slave, mem) =>
       println("%s: %s / %s".format(
@@ -214,6 +215,7 @@ class CacheSinkOperator(@BeanProperty var tableName: String)
     println("Summary: %s / %s".format(
       Utils.memoryBytesToString(remainingMems.map(_._2._2).sum),
       Utils.memoryBytesToString(remainingMems.map(_._2._1).sum)))
+    */
 
     // Get the column statistics back to the cache manager.
     SharkEnv.cache.keyToStats.put(cacheKey, statsAcc.value.toMap)

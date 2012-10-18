@@ -1,6 +1,15 @@
 package shark
 
 import java.io.{BufferedReader, InputStreamReader, PrintWriter}
+import java.text.SimpleDateFormat
+import java.util.Date
+
+object CliTestToolkit {
+  def getWarehousePath(prefix: String): String = {
+    System.getProperty("user.dir") + "/test_warehouses/" + prefix + "-" +
+      (new SimpleDateFormat("yyyyMMdd-HHmmss")).format(new Date)
+  }
+}
 
 trait CliTestToolkit {
 
@@ -54,6 +63,4 @@ trait CliTestToolkit {
     print(out)
     out
   }
-
-
 }
