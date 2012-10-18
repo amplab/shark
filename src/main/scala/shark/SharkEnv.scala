@@ -11,7 +11,7 @@ import spark.SparkContext
 object SharkEnv extends LogHelper {
 
   def init() {
-    if (sc != null) {
+    if (sc == null) {
       sc = new SparkContext(
           if (System.getenv("MASTER") == null) "local" else System.getenv("MASTER"),
           "Shark::" + java.net.InetAddress.getLocalHost.getHostName,
