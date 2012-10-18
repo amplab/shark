@@ -11,15 +11,21 @@ import spark.SparkContext
 object SharkEnv extends LogHelper {
 
   def init() {
-    sc = new SparkContext(
-        if (System.getenv("MASTER") == null) "local" else System.getenv("MASTER"),
-        "Shark::" + java.net.InetAddress.getLocalHost.getHostName,
-        null,
-        Nil,
-        executorEnvVars)
+    if (sc != null) {
+      sc = new SparkContext(
+          if (System.getenv("MASTER") == null) "local" else System.getenv("MASTER"),
+          "Shark::" + java.net.InetAddress.getLocalHost.getHostName,
+          null,
+          Nil,
+          executorEnvVars)
+    }
   }
 
   def initWithSharkContext(jobName: String) {
+    if (sc != null) {
+      sc.stop
+    }
+
     sc = new SharkContext(
         if (System.getenv("MASTER") == null) "local" else System.getenv("MASTER"),
         jobName,
