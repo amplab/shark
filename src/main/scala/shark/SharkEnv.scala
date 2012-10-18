@@ -3,14 +3,14 @@ package shark
 import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.hadoop.hive.conf.HiveConf
 import scala.collection.mutable.{HashMap, HashSet}
-
+import shark.memstore.CacheManager
 import spark.SparkContext
 
 /** A singleton object for the master program. The slaves should not access this. */
 object SharkEnv extends LogHelper {
 
   def init() {
-    if (sc != null) {
+    if (sc == null) {
       sc = new SparkContext(
           if (System.getenv("MASTER") == null) "local" else System.getenv("MASTER"),
           "Shark::" + java.net.InetAddress.getLocalHost.getHostName,
