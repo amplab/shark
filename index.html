@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="chrome=1">
     <title>Shark - Lightning Fast Data Warehouse System</title>
-    
+
     <link rel="stylesheet" href="stylesheets/styles.css">
     <link rel="stylesheet" href="stylesheets/pygment_trac.css">
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
@@ -16,8 +16,23 @@
     <div class="wrapper">
       <header>
         <h1>Shark (Hive on Spark)</h1>
-        <p>Hive on Spark</p>
-        <p class="view"><a href="https://github.com/amplab/shark">View the Project on GitHub <small>amplab/shark</small></a></p>
+        <p>&nbsp;</p>
+
+        <p class="view">
+          <a href="https://github.com/amplab/shark/wiki/Shark-Release-0.2">Shark 0.2 Release</a>
+        </p>
+
+        <p class="view">
+          <a href="https://github.com/amplab/shark/wiki">Documentation</a>
+        </p>
+
+        <p class="view">
+          <a href="https://github.com/amplab/shark/downloads">Binary Distributions</a>
+        </p>
+
+        <p class="view">
+          <a href="https://github.com/amplab/shark">Source Code on GitHub</a>
+        </p>
 		<!--
 		        <ul>
 		          <li><a href="https://github.com/amplab/shark/zipball/master">Download <strong>ZIP File</strong></a></li>
@@ -28,7 +43,16 @@
       </header>
       <section>
 
-		<p>Shark is a large-scale data warehouse system for Spark designed to be compatible with <a href="http://hive.apache.org/">Apache Hive</a>. It can answer Hive QL queries up to 30 times faster than Hive without modification to the existing data nor queries. Shark supports Hive's query language, metastore, serialization formats, and user-defined functions.</p>
+		<p>Shark is a large-scale data warehouse system for Spark designed to be compatible with
+      <a href="http://hive.apache.org/">Apache Hive</a>. It can answer Hive QL queries up to
+      30 times faster than Hive without modification to the existing data nor queries. Shark
+      supports Hive's query language, metastore, serialization formats, and user-defined functions.
+    </p>
+
+    <p>We released
+      <a href="https://github.com/amplab/shark/wiki/Shark-Release-0.2">Shark 0.2</a> on Oct 15, 2012.
+      The new version is uch more stable and also features significant performance improvements.
+    </p>
 
 		<h3>Caching and Performance Optimizations</h3>
 		<p>Analytical queries usually focus on a particular subset or time window, e.g., http logs from the previous month, touching only the (small) dimension tables and a small portion of the fact table. These queries exhibit strong temporal locality, and in many cases, it is plausible to ﬁt the working set into a cluster’s memory.</p>
@@ -56,7 +80,10 @@
 
 		<h3>Getting Started</h3>
 
-		<p>If you are using Apache Hive and interested in trying out Shark, we encourage you to drop us a note first. If you are feeling really adventurous, you can check out our <a href="https://github.com/amplab/shark">GitHub page</a> to get Shark running yourself. We will start providing a binary distribution soon too! </p>
+    <p>See our <a href="https://github.com/amplab/shark/wiki">documentation on Github</a> to get
+      started. It takes around 5 mins to set up Shark on a single node for a quick spin, and about
+      20 mins on an Amazon EC2 cluster.
+    </p>
 
 		<h3>References</h3>
 
@@ -68,12 +95,20 @@
 		<li><a href="http://incubator.apache.org/mesos/">Apache Mesos</a></li>
 		</ul><h3>Authors and Contributors</h3>
 
-		<p>Shark is developed in the <a href="http://amplab.cs.berkeley.edu/">UC Berkeley AMP Lab</a> by Cliff Engle, <a href="http://www.cs.berkeley.edu/~alupher">Antonio Lupher</a>, and <a href="http://www.cs.berkeley.edu/%7Erxin">Reynold Xin</a>, with support from  <a href="http://www.cs.berkeley.edu/~matei/">Matei Zaharia</a>, <a href="http://www.cs.berkeley.edu/~franklin/">Michael Franklin</a>, <a href="http://www.eecs.berkeley.edu/Faculty/Homepages/shenker.html">Scott Shenker</a>, and <a href="http://www.cs.berkeley.edu/~istoica/">Ion Stoica</a>. The research and development is supported in part by an NSF CISE Expeditions award,  gifts from Google, SAP, Amazon Web Services, Blue Goji, Cisco, Cloudera, Ericsson, General Electric, Hewlett Packard, Huawei, Intel, MarkLogic, Microsoft, NetApp, Oracle, Quanta, Splunk, VMware and by DARPA (contract #FA8650-11-C-7136).</p>
+		<p>Shark is developed in the <a href="http://amplab.cs.berkeley.edu/">UC Berkeley AMP Lab</a>.
+      The research and development is supported in part by an NSF CISE Expeditions award,  gifts
+      from Google, SAP, Amazon Web Services, Blue Goji, Cisco, Cloudera, Ericsson, General Electric,
+       Hewlett Packard, Huawei, Intel, MarkLogic, Microsoft, NetApp, Oracle, Quanta, Splunk, VMware
+       and by DARPA (contract #FA8650-11-C-7136).
+    </p>
 
 		<h3>Support or Contact</h3>
 
-		<p>If you are interested in trying out Shark in your Hive warehouse, please contact <a href="mailto:rxin@cs.berkeley.edu">Reynold</a>. You are also welcomed to use the <a href="http://groups.google.com/group/shark-users">shark-users</a> mailing list for support.</p>
-
+		<p>If you are interested in trying out Shark in your Hive warehouse, please contact
+      <a href="mailto:rxin@cs.berkeley.edu">Reynold</a>. You are also welcomed to use the
+      <a href="http://groups.google.com/group/shark-users">shark-users</a> mailing list for
+      support.
+    </p>
 
       </section>
       <footer>
