@@ -54,6 +54,14 @@
       The new version is uch more stable and also features significant performance improvements.
     </p>
 
+    <h3>Getting Started</h3>
+
+    <p>See our <a href="https://github.com/amplab/shark/wiki">documentation on Github</a> to get
+      started. It takes around 5 mins to set up Shark on a single node for a quick spin, and about
+      20 mins on an Amazon EC2 cluster.
+    </p>
+
+
 		<h3>Caching and Performance Optimizations</h3>
 		<p>Analytical queries usually focus on a particular subset or time window, e.g., http logs from the previous month, touching only the (small) dimension tables and a small portion of the fact table. These queries exhibit strong temporal locality, and in many cases, it is plausible to ﬁt the working set into a cluster’s memory.</p>
 		<p>Shark allows users to exploit this temporal locality by caching their working set of data, or in database terms, to create in-memory materialized views. Common data types can be cached in a columnar format (as Java primitives arrays), which is very efficient for storage and garbage collection, yet provides maximum performance (orders of magnitude faster than reading data from disk). Below is an example on how to cache data in Shark:</p>
@@ -78,12 +86,6 @@
 <span class="n">kmeans</span><span class="o">(</span><span class="n">featureMatrix</span><span class="o">)</span>
 </pre></div></div>
 
-		<h3>Getting Started</h3>
-
-    <p>See our <a href="https://github.com/amplab/shark/wiki">documentation on Github</a> to get
-      started. It takes around 5 mins to set up Shark on a single node for a quick spin, and about
-      20 mins on an Amazon EC2 cluster.
-    </p>
 
 		<h3>References</h3>
 
