@@ -199,64 +199,79 @@ object UncompressedColumnFormat {
     }
   }
 
-  class TextColumnFormat(initialSize: Int) extends UncompressedColumnFormat[Text] {
+  class TextColumnFormat(initialSize: Int) extends ColumnFormat[Text] {
+    // All strings are stored into a single byte array. Each string's length is
+    // encoded in sizes array. If a string's size is negative, it means the
+    // value is NULL.
     val arr = new ByteArrayList(initialSize * ColumnarSerDe.STRING_SIZE)
-    val starts = new IntArrayList(initialSize)
-    starts.add(0)
+    val sizes = new IntArrayList(initialSize)
+    sizes.add(0)
 
-    override def size: Int = starts.size - 1
+    override def size: Int = sizes.size - 1
 
     override def append(v: Text) = {
-      starts.add(arr.size + v.getLength)
+      sizes.add(v.getLength)
       arr.addElements(arr.size, v.getBytes, 0, v.getLength)
     }
 
     override def appendNull() {
-      nulls.set(starts.size - 1)
-      starts.add(arr.size)
+      sizes.add(-1)
     }
 
     override def build = {
       arr.trim
-      starts.trim
+      sizes.trim
       this
     }
 
-    override def iterator: ColumnFormatIterator = new NullBitmapColumnIterator[Text](this) {
+    override def iterator: ColumnFormatIterator = new ColumnFormatIterator {
+      var _position = 0
+      var _offset = 0
       val writable = new Text
-      override def getObject(i: Int): Object = {
-        val start = starts.getInt(i)
-        writable.set(arr.elements, start, starts.getInt(i + 1) - start)
-        writable
+      override def nextRow() {
+        val length = sizes.getInt(_position)
+        if (length > 0) _offset += length
+        _position += 1
+      }
+      override def current(): Object = {
+        val length = sizes.getInt(_position)
+        if (length >= 0) {
+          writable.set(arr.elements, _offset, length)
+          writable
+        } else {
+          null
+        }
       }
     }
   }
 
-  class VoidColumnFormat extends UncompressedColumnFormat[Void] {
+  class VoidColumnFormat extends ColumnFormat[Void] {
+    val void = NullWritable.get()
     private var _size = 0
-    override def size: Int = size
+    override def size: Int = _size
     override def append(v: Void) { _size += 1 }
     override def appendNull() { _size += 1 }
     override def build = this
-    override def iterator: ColumnFormatIterator = new NullBitmapColumnIterator[Void](this) {
-      val void = NullWritable.get()
-      override def getObject(i: Int): Object = void
+    override def iterator: ColumnFormatIterator = new ColumnFormatIterator {
+      override def nextRow() { }
+      override def current(): Object = void
     }
   }
 
+  // We expect data to be serialized before passing into the lazy column format.
+  // As a result, it never expects NULLs.
   class LazyColumnFormat(outputOI: ObjectInspector, initialSize: Int)
-    extends UncompressedColumnFormat[ByteStream.Output] {
+    extends ColumnFormat[ByteStream.Output] {
     val arr = new ByteArrayList(initialSize * ColumnarSerDe.getFieldSize(outputOI))
     val ref = new ByteArrayRef()
 
-    // starting position of each serialized object
-    val starts = new IntArrayList(initialSize)
-    starts.add(0)
+    val sizes = new IntArrayList(initialSize)
+    sizes.add(0)
 
-    override def size: Int = starts.size - 1
+    override def size: Int = sizes.size - 1
 
     override def append(v: ByteStream.Output) {
-      starts.add(arr.size() + v.getCount)
+      sizes.add(v.getCount)
       arr.addElements(arr.size(), v.getData, 0, v.getCount)
     }
 
@@ -266,18 +281,22 @@ object UncompressedColumnFormat {
     override def build = {
       // Not sure if we should make a copy of the array
       arr.trim
-      starts.trim
+      sizes.trim
       ref.setData(arr.elements)
       this
     }
 
-    override def iterator: ColumnFormatIterator = {
-      new NullBitmapColumnIterator[ByteStream.Output](this) {
-        val o = LazyFactory.createLazyObject(outputOI)
-        override def getObject(i: Int): Object = {
-          o.init(ref, starts.getInt(i), starts.getInt(i + 1) - starts.getInt(i))
-          o
-        }
+    override def iterator: ColumnFormatIterator = new ColumnFormatIterator {
+      val o = LazyFactory.createLazyObject(outputOI)
+      var _position = 0
+      var _offset = 0
+      override def nextRow() {
+        _offset += sizes.getInt(_position)
+        _position += 1
+      }
+      override def current(): Object = {
+        o.init(ref, _offset, sizes.getInt(_position))
+        o
       }
     }
   }

@@ -164,9 +164,9 @@ object Column {
   }
 
   class VoidColumnBuilder extends ColumnBuilder {
-    override def append(o: Object, oi: ObjectInspector) {}
-    override def build: Column = new Column(
-      new UncompressedColumnFormat.VoidColumnFormat, ColumnStats.GenericColumnNoStats)
+    val format = new UncompressedColumnFormat.VoidColumnFormat
+    override def append(o: Object, oi: ObjectInspector) { format.appendNull() }
+    override def build: Column = new Column(format, ColumnStats.GenericColumnNoStats)
   }
 
   class LazyColumnBuilder(outputOI: ObjectInspector, initialSize: Int) extends ColumnBuilder {

@@ -1,12 +1,8 @@
 package shark.memstore
 
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.{
-  AbstractPrimitiveJavaObjectInspector, AbstractPrimitiveWritableObjectInspector,
-  BooleanObjectInspector, ByteObjectInspector, ShortObjectInspector, IntObjectInspector,
-  LongObjectInspector, FloatObjectInspector, DoubleObjectInspector, StringObjectInspector}
-import org.apache.hadoop.io.{BooleanWritable, FloatWritable, IntWritable, LongWritable,
-  NullWritable, Text}
+import org.apache.hadoop.hive.serde2.objectinspector.ConstantObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.primitive._
+import org.apache.hadoop.io._
 
 import org.scalatest.FunSuite
 
@@ -193,6 +189,23 @@ class ColumnSuite extends FunSuite {
       new Column.TextColumnBuilder(
         new UncompressedColumnFormat.TextColumnFormat(5), TextColumnNoStats))
   }
+
+  test("VoidColumn") {
+    testUncompressedPrimitiveColumn(
+      Array[java.lang.Void](),
+      PrimitiveObjectInspectorFactory.javaVoidObjectInspector,
+      PrimitiveObjectInspectorFactory.writableVoidObjectInspector)
+
+    testUncompressedPrimitiveColumn(
+      Array[java.lang.Void](null.asInstanceOf[java.lang.Void]),
+      PrimitiveObjectInspectorFactory.javaVoidObjectInspector,
+      PrimitiveObjectInspectorFactory.writableVoidObjectInspector)
+
+    testUncompressedPrimitiveColumn(
+      Array[java.lang.Void](null, null),
+      PrimitiveObjectInspectorFactory.javaVoidObjectInspector,
+      PrimitiveObjectInspectorFactory.writableVoidObjectInspector)
+  }
 }
 
 object ColumnSuite {
@@ -219,17 +232,24 @@ object ColumnSuite {
 
     data foreach(builder.append(_, javaOi))
     val column: Column = builder.build
-    assert(column.size == data.size)
+    assert(column.size == data.size,
+      "for dataset: %s\nexpected size: %d, actual size: %d".format(
+      data.toSeq, data.size, column.size))
 
     // Run the validation in parallel to test problems with concurrency.
     (1 to 10).par.foreach { parallelIndex =>
       var i = 0
       var columnIter: ColumnFormatIterator = column.format.iterator
       while (i < column.size) {
-        //println(data(i) + " " + column(i))
         columnIter.nextRow()
         val expected = data(i)
-        val reality = writableOi.getPrimitiveJavaObject(columnIter.current())
+
+        // null types are constant object inspectors.
+        val reality = writableOi match {
+          case constOi: ConstantObjectInspector => constOi.getWritableConstantValue()
+          case _ => writableOi.getPrimitiveJavaObject(columnIter.current())
+        }
+
         assert((expected == null && reality == null) || reality == expected,
           "at position " + i + " expected " + expected + ", but saw " + reality)
         i += 1
