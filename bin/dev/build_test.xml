@@ -8,7 +8,7 @@
     <mkdir dir="test-results"/>
     <junit showoutput="true" printsummary="yes" haltonfailure="no"
       maxmemory="2g" dir="../" timeout="18200000"
-      errorProperty="tests.failed" failureProperty="tests.failed" filtertrace="off">
+      errorProperty="tests.failed" failureProperty="tests.failed" filtertrace="off" fork="no">
 
       <sysproperty key="user.dir" value="${user.dir}"/>
       <sysproperty key="test.tmp.dir" value="${test.tmp.dir}"/>
