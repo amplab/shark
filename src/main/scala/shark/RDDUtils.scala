@@ -2,22 +2,10 @@ package shark
 
 import com.google.common.collect.{Ordering => GOrdering}
 
-import java.io.DataInputStream
-import java.io.DataOutputStream
-
-import it.unimi.dsi.fastutil.io.FastByteArrayInputStream
-import it.unimi.dsi.fastutil.io.FastByteArrayOutputStream
-
-import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.hadoop.hive.ql.plan.TableDesc
-import org.apache.hadoop.hive.serde2.SerDe
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
-import org.apache.hadoop.io.Text
-
 import scala.collection.mutable.{ArrayBuffer, Buffer}
 import scala.collection.JavaConverters._
 
-import spark._
+import spark.RDD
 import spark.SparkContext._
 
 
@@ -26,42 +14,6 @@ import spark.SparkContext._
  * to Spark's built-in abstractions.
  */
 object RDDUtils {
-  
-  /**
-   * Used to serialize an RDD using a Hive SerDe before caching in a
-   * BoundedMemoryCache. We serialize this way instead of using a
-   * SerializingCache because this requires less copying of byte arrays.
-   */
-  def serialize[T](iter: Iterator[T], hconf: HiveConf, td: TableDesc, oi: ObjectInspector) = {
-    val serializer = td.getDeserializerClass().newInstance().asInstanceOf[SerDe]
-    serializer.initialize(hconf, td.getProperties())
-    var v: Object = null
-    var numRows: Int = 0
-    iter.foreach { row =>
-      v = serializer.serialize(row, oi)
-      numRows += 1
-    }
-    if (v != null) {
-      v.asInstanceOf[ColumnarWritable].close()
-      Iterator(numRows, v)
-    } else {
-      Iterator()
-    }
-  }
-
-  def deserialize(rdd: RDD[_]) = {    
-    rdd.mapPartitions { iter =>
-      //First element is a byte array holding serialized Writables
-      if (iter.hasNext) {
-        val numRows = iter.next().asInstanceOf[Int]
-        val writable = iter.next().asInstanceOf[ColumnarWritable]
-        writable.close()
-        Iterator.continually({writable}).take(numRows) //Reuses writable across rows
-      } else {
-        iter
-      }
-    }
-  }
 
   def sortLeastKByKey[K <% Ordered[K]: ClassManifest, V: ClassManifest](rdd: RDD[(K,V)], k: Int)
   : RDD[(K,V)] = {
@@ -78,8 +30,7 @@ object RDDUtils {
         if (i1 < b1.size && (i2 >= b2.size || b1(i1)._1 <= b2(i2)._1)) {
           out += b1(i1)
           i1 += 1
-        }
-        else {
+        } else {
           out += b2(i2)
           i2 += 1
         }
@@ -115,5 +66,5 @@ object RDDUtils {
     }
     ordering.leastOf(it.asJava, k).asScala
   }
-  
+
 }

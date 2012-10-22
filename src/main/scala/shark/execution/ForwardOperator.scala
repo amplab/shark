@@ -6,9 +6,9 @@ import spark.RDD
 
 
 class ForwardOperator extends UnaryOperator[HiveForwardOperator] {
-  
+
   override def execute(): RDD[_] = executeParents().head._2
 
-  override def processPartition[T](iter: Iterator[T]) = iter
+  override def processPartition(split: Int, iter: Iterator[_]) = iter
 
 }

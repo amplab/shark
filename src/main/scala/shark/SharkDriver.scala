@@ -12,11 +12,13 @@ import org.apache.hadoop.hive.ql.metadata.AuthorizationException
 import org.apache.hadoop.hive.ql.parse._
 import org.apache.hadoop.hive.ql.plan._
 import org.apache.hadoop.hive.ql.session.SessionState
+import org.apache.hadoop.hive.serde2.{SerDe, SerDeUtils}
 import org.apache.hadoop.util.StringUtils
 
 import scala.collection.JavaConversions._
 
 import shark.execution.{SharkExplainTask, SharkExplainWork, SparkTask, SparkWork, TableRDD}
+import shark.memstore.ColumnarSerDe
 import shark.parse.{QueryContext, SharkSemanticAnalyzerFactory}
 
 
@@ -34,8 +36,13 @@ object SharkDriver extends LogHelper {
     logInfo("Initializing object SharkDriver")
   }
 
-  org.apache.hadoop.hive.serde2.SerDeUtils.registerSerDe(
-    classOf[ColumnarSerDe].getName, classOf[ColumnarSerDe])
+  def registerSerDe(serdeClass: Class[_ <: SerDe]) {
+    SerDeUtils.registerSerDe(serdeClass.getName, serdeClass)
+  }
+
+  registerSerDe(classOf[ColumnarSerDe.Basic])
+  registerSerDe(classOf[ColumnarSerDe.WithStats])
+  registerSerDe(classOf[ColumnarSerDe.Compressed])
 
   // Task factory. Add Shark specific tasks.
   TaskFactory.taskvec.addAll(Seq(
@@ -178,6 +185,7 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
       sem.validate()
 
       plan = new QueryPlan(command, sem,  perfLogger.getStartTime(PerfLogger.DRIVER_RUN))
+
       // Initialize FetchTask right here. Somehow Hive initializes it twice...
       if (sem.getFetchTask != null) {
         sem.getFetchTask.initialize(conf, plan, null)
@@ -244,4 +252,3 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
     }
   }
 }
-

@@ -57,7 +57,7 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
     initializeOisAndSers(conf, objectInspector)
   }
 
-  override def processPartition[T](iter: Iterator[T]) = {
+  override def processPartition(split: Int, iter: Iterator[_]) = {
     if (conf.getDistinctColumnIndices().size() == 0) {
       processPartitionNoDistinct(iter)
     } else {
@@ -147,7 +147,7 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
   /**
    * Process a partition when there is NO distinct key aggregations.
    */
-  def processPartitionNoDistinct[T](iter: Iterator[T]) = {
+  def processPartitionNoDistinct(iter: Iterator[_]) = {
     // Buffer for key, value evaluation to avoid frequent object allocation.
     val evaluatedKey = new Array[Object](keyEval.length)
     val evaluatedValue = new Array[Object](valueEval.length)
@@ -209,7 +209,7 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
    * Process a partition when there is distinct key aggregations. One row per
    * distinct column is emitted here.
    */
-  def processPartitionDistinct[T](iter: Iterator[T]) = {
+  def processPartitionDistinct(iter: Iterator[_]) = {
     // TODO(rxin): Rewrite this pile of code.
 
     // We output one row per distinct column

@@ -121,7 +121,6 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
   }
 
   def generateTuples(iter: Iterator[Array[Any]]): Iterator[_] = {
-
     val tupleOrder = CommonJoinOperator.computeTupleOrder(joinConditions)
 
     val bytes = new BytesWritable()
@@ -159,6 +158,6 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
     }
   }
 
-  override def processPartition[T](iter: Iterator[T]): Iterator[_] =
+  override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] =
     throw new UnsupportedOperationException("JoinOperator.processPartition()")
 }

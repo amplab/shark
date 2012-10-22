@@ -16,9 +16,11 @@ import org.apache.hadoop.hive.ql.session.SessionState
 
 import scala.collection.JavaConversions._
 
-import shark.{LogHelper, SharkConfVars}
+import shark.{LogHelper, SharkConfVars, Utils}
 import shark.execution.{HiveOperator, Operator, OperatorFactory, ReduceSinkOperator, SparkWork,
-  TerminalAbstractOperator, TerminalOperator}
+  TerminalOperator}
+import shark.memstore.ColumnarSerDe
+import shark.SharkConfVars
 
 
 /**
@@ -54,9 +56,10 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
 
     //TODO: can probably reuse Hive code for this
     // analyze create table command
-    var isCTAS = false
     var shouldCache = false
+    var isCTAS = false
     var shouldReset = false
+
     if (ast.getToken().getType() == HiveParser.TOK_CREATETABLE) {
       super.analyzeInternal(ast)
       for (ch <- ast.getChildren) {
@@ -79,9 +82,12 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         shouldCache = td.getTblProps().getOrElse("shark.cache", "false").toBoolean ||
           (SharkConfVars.getBoolVar(conf, SharkConfVars.CHECK_TABLENAME_FLAG) &&
           td.getTableName.endsWith("_cached"))
-        if (shouldCache) {
-          td.setSerName(classOf[shark.ColumnarSerDe].getName)
+
+        if (shouldCache && (td.getSerName == null || !td.getSerName.startsWith("shark.memstore"))) {
+          // By default use the Basic columnar ser de.
+          td.setSerName(classOf[ColumnarSerDe.Basic].getName)
         }
+
         qb.setTableDesc(td)
         shouldReset = true
       }
@@ -306,7 +312,7 @@ object SharkSemanticAnalyzer extends LogHelper {
    * craft the struct object inspector (that has both KEY and VALUE) in Shark
    * ReduceSinkOperator.initializeDownStreamHiveOperators().
    */
-  def breakHivePlanByStages(terminalOps: Seq[TerminalAbstractOperator[_]]) = {
+  def breakHivePlanByStages(terminalOps: Seq[TerminalOperator]) = {
     val reduceSinks = new scala.collection.mutable.HashSet[ReduceSinkOperator]
     val queue = new scala.collection.mutable.Queue[Operator[_]]
     queue ++= terminalOps

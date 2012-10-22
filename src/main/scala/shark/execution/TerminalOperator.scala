@@ -1,6 +1,6 @@
 package shark.execution
 
-import java.util.{Date, HashMap => JavaHashMap}
+import java.util.Date
 
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.io.Text
@@ -10,10 +10,15 @@ import org.apache.hadoop.hive.ql.exec.{FileSinkOperator => HiveFileSinkOperator,
 import org.apache.hadoop.hive.serde2.Serializer
 import org.apache.hadoop.mapred.{TaskID, TaskAttemptID, HadoopWriter}
 
+import scala.collection.Map
+import scala.collection.mutable.ArrayBuffer
 import scala.reflect.BeanProperty
 
-import shark.{CacheKey, RDDUtils, SharkConfVars, SharkEnv}
-import spark.{RDD, TaskContext}
+import shark.{RDDUtils, SharkConfVars, SharkEnv, Utils}
+import shark.memstore._
+import spark.{GrowableAccumulableParam, RDD, TaskContext}
+import spark.EnhancedRDD._
+import spark.SparkContext._
 
 
 /**
@@ -22,7 +27,7 @@ import spark.{RDD, TaskContext}
  * - cache query output
  * - return query as RDD directly (without materializing it)
  */
-class TerminalOperator extends TerminalAbstractOperator[HiveFileSinkOperator] {
+class TerminalOperator extends UnaryOperator[HiveFileSinkOperator] {
 
   // Create a local copy of hconf and hiveSinkOp so we can XML serialize it.
   @BeanProperty var localHiveOp: HiveFileSinkOperator = _
@@ -42,8 +47,7 @@ class TerminalOperator extends TerminalAbstractOperator[HiveFileSinkOperator] {
     localHiveOp.initialize(localHconf, Array(objectInspector))
   }
 
-  override def processPartition[T](iter: Iterator[T]): Iterator[_] = iter
-
+  override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = iter
 }
 
 
@@ -79,7 +83,7 @@ class FileSinkOperator extends TerminalOperator with Serializable {
     }
   }
 
-  override def processPartition[T](iter: Iterator[T]): Iterator[_] = {
+  override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
     iter.foreach { row =>
       localHiveOp.processOp(row, 0)
     }
@@ -141,7 +145,7 @@ object FileSinkOperator {
       op.logDebug("Input object inspectors: " + op.objectInspectors)
 
       op.initializeOnSlave(context)
-      val newPart = op.processPartition(iter)
+      val newPart = op.processPartition(-1, iter)
       op.logDebug("Finished executing mapPartitions for operator: " + op)
 
       true
@@ -152,13 +156,14 @@ object FileSinkOperator {
 
 
 /**
- * Cache the RDD and force evaluate it (so the cache is filled). We avoid
- * using anonymous class here for easier debugging ...
+ * Cache the RDD and force evaluate it (so the cache is filled).
  */
-class CacheSinkOperator(@BeanProperty var tableName: String) extends TerminalOperator {
+class CacheSinkOperator(@BeanProperty var tableName: String)
+  extends TerminalOperator {
 
   @BeanProperty var initialColumnSize: Int = _
 
+  // Zero-arg constructor for deserialization.
   def this() = this(null)
 
   override def initializeOnMaster() {
@@ -171,19 +176,63 @@ class CacheSinkOperator(@BeanProperty var tableName: String) extends TerminalOpe
     localHconf.setInt(SharkConfVars.COLUMN_INITIALSIZE.varname, initialColumnSize)
   }
 
-  override def processPartition[T](iter: Iterator[T]): Iterator[_] = {
-    RDDUtils.serialize(
-        iter,
-        localHconf,
-        localHiveOp.getConf.getTableInfo,
-        objectInspector)
-  }
+  override def execute(): RDD[_] = {
+    val inputRdd = if (parentOperators.size == 1) executeParents().head._2 else null
 
-  override def postprocessRdd[T](rdd: RDD[T]): RDD[_] = {
-    SharkEnv.cache.put(new CacheKey(tableName), rdd)
+    val statsAcc = SharkEnv.sc.accumulableCollection(ArrayBuffer[(Int, TableStats)]())
+    val op = OperatorSerializationWrapper(this)
+
+    // Serialize the RDD on all partitions before putting it into the cache.
+    val rdd = inputRdd.mapPartitionsWithSplit { case(split, iter) =>
+      op.initializeOnSlave()
+
+      val serdeClass = op.localHiveOp.getConf.getTableInfo.getDeserializerClass
+      op.logInfo("Using serde: " + serdeClass)
+      val serde = serdeClass.newInstance().asInstanceOf[ColumnarSerDe]
+      serde.initialize(op.hconf, op.localHiveOp.getConf.getTableInfo.getProperties())
+
+      val rddSerialzier = new RDDSerializer(serde)
+      val iterToReturn = rddSerialzier.serialize(iter, op.objectInspector)
+
+      statsAcc += (split, serde.stats)
+      iterToReturn
+    }
+
+    // Put the RDD in cache and force evaluate it.
+    val cacheKey = new CacheKey(tableName)
+    SharkEnv.cache.put(cacheKey, rdd)
     rdd.foreach(_ => Unit)
+
+    // Report remaining memory.
+    /* Commented out for now waiting for the reporting code to make into Spark.
+    val remainingMems: Map[String, (Long, Long)] = SharkEnv.sc.getSlavesMemoryStatus
+    remainingMems.foreach { case(slave, mem) =>
+      println("%s: %s / %s".format(
+        slave,
+        Utils.memoryBytesToString(mem._2),
+        Utils.memoryBytesToString(mem._1)))
+    }
+    println("Summary: %s / %s".format(
+      Utils.memoryBytesToString(remainingMems.map(_._2._2).sum),
+      Utils.memoryBytesToString(remainingMems.map(_._2._1).sum)))
+    */
+
+    // Get the column statistics back to the cache manager.
+    SharkEnv.cache.keyToStats.put(cacheKey, statsAcc.value.toMap)
+
+    if (SharkConfVars.getBoolVar(localHconf, SharkConfVars.MAP_PRUNING_PRINT_DEBUG)) {
+      statsAcc.value.foreach { case(split, tableStats) =>
+        println("Split " + split)
+        println(tableStats.toString)
+      }
+    }
+
+    // Return the cached RDD.
     rdd
   }
+
+  override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] =
+    throw new UnsupportedOperationException("CacheSinkOperator.processPartition()")
 }
 
 

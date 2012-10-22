@@ -96,7 +96,6 @@ public class TestSharkCliDriver extends TestCliDriver {
     System.out.println(TestSharkCliDriver.class.getName());
 
     while (tests.hasMoreElements()) {
-      @SuppressWarnings("unchecked")
       TestCase test = (TestCase) tests.nextElement();
 
       boolean passRegex = (regexPattern == null);

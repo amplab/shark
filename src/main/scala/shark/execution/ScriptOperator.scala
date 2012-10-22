@@ -173,7 +173,7 @@ class ScriptOperator extends UnaryOperator[HiveScriptOperator] {
     (wrappedCmdArgs, Map.empty ++ envs)
   }
 
-  override def processPartition[T](iter: Iterator[T]): Iterator[_] =
+  override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] =
     throw new UnsupportedOperationException
 
   /**

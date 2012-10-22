@@ -40,14 +40,14 @@ with HiveTopOperator {
     valueDeser.initialize(localHconf, valueTableDesc.getProperties())
   }
 
-  override def preprocessRdd[T](rdd: RDD[T]): RDD[_] = {
+  override def preprocessRdd(rdd: RDD[_]): RDD[_] = {
     // TODO: hasOrder and limit should really be made by optimizer.
     val hasOrder = parentOperator match {
-      case op: ReduceSinkOperator => 
+      case op: ReduceSinkOperator =>
         op.getConf.getOrder != null && !op.getConf.getOrder.isEmpty
       case _ => false
     }
-    
+
     val isTotalOrder = parentOperator match {
       case op: ReduceSinkOperator => op.getConf.getNumReducers == 1
       case _ => false
@@ -67,7 +67,7 @@ with HiveTopOperator {
       limit match {
         case Some(l) => {
           logInfo("Pushing limit (%d) down to sorting".format(l))
-          if (isTotalOrder) { 
+          if (isTotalOrder) {
             logInfo("Performing Order By Limit")
             RDDUtils.sortLeastKByKey(rdd.asInstanceOf[RDD[(ReduceKey, Any)]], l)
           } else {
@@ -101,9 +101,9 @@ with HiveTopOperator {
     }
   }
 
-  override def processPartition[T](iter: Iterator[T]) = {
+  override def processPartition(split: Int, iter: Iterator[_]) = {
     val bytes = new BytesWritable()
-    iter map { 
+    iter map {
       case (key, value: Array[Byte]) => {
         bytes.set(value)
         valueDeser.deserialize(bytes)
@@ -111,7 +111,7 @@ with HiveTopOperator {
     }
   }
 
-  def processOrderedRDD[K <% Ordered[K]: ClassManifest, V: ClassManifest, T](rdd: RDD[T]): RDD[_] = {
+  def processOrderedRDD[K <% Ordered[K]: ClassManifest, V: ClassManifest, T](rdd: RDD[_]): RDD[_] = {
     rdd match {
       case r: RDD[(K, V)] => r.sortByKey()
       case _ => rdd

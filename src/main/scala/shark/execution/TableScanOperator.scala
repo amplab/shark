@@ -10,19 +10,22 @@ import org.apache.hadoop.hive.ql.exec.Utilities
 import org.apache.hadoop.hive.ql.metadata.Partition
 import org.apache.hadoop.hive.ql.metadata.Table
 import org.apache.hadoop.hive.ql.plan.{PartitionDesc, TableDesc}
-import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorFactory, StructObjectInspector}
+import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorFactory,
+  StructObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.io.Writable
 
 import scala.reflect.BeanProperty
 
-import shark.{CacheKey, SharkEnv}
+import org.apache.hadoop.hive.ql.exec.MapSplitPruning
+import shark.{SharkConfVars, SharkEnv}
+import shark.memstore.{CacheKey, TableStats, TableStorage}
 import spark.RDD
+import spark.EnhancedRDD._
 import spark.rdd.UnionRDD
 
 
-class TableScanOperator extends TopOperator[HiveTableScanOperator]
-with HiveTopOperator {
+class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopOperator {
 
   @transient var table: Table = _
 
@@ -78,19 +81,71 @@ with HiveTopOperator {
   override def execute(): RDD[_] = {
     assert(parentOperators.size == 0)
     val tableKey = new CacheKey(tableDesc.getTableName.split('.')(1))
+
     SharkEnv.cache.get(tableKey) match {
-      case Some(rdd) => {
-        logInfo("Loading table from cache " + tableKey)
-        Operator.executeProcessPartition(this, rdd)
-      }
+      // The RDD already exists in cache manager. Try to load it from memory.
+      // In this case, skip the normal execution chain, i.e. skip
+      // preprocessRdd, processPartition, postprocessRdd, etc.
+      case Some(rdd) => loadRddFromCache(tableKey, rdd)
+      // The RDD is new, i.e. reading the table from disk.
       case None => super.execute()
+    }
+  }
+
+  def loadRddFromCache(tableKey: CacheKey, rdd: RDD[_]): RDD[_] = {
+    logInfo("Loading table from cache " + tableKey)
+
+    // Stats used for map pruning.
+    val splitToStats: collection.Map[Int, TableStats] = SharkEnv.cache.keyToStats(tableKey)
+
+    // Run map pruning if the flag is set, there exists a filter predicate on
+    // the input table and we have statistics on the table.
+    val prunedRdd: RDD[_] =
+      if (SharkConfVars.getBoolVar(localHconf, SharkConfVars.MAP_PRUNING) &&
+          childOperators(0).isInstanceOf[FilterOperator] && splitToStats.size > 0) {
+
+        val startTime = System.currentTimeMillis
+        val printPruneDebug = SharkConfVars.getBoolVar(
+          localHconf, SharkConfVars.MAP_PRUNING_PRINT_DEBUG)
+
+        // Must initialize the condition evaluator in FilterOperator to get the
+        // udfs and object inspectors set.
+        val filterOp = childOperators(0).asInstanceOf[FilterOperator]
+        filterOp.initializeOnSlave()
+
+        // Do the pruning.
+        val prunedRdd = rdd.pruneSplits { split =>
+          if (printPruneDebug) {
+            logInfo("\nSplit " + split + "\n" + splitToStats(split))
+          }
+          // Only test for pruning if we have stats on the column.
+          val splitStats = splitToStats(split)
+          if (splitStats != null && splitStats.stats != null)
+            MapSplitPruning.test(splitStats, filterOp.conditionEvaluator)
+          else true
+        }
+        val timeTaken = System.currentTimeMillis - startTime
+        logInfo("Map pruning %d splits into %s splits took %d ms".format(
+            rdd.splits.size, prunedRdd.splits.size, timeTaken))
+        prunedRdd
+      } else {
+        rdd
+      }
+
+    prunedRdd.mapPartitions { iter =>
+      if (iter.hasNext) {
+        val tableStorage = iter.next.asInstanceOf[TableStorage]
+        tableStorage.iterator
+      } else {
+        Iterator()
+      }
     }
   }
 
   /**
    * Create a RDD representing the table (with or without partitions).
    */
-  override def preprocessRdd[T](rdd: RDD[T]): RDD[_] = {
+  override def preprocessRdd(rdd: RDD[_]): RDD[_] = {
     if (table.isPartitioned) {
       logInfo("Making %d Hive partitions".format(parts.size))
       makePartitionRDD(rdd)
@@ -104,7 +159,7 @@ with HiveTopOperator {
     }
   }
 
-  override def processPartition[T](iter: Iterator[T]): Iterator[_] = {
+  override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
     val deserializer = tableDesc.getDeserializerClass().newInstance()
     deserializer.initialize(localHconf, tableDesc.getProperties)
     iter.map { value =>
@@ -142,8 +197,7 @@ with HiveTopOperator {
         val partSpec = partDesc.getPartSpec()
         val partProps = partDesc.getProperties()
 
-        val partCols = partProps.getProperty(
-          org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_PARTITION_COLUMNS)
+        val partCols = partProps.getProperty(META_TABLE_PARTITION_COLUMNS)
         val partKeys = partCols.trim().split("/")
         val partValues = new ArrayList[String]
         partKeys.foreach { key =>

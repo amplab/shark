@@ -18,7 +18,6 @@ import shark.SharkEnvSlave
 import spark.RDD
 import spark.rdd.UnionRDD
 
-
 /**
  * A union operator. If the incoming data are of different type, the union
  * operator transforms the incoming data into the same type.
@@ -128,7 +127,7 @@ class UnionOperator extends NaryOperator[HiveUnionOperator] {
     }
   }
 
-  override def processPartition[T](iter: Iterator[T]): Iterator[_] = {
+  override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
     throw new Exception("UnionOperator.processPartition() should've never been called.")
   }
 }
