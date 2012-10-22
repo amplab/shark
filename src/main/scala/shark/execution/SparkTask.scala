@@ -1,6 +1,6 @@
 package shark.execution
 
-import java.util.{List => JavaList}
+import java.util.{HashMap => JHashMap, List => JavaList}
 import java.io.File
 
 import org.apache.hadoop.hive.metastore.api.FieldSchema
@@ -9,9 +9,8 @@ import org.apache.hadoop.hive.ql.exec.{TableScanOperator => HiveTableScanOperato
 import org.apache.hadoop.hive.ql.metadata.{Partition, Table}
 import org.apache.hadoop.hive.ql.optimizer.ppr.PartitionPruner
 import org.apache.hadoop.hive.ql.parse._
+import org.apache.hadoop.hive.ql.plan.{CreateTableDesc, PartitionDesc}
 import org.apache.hadoop.hive.ql.plan.api.StageType
-import org.apache.hadoop.hive.ql.plan.CreateTableDesc
-import org.apache.hadoop.hive.ql.plan.PartitionDesc
 import org.apache.hadoop.hive.ql.session.SessionState
 
 import scala.collection.JavaConversions._
@@ -22,7 +21,7 @@ import spark.RDD
 
 class SparkWork(
   val pctx: ParseContext,
-  val terminalOperator: TerminalAbstractOperator[_],
+  val terminalOperator: TerminalOperator,
   val resultSchema: JavaList[FieldSchema])
 extends java.io.Serializable
 
@@ -81,16 +80,16 @@ with java.io.Serializable with LogHelper {
   }
 
   def initializeTableScanTableDesc(topOps: Seq[TableScanOperator]) {
-    val topToTable = work.pctx.getTopToTable()
+    // topToTable maps Hive's TableScanOperator to the Table object.
+    val topToTable: JHashMap[HiveTableScanOperator, Table] = work.pctx.getTopToTable()
 
     // Add table metadata to TableScanOperators
     topOps.foreach { op =>
-      val table = topToTable.get(op.hiveOp)
-      op.tableDesc = Utilities.getTableDesc(table)
-      op.table = table
-      if (table.isPartitioned) {
+      op.table = topToTable.get(op.hiveOp)
+      op.tableDesc = Utilities.getTableDesc(op.table)
+      if (op.table.isPartitioned) {
         val ppl = PartitionPruner.prune(
-          topToTable.get(op.hiveOp),
+          op.table,
           work.pctx.getOpToPartPruner().get(op.hiveOp),
           work.pctx.getConf(), "",
           work.pctx.getPrunedPartitions())
@@ -105,7 +104,7 @@ with java.io.Serializable with LogHelper {
     }
   }
 
-  def initializeAllHiveOperators(terminalOp: TerminalAbstractOperator[_]) {
+  def initializeAllHiveOperators(terminalOp: TerminalOperator) {
     // Need to guarantee all parents are initialized before the child.
     val topOpList = new scala.collection.mutable.MutableList[HiveTopOperator]
     val queue = new scala.collection.mutable.Queue[Operator[_]]

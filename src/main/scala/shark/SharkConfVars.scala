@@ -24,6 +24,12 @@ object SharkConfVars {
   // If true, then cache any table whose name ends in "_cached".
   val CHECK_TABLENAME_FLAG = new ConfVar("shark.cache.flag.checkTableName", true)
 
+  // Prune map splits for cached tables based on predicates in queries.
+  val MAP_PRUNING = new ConfVar("shark.mappruning", true)
+
+  // Print debug information for map pruning.
+  val MAP_PRUNING_PRINT_DEBUG = new ConfVar("shark.mappruning.debug", false)
+
   // If true, then query plans are compressed before being sent
   val COMPRESS_QUERY_PLAN = new ConfVar("shark.compressQueryPlan", true)
 
@@ -40,6 +46,10 @@ object SharkConfVars {
       conf.setBoolean(CHECK_TABLENAME_FLAG.varname, CHECK_TABLENAME_FLAG.defaultBoolVal)
     if (conf.get(COMPRESS_QUERY_PLAN.varname) == null)
       conf.setBoolean(COMPRESS_QUERY_PLAN.varname, COMPRESS_QUERY_PLAN.defaultBoolVal)
+    if (conf.get(MAP_PRUNING.varname) == null)
+      conf.setBoolean(MAP_PRUNING.varname, MAP_PRUNING.defaultBoolVal)
+    if (conf.get(MAP_PRUNING_PRINT_DEBUG.varname) == null)
+      conf.setBoolean(MAP_PRUNING_PRINT_DEBUG.varname, MAP_PRUNING_PRINT_DEBUG.defaultBoolVal)
   }
 
   def getIntVar(conf: Configuration, variable: ConfVar): Int = {

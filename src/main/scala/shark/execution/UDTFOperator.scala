@@ -5,13 +5,12 @@ import java.util.{List => JavaList}
 import org.apache.hadoop.hive.ql.exec.{UDTFOperator => HiveUDTFOperator}
 import org.apache.hadoop.hive.ql.plan.UDTFDesc
 import org.apache.hadoop.hive.ql.udf.generic.Collector
-import org.apache.hadoop.hive.serde2.objectinspector.{ ObjectInspector, 
+import org.apache.hadoop.hive.serde2.objectinspector.{ ObjectInspector,
   StandardStructObjectInspector, StructField, StructObjectInspector }
 
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
-
 
 class UDTFOperator extends UnaryOperator[HiveUDTFOperator] {
 
@@ -21,7 +20,7 @@ class UDTFOperator extends UnaryOperator[HiveUDTFOperator] {
   @transient var soi: StandardStructObjectInspector = _
   @transient var inputFields: JavaList[_ <: StructField] = _
   @transient var collector: UDTFCollector = _
-  
+
   override def initializeOnMaster() {
     conf = hiveOp.getConf()
   }
@@ -33,7 +32,7 @@ class UDTFOperator extends UnaryOperator[HiveUDTFOperator] {
     // Make an object inspector [] of the arguments to the UDTF
     soi = objectInspectors.head.asInstanceOf[StandardStructObjectInspector]
     inputFields = soi.getAllStructFieldRefs()
-      
+
     val udtfInputOIs = inputFields.map { case inputField =>
       inputField.getFieldObjectInspector()
     }.toArray
@@ -42,7 +41,7 @@ class UDTFOperator extends UnaryOperator[HiveUDTFOperator] {
     val udtfOutputOI = conf.getGenericUDTF().initialize(udtfInputOIs)
   }
 
-  override def processPartition[T](iter: Iterator[T]): Iterator[_] = {
+  override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
     iter.flatMap { row =>
       explode(row)
     }

@@ -16,9 +16,9 @@ import spark.RDD
 
 
 /**
- * LateralViewJoin is used only for LATERAL VIEW explode, which adds a new row per array element 
+ * LateralViewJoin is used only for LATERAL VIEW explode, which adds a new row per array element
  * in the array to be exploded. Each new row contains one of the array elements in a new field.
- * Hive handles this by having two branches in its plan, then joining their output (see diagram in 
+ * Hive handles this by having two branches in its plan, then joining their output (see diagram in
  * LateralViewJoinOperator.java). We put all the explode logic here instead.
  */
 class LateralViewJoinOperator extends NaryOperator[HiveLateralViewJoinOperator] {
@@ -28,7 +28,7 @@ class LateralViewJoinOperator extends NaryOperator[HiveLateralViewJoinOperator] 
   @BeanProperty var lvfOIString: String = _
   @BeanProperty var udtfOp: UDTFOperator = _
   @BeanProperty var udtfOIString: String = _
-  
+
   @transient var eval: Array[ExprNodeEvaluator] = _
   @transient var fieldOis: StructObjectInspector = _
 
@@ -72,7 +72,7 @@ class LateralViewJoinOperator extends NaryOperator[HiveLateralViewJoinOperator] 
   }
 
   /** Per existing row, emit a new row with each value of the exploded array */
-  override def processPartition[T](iter: Iterator[T]) = {
+  override def processPartition(split: Int, iter: Iterator[_]) = {
     val lvfSoi = lvfOp.objectInspectors.head.asInstanceOf[StructObjectInspector]
     val lvfFields = lvfSoi.getAllStructFieldRefs()
 

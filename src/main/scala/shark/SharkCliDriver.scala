@@ -1,5 +1,6 @@
 package shark
 
+import java.net.URLClassLoader
 import java.io.{File, FileNotFoundException, IOException, PrintStream,
   UnsupportedEncodingException}
 import java.util.ArrayList
@@ -229,6 +230,12 @@ class SharkCliDriver extends CliDriver with LogHelper {
       val hconf = conf.asInstanceOf[HiveConf]
       val proc: CommandProcessor = CommandProcessorFactory.get(tokens(0), hconf)
       if (proc != null) {
+
+        // Spark expects the ClassLoader to be an URLClassLoader.
+        // In case we're using something else here, wrap it into an URLCLassLaoder.
+        val cl = Thread.currentThread.getContextClassLoader()
+        Thread.currentThread.setContextClassLoader(new URLClassLoader(Array(), cl))
+
         if (proc.isInstanceOf[Driver]) {
           // There is a small overhead here to create a new instance of
           // SharkDriver for every command. But it saves us the hassle of

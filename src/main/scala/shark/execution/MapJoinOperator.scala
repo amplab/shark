@@ -142,7 +142,6 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
         pos, hashTable.size, collectTime, hashTime))
 
       setValueMetaData(posByte)
-
       (pos, hashTable)
     }.toMap
 
@@ -315,6 +314,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
     }
   }
 
-  override def processPartition[T](iter: Iterator[T]): Iterator[_] =
+  override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
     throw new UnsupportedOperationException("MapJoinOperator.processPartition()")
+  }
 }

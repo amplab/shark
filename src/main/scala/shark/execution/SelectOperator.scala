@@ -6,7 +6,6 @@ import org.apache.hadoop.hive.ql.plan.SelectDesc
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
-
 /**
  * An operator that does projection, i.e. selecting certain columns and
  * filtering out others.
@@ -14,13 +13,13 @@ import scala.reflect.BeanProperty
 class SelectOperator extends UnaryOperator[HiveSelectOperator] {
 
   @BeanProperty var conf: SelectDesc = _
-  
+
   @transient var evals: Array[ExprNodeEvaluator] = _
-  
+
   override def initializeOnMaster() {
     conf = hiveOp.getConf()
   }
-  
+
   override def initializeOnSlave() {
     if (!conf.isSelStarNoCompute) {
       evals = conf.getColList().map(ExprNodeEvaluatorFactory.get(_)).toArray
@@ -28,7 +27,7 @@ class SelectOperator extends UnaryOperator[HiveSelectOperator] {
     }
   }
 
-  override def processPartition[T](iter: Iterator[T]) = {
+  override def processPartition(split: Int, iter: Iterator[_]) = {
     if (conf.isSelStarNoCompute) {
       iter
     } else {
@@ -43,6 +42,4 @@ class SelectOperator extends UnaryOperator[HiveSelectOperator] {
       }
     }
   }
-
 }
-

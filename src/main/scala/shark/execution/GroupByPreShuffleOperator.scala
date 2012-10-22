@@ -89,7 +89,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
     keyFactory = new KeyWrapperFactory(keyFields, keyObjectInspectors, currentKeyObjectInspectors)
   }
 
-  override def processPartition[T](iter: Iterator[T]) = {
+  override def processPartition(split: Int, iter: Iterator[_]) = {
     logInfo("Running Pre-Shuffle Group-By")
     var numRowsInput = 0
     var numRowsHashTbl = 0
@@ -100,7 +100,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
 
     val newKeys: KeyWrapper = keyFactory.getKeyWrapper()
 
-    while (iter.hasNext() && useHashAggr) {
+    while (iter.hasNext && useHashAggr) {
       val row = iter.next().asInstanceOf[AnyRef]
       numRowsInput += 1
 
