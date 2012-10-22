@@ -233,8 +233,10 @@ class SharkCliDriver extends CliDriver with LogHelper {
 
         // Spark expects the ClassLoader to be an URLClassLoader.
         // In case we're using something else here, wrap it into an URLCLassLaoder.
-        val cl = Thread.currentThread.getContextClassLoader()
-        Thread.currentThread.setContextClassLoader(new URLClassLoader(Array(), cl))
+        if (System.getenv("TEST_WITH_ANT") == "1") {
+          val cl = Thread.currentThread.getContextClassLoader()
+          Thread.currentThread.setContextClassLoader(new URLClassLoader(Array(), cl))
+        }
 
         if (proc.isInstanceOf[Driver]) {
           // There is a small overhead here to create a new instance of
