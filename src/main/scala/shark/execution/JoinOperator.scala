@@ -13,7 +13,8 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
-import spark.{CoGroupedRDD, HashPartitioner, RDD}
+import spark.{HashPartitioner, RDD}
+import spark.rdd.CoGroupedRDD
 import spark.SparkContext._
 
 
