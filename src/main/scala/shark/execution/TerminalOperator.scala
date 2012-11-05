@@ -19,6 +19,7 @@ import shark.memstore._
 import spark.{GrowableAccumulableParam, RDD, TaskContext}
 import spark.EnhancedRDD._
 import spark.SparkContext._
+import spark.storage.StorageLevel
 
 
 /**
@@ -158,13 +159,11 @@ object FileSinkOperator {
 /**
  * Cache the RDD and force evaluate it (so the cache is filled).
  */
-class CacheSinkOperator(@BeanProperty var tableName: String)
-  extends TerminalOperator {
+class CacheSinkOperator extends TerminalOperator {
 
   @BeanProperty var initialColumnSize: Int = _
-
-  // Zero-arg constructor for deserialization.
-  def this() = this(null)
+  @BeanProperty var storageLevel: StorageLevel = _
+  @BeanProperty var tableName: String = _
 
   override def initializeOnMaster() {
     super.initializeOnMaster()
@@ -199,8 +198,15 @@ class CacheSinkOperator(@BeanProperty var tableName: String)
     }
 
     // Put the RDD in cache and force evaluate it.
+    op.logInfo("Putting RDD for %s in cache, %s %s %s %s".format(
+      tableName,
+      if (storageLevel.deserialized) "deserialized" else "serialized",
+      if (storageLevel.useMemory) "in memory" else "",
+      if (storageLevel.useMemory && storageLevel.useDisk) "and" else "",
+      if (storageLevel.useDisk) "on disk" else ""))
+
     val cacheKey = new CacheKey(tableName)
-    SharkEnv.cache.put(cacheKey, rdd)
+    SharkEnv.cache.put(cacheKey, rdd, storageLevel)
     rdd.foreach(_ => Unit)
 
     // Report remaining memory.
