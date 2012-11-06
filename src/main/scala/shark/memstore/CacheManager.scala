@@ -1,6 +1,7 @@
 package shark.memstore
 
 import spark.RDD
+import spark.storage.StorageLevel
 
 class CacheManager {
 
@@ -8,9 +9,9 @@ class CacheManager {
 
   val keyToStats = new collection.mutable.HashMap[CacheKey, collection.Map[Int, TableStats]]
 
-  def put(key: CacheKey, rdd: RDD[_]) {
+  def put(key: CacheKey, rdd: RDD[_], storageLevel: StorageLevel) {
     keyToRdd(key) = rdd
-    rdd.cache()
+    rdd.persist(storageLevel)
   }
 
   def get(key: CacheKey): Option[RDD[_]] = keyToRdd.get(key)
