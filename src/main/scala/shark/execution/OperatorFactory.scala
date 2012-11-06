@@ -5,6 +5,7 @@ import org.apache.hadoop.hive.ql.metadata.HiveException
 
 import scala.collection.JavaConversions._
 import shark.LogHelper
+import spark.storage.StorageLevel
 
 
 /**
@@ -23,10 +24,13 @@ object OperatorFactory extends LogHelper {
   }
 
   def createSharkCacheOutputPlan(
-    hiveTerminalOp: HiveOperator, tableName: String): TerminalOperator = {
+      hiveTerminalOp: HiveOperator,
+      tableName: String,
+      storageLevel: StorageLevel): TerminalOperator = {
     val terminalOp = _newOperatorInstance(
       classOf[CacheSinkOperator], hiveTerminalOp).asInstanceOf[CacheSinkOperator]
     terminalOp.tableName = tableName
+    terminalOp.storageLevel = storageLevel
     _createAndSetParents(
       terminalOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }
