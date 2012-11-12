@@ -49,8 +49,9 @@
 
 		<p>Shark is a large-scale data warehouse system for Spark designed to be compatible with
       <a href="http://hive.apache.org/">Apache Hive</a>. It can answer Hive QL queries up to
-      30 times faster than Hive without modification to the existing data nor queries. Shark
+      70 times faster than Hive without modification to the existing data nor queries. Shark
       supports Hive's query language, metastore, serialization formats, and user-defined functions.
+
     </p>
 
     <p>We released
@@ -65,10 +66,13 @@
       20 mins on an Amazon EC2 cluster.
     </p>
 
+    <h3>Fast Execution Engine</h3>
+    <p>Shark is built on top of <a href="http://www.spark-project.org/">Spark</a>, a data-parallel execution engine that is fast and fault-tolerant. Even if data are on disk, Shark can be noticeably faster than Hive because of the fast execution engine. It avoids the high task launching overhead of Hadoop MapReduce and does not require materializing intermediate data between stages on disk. Thanks to this fast engine, Shark can answer queries in sub-second latency.
+    </p>
 
-		<h3>Caching and Performance Optimizations</h3>
+		<h3>Memory Store</h3>
 		<p>Analytical queries usually focus on a particular subset or time window, e.g., http logs from the previous month, touching only the (small) dimension tables and a small portion of the fact table. These queries exhibit strong temporal locality, and in many cases, it is plausible to ﬁt the working set into a cluster’s memory.</p>
-		<p>Shark allows users to exploit this temporal locality by caching their working set of data, or in database terms, to create in-memory materialized views. Common data types can be cached in a columnar format (as Java primitives arrays), which is very efficient for storage and garbage collection, yet provides maximum performance (orders of magnitude faster than reading data from disk). Below is an example on how to cache data in Shark:</p>
+		<p>Shark allows users to exploit this temporal locality by storing their working set of data across a cluster's memory, or in database terms, to create in-memory materialized views. Common data types can be cached in a columnar format (as Java primitives arrays), which is very efficient for storage and garbage collection, yet provides maximum performance (orders of magnitude faster than reading data from disk). Below is an example on how to cache data in Shark:</p>
 
 <div class="highlight"><div class="syntax"><pre><span class="k">CREATE</span> <span class="k">TABLE</span> <span class="n">logs_last_month_cached</span> <span class="k">AS</span>
 <span class="k">SELECT</span> <span class="o">*</span> <span class="k">FROM</span> <span class="n">logs</span> <span class="k">WHERE</span> <span class="n">time</span> <span class="o">&gt;</span> <span class="nb">date</span><span class="p">(...);</span>
@@ -76,8 +80,6 @@
 <span class="k">SELECT</span> <span class="n">page</span><span class="p">,</span> <span class="k">count</span><span class="p">(</span><span class="o">*</span><span class="p">)</span> <span class="k">c</span> <span class="k">FROM</span> <span class="n">logs_last_month_cached</span>
 <span class="k">GROUP</span> <span class="k">BY</span> <span class="n">page</span> <span class="k">ORDER</span> <span class="k">BY</span> <span class="k">c</span> <span class="k">DESC</span> <span class="k">LIMIT</span> <span class="mi">10</span><span class="p">;</span>
 </pre></div></div>
-
-		<p>In addition to caching, Shark employs a number of optimization techniques such as limit push downs and hash-based shuffle, which can provide significant speedups in query processing.</p>
 
 
 		<h3>Spark/Machine Learning Integration</h3>
