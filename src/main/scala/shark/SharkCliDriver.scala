@@ -212,6 +212,8 @@ class SharkCliDriver extends CliDriver with LogHelper {
   // Force initializing SharkEnv. This is put here but not object SharkCliDriver
   // because the Hive unit tests do not go through the main() code path.
   SharkEnv.init
+  
+  SharkCTAS.loadAsRdds(processCmd(_))
 
   override def processCmd(cmd: String): Int = {
     val ss: SessionState = SessionState.get()

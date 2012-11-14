@@ -1,61 +1,131 @@
 package shark
 
-import java.io.{BufferedReader, InputStreamReader, PrintWriter}
-import org.scalatest.{BeforeAndAfterAll, FunSuite}
+import java.sql.Connection
+import java.sql.DriverManager
+import java.sql.Statement
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CountDownLatch
 
-class SharkServerSuite extends FunSuite with BeforeAndAfterAll with CliTestToolkit {
+import scala.actors.Actor
+import scala.collection.JavaConversions.asScalaConcurrentMap
+import scala.concurrent.ops.spawn
+
+import org.scalatest.BeforeAndAfterAll
+import org.scalatest.BeforeAndAfterEach
+import org.scalatest.FunSuite
+import org.scalatest.matchers.ShouldMatchers
+
+class SharkServerSuite extends FunSuite with BeforeAndAfterAll  with BeforeAndAfterEach with ShouldMatchers {
 
   val WAREHOUSE_PATH = CliTestToolkit.getWarehousePath("server")
 
-  var serverProcess : Process = null
-  var serverInputReader : BufferedReader = null
-  var serverErrorReader : BufferedReader = null
+  val DRIVER_NAME  = "org.apache.hadoop.hive.jdbc.HiveDriver"
+  val TABLE = "test"
 
+  Class.forName(DRIVER_NAME)
+  
   override def beforeAll() {
-    val serverPb = new ProcessBuilder("./bin/shark", "--service", "sharkserver")
-    val serverEnv = serverPb.environment()
-    serverEnv.put("SHARK_LAUNCH_WITH_JAVA", "1")
-    serverProcess = serverPb.start()
-    serverInputReader = new BufferedReader(new InputStreamReader(serverProcess.getInputStream))
-    serverErrorReader = new BufferedReader(new InputStreamReader(serverProcess.getErrorStream))
-    Thread.sleep(5000)
-
-    val clientPb = new ProcessBuilder("./bin/shark", "-h", "localhost")
-    process = clientPb.start()
-    outputWriter = new PrintWriter(process.getOutputStream, true)
-    inputReader = new BufferedReader(new InputStreamReader(process.getInputStream))
-    errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream))
-    waitForOutput(inputReader, "shark>")
-    outputWriter.write("set hive.metastore.warehouse.dir=" + WAREHOUSE_PATH + ";\n")
-    outputWriter.flush()
-    waitForOutput(inputReader, "shark>")
+    
+    spawn {
+      SharkServer.main(Array[String]())
+    }
+    while(!SharkServer.ready){}
+    createTable
+    createCachedTable
   }
 
   override def afterAll() {
-    process.destroy()
-    process.waitFor()
-    serverProcess.destroy()
-    serverProcess.waitFor()
+    dropTable
+    dropCachedTable
+    SharkServer.stop
   }
+  
+  test("Read from existing table") {
+    val stmt = createStatement
+    val rs = stmt.executeQuery("select count(*) from test where key = 406")
+    rs.next ; 
+    val count = rs.getInt(1)
+    println("Count : " , count)
+    count should equal (4)
+  } 
+  
+  test("Read from existing cached table") {
+    val stmt = createStatement
+    val rs = stmt.executeQuery("select count(*) from test_cached where key = 406")
+    rs.next ; 
+    val count = rs.getInt(1)
+    count should equal (4)
+  } 
+ 
+  test("SHARK-64, persist cached table metadata across sessions" ) {
+    //cached table creation in the initialization step should have attached metadata
+    assert(SharkCTAS.getMeta.exists(x => x._1.equalsIgnoreCase("test_cached")))
+    dropTable("test_cached")
+    assert(!SharkCTAS.getMeta.exists(x => x._1.equalsIgnoreCase("test_cached")))
+    createCachedTable
+    //check the tables have been recreated
+    assert(SharkCTAS.getMeta.exists(x => x._1.equalsIgnoreCase("test_cached")))
 
-  override def waitForQuery(timeout: Long) : String = {
-    if (waitForOutput(serverErrorReader, "OK", timeout)) {
-      Thread.sleep(1000)
-      return readOutput()
-    } else {
-      assert(false)
-      return null
+  }
+  
+  test("Concurrent reads with state") {
+    Class.forName(DRIVER_NAME)
+    val n = 3
+    val latch = new CountDownLatch(n)
+    var results:collection.mutable.ConcurrentMap[Int, Int] = new ConcurrentHashMap[Int,Int]
+    class ManagedReadActor(threshold:Int) extends Actor {
+          def exec = {
+            val con = getConnection
+            val setThresholdStmt = con.createStatement()
+            setThresholdStmt.executeQuery("set threshold = " + threshold)
+            val stmt = con.createStatement()
+            val rs = stmt.executeQuery("select  count(*) from test where key = " +
+              "${hiveconf:threshold}")
+            
+            rs.next
+            val value = rs.getInt(1)
+            results.putIfAbsent(threshold, value)
+          }
+          
+          def act = {
+            try {
+              exec
+            }finally {
+              latch.countDown
+            }
+          }
     }
-  }
 
-  test("Simple Query against Shark Server") {
+    List(238, 406, 401).foreach(index => new ManagedReadActor(index).start)
+    latch.await
+    results should be (Map[Int, Int](238 ->2, 406 -> 4, 401 -> 5))
+  }
+  
+  def getConnection:Connection  = DriverManager.getConnection("jdbc:hive://localhost:10000/default", "", "")
+  
+  def createStatement:Statement = {
+    getConnection.createStatement()
+  }
+  
+  def createTable() = {
     val dataFilePath = System.getenv("HIVE_DEV_HOME") + "/data/files/kv1.txt"
-    executeQuery("drop table if exists test;");
-    executeQuery("create table test(key int, val string);")
-    executeQuery("load data local inpath '" + dataFilePath+ "' overwrite into table test;")
-    val out = executeQuery("select * from test where key = 407;")
-    assert(out.contains("val_407"))
-    //executeQuery("exit;")
+    val stmt = createStatement
+    stmt.executeQuery("DROP TABLE IF EXISTS test")
+    stmt.executeQuery("CREATE TABLE test(key int, val string)")
+    stmt.executeQuery("LOAD DATA LOCAL INPATH '" + dataFilePath+ "' OVERWRITE INTO TABLE test")
   }
-
+  
+  def createCachedTable() = {
+    val stmt = createStatement
+    stmt.executeQuery("DROP TABLE IF EXISTS test_cached")
+    createStatement.executeQuery("CREATE TABLE test_cached as select * from test")
+  }
+  
+  def dropTable(implicit table:String = TABLE) = {
+    val stmt = createStatement
+    val sql = "DROP TABLE " + table 
+    val rs = stmt.executeQuery(sql)
+  }
+  
+  def dropCachedTable = dropTable(TABLE + "_cached")
 }

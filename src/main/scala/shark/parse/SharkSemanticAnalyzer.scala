@@ -2,7 +2,6 @@ package shark.parse
 
 import java.lang.reflect.Method
 import java.util.{ArrayList, List => JavaList}
-
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.{FieldSchema, MetaException}
@@ -13,16 +12,14 @@ import org.apache.hadoop.hive.ql.optimizer.Optimizer
 import org.apache.hadoop.hive.ql.parse._
 import org.apache.hadoop.hive.ql.plan._
 import org.apache.hadoop.hive.ql.session.SessionState
-
 import scala.collection.JavaConversions._
-
 import shark.{LogHelper, SharkConfVars, Utils}
 import shark.execution.{HiveOperator, Operator, OperatorFactory, ReduceSinkOperator, SparkWork,
   TerminalOperator}
 import shark.memstore.ColumnarSerDe
 import shark.SharkConfVars
+import shark.SharkCTAS
 import spark.storage.StorageLevel
-
 
 /**
  * Shark's version of Hive's SemanticAnalyzer. In SemanticAnalyzer,
@@ -160,6 +157,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
               case "MEMORY_AND_DISK_SER" => StorageLevel.MEMORY_AND_DISK_SER
               case "MEMORY_AND_DISK_SER_2" => StorageLevel.MEMORY_AND_DISK_SER_2
             }
+          qb.getTableDesc().getTblProps().put(SharkCTAS.QUERY_STRING, ctx.getCmd())
           OperatorFactory.createSharkCacheOutputPlan(
             hiveSinkOps.head, qb.getTableDesc.getTableName, storageLevel)
         } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink) {

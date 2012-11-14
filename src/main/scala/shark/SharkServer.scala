@@ -1,22 +1,35 @@
 package shark
 
-import java.io.{FileOutputStream, IOException, PrintStream, UnsupportedEncodingException}
-import java.util.{ArrayList, List => JavaList}
+import java.io.FileOutputStream
+import java.io.IOException
+import java.io.PrintStream
+import java.io.UnsupportedEncodingException
+import java.util.ArrayList
+import java.util.{List => JavaList}
+
+import scala.concurrent.ops.spawn
+
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hive.common.LogUtils
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.Schema
 import org.apache.hadoop.hive.ql.Driver
-import org.apache.hadoop.hive.ql.processors.{CommandProcessorResponse, CommandProcessorFactory}
+import org.apache.hadoop.hive.ql.processors.CommandProcessorFactory
+import org.apache.hadoop.hive.ql.processors.CommandProcessorResponse
 import org.apache.hadoop.hive.ql.session.SessionState
-import org.apache.hadoop.hive.service.{HiveServerException, ThriftHive}
-import org.apache.hadoop.hive.service.HiveServer.{ThriftHiveProcessorFactory, HiveServerHandler}
+import org.apache.hadoop.hive.service.HiveServer.HiveServerHandler
+import org.apache.hadoop.hive.service.HiveServer.ThriftHiveProcessorFactory
+import org.apache.hadoop.hive.service.HiveServerException
+import org.apache.hadoop.hive.service.ThriftHive
 import org.apache.thrift.TProcessor
 import org.apache.thrift.protocol.TBinaryProtocol
 import org.apache.thrift.server.TThreadPoolServer
-import org.apache.thrift.transport.{TTransport, TTransportFactory, TServerSocket}
-import spark.{SparkContext, SparkEnv}
+import org.apache.thrift.transport.TServerSocket
+import org.apache.thrift.transport.TTransport
+import org.apache.thrift.transport.TTransportFactory
+
+import spark.SparkEnv
 
 
 object SharkServer {
@@ -27,7 +40,9 @@ object SharkServer {
   SharkEnv.init
 
   val serverEnv = SparkEnv.get
-
+  
+  var server: TThreadPoolServer = null
+  
   def main(args: Array[String]) {
     LogUtils.initHiveLog4j();
 
@@ -43,24 +58,29 @@ object SharkServer {
     ttServerArgs.minWorkerThreads(minWorkerThreads)
     ttServerArgs.transportFactory(new TTransportFactory())
     ttServerArgs.protocolFactory(new TBinaryProtocol.Factory())
-    val server = new TThreadPoolServer(ttServerArgs)
+    server = new TThreadPoolServer(ttServerArgs)
 
     // Stop the server and clean up the Shark environment when we exit
     Runtime.getRuntime().addShutdownHook(
       new Thread() {
         override def run() {
-          if (server != null) {
-            server.stop()
-          }
-          SharkEnv.stop()
+          SharkServer.stop
         }
       }
     )
 
+    spawn {
+      while(!server.isServing()) {}
+      val sshandler = new SharkServerHandler
+      SharkCTAS.loadAsRdds(sshandler.execute(_))
+    }
     LOG.info("Starting shark server on port " + port)
     server.serve()
   }
-
+  
+  def stop = if(server !=null) server.stop
+  
+  def ready():Boolean = if(server == null) false else server.isServing()
 }
 
 class SharkHiveProcessingFactory(processor: TProcessor, conf: HiveConf)
@@ -92,7 +112,6 @@ class SharkServerHandler extends HiveServerHandler with LogHelper {
 
   override def execute(cmd: String) {
     SessionState.get();
-
     val cmd_trimmed = cmd.trim()
     val tokens = cmd_trimmed.split("\\s")
     val cmd_1 = cmd_trimmed.substring(tokens.apply(0).length()).trim()
