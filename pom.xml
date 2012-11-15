@@ -1,4 +1,5 @@
 <?xml version='1.0' encoding='UTF-8'?>
+<<<<<<< HEAD
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <groupId>edu.berkeley.cs.amplab</groupId>
@@ -6,6 +7,18 @@
   <packaging>jar</packaging>
   <description>shark</description>
   <version>0.3.0-csd-14-SNAPSHOT</version>
+=======
+<!-- POM file for the Shark project -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>edu.berkeley.cs.amplab</groupId>
+  <artifactId>shark_2.9.2</artifactId>
+  <packaging>jar</packaging>
+  <description>shark</description>
+  <version>0.2</version>
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
   <name>shark</name>
   <organization>
     <name>edu.berkeley.cs.amplab</name>
@@ -15,6 +28,7 @@
     <maven.compiler.target>1.7</maven.compiler.target>
     <encoding>UTF-8</encoding>
     <scala.version>2.9.2</scala.version>
+<<<<<<< HEAD
     <hive.version>0.9.0-csd-8</hive.version>
     <spark.version>0.7.0-csd-3</spark.version>
     <cdh.version>4.1.2</cdh.version>
@@ -27,11 +41,17 @@
     <deb.hive.dependency>${hive.version}</deb.hive.dependency>
 
     <ql.build.path>${hive.dev.home}/build/ql</ql.build.path>
+=======
+    <deb.install.path>/usr/share/shark</deb.install.path>
+    <deb.user>root</deb.user>
+    <hive.version>0.9.0-shark</hive.version>
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
 
     <!-- Default location, override on the command line if different -->
     <hive.dev.home>${basedir}/../hive</hive.dev.home>
     <hive.build.dir>${hive.dev.home}/build</hive.build.dir>
     <hive.dist.dir>${hive.build.dir}/dist</hive.dist.dir>
+<<<<<<< HEAD
 
     <test.mem>1024m</test.mem>
     <test.jvm.args>-Xmx${test.mem} -Xms${test.mem} -XX:-UseSplitVerifier</test.jvm.args>
@@ -120,11 +140,23 @@
     </repository>
   </distributionManagement>
 
+=======
+  </properties>
+  <scm>
+    <connection>scm:git:git@github.com:amplab/shark.git</connection>
+    <url>scm:git:git@github.com:amplab/shark.git</url>
+  </scm>
+
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
   <dependencies>
     <dependency>
       <groupId>org.scala-lang</groupId>
       <artifactId>scala-library</artifactId>
+<<<<<<< HEAD
       <version>${scala.version}</version>
+=======
+      <version>2.9.2</version>
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
       <scope>compile</scope>
     </dependency>
     <dependency>
@@ -136,7 +168,11 @@
     <dependency>
       <groupId>it.unimi.dsi</groupId>
       <artifactId>fastutil</artifactId>
+<<<<<<< HEAD
       <version>6.4.4</version>
+=======
+      <version>6.4.2</version>
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
       <scope>compile</scope>
     </dependency>
 
@@ -145,12 +181,16 @@
       <groupId>org.apache.hive</groupId>
       <artifactId>hive-common</artifactId>
       <version>${hive.version}</version>
+<<<<<<< HEAD
       <optional>true</optional>
+=======
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
     </dependency>
     <dependency>
       <groupId>org.apache.hive</groupId>
       <artifactId>hive-exec</artifactId>
       <version>${hive.version}</version>
+<<<<<<< HEAD
       <optional>true</optional>
       <exclusions>
         <exclusion>
@@ -158,17 +198,23 @@
           <artifactId>slf4j-log4j12</artifactId>
         </exclusion>
       </exclusions>
+=======
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
     </dependency>
     <dependency>
       <groupId>org.apache.hive</groupId>
       <artifactId>hive-cli</artifactId>
       <version>${hive.version}</version>
+<<<<<<< HEAD
       <optional>true</optional>
+=======
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
     </dependency>
     <dependency>
       <groupId>org.apache.hive</groupId>
       <artifactId>hive-serde</artifactId>
       <version>${hive.version}</version>
+<<<<<<< HEAD
       <optional>true</optional>
       <exclusions>
         <exclusion>
@@ -176,11 +222,14 @@
           <artifactId>slf4j-log4j12</artifactId>
         </exclusion>
       </exclusions>
+=======
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
     </dependency>
     <dependency>
       <groupId>org.apache.hive</groupId>
       <artifactId>hive-metastore</artifactId>
       <version>${hive.version}</version>
+<<<<<<< HEAD
       <optional>true</optional>
       <exclusions>
         <exclusion>
@@ -188,11 +237,14 @@
           <artifactId>slf4j-log4j12</artifactId>
         </exclusion>
       </exclusions>
+=======
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
     </dependency>
     <dependency>
       <groupId>org.apache.hive</groupId>
       <artifactId>hive-service</artifactId>
       <version>${hive.version}</version>
+<<<<<<< HEAD
       <optional>true</optional>
     </dependency>
     <dependency>
@@ -206,10 +258,13 @@
       <artifactId>hive-jdbc</artifactId>
       <version>${hive.version}</version>
       <optional>true</optional>
+=======
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
     </dependency>
 
     <!-- Testing -->
     <dependency>
+<<<<<<< HEAD
       <!-- This is omitted from the shaded jar -->
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-log4j12</artifactId>
@@ -219,6 +274,10 @@
     <dependency>
       <groupId>org.scalatest</groupId>
       <artifactId>scalatest_${scala.version}</artifactId>
+=======
+      <groupId>org.scalatest</groupId>
+      <artifactId>scalatest_2.9.2</artifactId>
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
       <version>1.6.1</version>
       <scope>test</scope>
     </dependency>
@@ -243,6 +302,7 @@
     </dependency>
   </dependencies>
 
+<<<<<<< HEAD
   <build>
     <outputDirectory>${project.build.directory}/scala-${scala.version}/classes</outputDirectory>
     <testOutputDirectory>${project.build.directory}/scala-${scala.version}/test-classes</testOutputDirectory>
@@ -255,10 +315,50 @@
           <execution>
             <id>scala-compile-first</id>
             <phase>process-resources</phase>
+=======
+  <repositories>
+    <repository>
+      <id>TypesafeRepository</id>
+      <name>Typesafe Repository</name>
+      <url>http://repo.typesafe.com/typesafe/releases/</url>
+      <layout>default</layout>
+    </repository>
+    <repository>
+      <id>JBossRepository</id>
+      <name>JBoss Repository</name>
+      <url>http://repository.jboss.org/nexus/content/repositories/releases/</url>
+      <layout>default</layout>
+    </repository>
+    <repository>
+      <id>SprayRepository</id>
+      <name>Spray Repository</name>
+      <url>http://repo.spray.cc/</url>
+      <layout>default</layout>
+    </repository>
+    <repository>
+      <id>DataNucleusRepository</id>
+      <name>DataNucleus Repository</name>
+      <url>http://www.datanucleus.org/downloads/maven2/</url>
+      <layout>default</layout>
+    </repository>
+  </repositories>
+
+  <build>
+    <outputDirectory>target/scala-${scala.version}/classes</outputDirectory>
+    <testOutputDirectory>target/scala-${scala.version}/test-classes</testOutputDirectory>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <executions>
+          <execution>
+            <phase>compile</phase>
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
             <goals>
               <goal>compile</goal>
             </goals>
           </execution>
+<<<<<<< HEAD
           <execution>
             <id>scala-test-compile-first</id>
             <phase>process-test-resources</phase>
@@ -303,6 +403,31 @@
           <encoding>UTF-8</encoding>
           <maxmem>1024m</maxmem>
         </configuration>
+=======
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.scala-tools</groupId>
+        <artifactId>maven-scala-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>scala-compile-first</id>
+            <phase>process-resources</phase>
+            <goals>
+              <goal>add-source</goal>
+              <goal>compile</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>scala-test-compile</id>
+            <phase>process-test-resources</phase>
+            <goals>
+              <goal>add-source</goal>
+              <goal>testCompile</goal>
+            </goals>
+          </execution>
+        </executions>
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -311,12 +436,20 @@
         <configuration>
           <useFile>false</useFile>
           <disableXmlReport>true</disableXmlReport>
+<<<<<<< HEAD
           <includes>
             <include>**/TestSharkCliDriver.class</include>
+=======
+          <!-- If you have classpath issue like NoDefClassError,... -->
+          <!-- useManifestOnlyJar>false</useManifestOnlyJar -->
+          <includes>
+            <include>**/TestSharkCliDriver.*</include>
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
           </includes>
           <environmentVariables>
             <HIVE_HOME>${hive.dist.dir}</HIVE_HOME>
             <HIVE_DEV_HOME>${hive.dev.home}</HIVE_DEV_HOME>
+<<<<<<< HEAD
             <TEST_FILE>${project.basedir}/src/test/tests_pass.txt</TEST_FILE>
           </environmentVariables>
           <systemPropertyVariables>
@@ -342,6 +475,20 @@
           <argLine>${test.jvm.args}</argLine>
           <!-- This is necessary so we can run Scala tests even if there are failures here. -->
           <testFailureIgnore>true</testFailureIgnore>
+=======
+          </environmentVariables>
+          <systemPropertyVariables>
+            <!-- This is necessary to put ZooKeeper temporary files in the correct location -->
+            <user.dir>${hive.build.dir}</user.dir>
+            <test.data.files>${hive.dev.home}</test.data.files>
+            <test.silent>false</test.silent>
+          </systemPropertyVariables>
+          <workingDirectory>${hive.build.dir}</workingDirectory>
+          <additionalClasspathElements>
+            <additionalClasspathElement>${hive.dist.dir}/conf</additionalClasspathElement>
+          </additionalClasspathElements>
+          <argLine>-Xmx2048m -Xms256m -XX:-UseSplitVerifier</argLine>
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
         </configuration>
       </plugin>
       <plugin>
@@ -352,7 +499,11 @@
           <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
           <junitxml>.</junitxml>
           <filereports>WDF TestSuite.txt</filereports>
+<<<<<<< HEAD
           <argLine>${test.jvm.args}</argLine>
+=======
+          <argLine>-Xms64m -Xmx1024m -XX:-UseSplitVerifier</argLine>
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
           <environmentVariables>
             <HIVE_HOME>${hive.dist.dir}</HIVE_HOME>
             <HIVE_DEV_HOME>${hive.dev.home}</HIVE_DEV_HOME>
@@ -371,6 +522,7 @@
         </executions>
       </plugin>
       <plugin>
+<<<<<<< HEAD
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>build-helper-maven-plugin</artifactId>
         <version>1.7</version>
@@ -449,12 +601,25 @@
         <configuration>
           <shadedArtifactAttached>true</shadedArtifactAttached>
           <shadedClassifierName>shaded-${classifier}</shadedClassifierName>
+=======
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>2.0</version>
+        <configuration>
+          <shadedArtifactAttached>true</shadedArtifactAttached>
+          <shadedClassifierName>shaded-hadoop2</shadedClassifierName>
+          <keepDependenciesWithProvidedScope>false</keepDependenciesWithProvidedScope>
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
           <artifactSet>
             <excludes>
               <!-- Old Netty versions break Akka. The new groupId is io.netty. -->
               <exclude>org.jboss.netty:*</exclude>
               <!-- Hive is included separately, not as part of the fat jar. -->
+<<<<<<< HEAD
               <exclude>org.apache.hive:*</exclude>
+=======
+              <exclude>org.apache.hadoop.hive:*</exclude>
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
             </excludes>
           </artifactSet>
           <filters>
@@ -476,8 +641,15 @@
             </goals>
             <configuration>
               <transformers>
+<<<<<<< HEAD
                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
                 <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+=======
+                <transformer
+                    implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                <transformer
+                    implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
                   <resource>reference.conf</resource>
                 </transformer>
               </transformers>
@@ -485,6 +657,7 @@
           </execution>
         </executions>
       </plugin>
+<<<<<<< HEAD
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-eclipse-plugin</artifactId>
@@ -529,6 +702,10 @@
     </plugins>
   </build>
 
+=======
+    </plugins>
+  </build>
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
   <!-- Separate profiles for Hadoop 1 and 2 -->
   <profiles>
     <profile>
@@ -544,17 +721,24 @@
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-core</artifactId>
           <version>${hadoop.version}</version>
+<<<<<<< HEAD
           <optional>true</optional>
+=======
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
         </dependency>
         <dependency>
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-tools</artifactId>
           <version>${hadoop.version}</version>
+<<<<<<< HEAD
           <optional>true</optional>
+=======
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
         </dependency>
         <!-- Spark -->
         <dependency>
           <groupId>org.spark-project</groupId>
+<<<<<<< HEAD
           <artifactId>spark-core</artifactId>
           <version>${spark.version}</version>
           <classifier>hadoop1</classifier>
@@ -564,13 +748,25 @@
           <artifactId>spark-repl</artifactId>
           <version>${spark.version}</version>
           <classifier>hadoop1</classifier>
+=======
+          <artifactId>spark-core_2.9.2</artifactId>
+          <version>0.6.0</version>
+        </dependency>
+        <dependency>
+          <groupId>org.spark-project</groupId>
+          <artifactId>spark-repl_2.9.2</artifactId>
+          <version>0.6.0</version>
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
         </dependency>
         <!-- Test -->
         <dependency>
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-test</artifactId>
           <version>${hadoop.version}</version>
+<<<<<<< HEAD
           <scope>test</scope>
+=======
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
         </dependency>
       </dependencies>
     </profile>
@@ -578,7 +774,11 @@
       <id>hadoop2</id>
       <properties>
         <hadoop.major.version>2</hadoop.major.version>
+<<<<<<< HEAD
         <hadoop.version>2.0.0-mr1-cdh${cdh.version}</hadoop.version>
+=======
+        <hadoop.version>2.0.0-mr1-cdh4.1.1</hadoop.version>
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
         <classifier>hadoop2</classifier>
       </properties>
       <dependencies>
@@ -587,30 +787,44 @@
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-core</artifactId>
           <version>${hadoop.version}</version>
+<<<<<<< HEAD
           <optional>true</optional>
+=======
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
         </dependency>
         <dependency>
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-client</artifactId>
           <version>${hadoop.version}</version>
+<<<<<<< HEAD
           <optional>true</optional>
+=======
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
         </dependency>
         <dependency>
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-tools</artifactId>
           <version>${hadoop.version}</version>
+<<<<<<< HEAD
           <optional>true</optional>
+=======
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
         </dependency>
         <!-- Spark -->
         <dependency>
           <groupId>org.spark-project</groupId>
           <artifactId>spark-core</artifactId>
+<<<<<<< HEAD
           <version>${spark.version}</version>
+=======
+          <version>0.6.1-SNAPSHOT</version>
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
           <classifier>hadoop2</classifier>
         </dependency>
         <dependency>
           <groupId>org.spark-project</groupId>
           <artifactId>spark-repl</artifactId>
+<<<<<<< HEAD
           <version>${spark.version}</version>
           <classifier>hadoop2</classifier>
         </dependency>
@@ -619,13 +833,19 @@
           <groupId>org.apache.hbase</groupId>
           <artifactId>hbase</artifactId>
           <version>${hbase.version}</version>
+=======
+          <version>0.6.1-SNAPSHOT</version>
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
         </dependency>
         <!-- Test -->
         <dependency>
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-test</artifactId>
           <version>${hadoop.version}</version>
+<<<<<<< HEAD
           <scope>test</scope>
+=======
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
         </dependency>
       </dependencies>
     </profile>
@@ -660,12 +880,23 @@
                   <goal>jdeb</goal>
                 </goals>
                 <configuration>
+<<<<<<< HEAD
                   <deb>${project.build.directory}/${deb.pkg.name}_${project.version}-${buildNumber}_all.deb</deb>
                   <attach>false</attach>
                   <compression>gzip</compression>
                   <dataSet>
                     <data>
                       <src>${project.build.directory}/${project.artifactId}-${project.version}-shaded-${classifier}.jar</src>
+=======
+                  <deb>
+                    ${project.build.directory}/${project.artifactId}-${classifier}_${project.version}-${buildNumber}.deb
+                  </deb>
+                  <dataSet>
+                    <data>
+                      <src>
+                        ${project.build.directory}/${project.artifactId}-${project.version}-shaded-${classifier}.jar
+                      </src>
+>>>>>>> Maven POM file for Shark, Debian packaging, and "run" script improvement
                       <type>file</type>
                       <mapper>
                         <type>perm</type>
