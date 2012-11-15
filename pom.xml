@@ -5,7 +5,7 @@
   <artifactId>shark</artifactId>
   <packaging>jar</packaging>
   <description>shark</description>
-  <version>0.3.0-csd-15-SNAPSHOT</version>
+  <version>0.8.0-candidate-csd-10-SNAPSHOT</version>
   <name>shark</name>
   <organization>
     <name>edu.berkeley.cs.amplab</name>
@@ -14,12 +14,13 @@
     <maven.compiler.source>1.7</maven.compiler.source>
     <maven.compiler.target>1.7</maven.compiler.target>
     <encoding>UTF-8</encoding>
-    <scala.version>2.9.2</scala.version>
-    <hive.version>0.9.0-csd-9</hive.version>
-    <spark.version>0.7.0-csd-3</spark.version>
+    <scala.version>2.9.3</scala.version>
+    <hive.version>0.9.0-csd-16</hive.version>
+    <spark.version>0.8.0-candidate-csd-7-SNAPSHOT</spark.version>
     <cdh.version>4.1.2</cdh.version>
     <java.version>1.5</java.version>
-    <hbase.version>0.94.5-csd-23</hbase.version>
+    <hbase.version>0.94.5-csd-30</hbase.version>
+    <jline.version>0.9.94</jline.version>
 
     <deb.pkg.name>shark-${classifier}</deb.pkg.name>
     <deb.install.path>/usr/share/shark-${classifier}</deb.install.path>
@@ -33,11 +34,18 @@
     <hive.build.dir>${hive.dev.home}/build</hive.build.dir>
     <hive.dist.dir>${hive.build.dir}/dist</hive.dist.dir>
 
+    <!-- The directory where the test hive-site.xml file is stored -->
+    <test.hive.site.dir>${project.basedir}/src/test/conf</test.hive.site.dir>
+
+    <shark.test.dir>${project.build.directory}/testing</shark.test.dir>
+
     <test.mem>1024m</test.mem>
-    <test.jvm.args>-Xmx${test.mem} -Xms${test.mem} -XX:-UseSplitVerifier</test.jvm.args>
+    <test.jvm.args>-Xmx${test.mem} -Xms${test.mem} -XX:-UseSplitVerifier -XX:MaxPermSize=${test.mem}</test.jvm.args>
+
+    <shark.test.query.file>${project.basedir}/src/test/tests_stable.txt</shark.test.query.file>
   </properties>
   <scm>
-    <connection>scm:git:git://github.com/clearstorydata/shark.git</connection>
+    <connection>scm:git:git@github.com:clearstorydata/shark.git</connection>
     <url>http://github.com/clearstorydata/shark/tree/master</url>
   </scm>
 
@@ -157,6 +165,10 @@
           <groupId>org.slf4j</groupId>
           <artifactId>slf4j-log4j12</artifactId>
         </exclusion>
+        <exclusion>
+          <groupId>asm</groupId>
+          <artifactId>asm</artifactId>
+        </exclusion>
       </exclusions>
     </dependency>
     <dependency>
@@ -187,6 +199,10 @@
           <groupId>org.slf4j</groupId>
           <artifactId>slf4j-log4j12</artifactId>
         </exclusion>
+        <exclusion>
+          <groupId>asm</groupId>
+          <artifactId>asm</artifactId>
+        </exclusion>
       </exclusions>
     </dependency>
     <dependency>
@@ -207,19 +223,29 @@
       <version>${hive.version}</version>
       <optional>true</optional>
     </dependency>
+    <dependency>
+      <groupId>org.tachyonproject</groupId>
+      <artifactId>tachyon</artifactId>
+      <version>0.2.1-csd-2</version>
+    </dependency>
+    <dependency>
+      <groupId>jline</groupId>
+      <artifactId>jline</artifactId>
+      <version>${jline.version}</version>
+    </dependency>
 
     <!-- Testing -->
     <dependency>
       <!-- This is omitted from the shaded jar -->
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-log4j12</artifactId>
-      <version>1.6.1</version>
+      <version>1.7.5</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.scalatest</groupId>
       <artifactId>scalatest_${scala.version}</artifactId>
-      <version>1.6.1</version>
+      <version>1.9.1</version>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -233,6 +259,12 @@
       <groupId>org.apache.hive</groupId>
       <artifactId>hive-hbase-handler</artifactId>
       <version>${hive.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>asm</groupId>
+          <artifactId>asm</artifactId>
+        </exclusion>
+      </exclusions>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -250,7 +282,7 @@
       <plugin>
         <groupId>net.alchim31.maven</groupId>
         <artifactId>scala-maven-plugin</artifactId>
-        <version>3.1.0</version>
+        <version>3.1.5</version>
         <executions>
           <execution>
             <id>scala-compile-first</id>
@@ -307,7 +339,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
-        <version>2.6</version>
+        <version>2.15</version>
         <configuration>
           <useFile>false</useFile>
           <disableXmlReport>true</disableXmlReport>
@@ -317,7 +349,7 @@
           <environmentVariables>
             <HIVE_HOME>${hive.dist.dir}</HIVE_HOME>
             <HIVE_DEV_HOME>${hive.dev.home}</HIVE_DEV_HOME>
-            <TEST_FILE>${project.basedir}/src/test/tests_pass.txt</TEST_FILE>
+            <TEST_FILE>${shark.test.query.file}</TEST_FILE>
           </environmentVariables>
           <systemPropertyVariables>
             <user.dir>${hive.build.dir}</user.dir>
@@ -334,14 +366,17 @@
             <test.warehouse.dir>${ql.build.path}/test/data/warehouse</test.warehouse.dir>
             <derby.version>10.4.2.0</derby.version>
             <hive.test.dir>${hive.build.dir}</hive.test.dir>
+            <shark.test.dir>${shark.test.dir}</shark.test.dir>
+            <user.timezone>PST</user.timezone>
           </systemPropertyVariables>
           <workingDirectory>${hive.build.dir}</workingDirectory>
           <additionalClasspathElements>
-            <additionalClasspathElement>${basedir}/src/test/conf</additionalClasspathElement>
+            <additionalClasspathElement>${test.hive.site.dir}</additionalClasspathElement>
           </additionalClasspathElements>
           <argLine>${test.jvm.args}</argLine>
           <!-- This is necessary so we can run Scala tests even if there are failures here. -->
           <testFailureIgnore>true</testFailureIgnore>
+          <enableAssertions>false</enableAssertions>
         </configuration>
       </plugin>
       <plugin>
@@ -353,13 +388,21 @@
           <junitxml>.</junitxml>
           <filereports>WDF TestSuite.txt</filereports>
           <argLine>${test.jvm.args}</argLine>
+          <runpath>${test.hive.site.dir}</runpath>
           <environmentVariables>
             <HIVE_HOME>${hive.dist.dir}</HIVE_HOME>
             <HIVE_DEV_HOME>${hive.dev.home}</HIVE_DEV_HOME>
             <HIVE_VERSION>${hive.version}</HIVE_VERSION>
             <SHARK_LAUNCH_WITH_JAVA>1</SHARK_LAUNCH_WITH_JAVA>
             <TEST_JAVA_OPTS>-XX:-UseSplitVerifier</TEST_JAVA_OPTS>
+            <SCALA_HOME>${project.build.directory}/scala-home</SCALA_HOME>
           </environmentVariables>
+          <systemProperties>
+            <shark.test.dir>${shark.test.dir}</shark.test.dir>
+            <hive.test.dir>${hive.build.dir}</hive.test.dir>
+            <user.timezone>UTC</user.timezone>
+          </systemProperties>
+          <forkMode>once</forkMode>
         </configuration>
         <executions>
           <execution>
@@ -384,6 +427,7 @@
             <configuration>
               <sources>
                 <source>src/main/scala</source>
+                <source>src/tachyon_enabled/scala</source>
               </sources>
             </configuration>
           </execution>
@@ -526,6 +570,46 @@
           </execution>
         </executions>
       </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <executions>
+          <!-- Install Scala jars into a directory that will be passed to tests as SCALA_HOME -->
+          <execution>
+            <id>copy</id>
+            <phase>test-compile</phase>
+            <goals>
+              <goal>copy</goal>
+            </goals>
+            <configuration>
+              <artifactItems>
+                <artifactItem>
+                  <groupId>org.scala-lang</groupId>
+                  <artifactId>scala-library</artifactId>
+                  <version>${scala.version}</version>
+                  <type>jar</type>
+                </artifactItem>
+                <artifactItem>
+                  <groupId>org.scala-lang</groupId>
+                  <artifactId>scala-compiler</artifactId>
+                  <version>${scala.version}</version>
+                  <type>jar</type>
+                </artifactItem>
+                <artifactItem>
+                  <groupId>jline</groupId>
+                  <artifactId>jline</artifactId>
+                  <version>${jline.version}</version>
+                  <type>jar</type>
+                </artifactItem>
+              </artifactItems>
+              <outputDirectory>${project.build.directory}/scala-home/lib</outputDirectory>
+              <overWriteReleases>true</overWriteReleases>
+              <overWriteSnapshots>true</overWriteSnapshots>
+              <stripVersion>true</stripVersion>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
 
@@ -619,6 +703,12 @@
           <groupId>org.apache.hbase</groupId>
           <artifactId>hbase</artifactId>
           <version>${hbase.version}</version>
+          <exclusions>
+            <exclusion>
+              <groupId>asm</groupId>
+              <artifactId>asm</artifactId>
+            </exclusion>
+          </exclusions>
         </dependency>
         <!-- Test -->
         <dependency>
