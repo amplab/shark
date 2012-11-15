@@ -13,12 +13,7 @@ if [ -e $SHARK_HOME/conf/shark-env.sh ] ; then
   . $SHARK_HOME/conf/shark-env.sh
 fi
 
-if [ "x$SCALA_HOME" == "x" ] ; then
-  echo "No SCALA_HOME specified. Please set SCALA_HOME."
-  exit 1
-fi
-
-if [ ! -f "$SCALA_HOME/lib/scala-library.jar" ] ; then
+if [[ -n "${SCALA_HOME:-}" && ! -f "${SCALA_HOME:-}/lib/scala-library.jar" ]] ; then
   echo "Cannot find $SCALA_HOME/lib/scala-library.jar."
   echo "Are you sure your SCALA_HOME is set correctly?"
   echo "SCALA_HOME = $SCALA_HOME"
@@ -27,12 +22,16 @@ fi
 
 # Hive related section.
 if [ "x$HIVE_HOME" == "x" ] ; then
-    echo "No HIVE_HOME specified. Please set HIVE_HOME."
-    exit 1
+  echo "No HIVE_HOME specified. Please set HIVE_HOME."
+  exit 1
 fi
 
-if [ ! -f "$HIVE_HOME/lib/hive-exec-0.9.0.jar" ] ; then
-  echo "Cannot find $HIVE_HOME/lib/hive-exec-0.9.0.jar."
+if [ -z "${HIVE_VERSION:-}" ]; then
+  HIVE_VERSION="0.9.0"
+fi
+
+if [ ! -f "$HIVE_HOME/lib/hive-exec-$HIVE_VERSION.jar" ] ; then
+  echo "Cannot find $HIVE_HOME/lib/hive-exec-$HIVE_VERSION.jar."
   echo "Are you sure your HIVE_HOME is set correctly?"
   echo "HIVE_HOME = $HIVE_HOME"
   exit 1
@@ -59,12 +58,19 @@ fi
 for jar in `find $SHARK_HOME/lib -name '*jar'`; do
   SPARK_CLASSPATH+=:$jar
 done
-for jar in `find $SHARK_HOME/lib_managed/jars -name '*jar'`; do
-  SPARK_CLASSPATH+=:$jar
-done
-for jar in `find $SHARK_HOME/lib_managed/bundles -name '*jar'`; do
-  SPARK_CLASSPATH+=:$jar
-done
+
+# sbt-specific jar directories.
+if [ -d "$SHARK_HOME/lib_managed/jars" ]; then
+  for jar in `find $SHARK_HOME/lib_managed/jars -name '*jar'`; do
+    SPARK_CLASSPATH+=:$jar
+  done
+fi
+
+if [ -d "$SHARK_HOME/lib_managed/bundles" ]; then
+  for jar in `find $SHARK_HOME/lib_managed/bundles -name '*jar'`; do
+    SPARK_CLASSPATH+=:$jar
+  done
+fi
 
 # Add Hive jars.
 for jar in `find $HIVE_HOME/lib -name '*jar'`; do
@@ -76,22 +82,29 @@ done
 
 SPARK_CLASSPATH+=:$HIVE_CONF_DIR
 
-# Build up classpath
-if [ -f "$SHARK_HOME/target/scala-$SCALA_VERSION/shark_$SCALA_VERSION-0.2.jar" ] ; then
-  SPARK_CLASSPATH+=":$SHARK_HOME/target/scala-$SCALA_VERSION/shark_$SCALA_VERSION-0.2.jar"
-else
-  SPARK_CLASSPATH+=":$SHARK_HOME/target/scala-$SCALA_VERSION/classes"
+if [ -d "$SHARK_HOME/target" ]; then
+  # Build up classpath in development mode
+  if [ -f "$SHARK_HOME/target/scala-$SCALA_VERSION/shark_$SCALA_VERSION-0.2.jar" ] ; then
+    SPARK_CLASSPATH+=":$SHARK_HOME/target/scala-$SCALA_VERSION/shark_$SCALA_VERSION-0.2.jar"
+  else
+    SPARK_CLASSPATH+=":$SHARK_HOME/target/scala-$SCALA_VERSION/classes"
+  fi
+
+  SPARK_CLASSPATH+=":$SHARK_HOME/target/scala-$SCALA_VERSION/test-classes"
 fi
 
-SPARK_CLASSPATH+=":$SHARK_HOME/target/scala-$SCALA_VERSION/test-classes"
-
-
-if [ "x$HADOOP_HOME" == "x" ] ; then
+# Use Hadoop configuration from $HADOOP_CONF_DIR or if it is not set from $HADOOP_HOME/conf.
+if [ -z "${HADOOP_CONF_DIR:-}" ]; then
+  if [ -z "${HADOOP_HOME:-}" ] ; then
     echo "No HADOOP_HOME specified. Shark will run in local-mode"
-else
-    SPARK_CLASSPATH+=:$HADOOP_HOME/conf
+  else
+    HADOOP_CONF_DIR="$HADOOP_HOME/conf"
+  fi
 fi
 
+if [ -n "${HADOOP_CONF_DIR:-}" ]; then
+  SPARK_CLASSPATH+=:$HADOOP_CONF_DIR
+fi
 
 # TODO(rxin): Check aux classpath and aux java opts.
 #CLASSPATH=${CLASSPATH}:${AUX_CLASSPATH}
@@ -117,9 +130,11 @@ export ANT_OPTS=$JAVA_OPTS
 
 if [ "x$RUNNER" == "x" ] ; then
   if [ "$SHARK_LAUNCH_WITH_JAVA" == "1" ]; then
-    CLASSPATH+=":$SCALA_HOME/lib/scala-library.jar"
-    CLASSPATH+=":$SCALA_HOME/lib/scala-compiler.jar"
-    CLASSPATH+=":$SCALA_HOME/lib/jline.jar"
+    if [ -n "$SCALA_HOME" ]; then
+      CLASSPATH+=":$SCALA_HOME/lib/scala-library.jar"
+      CLASSPATH+=":$SCALA_HOME/lib/scala-compiler.jar"
+      CLASSPATH+=":$SCALA_HOME/lib/jline.jar"
+    fi
     if [ -n "$JAVA_HOME" ]; then
       RUNNER="${JAVA_HOME}/bin/java"
     else
@@ -128,6 +143,10 @@ if [ "x$RUNNER" == "x" ] ; then
     # The JVM doesn't read JAVA_OPTS by default so we need to pass it in
     EXTRA_ARGS="$JAVA_OPTS"
   else
+    if [ -z "$SCALA_HOME" ]; then
+      echo "Neither SHARK_LAUNCH_WITH_JAVA nor SCALA_HOME are set" >&2
+      exit 1
+    fi
     SCALA=${SCALA_HOME}/bin/scala
     RUNNER="$SCALA -cp \"$CLASSPATH\""
     EXTRA_ARGS=""
