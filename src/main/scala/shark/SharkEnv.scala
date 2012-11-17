@@ -68,6 +68,7 @@ object SharkEnv extends LogHelper {
     // Stop the SparkContext
     if (SharkEnv.sc != null) {
       sc.stop()
+      sc = null
     }
   }
 

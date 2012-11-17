@@ -23,4 +23,10 @@ class CacheManager {
     keyToRdd.keys.map(_.key).collect { case k: String => k } toSeq
   }
 
+  def drop(): Seq[String] = {
+    val keys = getAllKeyStrings
+    keyToRdd.clear
+    keyToStats.clear
+    keys
+  }
 }

@@ -1,10 +1,10 @@
 package shark
 
 import scala.collection.JavaConversions.asScalaBuffer
-
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.hadoop.hive.ql.metadata.Table
+import com.sun.org.apache.commons.logging.LogFactory
 
 /**
  * Singleton representing access to the Shark Meta data that gets applied to cached tables
@@ -18,11 +18,18 @@ object SharkCTAS {
   val db = Hive.get(new HiveConf)
   
   val QUERY_STRING = "CTAS_QUERY_STRING"
+    
+  private val LOG = LogFactory.getLog("SharkCTAS")
 
   def loadAsRdds(cmdRunner : String => Unit): Unit = {
+    println(getMeta)
     getMeta.foreach(t => {
+      try {
       db.dropTable(t._1) 
       cmdRunner(t._2)
+      }catch {
+      	case e:Exception => LOG.debug("Reloading cached table failed "+ t._1, e);
+      }
     })
   }
   
