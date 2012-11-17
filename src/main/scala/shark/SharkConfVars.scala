@@ -21,6 +21,9 @@ object SharkConfVars {
   val COLUMN_INITIALSIZE = new ConfVar("shark.columnar.cache.initialSize",
     if (System.getenv("MASTER") == null) 100 else -1)
 
+  // Default storage level for cached tables.
+  val STORAGE_LEVEL = new ConfVar("shark.cache.storageLevel", "MEMORY_ONLY")
+
   // If true, then cache any table whose name ends in "_cached".
   val CHECK_TABLENAME_FLAG = new ConfVar("shark.cache.flag.checkTableName", true)
 
