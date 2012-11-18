@@ -22,7 +22,6 @@ object SharkCTAS {
   private val LOG = LogFactory.getLog("SharkCTAS")
 
   def loadAsRdds(cmdRunner : String => Unit): Unit = {
-    println(getMeta)
     getMeta.foreach(t => {
       try {
       db.dropTable(t._1) 
