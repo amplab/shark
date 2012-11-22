@@ -1,6 +1,7 @@
 package shark
 
 import spark.RDD
+import spark.storage.StorageLevel
 import scala.collection.mutable.HashMap
 
 
@@ -13,7 +14,7 @@ case class CacheKey(val keyStr: String) {
       case _ => false
     }
   }
-  
+
   override def hashCode(): Int = {
     key.hashCode()
   }
@@ -25,7 +26,7 @@ class CacheManager {
 
   def put(key: CacheKey, rdd: RDD[_]) {
     keyToRdd(key) = rdd
-    rdd.cache()
+    rdd.persist(StorageLevel.MEMORY_AND_DISK)
   }
 
   def get(key: CacheKey): Option[RDD[_]] = {
@@ -34,7 +35,7 @@ class CacheManager {
       case None => None
     }
   }
-  
+
   /**
    * Find all keys that are strings. Used to drop tables after exiting.
    */
