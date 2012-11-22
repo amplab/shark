@@ -10,7 +10,7 @@ object SharkBuild extends Build {
   val HADOOP_VERSION = "0.20.205.0"
 
   // Spark version to build against.
-  val SPARK_VERSION = "0.6.0"
+  val SPARK_VERSION = "0.6.1"
 
   lazy val root = Project(
     id = "root",
