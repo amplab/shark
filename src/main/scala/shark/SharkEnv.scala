@@ -14,7 +14,7 @@ object SharkEnv extends LogHelper {
       sc = new SparkContext(
           if (System.getenv("MASTER") == null) "local" else System.getenv("MASTER"),
           "Shark::" + java.net.InetAddress.getLocalHost.getHostName,
-          null,
+          System.getenv("SPARK_HOME"),
           Nil,
           executorEnvVars)
     }
@@ -28,7 +28,7 @@ object SharkEnv extends LogHelper {
     sc = new SharkContext(
         if (System.getenv("MASTER") == null) "local" else System.getenv("MASTER"),
         jobName,
-        null,
+        System.getenv("SPARK_HOME"),
         Nil,
         executorEnvVars)
   }
@@ -42,10 +42,12 @@ object SharkEnv extends LogHelper {
   //System.setProperty("spark.closure.serializer", "spark.KryoSerializer")
 
   val executorEnvVars = new HashMap[String, String]
+  executorEnvVars.put("SCALA_HOME", getEnv("SCALA_HOME"))
   executorEnvVars.put("SPARK_MEM", getEnv("SPARK_MEM"))
   executorEnvVars.put("SPARK_CLASSPATH", getEnv("SPARK_CLASSPATH"))
   executorEnvVars.put("HADOOP_HOME", getEnv("HADOOP_HOME"))
   executorEnvVars.put("JAVA_HOME", getEnv("JAVA_HOME"))
+  executorEnvVars.put("MESOS_NATIVE_LIBRARY", getEnv("MESOS_NATIVE_LIBRARY"))
 
   var sc: SparkContext = _
 
