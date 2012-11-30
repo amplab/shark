@@ -40,12 +40,12 @@ object SharkServer {
   val serverEnv = SparkEnv.get
   @volatile
   var server: TThreadPoolServer = null
-  
+
   var serverTransport: TServerSocket = _
-  
+
   def main(args: Array[String]) {
     LogUtils.initHiveLog4j();
-   
+
     var port = 10000
     var minWorkerThreads = 100
     var loadRdds = false
@@ -56,7 +56,7 @@ object SharkServer {
       case Array("-loadRdds",_*) => loadRdds = true ; parseArgs(iargs.drop(1))
       case _ => throw new Exception("Unsupported argument :" + iargs(0))
     }
-    
+ 
     parseArgs(args)
     val latch = new CountDownLatch(1)
 
@@ -70,12 +70,13 @@ object SharkServer {
     ttServerArgs.transportFactory(new TTransportFactory())
     ttServerArgs.protocolFactory(new TBinaryProtocol.Factory())
     server = new TThreadPoolServer(ttServerArgs)
-    
+
     // Stop the server and clean up the Shark environment when we exit
     Runtime.getRuntime().addShutdownHook(
       new Thread() {
         override def run() {
           SharkServer.stop
+          SharkEnv.stop
         }
       }
     )
@@ -83,35 +84,35 @@ object SharkServer {
     LOG.info("Starting shark server on port " + port)
     server.serve()
   }
-  
-  def stop = if (server != null) {
+  // used for testing only
+  def stop: Unit = if (server != null) {
     server.stop
     serverTransport.close
     server = null
   }
-  
-  def ready = if(server == null) false else server.isServing()
-  
-  private def execLoadRdds(loadFlag: Boolean, latch:CountDownLatch): Unit = 
-    if (!loadFlag) latch.countDown 
-    else spawn {
+
+  def ready: Boolean = if(server == null) false else server.isServing()
+
+  private def execLoadRdds(loadFlag: Boolean, latch:CountDownLatch): Unit =
+    if (!loadFlag) {
+      latch.countDown
+    } else spawn {
       while (!server.isServing()) {}
       try {
         val sshandler = new SharkServerHandler
         SharkCTAS.loadAsRdds(sshandler.execute(_))
-        LOG.info("Executed load "+ SharkCTAS.getMeta)
+        LOG.info("Executed load " + SharkCTAS.getMeta)
       } catch {
         case (e: Exception) => LOG.warn("Unable to load RDDs upon startup", e)
       } finally {
         latch.countDown
       }
-  }
-  
+    }
 }
 
 class GatedSharkServerHandler(latch:CountDownLatch) extends SharkServerHandler {
-  
-  override def execute(cmd: String) = {
+
+  override def execute(cmd: String): Unit = {
     latch.await
     super.execute(cmd);
   }
