@@ -194,14 +194,13 @@
             <HIVE_DEV_HOME>${hive.dev.home}</HIVE_DEV_HOME>
           </environmentVariables>
           <systemPropertyVariables>
-            <!-- This is necessary to put ZooKeeper temporary files in the correct location -->
             <user.dir>${hive.build.dir}</user.dir>
-            <test.data.files>${hive.dev.home}</test.data.files>
             <test.silent>false</test.silent>
+            <hive.version>${version}</hive.version>
           </systemPropertyVariables>
           <workingDirectory>${hive.build.dir}</workingDirectory>
           <additionalClasspathElements>
-            <additionalClasspathElement>${hive.dist.dir}/conf</additionalClasspathElement>
+            <additionalClasspathElement>${basedir}/src/test/conf</additionalClasspathElement>
           </additionalClasspathElements>
           <argLine>-Xmx2048m -Xms256m -XX:-UseSplitVerifier</argLine>
         </configuration>
