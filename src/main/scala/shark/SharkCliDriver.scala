@@ -33,9 +33,10 @@ object SharkCliDriver {
   var prompt2 = "     " // when ';' is not yet seen.
 
   def main(args: Array[String]) {
-
+    val hiveArgs = args.filterNot(_.equals("-loadRdds"))
+    val loadRdds = hiveArgs.length < args.length
     val oproc = new OptionsProcessor()
-    if (!oproc.process_stage1(args)) {
+    if (!oproc.process_stage1(hiveArgs)) {
       System.exit(1)
     }
 
@@ -112,7 +113,7 @@ object SharkCliDriver {
       Thread.currentThread().setContextClassLoader(loader)
     }
 
-    var cli = new SharkCliDriver()
+    var cli = new SharkCliDriver(loadRdds)
 
     // Execute -i init files (always in silent mode)
     cli.processInitFiles(ss)
@@ -197,7 +198,7 @@ object SharkCliDriver {
 }
 
 
-class SharkCliDriver extends CliDriver with LogHelper {
+class SharkCliDriver(loadRdds:Boolean = false) extends CliDriver with LogHelper {
 
   private val ss = SessionState.get()
 
@@ -212,7 +213,11 @@ class SharkCliDriver extends CliDriver with LogHelper {
   // Force initializing SharkEnv. This is put here but not object SharkCliDriver
   // because the Hive unit tests do not go through the main() code path.
   SharkEnv.init
-
+  
+  if(loadRdds) SharkCTAS.loadAsRdds(processCmd(_))
+  
+  def this() = this(false)
+  
   override def processCmd(cmd: String): Int = {
     val ss: SessionState = SessionState.get()
     val cmd_trimmed: String = cmd.trim()

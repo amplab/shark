@@ -67,15 +67,10 @@ object SharkEnv extends LogHelper {
   */
   def stop() {
     logInfo("Shutting down Shark Environment")
-    // Drop cached tables
-    val db = Hive.get(new HiveConf)
-    SharkEnv.cache.getAllKeyStrings foreach { key =>
-      logInfo("Dropping cached table " + key)
-      db.dropTable("default", key, false, true)
-    }
     // Stop the SparkContext
     if (SharkEnv.sc != null) {
       sc.stop()
+      sc = null
     }
   }
 
