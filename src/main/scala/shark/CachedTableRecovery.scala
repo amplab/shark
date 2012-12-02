@@ -1,9 +1,7 @@
 package shark
 
 import scala.collection.JavaConversions.asScalaBuffer
-
 import com.sun.org.apache.commons.logging.LogFactory
-
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.hadoop.hive.ql.metadata.Table
@@ -16,12 +14,20 @@ import org.apache.hadoop.hive.ql.metadata.Table
  * represents the query that led to the creation of the cached table.
  * This is used to reload RDDs upon server restarts.
  */
-object SharkCTAS extends LogHelper {
+object CachedTableRecovery extends LogHelper {
 
   val db = Hive.get(new HiveConf)
 
   val QUERY_STRING = "CTAS_QUERY_STRING"
 
+  /**
+   * Load the cached tables into memory.
+   * @param cmdRunner , the runner that is responsible
+   *        for taking a cached table query and
+   *        a) create the table metadata in Hive Meta Store
+   *        b) load the table as an RDD in memory
+   *        @see SharkServer for an example usage.
+   */
   def loadAsRdds(cmdRunner: String => Unit) {
     getMeta.foreach { t =>
       try {
@@ -33,6 +39,15 @@ object SharkCTAS extends LogHelper {
     }
   }
 
+  /**
+   * Updates the Hive metastore, with cached table metadata.
+   * The cached table metadata is stored in the Hive metastore
+   * of each cached table, as a key value pair, the key being
+   * CTAS_QUERY_STRING and the value being the cached table query itself.
+   *
+   * @param cachedTableQueries , a collection of pairs of the form
+   *        (cached table name, cached table query).
+   */
   def updateMeta(cachedTableQueries : Iterable[(String, String)]): Unit = {
     cachedTableQueries.foreach { x =>
       val newTbl = new Table(db.getTable(x._1).getTTable())
@@ -41,6 +56,12 @@ object SharkCTAS extends LogHelper {
     }
   }
 
+  /**
+   * Returns all the Cached table metadata present in the Hive Meta store.
+   *
+   * @return sequence of pairs, each pair representing the cached table name
+   *         and the cached table query.
+   */
   def getMeta(): Seq[(String, String)] = {
     db.getAllTables().foldLeft(List[(String,String)]())((curr, tableName) => {
       val tbl = db.getTable(tableName)

@@ -18,7 +18,7 @@ import shark.execution.{HiveOperator, Operator, OperatorFactory, ReduceSinkOpera
   TerminalOperator}
 import shark.memstore.ColumnarSerDe
 import shark.SharkConfVars
-import shark.SharkCTAS
+import shark.CachedTableRecovery
 import spark.storage.StorageLevel
 
 /**
@@ -157,7 +157,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
               case "MEMORY_AND_DISK_SER" => StorageLevel.MEMORY_AND_DISK_SER
               case "MEMORY_AND_DISK_SER_2" => StorageLevel.MEMORY_AND_DISK_SER_2
             }
-          qb.getTableDesc().getTblProps().put(SharkCTAS.QUERY_STRING, ctx.getCmd())
+          qb.getTableDesc().getTblProps().put(CachedTableRecovery.QUERY_STRING, ctx.getCmd())
           OperatorFactory.createSharkCacheOutputPlan(
             hiveSinkOps.head, qb.getTableDesc.getTableName, storageLevel)
         } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink) {
