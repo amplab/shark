@@ -27,8 +27,8 @@ class CachedSuite extends FunSuite with BeforeAndAfterAll with CliTestToolkit {
 
   test("Cached table with simple types") {
     val dataFilePath = System.getenv("HIVE_DEV_HOME") + "/data/files/kv1.txt"
-    executeQuery("drop table if exists shark_test1;");
-    executeQuery("drop table if exists shark_test1_cached;");
+    dropTable("shark_test1")
+    dropTable("shark_test1_cached")
     executeQuery("create table shark_test1(key int, val string);")
     executeQuery("load data local inpath '" + dataFilePath+ "' overwrite into table shark_test1;")
     executeQuery("""create table shark_test1_cached TBLPROPERTIES ("shark.cache" = "true") as select * from shark_test1;""")
@@ -39,8 +39,8 @@ class CachedSuite extends FunSuite with BeforeAndAfterAll with CliTestToolkit {
 
   test("Cached Table with complex types") {
     val dataFilePath = System.getenv("HIVE_DEV_HOME") + "/data/files/create_nested_type.txt"
-    executeQuery("drop table if exists shark_test2;");
-    executeQuery("drop table if exists shark_test2_cached;");
+    dropTable("shark_test2")
+    dropTable("shark_test2_cached")
     executeQuery("CREATE TABLE shark_test2 (a STRING, b ARRAY<STRING>, c ARRAY<MAP<STRING,STRING>>, d MAP<STRING,ARRAY<STRING>>);")
     executeQuery("load data local inpath '" + dataFilePath+ "' overwrite into table shark_test2;")
     executeQuery("""create table shark_test2_cached TBLPROPERTIES ("shark.cache" = "true") as select * from shark_test2;""")
@@ -51,9 +51,10 @@ class CachedSuite extends FunSuite with BeforeAndAfterAll with CliTestToolkit {
 
   test("Tables are not cached by default") {
     val dataFilePath = System.getenv("HIVE_DEV_HOME") + "/data/files/kv1.txt"
-    executeQuery("set shark.cache.flag.checkTableName=false; drop table if exists shark_test3;")
-    executeQuery("drop table if exists shark_test3_cached;");
-    executeQuery("create table shark_test3(key int, val string);")
+    dropTable("shark_test3")
+    dropTable("shark_test3_cached");
+    executeQuery("set shark.cache.flag.checkTableName=false; " +
+      "create table shark_test3(key int, val string);")
     executeQuery("load data local inpath '" + dataFilePath+ "' overwrite into table shark_test3;")
     executeQuery("""create table shark_test3_cached as select * from shark_test3;""")
     val out = executeQuery("select * from shark_test3_cached where key = 407;")
@@ -63,9 +64,10 @@ class CachedSuite extends FunSuite with BeforeAndAfterAll with CliTestToolkit {
 
   test("_cached table are cachd when checkTableName flag is set") {
     val dataFilePath = System.getenv("HIVE_DEV_HOME") + "/data/files/kv1.txt"
-    executeQuery("set shark.cache.flag.checkTableName=true; drop table if exists shark_test4;");
-    executeQuery("drop table if exists shark_test4_cached;");
-    executeQuery("create table shark_test4(key int, val string);")
+    dropTable("shark_test4")
+    dropTable("shark_test4_cached")
+    executeQuery("set shark.cache.flag.checkTableName=true; " +
+      "create table shark_test4(key int, val string);")
     executeQuery("load data local inpath '" + dataFilePath+ "' overwrite into table shark_test4;")
     executeQuery("""create table shark_test4_cached as select * from shark_test4;""")
     val out = executeQuery("select * from shark_test4_cached where key = 407;")
@@ -75,11 +77,12 @@ class CachedSuite extends FunSuite with BeforeAndAfterAll with CliTestToolkit {
 
   test("cached table name are case-insensitive") {
     val dataFilePath = System.getenv("HIVE_DEV_HOME") + "/data/files/kv1.txt"
-    executeQuery("drop table if exists shark_test5;");
-    executeQuery("drop table if exists sharkTest5Cached;");
+    dropTable("shark_test5")
+    dropTable("sharkTest5Cached")
     executeQuery("create table shark_test5(key int, val string);")
     executeQuery("load data local inpath '" + dataFilePath+ "' overwrite into table shark_test5;")
-    executeQuery("""create table sharkTest5Cached TBLPROPERTIES ("shark.cache" = "true") as select * from shark_test5;""")
+    executeQuery("""create table sharkTest5Cached TBLPROPERTIES ("shark.cache" = "true") """ +
+      """ as select * from shark_test5;""")
     val out = executeQuery("select * from sharktest5Cached where key = 407;")
     assert(out.contains("val_407"))
     assert(isCachedTable("sharkTest5Cached"))

@@ -5,8 +5,12 @@ import java.io.IOException
 import java.io.PrintStream
 import java.io.UnsupportedEncodingException
 import java.util.ArrayList
-import java.util.concurrent.CountDownLatch
 import java.util.{List => JavaList}
+import java.util.concurrent.CountDownLatch
+
+import scala.annotation.tailrec
+import scala.concurrent.ops.spawn
+
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hive.common.LogUtils
@@ -26,43 +30,48 @@ import org.apache.thrift.server.TThreadPoolServer
 import org.apache.thrift.transport.TServerSocket
 import org.apache.thrift.transport.TTransport
 import org.apache.thrift.transport.TTransportFactory
-import scala.annotation.tailrec
-import scala.concurrent.ops.spawn
+
 import spark.SparkEnv
 
-object SharkServer {
 
-  private val LOG = LogFactory.getLog("SharkServer")
+/**
+ * A long-running server compatible with the Hive server.
+ */
+object SharkServer extends LogHelper {
 
   // Force initialization of SharkEnv.
-  SharkEnv.init
+  var sparkEnv: SparkEnv = SparkEnv.get
+  SharkEnv.init()
 
-  val serverEnv = SparkEnv.get
   @volatile
   var server: TThreadPoolServer = null
 
   var serverTransport: TServerSocket = _
 
   def main(args: Array[String]) {
-    LogUtils.initHiveLog4j();
+    LogUtils.initHiveLog4j()
 
     var port = 10000
     var minWorkerThreads = 100
     var loadRdds = false
+
     @tailrec
-    def parseArgs(iargs: Array[String]): Unit = if (iargs.isEmpty) Unit else iargs match {
-      case Array("-p", y,_*) => port = y.toInt ; parseArgs(iargs.drop(2))
-      case Array("-minWorkers",y,_*) => minWorkerThreads = y.toInt ; parseArgs(iargs.drop(2))
-      case Array("-loadRdds",_*) => loadRdds = true ; parseArgs(iargs.drop(1))
-      case _ => throw new Exception("Unsupported argument :" + iargs(0))
+    def parseArgs(iargs: Array[String]) {
+      if (!iargs.isEmpty) iargs match {
+        case Array("-p", y, _*) => port = y.toInt ; parseArgs(iargs.drop(2))
+        case Array("-minWorkers", y, _*) => minWorkerThreads = y.toInt ; parseArgs(iargs.drop(2))
+        case Array("-loadRdds", _*) => loadRdds = true ; parseArgs(iargs.drop(1))
+        case _ => throw new Exception("Unsupported argument :" + iargs(0))
+      }
     }
- 
     parseArgs(args)
+
     val latch = new CountDownLatch(1)
 
-    serverTransport = new TServerSocket(port);
+    serverTransport = new TServerSocket(port)
     val hfactory = new ThriftHiveProcessorFactory(null, new HiveConf()) {
-      override def getProcessor(t: TTransport) = new ThriftHive.Processor(new GatedSharkServerHandler(latch))
+      override def getProcessor(t: TTransport) =
+        new ThriftHive.Processor(new GatedSharkServerHandler(latch))
     }
     val ttServerArgs = new TThreadPoolServer.Args(serverTransport)
     ttServerArgs.processorFactory(hfactory)
@@ -75,25 +84,23 @@ object SharkServer {
     Runtime.getRuntime().addShutdownHook(
       new Thread() {
         override def run() {
-          SharkServer.stop
-          SharkEnv.stop
+          if (server != null) {
+            server.stop
+            serverTransport.close
+            server = null
+            SharkEnv.stop()
+          }
         }
       }
     )
     execLoadRdds(loadRdds, latch)
-    LOG.info("Starting shark server on port " + port)
+    logInfo("Starting shark server on port " + port)
     server.serve()
   }
-  // used for testing only
-  def stop: Unit = if (server != null) {
-    server.stop
-    serverTransport.close
-    server = null
-  }
 
-  def ready: Boolean = if(server == null) false else server.isServing()
+  def ready: Boolean = if (server == null) false else server.isServing()
 
-  private def execLoadRdds(loadFlag: Boolean, latch:CountDownLatch): Unit =
+  private def execLoadRdds(loadFlag: Boolean, latch:CountDownLatch) {
     if (!loadFlag) {
       latch.countDown
     } else spawn {
@@ -101,22 +108,24 @@ object SharkServer {
       try {
         val sshandler = new SharkServerHandler
         SharkCTAS.loadAsRdds(sshandler.execute(_))
-        LOG.info("Executed load " + SharkCTAS.getMeta)
+        logInfo("Executed load " + SharkCTAS.getMeta)
       } catch {
-        case (e: Exception) => LOG.warn("Unable to load RDDs upon startup", e)
+        case (e: Exception) => logWarning("Unable to load RDDs upon startup", e)
       } finally {
         latch.countDown
       }
     }
-}
-
-class GatedSharkServerHandler(latch:CountDownLatch) extends SharkServerHandler {
-
-  override def execute(cmd: String): Unit = {
-    latch.await
-    super.execute(cmd);
   }
 }
+
+
+class GatedSharkServerHandler(latch:CountDownLatch) extends SharkServerHandler {
+  override def execute(cmd: String): Unit = {
+    latch.await
+    super.execute(cmd)
+  }
+}
+
 
 class SharkServerHandler extends HiveServerHandler with LogHelper {
 
@@ -124,7 +133,7 @@ class SharkServerHandler extends HiveServerHandler with LogHelper {
 
   private val conf: Configuration = if (ss != null) ss.getConf() else new Configuration()
 
-  SharkConfVars.initializeWithDefaults(conf);
+  SharkConfVars.initializeWithDefaults(conf)
 
   private val driver = {
     val d = new SharkDriver(conf.asInstanceOf[HiveConf])
@@ -133,14 +142,12 @@ class SharkServerHandler extends HiveServerHandler with LogHelper {
   }
 
   // Make sure the ThreadLocal SparkEnv reference is the same for all threads.
-  SparkEnv.set(SharkServer.serverEnv)
+  SparkEnv.set(SharkServer.sparkEnv)
 
   private var isSharkQuery = false
 
-  private val LOG = LogFactory.getLog("SharkServerHandler")
-
   override def execute(cmd: String) {
-    SessionState.get();
+    SessionState.get()
     val cmd_trimmed = cmd.trim()
     val tokens = cmd_trimmed.split("\\s")
     val cmd_1 = cmd_trimmed.substring(tokens.apply(0).length()).trim()
@@ -181,15 +188,15 @@ class SharkServerHandler extends HiveServerHandler with LogHelper {
     } catch {
       case e: IOException => {
         try {
-          session.in = null;
-          session.out = new PrintStream(System.out, true, "UTF-8");
-          session.err = new PrintStream(System.err, true, "UTF-8");
-      	} catch {
+          session.in = null
+          session.out = new PrintStream(System.out, true, "UTF-8")
+          session.err = new PrintStream(System.err, true, "UTF-8")
+        } catch {
           case ee: UnsupportedEncodingException => {
-      	    ee.printStackTrace();
-      	    session.out = null;
-      	    session.err = null;
-      	  }
+            ee.printStackTrace()
+            session.out = null
+            session.err = null
+          }
         }
       }
     }

@@ -22,11 +22,4 @@ class CacheManager {
   def getAllKeyStrings(): Seq[String] = {
     keyToRdd.keys.map(_.key).collect { case k: String => k } toSeq
   }
-  //used for testing
-  def drop(): Seq[String] = {
-    val keys = getAllKeyStrings
-    keyToRdd.clear
-    keyToStats.clear
-    keys
-  }
 }
