@@ -17,8 +17,8 @@ import shark.{LogHelper, SharkConfVars, Utils}
 import shark.execution.{HiveOperator, Operator, OperatorFactory, ReduceSinkOperator, SparkWork,
   TerminalOperator}
 import shark.memstore.ColumnarSerDe
-import shark.SharkConfVars
 import shark.CachedTableRecovery
+import shark.SharkConfVars
 import spark.storage.StorageLevel
 
 /**

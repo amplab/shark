@@ -1,7 +1,7 @@
 package shark
 
-import scala.collection.JavaConversions.asScalaBuffer
 import com.sun.org.apache.commons.logging.LogFactory
+import scala.collection.JavaConversions.asScalaBuffer
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.hadoop.hive.ql.metadata.Table
