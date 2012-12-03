@@ -4,7 +4,7 @@ import org.apache.hadoop.hive.ql.exec.MapSplitPruning._
 import org.apache.hadoop.io.Text
 import org.scalatest.FunSuite
 
-class MapSplitPruning extends FunSuite {
+class MapSplitPruningSuite extends FunSuite {
 
   def T(str: String): Text = new Text(str)
 
@@ -16,7 +16,7 @@ class MapSplitPruning extends FunSuite {
     assert(testEqualOrLessThan(1, 2, true))
     assert(testNotEqual(1, 2, true))
   }
-  
+
   test("testEqual") {
     assert(testEqual(1, 20, 2) == true)
     assert(testEqual(1, 20, 1) == true)
