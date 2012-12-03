@@ -214,7 +214,7 @@ class SharkCliDriver(loadRdds: Boolean = false) extends CliDriver with LogHelper
   // because the Hive unit tests do not go through the main() code path.
   SharkEnv.init()
 
-  if(loadRdds) SharkCTAS.loadAsRdds(processCmd(_))
+  if(loadRdds) CachedTableRecovery.loadAsRdds(processCmd(_))
 
   def this() = this(false)
 

@@ -27,6 +27,13 @@ trait LogHelper extends spark.Logging {
     super.logError(msg + StringUtils.defaultString(detail))
   }
 
+  def logError(msg: String, exception: Throwable) = {
+    val err = errStream()
+    err.println(msg)
+    exception.printStackTrace(err)
+    super.logError(msg, exception)
+  }
+  
   def outStream(): PrintStream = {
     val ss = SessionState.get()
     if (ss != null && ss.out != null) ss.out else System.out
