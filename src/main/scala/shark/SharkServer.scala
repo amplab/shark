@@ -107,8 +107,8 @@ object SharkServer extends LogHelper {
       while (!server.isServing()) {}
       try {
         val sshandler = new SharkServerHandler
-        SharkCTAS.loadAsRdds(sshandler.execute(_))
-        logInfo("Executed load " + SharkCTAS.getMeta)
+        CachedTableRecovery.loadAsRdds(sshandler.execute(_))
+        logInfo("Executed load " + CachedTableRecovery.getMeta)
       } catch {
         case (e: Exception) => logWarning("Unable to load RDDs upon startup", e)
       } finally {
