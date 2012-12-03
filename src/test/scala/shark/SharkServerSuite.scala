@@ -1,5 +1,6 @@
 package shark
 
+import java.io.{BufferedReader, InputStreamReader, PrintWriter}
 import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.Statement
@@ -15,10 +16,11 @@ import org.scalatest.FunSuite
 import org.scalatest.matchers.ShouldMatchers
 
 
-class SharkServerSuite extends FunSuite with BeforeAndAfterAll with ShouldMatchers {
+class SharkServerSuite extends FunSuite with BeforeAndAfterAll with ShouldMatchers
+  with CliTestToolkit {
 
-  // TODO(rxin): Use the warehouse path.
   val WAREHOUSE_PATH = CliTestToolkit.getWarehousePath("server")
+  val METASTORE_PATH = CliTestToolkit.getMetastorePath("server")
 
   val TABLE = "test"
   val TABLE_CACHED = "test_cached"
@@ -28,8 +30,6 @@ class SharkServerSuite extends FunSuite with BeforeAndAfterAll with ShouldMatche
   val DRIVER_NAME = "org.apache.hadoop.hive.jdbc.HiveDriver"
   Class.forName(DRIVER_NAME)
 
-  var serverProcess: Process = null
-
   override def beforeAll() {
     launchServer()
     createTable()
@@ -37,20 +37,25 @@ class SharkServerSuite extends FunSuite with BeforeAndAfterAll with ShouldMatche
   }
 
   override def afterAll() {
-    // dropTable()
-    // dropCachedTable()
     stopServer()
   }
 
   def launchServer(args: Seq[String] = Seq.empty) {
-    val pb = new ProcessBuilder(Seq("./bin/shark", "--service", "sharkserver") ++ args)
-    serverProcess = pb.start()
-    Thread.sleep(4000)
+    val defaultArgs = Seq("./bin/shark", "--service", "sharkserver",
+      "-hiveconf",
+      "javax.jdo.option.ConnectionURL=jdbc:derby:;databaseName=" + METASTORE_PATH + ";create=true",
+      "-hiveconf",
+      "hive.metastore.warehouse.dir=" + WAREHOUSE_PATH)
+    val pb = new ProcessBuilder(defaultArgs ++ args)
+    process = pb.start()
+    inputReader = new BufferedReader(new InputStreamReader(process.getInputStream))
+    errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream))
+    waitForOutput(inputReader, "Starting Shark server")
   }
 
   def stopServer() {
-    serverProcess.destroy()
-    serverProcess.waitFor()
+    process.destroy()
+    process.waitFor()
   }
 
   test("Read from existing table") {
@@ -131,30 +136,19 @@ class SharkServerSuite extends FunSuite with BeforeAndAfterAll with ShouldMatche
 
   def createTable() {
     val dataFilePath = System.getenv("HIVE_DEV_HOME") + "/data/files/kv1.txt"
-    val stmt = createStatement
-    stmt.executeQuery("DROP TABLE IF EXISTS " + TABLE)
+    var stmt = createStatement()
+    println("cmd: " + "CREATE TABLE " + TABLE + " (key int, val string)")
     stmt.executeQuery("CREATE TABLE " + TABLE + " (key int, val string)")
+    stmt.close()
+    stmt = createStatement()
     stmt.executeQuery("LOAD DATA LOCAL INPATH '" + dataFilePath + "' OVERWRITE INTO TABLE " + TABLE)
     stmt.close()
   }
 
   def createCachedTable() {
+    println("executing " + CACHED_TBL_DESC._2)
     var stmt = createStatement()
-    stmt.executeQuery("DROP TABLE IF EXISTS " + TABLE_CACHED)
-    stmt.close()
-    stmt = createStatement()
     stmt.executeQuery(CACHED_TBL_DESC._2)
     stmt.close()
-  }
-
-  def dropTable(implicit table:String = TABLE) {
-    val sql = "DROP TABLE " + table
-    val stmt = createStatement()
-    val rs = stmt.executeQuery(sql)
-    stmt.close()
-  }
-
-  def dropCachedTable() {
-    dropTable(TABLE_CACHED)
   }
 }

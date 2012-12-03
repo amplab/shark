@@ -5,8 +5,14 @@ import java.text.SimpleDateFormat
 import java.util.Date
 
 object CliTestToolkit {
+
   def getWarehousePath(prefix: String): String = {
-    System.getProperty("user.dir") + "/test_warehouses/" + prefix + "-" +
+    System.getProperty("user.dir") + "/test_warehouses/" + prefix + "-warehouse-" +
+      (new SimpleDateFormat("yyyyMMdd-HHmmss")).format(new Date)
+  }
+
+  def getMetastorePath(prefix: String): String = {
+    System.getProperty("user.dir") + "/test_warehouses/" + prefix + "-metastore-" +
       (new SimpleDateFormat("yyyyMMdd-HHmmss")).format(new Date)
   }
 }

@@ -6,12 +6,14 @@ import java.io.PrintStream
 import java.io.UnsupportedEncodingException
 import java.util.ArrayList
 import java.util.{List => JavaList}
+import java.util.Properties
 import java.util.concurrent.CountDownLatch
 
 import scala.annotation.tailrec
 import scala.concurrent.ops.spawn
 
 import org.apache.commons.logging.LogFactory
+import org.apache.commons.cli.OptionBuilder
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hive.common.LogUtils
 import org.apache.hadoop.hive.conf.HiveConf
@@ -20,6 +22,7 @@ import org.apache.hadoop.hive.ql.Driver
 import org.apache.hadoop.hive.ql.processors.CommandProcessorFactory
 import org.apache.hadoop.hive.ql.processors.CommandProcessorResponse
 import org.apache.hadoop.hive.ql.session.SessionState
+import org.apache.hadoop.hive.service.HiveServer.HiveServerCli
 import org.apache.hadoop.hive.service.HiveServer.HiveServerHandler
 import org.apache.hadoop.hive.service.HiveServer.ThriftHiveProcessorFactory
 import org.apache.hadoop.hive.service.HiveServerException
@@ -40,8 +43,8 @@ import spark.SparkEnv
 object SharkServer extends LogHelper {
 
   // Force initialization of SharkEnv.
-  var sparkEnv: SparkEnv = SparkEnv.get
   SharkEnv.init()
+  var sparkEnv: SparkEnv = SparkEnv.get
 
   @volatile
   var server: TThreadPoolServer = null
@@ -49,35 +52,31 @@ object SharkServer extends LogHelper {
   var serverTransport: TServerSocket = _
 
   def main(args: Array[String]) {
+
+    val cli = new SharkServerCliOptions
+    cli.parse(args)
+
+    // From Hive: It is critical to do this prior to initializing log4j, otherwise
+    // any log specific settings via hiveconf will be ignored.
+    val hiveconf: Properties = cli.addHiveconfToSystemProperties()
+
+    // From Hive: It is critical to do this here so that log4j is reinitialized
+    // before any of the other core hive classes are loaded
     LogUtils.initHiveLog4j()
 
-    var port = 10000
-    var minWorkerThreads = 100
-    var loadRdds = false
-
-    @tailrec
-    def parseArgs(iargs: Array[String]) {
-      if (!iargs.isEmpty) iargs match {
-        case Array("-p", y, _*) => port = y.toInt ; parseArgs(iargs.drop(2))
-        case Array("-minWorkers", y, _*) => minWorkerThreads = y.toInt ; parseArgs(iargs.drop(2))
-        case Array("-loadRdds", _*) => loadRdds = true ; parseArgs(iargs.drop(1))
-        case _ => throw new Exception("Unsupported argument :" + iargs(0))
-      }
-    }
-    parseArgs(args)
-
     val latch = new CountDownLatch(1)
+    serverTransport = new TServerSocket(cli.port)
 
-    serverTransport = new TServerSocket(port)
     val hfactory = new ThriftHiveProcessorFactory(null, new HiveConf()) {
       override def getProcessor(t: TTransport) =
         new ThriftHive.Processor(new GatedSharkServerHandler(latch))
     }
     val ttServerArgs = new TThreadPoolServer.Args(serverTransport)
-    ttServerArgs.processorFactory(hfactory)
-    ttServerArgs.minWorkerThreads(minWorkerThreads)
-    ttServerArgs.transportFactory(new TTransportFactory())
-    ttServerArgs.protocolFactory(new TBinaryProtocol.Factory())
+      .processorFactory(hfactory)
+      .minWorkerThreads(cli.minWorkerThreads)
+      .maxWorkerThreads(cli.maxWorkerThreads)
+      .transportFactory(new TTransportFactory())
+      .protocolFactory(new TBinaryProtocol.Factory())
     server = new TThreadPoolServer(ttServerArgs)
 
     // Stop the server and clean up the Shark environment when we exit
@@ -93,11 +92,19 @@ object SharkServer extends LogHelper {
         }
       }
     )
-    execLoadRdds(loadRdds, latch)
-    logInfo("Starting shark server on port " + port)
+
+    // Optionally load the cached tables.
+    execLoadRdds(cli.loadRdds, latch)
+
+    // Start serving.
+    val startupMsg = "Starting Shark server on port " + cli.port + " with " + cli.minWorkerThreads +
+      " min worker threads and " + cli.maxWorkerThreads + " max worker threads"
+    logInfo(startupMsg)
+    println(startupMsg)
     server.serve()
   }
 
+  // Return true if the server is ready to accept requests.
   def ready: Boolean = if (server == null) false else server.isServing()
 
   private def execLoadRdds(loadFlag: Boolean, latch:CountDownLatch) {
@@ -114,6 +121,19 @@ object SharkServer extends LogHelper {
       } finally {
         latch.countDown
       }
+    }
+  }
+
+  // Used to parse command line arguments for the server.
+  class SharkServerCliOptions extends HiveServerCli {
+    var loadRdds = false
+
+    val OPTION_LOAD_RDDS = "loadRdds"
+    OPTIONS.addOption(OptionBuilder.create(OPTION_LOAD_RDDS))
+
+    override def parse(args: Array[String]) {
+      super.parse(args)
+      loadRdds = commandLine.hasOption(OPTION_LOAD_RDDS)
     }
   }
 }

@@ -24,7 +24,7 @@ object SharkBuild extends Build {
     version := "0.2",
     scalaVersion := "2.9.2",
     scalacOptions := Seq("-deprecation", "-unchecked", "-optimize"),
-    parallelExecution in Test := false,
+    //parallelExecution in Test := false,
 
     // Download managed jars into lib_managed.
     retrieveManaged := true,
