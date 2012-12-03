@@ -58,7 +58,6 @@ class CachedTableRecoverySuite extends FunSuite with BeforeAndAfterEach with Bef
 
     CachedTableRecovery.updateMeta(meta)
     assert(CachedTableRecovery.getMeta.containsAll(meta))
-        Logger.getRootLogger.removeAllAppenders
   }
 
   test("Load Cached Tables") {
