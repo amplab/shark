@@ -10,7 +10,7 @@ import org.apache.hadoop.hive.ql.exec.Utilities.EnumDelegate
 import org.apache.hadoop.hive.ql.plan.GroupByDesc
 import org.apache.hadoop.hive.ql.plan.PlanUtils.ExpressionTypes
 
-import shark.SharkConfVars
+import shark.{SharkConfVars, SharkEnvSlave}
 
 
 /**
@@ -19,8 +19,8 @@ import shark.SharkConfVars
  */
 object XmlSerializer {
   // We prepend the buffer with a byte indicating whether payload is compressed
-  val COMPRESSION_ENABLED : Byte = 1;
-  val COMPRESSION_DISABLED : Byte = 0;
+  val COMPRESSION_ENABLED: Byte = 1
+  val COMPRESSION_DISABLED: Byte = 0
 
   def serialize[T](o: T, conf: Configuration): Array[Byte] = {
     val byteStream = new ByteArrayOutputStream()
@@ -51,9 +51,15 @@ object XmlSerializer {
       } else {
         new ByteArrayInputStream(bytes.slice(1, bytes.size))
       }
-    val d: XMLDecoder = new XMLDecoder(decodedStream, null, null, cl)
-    val ret = d.readObject()
-    d.close()
+
+    // Occasionally an object inspector is created from the decoding.
+    // Need to put a lock on the process.
+    val ret = SharkEnvSlave.objectInspectorLock.synchronized {
+      val d: XMLDecoder = new XMLDecoder(decodedStream, null, null, cl)
+      val ret = d.readObject()
+      d.close()
+      ret
+    }
     ret.asInstanceOf[T]
   }
 }
