@@ -2,6 +2,10 @@ package shark.execution
 
 import java.util.{HashMap => JavaHashMap, List => JavaList}
 
+import scala.collection.mutable.ArrayBuffer
+import scala.collection.JavaConversions._
+import scala.reflect.BeanProperty
+
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, JoinUtil}
 import org.apache.hadoop.hive.ql.exec.{CommonJoinOperator => HiveCommonJoinOperator}
@@ -9,11 +13,8 @@ import org.apache.hadoop.hive.ql.plan.{ExprNodeDesc, JoinCondDesc, JoinDesc, Tab
 import org.apache.hadoop.hive.serde2.Deserializer
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, PrimitiveObjectInspector}
 
-import scala.collection.mutable.ArrayBuffer
-import scala.collection.JavaConversions._
-import scala.reflect.BeanProperty
-
 import shark.SharkConfVars
+
 import spark.RDD
 import spark.rdd.UnionRDD
 import spark.SparkContext.rddToPairRDDFunctions

@@ -7,6 +7,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.Pr
 import shark.memstore.Column._
 import shark.memstore.ColumnStats._
 
+
 object ColumnBuilderCreateFunc {
 
   type TYPE = (ObjectInspector, Int) => ColumnBuilder

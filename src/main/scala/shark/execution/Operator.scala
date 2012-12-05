@@ -2,15 +2,16 @@ package shark.execution
 
 import java.util.{List => JavaList}
 
-import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
-
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
+import org.apache.hadoop.hive.conf.HiveConf
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
+
 import shark.LogHelper
 import shark.execution.serialization.OperatorSerializationWrapper
+
 import spark.RDD
 
 

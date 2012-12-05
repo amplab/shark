@@ -2,6 +2,8 @@ package shark.execution
 
 import java.util.{ArrayList, Arrays}
 
+import scala.reflect.BeanProperty
+
 import org.apache.hadoop.mapred.InputFormat
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_PARTITION_COLUMNS
@@ -15,12 +17,11 @@ import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectIns
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.io.Writable
 
-import scala.reflect.BeanProperty
-
 import org.apache.hadoop.hive.ql.exec.MapSplitPruning
 import shark.{SharkConfVars, SharkEnv}
 import shark.execution.serialization.XmlSerializer
 import shark.memstore.{CacheKey, TableStats, TableStorage}
+
 import spark.RDD
 import spark.EnhancedRDD._
 import spark.rdd.UnionRDD

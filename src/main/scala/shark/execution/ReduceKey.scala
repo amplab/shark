@@ -1,8 +1,11 @@
 package shark.execution
 
 import java.util.Arrays
-import org.apache.hadoop.io.WritableComparator
+
 import scala.collection.mutable.StringBuilder
+
+import org.apache.hadoop.io.WritableComparator
+
 import spark.HashPartitioner
 
 
@@ -27,7 +30,7 @@ class ReduceKey(val bytes: Array[Byte]) extends Serializable with Ordered[Reduce
       case _ => false
     }
   }
-  
+
   def compareBytes(a: Array[Byte], b: Array[Byte]): Int = {
     WritableComparator.compareBytes(a, 0, a.length, b, 0, b.length)
   }
@@ -63,5 +66,5 @@ class ReduceKeyPartitioner(partitions: Int) extends HashPartitioner(partitions) 
       }
     }
   }
-  
+
 }

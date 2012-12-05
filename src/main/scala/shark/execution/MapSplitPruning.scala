@@ -14,6 +14,7 @@ import org.apache.hadoop.io.Text
 import shark.memstore.ColumnarStructObjectInspector.IDStructField
 import shark.memstore.TableStats
 
+
 object MapSplitPruning {
   // Kept in this package to access package-level visibility variables.
 

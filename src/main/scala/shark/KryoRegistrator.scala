@@ -1,12 +1,17 @@
 package shark
 
-import java.util.Arrays
 import java.nio.ByteBuffer
+import java.util.Arrays
+
 import com.esotericsoftware.kryo.Kryo
 import com.esotericsoftware.kryo.serialize.{IntSerializer, SimpleSerializer, SerializableSerializer}
+
 import de.javakaffee.kryoserializers.ArraysAsListSerializer
+
+import org.apache.hadoop.hive.ql.exec.persistence.{MapJoinSingleKey, MapJoinObjectKey,
+  MapJoinDoubleKeys, MapJoinObjectValue}
+
 import shark.execution.MapJoinOperator
-import org.apache.hadoop.hive.ql.exec.persistence.{MapJoinSingleKey, MapJoinObjectKey, MapJoinDoubleKeys, MapJoinObjectValue}
 
 
 class KryoRegistrator extends spark.KryoRegistrator {

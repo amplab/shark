@@ -1,10 +1,12 @@
 package shark.execution
 
+import scala.collection.JavaConversions._
+
 import org.apache.hadoop.hive.ql.exec.{GroupByPostShuffleOperator, GroupByPreShuffleOperator}
 import org.apache.hadoop.hive.ql.metadata.HiveException
 
-import scala.collection.JavaConversions._
 import shark.LogHelper
+
 import spark.storage.StorageLevel
 
 

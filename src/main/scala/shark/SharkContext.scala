@@ -3,13 +3,13 @@ package shark
 import java.io.PrintStream
 import java.util.ArrayList
 
+import scala.collection.Map
+import scala.collection.JavaConversions._
+
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.Driver
 import org.apache.hadoop.hive.ql.processors.{CommandProcessor, CommandProcessorFactory}
 import org.apache.hadoop.hive.ql.session.SessionState
-
-import scala.collection.Map
-import scala.collection.JavaConversions._
 
 import shark.execution.TableRDD
 import spark.{SparkContext, SparkEnv}

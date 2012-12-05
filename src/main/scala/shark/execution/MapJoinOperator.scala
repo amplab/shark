@@ -2,7 +2,9 @@ package shark.execution
 
 import java.util.{ArrayList, HashMap => JHashMap, List => JList}
 
-import org.apache.hadoop.io.BytesWritable
+import scala.collection.mutable.ArrayBuffer
+import scala.collection.JavaConversions._
+import scala.reflect.BeanProperty
 
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, JoinUtil}
 import org.apache.hadoop.hive.ql.exec.HashTableSinkOperator.{HashTableSinkObjectCtx => MapJoinObjectCtx}
@@ -18,15 +20,13 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption
 import org.apache.hadoop.hive.serde2.SerDe
+import org.apache.hadoop.io.BytesWritable
 
-import scala.collection.mutable.ArrayBuffer
-import scala.collection.JavaConversions._
-import scala.reflect.BeanProperty
-
-import shark.execution.serialization.OperatorSerializationWrapper
-import spark.broadcast.Broadcast
-import spark.RDD
 import shark.SharkEnvSlave
+import shark.execution.serialization.OperatorSerializationWrapper
+
+import spark.RDD
+import spark.broadcast.Broadcast
 
 
 object MapJoinOperator {

@@ -4,6 +4,8 @@ import java.io.PrintStream
 import java.lang.reflect.Method
 import java.util.{Arrays, HashSet, List => JavaList}
 
+import scala.collection.JavaConversions._
+
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{ExplainTask, Task}
@@ -11,8 +13,6 @@ import org.apache.hadoop.hive.ql.{Context, DriverContext, QueryPlan}
 import org.apache.hadoop.hive.ql.plan.{Explain, ExplainWork}
 import org.apache.hadoop.hive.ql.plan.api.StageType
 import org.apache.hadoop.util.StringUtils
-
-import scala.collection.JavaConversions._
 
 import shark.LogHelper
 
@@ -35,12 +35,12 @@ class SharkExplainTask extends Task[SharkExplainWork] with java.io.Serializable 
   override def execute(driverContext: DriverContext): Int = {
     logInfo("Executing " + this.getClass.getName())
     hiveExplainTask.setWork(work)
-    
+
     try {
       val resFile = new Path(work.getResFile())
       val outS = resFile.getFileSystem(conf).create(resFile)
       val out = new PrintStream(outS)
-      
+
       // Print out the parse AST
       ExplainTask.outputAST(work.getAstStringTree, out, false, 0)
       out.println()
@@ -50,7 +50,7 @@ class SharkExplainTask extends Task[SharkExplainWork] with java.io.Serializable 
 
       // Go over all the tasks and dump out the plans
       ExplainTask.outputStagePlans(out, work, work.getRootTasks, 0)
-      
+
       // Print the Shark query plan if applicable.
       if (work != null && work.getRootTasks != null && work.getRootTasks.size > 0) {
         work.getRootTasks.zipWithIndex.foreach { case(task, taskIndex) =>
@@ -77,7 +77,7 @@ class SharkExplainTask extends Task[SharkExplainWork] with java.io.Serializable 
       }
     }
   }
-  
+
   override def initialize(conf: HiveConf, queryPlan: QueryPlan, driverContext: DriverContext) {
     hiveExplainTask.initialize(conf, queryPlan, driverContext)
     super.initialize(conf, queryPlan, driverContext)

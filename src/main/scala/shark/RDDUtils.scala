@@ -1,9 +1,9 @@
 package shark
 
-import com.google.common.collect.{Ordering => GOrdering}
-
 import scala.collection.mutable.{ArrayBuffer, Buffer}
 import scala.collection.JavaConverters._
+
+import com.google.common.collect.{Ordering => GOrdering}
 
 import spark.RDD
 import spark.SparkContext._
@@ -14,6 +14,7 @@ import spark.SparkContext._
  * to Spark's built-in abstractions.
  */
 object RDDUtils {
+  // TODO(rxin): Move this into execution pacakge.
 
   def sortLeastKByKey[K <% Ordered[K]: ClassManifest, V: ClassManifest](rdd: RDD[(K,V)], k: Int)
   : RDD[(K,V)] = {

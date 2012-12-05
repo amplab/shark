@@ -3,6 +3,9 @@ package org.apache.hadoop.hive.ql.exec
 
 import java.util.{ArrayList, HashMap => JHashMap}
 
+import scala.collection.JavaConversions._
+import scala.reflect.BeanProperty
+
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{GroupByOperator => HiveGroupByOperator}
 import org.apache.hadoop.hive.ql.plan.{AggregationDesc, ExprNodeDesc, ExprNodeColumnDesc, GroupByDesc}
@@ -12,11 +15,9 @@ import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectIns
     ObjectInspectorUtils, StandardStructObjectInspector, StructObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption
 
-import scala.collection.JavaConversions._
-import scala.reflect.BeanProperty
-
 import shark.SharkEnvSlave
 import shark.execution.UnaryOperator
+
 import spark.RDD
 import spark.SparkContext._
 

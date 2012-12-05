@@ -4,6 +4,10 @@ package org.apache.hadoop.hive.ql.exec
 import java.util.ArrayList
 import java.util.{HashMap => JHashMap, HashSet => JHashSet, Set => JSet}
 
+import scala.collection.mutable.ArrayBuffer
+import scala.collection.JavaConversions._
+import scala.reflect.BeanProperty
+
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{GroupByOperator => HiveGroupByOperator}
 import org.apache.hadoop.hive.ql.plan.{ExprNodeColumnDesc, TableDesc}
@@ -15,10 +19,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.Object
 import org.apache.hadoop.hive.serde2.{Deserializer, SerDe}
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils
 import org.apache.hadoop.io.BytesWritable
-
-import scala.collection.mutable.ArrayBuffer
-import scala.collection.JavaConversions._
-import scala.reflect.BeanProperty
 
 import shark.execution.{HiveTopOperator, ReduceKey}
 import spark.{Aggregator, HashPartitioner, RDD}

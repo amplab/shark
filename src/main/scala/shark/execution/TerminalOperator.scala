@@ -2,6 +2,10 @@ package shark.execution
 
 import java.util.Date
 
+import scala.collection.Map
+import scala.collection.mutable.ArrayBuffer
+import scala.reflect.BeanProperty
+
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.io.Text
 import org.apache.hadoop.io.BytesWritable
@@ -10,13 +14,10 @@ import org.apache.hadoop.hive.ql.exec.{FileSinkOperator => HiveFileSinkOperator,
 import org.apache.hadoop.hive.serde2.Serializer
 import org.apache.hadoop.mapred.{TaskID, TaskAttemptID, HadoopWriter}
 
-import scala.collection.Map
-import scala.collection.mutable.ArrayBuffer
-import scala.reflect.BeanProperty
-
-import shark.{RDDUtils, SharkConfVars, SharkEnv, Utils}
+import shark.{SharkConfVars, SharkEnv, Utils}
 import shark.execution.serialization.OperatorSerializationWrapper
 import shark.memstore._
+
 import spark.{GrowableAccumulableParam, RDD, TaskContext}
 import spark.EnhancedRDD._
 import spark.SparkContext._

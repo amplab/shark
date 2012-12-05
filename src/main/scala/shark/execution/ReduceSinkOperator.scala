@@ -3,6 +3,10 @@ package shark.execution
 import java.util.ArrayList
 import java.util.Random
 
+import scala.collection.Iterator
+import scala.collection.JavaConversions._
+import scala.reflect.BeanProperty
+
 import org.apache.hadoop.hive.ql.exec.{ReduceSinkOperator => HiveReduceSinkOperator}
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory}
 import org.apache.hadoop.hive.ql.metadata.HiveException
@@ -12,10 +16,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectIns
   ObjectInspectorUtils}
 import org.apache.hadoop.hive.serde2.objectinspector.StandardUnionObjectInspector.StandardUnion
 import org.apache.hadoop.io.{BytesWritable, Text}
-
-import scala.collection.Iterator
-import scala.collection.JavaConversions._
-import scala.reflect.BeanProperty
 
 import shark.SharkEnvSlave
 

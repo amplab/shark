@@ -1,9 +1,12 @@
 package shark.repl
 
 import java.io.PrintWriter
+
 import shark.{SharkContext, SharkEnv}
+
 import spark.{SparkContext, SparkEnv}
 import spark.repl.SparkILoop
+
 
 /**
  * Add more Shark specific initializations.

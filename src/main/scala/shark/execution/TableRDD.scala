@@ -1,17 +1,17 @@
 package shark.execution
 
-import spark.{OneToOneDependency, RDD, Split}
-import spark.serializer.Serializer
+import java.util.{List => JavaList}
+
+import scala.collection.JavaConversions._
 
 import org.apache.hadoop.hive.metastore.api.FieldSchema
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, StructObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.primitive._
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
 
-import java.util.{List => JavaList}
-import scala.collection.JavaConversions._
-
 import shark.execution.serialization.KryoSerializer
+
+import spark.{OneToOneDependency, RDD, Split}
 
 
 /**

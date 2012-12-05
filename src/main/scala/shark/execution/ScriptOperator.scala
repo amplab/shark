@@ -3,6 +3,10 @@ package shark.execution
 import java.io.{File, InputStream}
 import java.util.{Arrays, Properties}
 
+import scala.collection.JavaConversions._
+import scala.io.Source
+import scala.reflect.BeanProperty
+
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{ScriptOperator => HiveScriptOperator}
@@ -12,11 +16,8 @@ import org.apache.hadoop.hive.serde2.{Serializer, Deserializer}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.io.{BytesWritable, Writable}
 
-import scala.collection.JavaConversions._
-import scala.io.Source
-import scala.reflect.BeanProperty
-
 import shark.execution.serialization.OperatorSerializationWrapper
+
 import spark.{OneToOneDependency, RDD, SparkEnv, Split}
 
 

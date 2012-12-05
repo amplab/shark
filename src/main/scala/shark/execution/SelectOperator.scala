@@ -1,10 +1,12 @@
 package shark.execution
 
+import scala.collection.JavaConversions._
+import scala.reflect.BeanProperty
+
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory}
 import org.apache.hadoop.hive.ql.exec.{SelectOperator => HiveSelectOperator}
 import org.apache.hadoop.hive.ql.plan.SelectDesc
-import scala.collection.JavaConversions._
-import scala.reflect.BeanProperty
+
 
 /**
  * An operator that does projection, i.e. selecting certain columns and

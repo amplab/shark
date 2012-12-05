@@ -3,14 +3,14 @@ package shark.execution
 import java.nio.ByteBuffer
 import java.util.ArrayList
 
+import scala.collection.JavaConversions._
+import scala.reflect.BeanProperty
+
 import org.apache.commons.codec.binary.Base64
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory}
 import org.apache.hadoop.hive.ql.exec.{LateralViewJoinOperator => HiveLateralViewJoinOperator}
 import org.apache.hadoop.hive.ql.plan.SelectDesc
-import org.apache.hadoop.hive.serde2.objectinspector.{ ObjectInspector, StructObjectInspector }
-
-import scala.collection.JavaConversions._
-import scala.reflect.BeanProperty
+import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, StructObjectInspector}
 
 import spark.RDD
 

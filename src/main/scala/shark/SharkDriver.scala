@@ -2,6 +2,8 @@ package shark
 
 import java.util.{ArrayList => JavaArrayList, List => JavaList, Date}
 
+import scala.collection.JavaConversions._
+
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.Schema
 import org.apache.hadoop.hive.ql.{Context, Driver, QueryPlan}
@@ -14,8 +16,6 @@ import org.apache.hadoop.hive.ql.plan._
 import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hadoop.hive.serde2.{SerDe, SerDeUtils}
 import org.apache.hadoop.util.StringUtils
-
-import scala.collection.JavaConversions._
 
 import shark.execution.{SharkExplainTask, SharkExplainWork, SparkTask, SparkWork, TableRDD}
 import shark.memstore.ColumnarSerDe

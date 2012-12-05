@@ -7,7 +7,9 @@ import it.unimi.dsi.fastutil.floats.FloatArrayList
 import it.unimi.dsi.fastutil.ints.IntArrayList
 import it.unimi.dsi.fastutil.longs.LongArrayList
 import it.unimi.dsi.fastutil.shorts.ShortArrayList
+
 import javaewah.EWAHCompressedBitmap
+
 import org.apache.hadoop.hive.serde2.ByteStream
 import org.apache.hadoop.hive.serde2.io.{ByteWritable, DoubleWritable, ShortWritable}
 import org.apache.hadoop.hive.serde2.`lazy`.{ByteArrayRef, LazyFactory, LazyObject}

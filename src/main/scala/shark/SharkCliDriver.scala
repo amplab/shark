@@ -1,10 +1,10 @@
 package shark
 
+import java.io.{File, FileNotFoundException, IOException, PrintStream, UnsupportedEncodingException}
 import java.net.URLClassLoader
-import java.io.{File, FileNotFoundException, IOException, PrintStream,
-  UnsupportedEncodingException}
 import java.util.ArrayList
 import jline.{History, ConsoleReader}
+import scala.collection.JavaConversions._
 
 import org.apache.commons.lang.StringUtils
 import org.apache.commons.logging.LogFactory
@@ -21,8 +21,6 @@ import org.apache.hadoop.hive.ql.parse.ParseDriver
 import org.apache.hadoop.hive.ql.processors.{CommandProcessor, CommandProcessorFactory}
 import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hadoop.hive.shims.ShimLoader
-
-import scala.collection.JavaConversions._
 
 import spark.SparkContext
 

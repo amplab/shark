@@ -1,5 +1,7 @@
 package shark.memstore
 
+import scala.collection.mutable.ArrayBuffer
+
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector
@@ -7,8 +9,6 @@ import org.apache.hadoop.io.Text
 
 import it.unimi.dsi.fastutil.objects.Object2ShortOpenHashMap
 import it.unimi.dsi.fastutil.shorts.ShortArrayList
-
-import scala.collection.mutable.ArrayBuffer
 
 
 /** A string column that optionally compresses data. This data structure initially

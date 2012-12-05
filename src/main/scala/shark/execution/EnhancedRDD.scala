@@ -1,5 +1,9 @@
 package spark
 
+// RDD.elementClassManifest is spark package level visible.
+// Should submit a patch to Spark to change that so we can create RDDs.
+
+
 class EnhancedRDD[T: ClassManifest](self: RDD[T]) {
   def pruneSplits(splitsFilterFunc: Int => Boolean): RDD[T] =
     new SplitsPruningRDD(self, splitsFilterFunc)

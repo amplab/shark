@@ -1,8 +1,10 @@
 package shark.execution
 
-import org.apache.hadoop.hive.ql.exec.{LimitOperator => HiveLimitOperator}
 import scala.collection.Iterator
 import scala.reflect.BeanProperty
+
+import org.apache.hadoop.hive.ql.exec.{LimitOperator => HiveLimitOperator}
+
 
 class LimitOperator extends UnaryOperator[HiveLimitOperator] {
 

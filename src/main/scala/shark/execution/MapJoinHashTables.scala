@@ -7,6 +7,7 @@ import org.apache.hadoop.hive.ql.exec.persistence.AbstractMapJoinKey
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 
 import shark.SharkEnv
+
 import spark.RDD
 
 
@@ -26,7 +27,7 @@ trait MapJoinHashTablesFetcher {
 class MapJoinHashTablesBroadcast(hashtables: Map[Int, MapJoinOperator.MapJoinHashTable])
   extends MapJoinHashTablesFetcher with Serializable
 {
-  val broadcast = SharkEnv.sc.broadcast(hashtables) 
+  val broadcast = SharkEnv.sc.broadcast(hashtables)
   def get: Map[Int, MapJoinOperator.MapJoinHashTable] = broadcast.value
 }
 

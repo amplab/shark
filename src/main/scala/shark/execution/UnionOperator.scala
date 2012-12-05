@@ -2,6 +2,10 @@ package shark.execution
 
 import java.util.{ArrayList, List => JavaList}
 
+import scala.collection.mutable.ArrayBuffer
+import scala.collection.JavaConversions._
+import scala.reflect.BeanProperty
+
 import org.apache.hadoop.hive.ql.exec.{UnionOperator => HiveUnionOperator}
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFUtils.ReturnObjectInspectorResolver
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
@@ -10,12 +14,9 @@ import org.apache.hadoop.hive.serde2.objectinspector.StandardStructObjectInspect
 import org.apache.hadoop.hive.serde2.objectinspector.StructField
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 
-import scala.collection.mutable.ArrayBuffer
-import scala.collection.JavaConversions._
-import scala.reflect.BeanProperty
-
 import shark.SharkEnvSlave
 import shark.execution.serialization.OperatorSerializationWrapper
+
 import spark.RDD
 import spark.rdd.UnionRDD
 

@@ -2,15 +2,16 @@ package shark.execution
 
 import java.util.{List => JavaList}
 
+import scala.collection.mutable.ArrayBuffer
+import scala.collection.JavaConversions._
+import scala.reflect.BeanProperty
+
 import org.apache.hadoop.hive.ql.exec.{UDTFOperator => HiveUDTFOperator}
 import org.apache.hadoop.hive.ql.plan.UDTFDesc
 import org.apache.hadoop.hive.ql.udf.generic.Collector
 import org.apache.hadoop.hive.serde2.objectinspector.{ ObjectInspector,
   StandardStructObjectInspector, StructField, StructObjectInspector }
 
-import scala.collection.mutable.ArrayBuffer
-import scala.collection.JavaConversions._
-import scala.reflect.BeanProperty
 
 class UDTFOperator extends UnaryOperator[HiveUDTFOperator] {
 
