@@ -19,6 +19,7 @@ import scala.reflect.BeanProperty
 
 import org.apache.hadoop.hive.ql.exec.MapSplitPruning
 import shark.{SharkConfVars, SharkEnv}
+import shark.execution.serialization.XmlSerializer
 import shark.memstore.{CacheKey, TableStats, TableStorage}
 import spark.RDD
 import spark.EnhancedRDD._

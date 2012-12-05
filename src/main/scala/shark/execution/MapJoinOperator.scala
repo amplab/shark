@@ -23,9 +23,11 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
+import shark.execution.serialization.OperatorSerializationWrapper
 import spark.broadcast.Broadcast
 import spark.RDD
 import shark.SharkEnvSlave
+
 
 object MapJoinOperator {
   type MapJoinHashTable = JHashMap[AbstractMapJoinKey, MapJoinObjectValue]

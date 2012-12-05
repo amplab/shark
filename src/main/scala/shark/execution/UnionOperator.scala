@@ -15,8 +15,10 @@ import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
 import shark.SharkEnvSlave
+import shark.execution.serialization.OperatorSerializationWrapper
 import spark.RDD
 import spark.rdd.UnionRDD
+
 
 /**
  * A union operator. If the incoming data are of different type, the union

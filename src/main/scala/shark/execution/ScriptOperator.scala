@@ -16,7 +16,9 @@ import scala.collection.JavaConversions._
 import scala.io.Source
 import scala.reflect.BeanProperty
 
+import shark.execution.serialization.OperatorSerializationWrapper
 import spark.{OneToOneDependency, RDD, SparkEnv, Split}
+
 
 /**
  * An operator that runs an external script.

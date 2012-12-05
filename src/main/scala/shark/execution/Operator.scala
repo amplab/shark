@@ -10,6 +10,7 @@ import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
 import shark.LogHelper
+import shark.execution.serialization.OperatorSerializationWrapper
 import spark.RDD
 
 

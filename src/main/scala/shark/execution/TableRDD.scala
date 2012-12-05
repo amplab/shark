@@ -11,6 +11,8 @@ import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
 import java.util.{List => JavaList}
 import scala.collection.JavaConversions._
 
+import shark.execution.serialization.KryoSerializer
+
 
 /**
  * Wrapper for a row in TableRDD. This class provides a list of helper methods

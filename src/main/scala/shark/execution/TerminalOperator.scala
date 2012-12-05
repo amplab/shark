@@ -15,6 +15,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.reflect.BeanProperty
 
 import shark.{RDDUtils, SharkConfVars, SharkEnv, Utils}
+import shark.execution.serialization.OperatorSerializationWrapper
 import shark.memstore._
 import spark.{GrowableAccumulableParam, RDD, TaskContext}
 import spark.EnhancedRDD._

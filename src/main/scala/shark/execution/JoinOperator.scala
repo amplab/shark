@@ -13,6 +13,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
+import shark.execution.serialization.OperatorSerializationWrapper
 import spark.{CoGroupedRDD, HashPartitioner, RDD}
 import spark.SparkContext._
 
