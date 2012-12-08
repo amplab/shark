@@ -146,6 +146,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
+        <version>2.5.1</version>
         <executions>
           <execution>
             <phase>compile</phase>
@@ -158,6 +159,7 @@
       <plugin>
         <groupId>org.scala-tools</groupId>
         <artifactId>maven-scala-plugin</artifactId>
+        <version>2.15.2</version>
         <executions>
           <execution>
             <id>scala-compile-first</id>
@@ -196,7 +198,7 @@
           <systemPropertyVariables>
             <user.dir>${hive.build.dir}</user.dir>
             <test.silent>false</test.silent>
-            <hive.version>${version}</hive.version>
+            <hive.version>${hive.version}</hive.version>
           </systemPropertyVariables>
           <workingDirectory>${hive.build.dir}</workingDirectory>
           <additionalClasspathElements>
