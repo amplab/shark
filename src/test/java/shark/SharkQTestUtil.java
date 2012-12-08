@@ -2,6 +2,7 @@ package shark;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.PrintStream;
 import java.lang.reflect.Method;
 
@@ -61,7 +62,12 @@ public class SharkQTestUtil extends QTestUtil {
     ss.in = System.in;
 
     File qf = new File(outDir, tname);
-    File outf = new File(new File(logDir), qf.getName().concat(".out"));
+    File logDirF = new File(logDir);
+    if (!logDirF.exists() && !logDirF.mkdirs()) {
+      throw new IOException("Could not create directory " + logDir);
+    }
+    File outf = new File(logDirF, qf.getName().concat(".out"));
+
     FileOutputStream fo = new FileOutputStream(outf);
     ss.out = new PrintStream(fo, true, "UTF-8");
     ss.err = ss.out;
