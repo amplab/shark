@@ -8,7 +8,7 @@
   <artifactId>shark_2.9.2</artifactId>
   <packaging>jar</packaging>
   <description>shark</description>
-  <version>0.2</version>
+  <version>0.3.0-SNAPSHOT</version>
   <name>shark</name>
   <organization>
     <name>edu.berkeley.cs.amplab</name>
