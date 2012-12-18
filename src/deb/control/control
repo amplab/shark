@@ -1,9 +1,9 @@
-Package: shark
+Package: [[artifactId]]
 Version: [[version]]-[[buildNumber]]
 Section: misc
 Priority: extra
 Architecture: all
 Maintainer: Reynold S. Xin <rxin@cs.berkeley.edu>
-Description: shark
+Description: [[artifactId]]
 Distribution: development
-Depends: hive-bin (=0.9.0-shark)
+Depends: hive-bin (=[[hive.version]])
