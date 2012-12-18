@@ -344,6 +344,7 @@
           <groupId>org.spark-project</groupId>
           <artifactId>spark-repl</artifactId>
           <version>${spark.version}</version>
+          <classifier>hadoop1</classifier>
         </dependency>
         <!-- Test -->
         <dependency>
@@ -391,6 +392,7 @@
           <groupId>org.spark-project</groupId>
           <artifactId>spark-repl</artifactId>
           <version>${spark.version}</version>
+          <classifier>hadoop2</classifier>
         </dependency>
         <!-- Test -->
         <dependency>
