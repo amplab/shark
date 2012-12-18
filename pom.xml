@@ -279,12 +279,6 @@
             </excludes>
           </artifactSet>
           <filters>
-<!--            <filter>
-              <artifact>org.apache.hadoop</artifact>
-              <includes>
-                <include>**/*</include>
-              </includes>
-            </filter> -->
             <filter>
               <artifact>*:*</artifact>
               <excludes>
