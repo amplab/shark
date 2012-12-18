@@ -46,5 +46,5 @@ class SplitsPruningRDD[T: ClassManifest](
 
   override def splits = _splits
   override val dependencies = List(new OneToOneDependency(prev))
-  override def compute(split: Split) = prev.iterator(split)
+  override def compute(split: Split, context: TaskContext) = prev.iterator(split, context)
 }
