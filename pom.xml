@@ -20,7 +20,9 @@
     <scala.version>2.9.2</scala.version>
     <deb.install.path>/usr/share/shark</deb.install.path>
     <deb.user>root</deb.user>
-    <hive.version>0.9.0-shark</hive.version>
+    <hive.version>0.9.0</hive.version>
+    <spark.version>0.7.0-SNAPSHOT</spark.version>
+    <cdh.version>4.1.2</cdh.version>
 
     <!-- Default location, override on the command line if different -->
     <hive.dev.home>${basedir}/../hive</hive.dev.home>
@@ -36,7 +38,7 @@
     <dependency>
       <groupId>org.scala-lang</groupId>
       <artifactId>scala-library</artifactId>
-      <version>2.9.2</version>
+      <version>${scala.version}</version>
       <scope>compile</scope>
     </dependency>
     <dependency>
@@ -87,7 +89,7 @@
     <!-- Testing -->
     <dependency>
       <groupId>org.scalatest</groupId>
-      <artifactId>scalatest_2.9.2</artifactId>
+      <artifactId>scalatest_${scala.version}</artifactId>
       <version>1.6.1</version>
       <scope>test</scope>
     </dependency>
@@ -305,13 +307,14 @@
         <!-- Spark -->
         <dependency>
           <groupId>org.spark-project</groupId>
-          <artifactId>spark-core_2.9.2</artifactId>
-          <version>0.6.0</version>
+          <artifactId>spark-core</artifactId>
+          <version>${spark.version}</version>
+          <classifier>hadoop1</classifier>
         </dependency>
         <dependency>
           <groupId>org.spark-project</groupId>
-          <artifactId>spark-repl_2.9.2</artifactId>
-          <version>0.6.0</version>
+          <artifactId>spark-repl</artifactId>
+          <version>${spark.version}</version>
         </dependency>
         <!-- Test -->
         <dependency>
@@ -325,7 +328,7 @@
       <id>hadoop2</id>
       <properties>
         <hadoop.major.version>2</hadoop.major.version>
-        <hadoop.version>2.0.0-mr1-cdh4.1.1</hadoop.version>
+        <hadoop.version>2.0.0-mr1-cdh${cdh.version}</hadoop.version>
         <classifier>hadoop2</classifier>
       </properties>
       <dependencies>
@@ -349,13 +352,13 @@
         <dependency>
           <groupId>org.spark-project</groupId>
           <artifactId>spark-core</artifactId>
-          <version>0.6.1-SNAPSHOT</version>
+          <version>${spark.version}</version>
           <classifier>hadoop2</classifier>
         </dependency>
         <dependency>
           <groupId>org.spark-project</groupId>
           <artifactId>spark-repl</artifactId>
-          <version>0.6.1-SNAPSHOT</version>
+          <version>${spark.version}</version>
         </dependency>
         <!-- Test -->
         <dependency>
@@ -396,9 +399,9 @@
                   <goal>jdeb</goal>
                 </goals>
                 <configuration>
-                  <deb>
-                    ${project.build.directory}/${project.artifactId}-${classifier}_${project.version}-${buildNumber}.deb
-                  </deb>
+                  <deb>${project.build.directory}/${project.artifactId}-${classifier}_${project.version}-${buildNumber}_all.deb</deb>
+                  <attach>false</attach>
+                  <compression>gzip</compression>
                   <dataSet>
                     <data>
                       <src>
