@@ -60,31 +60,37 @@
       <groupId>org.apache.hive</groupId>
       <artifactId>hive-common</artifactId>
       <version>${hive.version}</version>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.hive</groupId>
       <artifactId>hive-exec</artifactId>
       <version>${hive.version}</version>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.hive</groupId>
       <artifactId>hive-cli</artifactId>
       <version>${hive.version}</version>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.hive</groupId>
       <artifactId>hive-serde</artifactId>
       <version>${hive.version}</version>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.hive</groupId>
       <artifactId>hive-metastore</artifactId>
       <version>${hive.version}</version>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.hive</groupId>
       <artifactId>hive-service</artifactId>
       <version>${hive.version}</version>
+      <scope>provided</scope>
     </dependency>
 
     <!-- Testing -->
@@ -264,7 +270,6 @@
         <configuration>
           <shadedArtifactAttached>true</shadedArtifactAttached>
           <shadedClassifierName>shaded-hadoop2</shadedClassifierName>
-          <keepDependenciesWithProvidedScope>false</keepDependenciesWithProvidedScope>
           <artifactSet>
             <excludes>
               <!-- Old Netty versions break Akka. The new groupId is io.netty. -->
@@ -274,6 +279,12 @@
             </excludes>
           </artifactSet>
           <filters>
+<!--            <filter>
+              <artifact>org.apache.hadoop</artifact>
+              <includes>
+                <include>**/*</include>
+              </includes>
+            </filter> -->
             <filter>
               <artifact>*:*</artifact>
               <excludes>
@@ -320,11 +331,13 @@
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-core</artifactId>
           <version>${hadoop.version}</version>
+          <scope>provided</scope>
         </dependency>
         <dependency>
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-tools</artifactId>
           <version>${hadoop.version}</version>
+          <scope>provided</scope>
         </dependency>
         <!-- Spark -->
         <dependency>
@@ -359,16 +372,19 @@
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-core</artifactId>
           <version>${hadoop.version}</version>
+          <scope>provided</scope>
         </dependency>
         <dependency>
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-client</artifactId>
           <version>${hadoop.version}</version>
+          <scope>provided</scope>
         </dependency>
         <dependency>
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-tools</artifactId>
           <version>${hadoop.version}</version>
+          <scope>provided</scope>
         </dependency>
         <!-- Spark -->
         <dependency>
