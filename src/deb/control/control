@@ -6,4 +6,4 @@ Architecture: all
 Maintainer: Reynold S. Xin <rxin@cs.berkeley.edu>
 Description: [[name]]
 Distribution: development
-Depends: hive-bin (=[[hive.version]])
+Depends: hive-bin (=[[deb.hive.dependency]])
