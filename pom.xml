@@ -271,7 +271,7 @@
         <version>2.4</version>
         <executions>
           <execution>
-            <!-- To make the shad eplugin happy (hack to work around MSHADE-134) -->
+            <!-- To make the shade plugin happy (hack to work around MSHADE-134) -->
             <id>normal-jar</id>
             <phase>package</phase>
             <goals>
