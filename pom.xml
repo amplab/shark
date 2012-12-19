@@ -26,6 +26,7 @@
     <deb.pkg.name>shark-${classifier}</deb.pkg.name>
     <deb.install.path>/usr/share/shark-${classifier}</deb.install.path>
     <deb.user>root</deb.user>
+    <deb.hive.dependency>${hive.version}</deb.hive.dependency>
 
     <!-- Default location, override on the command line if different -->
     <hive.dev.home>${basedir}/../hive</hive.dev.home>
