@@ -5,6 +5,7 @@ project/boot
 lib_managed/
 TempStatsStore
 work/
+dependency-reduced-pom.xml
 
 conf/shark-env.sh
 
