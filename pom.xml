@@ -29,6 +29,10 @@
 
     <ql.build.path>${hive.dev.home}/build/ql</ql.build.path>
 
+    <deb.pkg.name>shark-${classifier}</deb.pkg.name>
+    <deb.install.path>/usr/share/shark-${classifier}</deb.install.path>
+    <deb.user>root</deb.user>
+
     <!-- Default location, override on the command line if different -->
     <hive.dev.home>${basedir}/../hive</hive.dev.home>
     <hive.build.dir>${hive.dev.home}/build</hive.build.dir>
@@ -468,6 +472,31 @@
         <executions>
           <execution>
             <!-- To make the shade plugin happy (hack to work around MSHADE-134) -->
+            <id>normal-jar</id>
+            <phase>package</phase>
+            <goals>
+              <goal>jar</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>classifier-jar</id>
+            <phase>package</phase>
+            <goals>
+              <goal>jar</goal>
+            </goals>
+            <configuration>
+              <classifier>${classifier}</classifier>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>2.4</version>
+        <executions>
+          <execution>
+            <!-- To make the shad eplugin happy (hack to work around MSHADE-134) -->
             <id>normal-jar</id>
             <phase>package</phase>
             <goals>
