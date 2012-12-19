@@ -18,12 +18,14 @@
     <maven.compiler.target>1.7</maven.compiler.target>
     <encoding>UTF-8</encoding>
     <scala.version>2.9.2</scala.version>
-    <deb.install.path>/usr/share/shark</deb.install.path>
-    <deb.user>root</deb.user>
     <hive.version>0.9.0</hive.version>
     <spark.version>0.7.0-SNAPSHOT</spark.version>
     <cdh.version>4.1.2</cdh.version>
     <java.version>1.5</java.version>
+
+    <deb.pkg.name>shark-${classifier}</deb.pkg.name>
+    <deb.install.path>/usr/share/shark-${classifier}</deb.install.path>
+    <deb.user>root</deb.user>
 
     <!-- Default location, override on the command line if different -->
     <hive.dev.home>${basedir}/../hive</hive.dev.home>
@@ -34,6 +36,33 @@
     <connection>scm:git:git@github.com:amplab/shark.git</connection>
     <url>scm:git:git@github.com:amplab/shark.git</url>
   </scm>
+
+  <repositories>
+    <repository>
+      <id>TypesafeRepository</id>
+      <name>Typesafe Repository</name>
+      <url>http://repo.typesafe.com/typesafe/releases/</url>
+      <layout>default</layout>
+    </repository>
+    <repository>
+      <id>JBossRepository</id>
+      <name>JBoss Repository</name>
+      <url>http://repository.jboss.org/nexus/content/repositories/releases/</url>
+      <layout>default</layout>
+    </repository>
+    <repository>
+      <id>SprayRepository</id>
+      <name>Spray Repository</name>
+      <url>http://repo.spray.cc/</url>
+      <layout>default</layout>
+    </repository>
+    <repository>
+      <id>DataNucleusRepository</id>
+      <name>DataNucleus Repository</name>
+      <url>http://www.datanucleus.org/downloads/maven2/</url>
+      <layout>default</layout>
+    </repository>
+  </repositories>
 
   <dependencies>
     <dependency>
@@ -60,37 +89,37 @@
       <groupId>org.apache.hive</groupId>
       <artifactId>hive-common</artifactId>
       <version>${hive.version}</version>
-      <scope>provided</scope>
+      <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>org.apache.hive</groupId>
       <artifactId>hive-exec</artifactId>
       <version>${hive.version}</version>
-      <scope>provided</scope>
+      <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>org.apache.hive</groupId>
       <artifactId>hive-cli</artifactId>
       <version>${hive.version}</version>
-      <scope>provided</scope>
+      <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>org.apache.hive</groupId>
       <artifactId>hive-serde</artifactId>
       <version>${hive.version}</version>
-      <scope>provided</scope>
+      <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>org.apache.hive</groupId>
       <artifactId>hive-metastore</artifactId>
       <version>${hive.version}</version>
-      <scope>provided</scope>
+      <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>org.apache.hive</groupId>
       <artifactId>hive-service</artifactId>
       <version>${hive.version}</version>
-      <scope>provided</scope>
+      <optional>true</optional>
     </dependency>
 
     <!-- Testing -->
@@ -121,36 +150,9 @@
     </dependency>
   </dependencies>
 
-  <repositories>
-    <repository>
-      <id>TypesafeRepository</id>
-      <name>Typesafe Repository</name>
-      <url>http://repo.typesafe.com/typesafe/releases/</url>
-      <layout>default</layout>
-    </repository>
-    <repository>
-      <id>JBossRepository</id>
-      <name>JBoss Repository</name>
-      <url>http://repository.jboss.org/nexus/content/repositories/releases/</url>
-      <layout>default</layout>
-    </repository>
-    <repository>
-      <id>SprayRepository</id>
-      <name>Spray Repository</name>
-      <url>http://repo.spray.cc/</url>
-      <layout>default</layout>
-    </repository>
-    <repository>
-      <id>DataNucleusRepository</id>
-      <name>DataNucleus Repository</name>
-      <url>http://www.datanucleus.org/downloads/maven2/</url>
-      <layout>default</layout>
-    </repository>
-  </repositories>
-
   <build>
-    <outputDirectory>target/scala-${scala.version}/classes</outputDirectory>
-    <testOutputDirectory>target/scala-${scala.version}/test-classes</testOutputDirectory>
+    <outputDirectory>${project.build.directory}/scala-${scala.version}/classes</outputDirectory>
+    <testOutputDirectory>${project.build.directory}/scala-${scala.version}/test-classes</testOutputDirectory>
     <plugins>
       <plugin>
         <groupId>net.alchim31.maven</groupId>
@@ -265,17 +267,42 @@
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>2.4</version>
+        <executions>
+          <execution>
+            <!-- To make the shad eplugin happy (hack to work around MSHADE-134) -->
+            <id>normal-jar</id>
+            <phase>package</phase>
+            <goals>
+              <goal>jar</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>classifier-jar</id>
+            <phase>package</phase>
+            <goals>
+              <goal>jar</goal>
+            </goals>
+            <configuration>
+              <classifier>${classifier}</classifier>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
         <version>2.0</version>
         <configuration>
           <shadedArtifactAttached>true</shadedArtifactAttached>
-          <shadedClassifierName>shaded-hadoop2</shadedClassifierName>
+          <shadedClassifierName>shaded-${classifier}</shadedClassifierName>
           <artifactSet>
             <excludes>
               <!-- Old Netty versions break Akka. The new groupId is io.netty. -->
               <exclude>org.jboss.netty:*</exclude>
               <!-- Hive is included separately, not as part of the fat jar. -->
-              <exclude>org.apache.hadoop.hive:*</exclude>
+              <exclude>org.apache.hive:*</exclude>
             </excludes>
           </artifactSet>
           <filters>
@@ -297,10 +324,8 @@
             </goals>
             <configuration>
               <transformers>
-                <transformer
-                    implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
-                <transformer
-                    implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
                   <resource>reference.conf</resource>
                 </transformer>
               </transformers>
@@ -310,6 +335,7 @@
       </plugin>
     </plugins>
   </build>
+
   <!-- Separate profiles for Hadoop 1 and 2 -->
   <profiles>
     <profile>
@@ -325,13 +351,13 @@
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-core</artifactId>
           <version>${hadoop.version}</version>
-          <scope>provided</scope>
+          <optional>true</optional>
         </dependency>
         <dependency>
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-tools</artifactId>
           <version>${hadoop.version}</version>
-          <scope>provided</scope>
+          <optional>true</optional>
         </dependency>
         <!-- Spark -->
         <dependency>
@@ -351,6 +377,7 @@
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-test</artifactId>
           <version>${hadoop.version}</version>
+          <scope>test</scope>
         </dependency>
       </dependencies>
     </profile>
@@ -367,19 +394,19 @@
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-core</artifactId>
           <version>${hadoop.version}</version>
-          <scope>provided</scope>
+          <optional>true</optional>
         </dependency>
         <dependency>
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-client</artifactId>
           <version>${hadoop.version}</version>
-          <scope>provided</scope>
+          <optional>true</optional>
         </dependency>
         <dependency>
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-tools</artifactId>
           <version>${hadoop.version}</version>
-          <scope>provided</scope>
+          <optional>true</optional>
         </dependency>
         <!-- Spark -->
         <dependency>
@@ -399,6 +426,7 @@
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-test</artifactId>
           <version>${hadoop.version}</version>
+          <scope>test</scope>
         </dependency>
       </dependencies>
     </profile>
@@ -433,14 +461,12 @@
                   <goal>jdeb</goal>
                 </goals>
                 <configuration>
-                  <deb>${project.build.directory}/${project.artifactId}-${classifier}_${project.version}-${buildNumber}_all.deb</deb>
+                  <deb>${project.build.directory}/${deb.pkg.name}_${project.version}-${buildNumber}_all.deb</deb>
                   <attach>false</attach>
                   <compression>gzip</compression>
                   <dataSet>
                     <data>
-                      <src>
-                        ${project.build.directory}/${project.artifactId}-${project.version}-shaded-${classifier}.jar
-                      </src>
+                      <src>${project.build.directory}/${project.artifactId}-${project.version}-shaded-${classifier}.jar</src>
                       <type>file</type>
                       <mapper>
                         <type>perm</type>
