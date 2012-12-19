@@ -1,9 +1,9 @@
-Package: [[artifactId]]
+Package: [[deb.pkg.name]]
 Version: [[version]]-[[buildNumber]]
 Section: misc
 Priority: extra
 Architecture: all
 Maintainer: Reynold S. Xin <rxin@cs.berkeley.edu>
-Description: [[artifactId]]
+Description: [[name]]
 Distribution: development
 Depends: hive-bin (=[[hive.version]])
