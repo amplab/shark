@@ -42,21 +42,18 @@ trait CliTestToolkit {
   var errorReader : BufferedReader = null
 
   def dropTable(tableName: String, timeout: Long = 15000): String = {
-    val cmd = "drop table if exists " + tableName + ";"
-    println("Executing " + cmd)
-    outputWriter.write(cmd + "\n")
-    outputWriter.flush()
-    waitForQuery(timeout, "Time taken", "Table not found")
+    executeQuery("drop table if exists " + tableName + ";")
   }
 
-  def executeQuery(cmd: String, timeout : Long = 15000): String = {
-    println("Executing " + cmd)
+  def executeQuery(
+    cmd: String, outputMessage: String = "OK", timeout: Long = 15000): String = {
+    println("Executing: " + cmd + ", expecting output: " + outputMessage)
     outputWriter.write(cmd + "\n")
     outputWriter.flush()
-    waitForQuery(timeout, "Time taken")
+    waitForQuery(timeout, outputMessage)
   }
 
-  protected def waitForQuery(timeout: Long, message: String) : String = {
+  protected def waitForQuery(timeout: Long, message: String): String = {
     if (waitForOutput(errorReader, message, timeout)) {
       Thread.sleep(500)
       readOutput()
@@ -66,7 +63,7 @@ trait CliTestToolkit {
     }
   }
 
-  protected def waitForQuery(timeout: Long, message1: String, message2: String) : String = {
+  protected def waitForQuery(timeout: Long, message1: String, message2: String): String = {
     if (waitForOutput2(errorReader, message1, message2, timeout)) {
       Thread.sleep(500)
       readOutput()
@@ -101,7 +98,7 @@ trait CliTestToolkit {
   }
 
   // Read stdout output from Shark and filter out garbage collection messages.
-  protected def readOutput() : String = {
+  protected def readOutput(): String = {
     val output = readFrom(inputReader)
     // Remove GC Messages
     val filteredOutput = output.lines.filterNot(x => x.contains("[GC") || x.contains("[Full GC"))
@@ -109,7 +106,7 @@ trait CliTestToolkit {
     filteredOutput
   }
 
-  protected def readFrom(reader: BufferedReader) : String = {
+  protected def readFrom(reader: BufferedReader): String = {
     var out = ""
     var c = 0
     while (reader.ready) {
