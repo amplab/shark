@@ -39,7 +39,7 @@ import org.apache.hadoop.io.BytesWritable
 
 import shark.execution.{HiveTopOperator, ReduceKey}
 import spark.{Aggregator, HashPartitioner, RDD}
-import spark.rdd.ShuffledAggregatedRDD
+import spark.rdd.ShuffledRDD
 import spark.SparkContext._
 
 
@@ -191,16 +191,12 @@ with HiveTopOperator {
     //rdd.asInstanceOf[RDD[(Any, Any)]].groupByKey(numReduceTasks)
 
     // TODO(rxin): Rewrite aggregation logic to integrate it with mergeValue.
-    val aggregator = new Aggregator[Any, Any, ArrayBuffer[Any]](
+    rdd.asInstanceOf[RDD[(Any, Any)]].combineByKey(
       GroupByAggregator.createCombiner _,
       GroupByAggregator.mergeValue _,
-      GroupByAggregator.mergeCombiners _,
+      null,
+      new HashPartitioner(numReduceTasks),
       false)
-
-    new ShuffledAggregatedRDD(
-      rdd.asInstanceOf[RDD[(Any, Any)]],
-      aggregator,
-      new HashPartitioner(numReduceTasks))
   }
 
   override def processPartition(split: Int, iter: Iterator[_]) = {
@@ -327,5 +323,4 @@ with HiveTopOperator {
 object GroupByAggregator {
   def createCombiner(v: Any) = ArrayBuffer(v)
   def mergeValue(buf: ArrayBuffer[Any], v: Any) = buf += v
-  def mergeCombiners(b1: ArrayBuffer[Any], b2: ArrayBuffer[Any]) = b1 ++= b2
 }
