@@ -28,7 +28,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
 
 import shark.execution.serialization.KryoSerializer
 
-import spark.{OneToOneDependency, RDD, Split}
+import spark.{OneToOneDependency, RDD, Split, TaskContext}
 
 
 /**
@@ -138,7 +138,7 @@ case class TableRDD(
 
   override val dependencies = List(new OneToOneDependency(prev))
 
-  override def compute(split: Split) = prev.iterator(split)
+  override def compute(split: Split, context: TaskContext) = prev.iterator(split, context)
 
   /**
    * Initialize object inspector from the serializedObjectInspector.
