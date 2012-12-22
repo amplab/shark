@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,18 +17,18 @@
 
 package shark
 
-import java.nio.ByteBuffer
+import java.io.{DataInputStream, DataOutputStream}
 import java.util.Arrays
 
-import com.esotericsoftware.kryo.Kryo
-import com.esotericsoftware.kryo.serialize.{IntSerializer, SimpleSerializer, SerializableSerializer}
+import com.esotericsoftware.kryo.{Kryo, Serializer => KSerializer}
+import com.esotericsoftware.kryo.io.{Input => KryoInput, Output => KryoOutput}
+import com.esotericsoftware.kryo.serializers.{JavaSerializer => KryoJavaSerializer}
 
 import de.javakaffee.kryoserializers.ArraysAsListSerializer
 
+import org.apache.hadoop.io.Writable
 import org.apache.hadoop.hive.ql.exec.persistence.{MapJoinSingleKey, MapJoinObjectKey,
-  MapJoinDoubleKeys, MapJoinObjectValue}
-
-import shark.execution.MapJoinOperator
+    MapJoinDoubleKeys, MapJoinObjectValue}
 
 
 class KryoRegistrator extends spark.KryoRegistrator {
@@ -38,27 +38,33 @@ class KryoRegistrator extends spark.KryoRegistrator {
 
     // Java Arrays.asList returns an internal class that cannot be serialized
     // by default Kryo. This provides a workaround.
-    kryo.register(Arrays.asList().getClass, new ArraysAsListSerializer(kryo))
+    kryo.register(Arrays.asList().getClass, new ArraysAsListSerializer)
 
-    kryo.register(classOf[MapJoinSingleKey], new SerializableSerializer)
-    kryo.register(classOf[MapJoinObjectKey], new SerializableSerializer)
-    kryo.register(classOf[MapJoinDoubleKeys], new SerializableSerializer)
-    kryo.register(classOf[MapJoinObjectValue], new SerializableSerializer)
+    // The map join data structures are Java serializable.
+    kryo.register(classOf[MapJoinSingleKey], new KryoJavaSerializer)
+    kryo.register(classOf[MapJoinObjectKey], new KryoJavaSerializer)
+    kryo.register(classOf[MapJoinDoubleKeys], new KryoJavaSerializer)
+    kryo.register(classOf[MapJoinObjectValue], new KryoJavaSerializer)
 
-    // This is a work-around for Kryo's byte-by-byte serialization of byte
-    // arrays. Note that it does not handle nulls because null rows are already
-    // encoded using Hive's SerDe.
-    kryo.register(classOf[Array[Byte]], new SimpleSerializer[Array[Byte]]() {
-      def write (buffer: ByteBuffer, arr: Array[Byte]) {
-        IntSerializer.put(buffer, arr.length, true)
-        buffer.put(arr)
-      }
-      def read (buffer: ByteBuffer): Array[Byte] =  {
-        val len = IntSerializer.get(buffer, true)
-        val arr = new Array[Byte](len)
-        buffer.get(arr)
-        arr
-      }
-    })
+    // As far as I (rxin), among all Hadoop writables only TimestampWritable
+    // cannot be serialized by Kryo out of the box.
+    kryo.register(classOf[org.apache.hadoop.hive.serde2.io.TimestampWritable],
+      new KryoWritableSerializer[org.apache.hadoop.hive.serde2.io.TimestampWritable])
+  }
+}
+
+
+/** A Kryo serializer for Hadoop writables. */
+class KryoWritableSerializer[T <: Writable] extends KSerializer[T] {
+  override def write(kryo: Kryo, output: KryoOutput, writable: T) {
+    val ouputStream = new DataOutputStream(output)
+    writable.write(ouputStream)
+  }
+
+  override def read(kryo: Kryo, input: KryoInput, cls: java.lang.Class[T]): T = {
+    val writable = cls.newInstance()
+    val inputStream = new DataInputStream(input)
+    writable.readFields(inputStream)
+    writable
   }
 }
