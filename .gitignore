@@ -22,6 +22,7 @@ conf/shark-env.sh
 .classpath
 .project
 .settings
+.externalToolBuilders/
 
 # emacs backup
 *~
