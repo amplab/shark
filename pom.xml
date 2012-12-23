@@ -381,6 +381,25 @@
           </execution>
         </executions>
       </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-eclipse-plugin</artifactId>
+        <version>2.9</version>
+        <configuration>
+          <additionalProjectnatures>
+            <projectnature>org.scala-ide.sdt.core.scalanature</projectnature>
+          </additionalProjectnatures>
+          <buildcommands>
+            <buildcommand>org.scala-ide.sdt.core.scalabuilder</buildcommand>
+          </buildcommands>
+          <sourceIncludes>
+            <sourceInclude>**/*.scala</sourceInclude>
+          </sourceIncludes>
+          <classpathContainers>
+            <classpathContainer>org.scala-ide.sdt.launching.SCALA_CONTAINER</classpathContainer>
+          </classpathContainers>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
 
