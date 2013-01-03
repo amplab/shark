@@ -450,7 +450,7 @@
                 <source>src/test/scala</source>
               </sources>
             </configuration>
-        </execution>
+          </execution>
         </executions>
       </plugin>
       <plugin>
