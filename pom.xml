@@ -578,4 +578,14 @@
       </build>
     </profile>
   </profiles>
+  <distributionManagement>
+    <snapshotRepository>
+      <id>nexus</id>
+      <url>${nexus.deploy.base.url}/snapshots</url>
+    </snapshotRepository>
+    <repository>
+      <id>nexus</id>
+      <url>${nexus.deploy.base.url}/releases</url>
+    </repository>
+  </distributionManagement>
 </project>
