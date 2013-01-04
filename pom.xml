@@ -18,7 +18,7 @@
     <encoding>UTF-8</encoding>
     <scala.version>2.9.2</scala.version>
     <hive.version>0.9.0</hive.version>
-    <spark.version>0.7.0-SNAPSHOT</spark.version>
+    <spark.version>0.7.0-csd-1</spark.version>
     <cdh.version>4.1.2</cdh.version>
     <java.version>1.5</java.version>
 
