@@ -64,6 +64,17 @@
     </repository>
   </repositories>
 
+  <distributionManagement>
+    <snapshotRepository>
+      <id>${distRepo.snapshots.id}</id>
+      <url>${distRepo.snapshots.url}</url>
+    </snapshotRepository>
+    <repository>
+      <id>${distRepo.releases.id}</id>
+      <url>${distRepo.releases.url}</url>
+    </repository>
+  </distributionManagement>
+
   <dependencies>
     <dependency>
       <groupId>org.scala-lang</groupId>
@@ -578,14 +589,4 @@
       </build>
     </profile>
   </profiles>
-  <distributionManagement>
-    <snapshotRepository>
-      <id>nexus</id>
-      <url>${nexus.deploy.base.url}/snapshots</url>
-    </snapshotRepository>
-    <repository>
-      <id>nexus</id>
-      <url>${nexus.deploy.base.url}/releases</url>
-    </repository>
-  </distributionManagement>
 </project>
