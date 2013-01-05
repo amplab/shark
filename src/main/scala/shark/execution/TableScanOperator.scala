@@ -37,7 +37,7 @@ import org.apache.hadoop.io.Writable
 
 import shark.{SharkConfVars, SharkEnv}
 import shark.execution.serialization.XmlSerializer
-import shark.memstore.{CacheKey, TableStats, TableStorage}
+import shark.memstore.{TableStats, TableStorage}
 import spark.RDD
 import spark.EnhancedRDD._
 import spark.rdd.UnionRDD
@@ -98,8 +98,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
 
   override def execute(): RDD[_] = {
     assert(parentOperators.size == 0)
-    val tableKey = new CacheKey(tableDesc.getTableName.split('.')(1))
-
+    val tableKey: String = tableDesc.getTableName.split('.')(1)
     SharkEnv.cache.get(tableKey) match {
       // The RDD already exists in cache manager. Try to load it from memory.
       // In this case, skip the normal execution chain, i.e. skip
@@ -110,11 +109,11 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     }
   }
 
-  def loadRddFromCache(tableKey: CacheKey, rdd: RDD[_]): RDD[_] = {
+  private def loadRddFromCache(tableKey: String, rdd: RDD[_]): RDD[_] = {
     logInfo("Loading table from cache " + tableKey)
 
     // Stats used for map pruning.
-    val splitToStats: collection.Map[Int, TableStats] = SharkEnv.cache.keyToStats(tableKey)
+    val splitToStats: collection.Map[Int, TableStats] = SharkEnv.cache.getStats(tableKey).get
 
     // Run map pruning if the flag is set, there exists a filter predicate on
     // the input table and we have statistics on the table.
@@ -187,7 +186,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     }
   }
 
-  def makePartitionRDD[T](rdd: RDD[T]): RDD[_] = {
+  private def makePartitionRDD[T](rdd: RDD[T]): RDD[_] = {
     val partitions = parts
     val rdds = new Array[RDD[Any]](partitions.size)
 
@@ -242,7 +241,8 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     }
   }
 
-  def createHadoopRdd(path: String, ifc: Class[InputFormat[Writable, Writable]]): RDD[Writable] = {
+  private def createHadoopRdd(path: String, ifc: Class[InputFormat[Writable, Writable]])
+  : RDD[Writable] = {
     val conf = new JobConf()
     FileInputFormat.setInputPaths(conf, path)
     val bufferSize = System.getProperty("spark.buffer.size", "65536")
