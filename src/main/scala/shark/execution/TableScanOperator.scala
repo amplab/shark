@@ -121,7 +121,8 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     // the input table and we have statistics on the table.
     val prunedRdd: RDD[_] =
       if (SharkConfVars.getBoolVar(localHconf, SharkConfVars.MAP_PRUNING) &&
-          childOperators(0).isInstanceOf[FilterOperator] && splitToStats.size > 0) {
+          childOperators(0).isInstanceOf[FilterOperator] &&
+          splitToStats.size == rdd.splits.size) {
 
         val startTime = System.currentTimeMillis
         val printPruneDebug = SharkConfVars.getBoolVar(

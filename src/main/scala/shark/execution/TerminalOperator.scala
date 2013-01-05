@@ -183,6 +183,7 @@ class CacheSinkOperator extends TerminalOperator {
   @BeanProperty var initialColumnSize: Int = _
   @BeanProperty var storageLevel: StorageLevel = _
   @BeanProperty var tableName: String = _
+  @BeanProperty var useUnionRDD: Boolean = _
 
   override def initializeOnMaster() {
     super.initializeOnMaster()
@@ -201,7 +202,7 @@ class CacheSinkOperator extends TerminalOperator {
     val op = OperatorSerializationWrapper(this)
 
     // Serialize the RDD on all partitions before putting it into the cache.
-    val rdd = inputRdd.mapPartitionsWithSplit { case(split, iter) =>
+    var rdd = inputRdd.mapPartitionsWithSplit { case(split, iter) =>
       op.initializeOnSlave()
 
       val serdeClass = op.localHiveOp.getConf.getTableInfo.getDeserializerClass
@@ -215,9 +216,11 @@ class CacheSinkOperator extends TerminalOperator {
       statsAcc += (split, serde.stats)
       iterToReturn
     }
+    var splitToStats = statsAcc.value.toMap
 
     // Put the RDD in cache and force evaluate it.
-    op.logInfo("Putting RDD for %s in cache, %s %s %s %s".format(
+    op.logInfo("Putting %sRDD for %s in cache, %s %s %s %s".format(
+      if (useUnionRDD) "Union" else "",
       tableName,
       if (storageLevel.deserialized) "deserialized" else "serialized",
       if (storageLevel.useMemory) "in memory" else "",
@@ -225,6 +228,17 @@ class CacheSinkOperator extends TerminalOperator {
       if (storageLevel.useDisk) "on disk" else ""))
 
     val cacheKey = new CacheKey(tableName)
+    if (useUnionRDD) {
+      rdd = rdd.union(SharkEnv.cache.get(cacheKey).get.asInstanceOf[RDD[Any]])
+      // Combine stats for the two tables being combined.
+      val splits = splitToStats.size
+      val currentStats = statsAcc.value
+      val otherSplitsToStats = SharkEnv.cache.keyToStats(cacheKey)
+      for ((otherSplit, tableStats) <- otherSplitsToStats) {
+        currentStats.append((otherSplit + splits, tableStats))
+      }
+      splitToStats = currentStats.toMap
+    }
     SharkEnv.cache.put(cacheKey, rdd, storageLevel)
     rdd.foreach(_ => Unit)
 
@@ -243,10 +257,10 @@ class CacheSinkOperator extends TerminalOperator {
     */
 
     // Get the column statistics back to the cache manager.
-    SharkEnv.cache.keyToStats.put(cacheKey, statsAcc.value.toMap)
+    SharkEnv.cache.keyToStats.put(cacheKey, splitToStats)
 
     if (SharkConfVars.getBoolVar(localHconf, SharkConfVars.MAP_PRUNING_PRINT_DEBUG)) {
-      statsAcc.value.foreach { case(split, tableStats) =>
+      splitToStats.foreach { case(split, tableStats) =>
         println("Split " + split)
         println(tableStats.toString)
       }
