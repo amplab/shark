@@ -25,6 +25,8 @@
     <deb.user>root</deb.user>
     <deb.hive.dependency>${hive.version}</deb.hive.dependency>
 
+    <ql.build.path>${hive.dev.home}/build/ql</ql.build.path>
+
     <!-- Default location, override on the command line if different -->
     <hive.dev.home>${basedir}/../hive</hive.dev.home>
     <hive.build.dir>${hive.dev.home}/build</hive.build.dir>
@@ -277,11 +279,21 @@
           <environmentVariables>
             <HIVE_HOME>${hive.dist.dir}</HIVE_HOME>
             <HIVE_DEV_HOME>${hive.dev.home}</HIVE_DEV_HOME>
+            <TEST_FILE>${project.basedir}/src/test/tests_pass.txt</TEST_FILE>
           </environmentVariables>
           <systemPropertyVariables>
             <user.dir>${hive.build.dir}</user.dir>
             <test.silent>false</test.silent>
             <hive.version>${hive.version}</hive.version>
+            <build.dir>${hive.dev.home}/build/ql</build.dir>
+            <build.dir.hive>${hive.dev.home}/build</build.dir.hive>
+            <build.ivy.lib.dir>${hive.dev.home}/build/ivy/lib</build.ivy.lib.dir>
+            <log4j.configuration>file://${hive.dev.home}/data/conf/hive-log4j.properties</log4j.configuration>
+            <test.log.dir>${ql.build.path}/test/logs</test.log.dir>
+            <test.output.overwrite>false</test.output.overwrite>
+            <test.src.data.dir>${hive.dev.home}/data</test.src.data.dir>
+            <test.tmp.dir>${ql.build.path}/tmp</test.tmp.dir>
+            <test.warehouse.dir>${ql.build.path}/test/data/warehouse</test.warehouse.dir>
           </systemPropertyVariables>
           <workingDirectory>${hive.build.dir}</workingDirectory>
           <additionalClasspathElements>
