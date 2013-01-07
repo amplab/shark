@@ -31,6 +31,9 @@
     <hive.dev.home>${basedir}/../hive</hive.dev.home>
     <hive.build.dir>${hive.dev.home}/build</hive.build.dir>
     <hive.dist.dir>${hive.build.dir}/dist</hive.dist.dir>
+
+    <test.mem>1024m</test.mem>
+    <test.jvm.args>-Xmx${test.mem} -Xms${test.mem} -XX:-UseSplitVerifier</test.jvm.args>
   </properties>
   <scm>
     <connection>scm:git:git@github.com:clearstorydata/shark.git</connection>
@@ -174,6 +177,12 @@
       <version>${hive.version}</version>
       <optional>true</optional>
     </dependency>
+    <dependency>
+      <groupId>org.apache.hive</groupId>
+      <artifactId>hive-jdbc</artifactId>
+      <version>${hive.version}</version>
+      <optional>true</optional>
+    </dependency>
 
     <!-- Testing -->
     <dependency>
@@ -271,10 +280,8 @@
         <configuration>
           <useFile>false</useFile>
           <disableXmlReport>true</disableXmlReport>
-          <!-- If you have classpath issue like NoDefClassError,... -->
-          <!-- useManifestOnlyJar>false</useManifestOnlyJar -->
           <includes>
-            <include>**/TestSharkCliDriver.*</include>
+            <include>**/TestSharkCliDriver.class</include>
           </includes>
           <environmentVariables>
             <HIVE_HOME>${hive.dist.dir}</HIVE_HOME>
@@ -300,7 +307,7 @@
           <additionalClasspathElements>
             <additionalClasspathElement>${basedir}/src/test/conf</additionalClasspathElement>
           </additionalClasspathElements>
-          <argLine>-Xmx2048m -Xms256m -XX:-UseSplitVerifier</argLine>
+          <argLine>${test.jvm.args}</argLine>
         </configuration>
       </plugin>
       <plugin>
@@ -311,7 +318,7 @@
           <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
           <junitxml>.</junitxml>
           <filereports>WDF TestSuite.txt</filereports>
-          <argLine>-Xms64m -Xmx1024m -XX:-UseSplitVerifier</argLine>
+          <argLine>${test.jvm.args}</argLine>
           <environmentVariables>
             <HIVE_HOME>${hive.dist.dir}</HIVE_HOME>
             <HIVE_DEV_HOME>${hive.dev.home}</HIVE_DEV_HOME>
