@@ -214,12 +214,6 @@
       <version>${hive.version}</version>
       <optional>true</optional>
     </dependency>
-    <dependency>
-      <groupId>org.apache.hive</groupId>
-      <artifactId>hive-builtins</artifactId>
-      <version>${hive.version}</version>
-      <optional>true</optional>
-    </dependency>
 
     <!-- Testing -->
     <dependency>
