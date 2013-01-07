@@ -308,6 +308,8 @@
             <additionalClasspathElement>${basedir}/src/test/conf</additionalClasspathElement>
           </additionalClasspathElements>
           <argLine>${test.jvm.args}</argLine>
+          <!-- This is necessary so we can run Scala tests even if there are failures here. -->
+          <testFailureIgnore>true</testFailureIgnore>
         </configuration>
       </plugin>
       <plugin>
