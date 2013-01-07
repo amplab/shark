@@ -294,6 +294,7 @@
             <test.src.data.dir>${hive.dev.home}/data</test.src.data.dir>
             <test.tmp.dir>${ql.build.path}/tmp</test.tmp.dir>
             <test.warehouse.dir>${ql.build.path}/test/data/warehouse</test.warehouse.dir>
+            <derby.version>10.4.2.0</derby.version>
           </systemPropertyVariables>
           <workingDirectory>${hive.build.dir}</workingDirectory>
           <additionalClasspathElements>
