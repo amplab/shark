@@ -19,7 +19,7 @@ package shark.repl
 
 import java.io.PrintWriter
 
-import shark.{SharkContext, SharkEnv}
+import shark.{SharkConfVars, SharkContext, SharkEnv}
 
 import spark.{SparkContext, SparkEnv}
 import spark.repl.SparkILoop
@@ -45,12 +45,13 @@ class SharkILoop extends SparkILoop(None, new PrintWriter(Console.out, true), No
         import sc._;
         def s = sql2console _;
         spark.repl.Main.interp.out.flush();
-        """)
+              """)
       command("import spark.SparkContext._");
     }
     Console.println("Type in expressions to have them evaluated.")
     Console.println("Type :help for more information.")
     Console.flush()
   }
+
 }
 
