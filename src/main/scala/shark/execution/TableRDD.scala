@@ -48,6 +48,7 @@ class RowWrapper(
   def getLong(field: String): Long = getLong(colname2indexMap(field))
   def getShort(field: String): Short = getShort(colname2indexMap(field))
   def getString(field: String): String = getString(colname2indexMap(field))
+  def getTimestamp(field: String): java.sql.Timestamp = getTimestamp(colname2indexMap(field))
 
   def getBoolean(field: Int): Boolean = {
     val ref = oi.getAllStructFieldRefs.get(field)
@@ -95,6 +96,12 @@ class RowWrapper(
     val ref = oi.getAllStructFieldRefs.get(field)
     val data = oi.getStructFieldData(rawdata, ref)
     ref.getFieldObjectInspector.asInstanceOf[StringObjectInspector].getPrimitiveJavaObject(data)
+  }
+
+  def getTimestamp(field: Int): java.sql.Timestamp = {
+    val ref = oi.getAllStructFieldRefs.get(field)
+    val data = oi.getStructFieldData(rawdata, ref)
+    ref.getFieldObjectInspector.asInstanceOf[TimestampObjectInspector].getPrimitiveJavaObject(data)
   }
 }
 
