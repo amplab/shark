@@ -103,7 +103,7 @@ case class TableRDD(
   val prev: RDD[Any],
   schema: JavaList[FieldSchema],
   @transient var oi: ObjectInspector)
-  extends RDD[Any](prev.context) {
+  extends RDD[Any](prev) {
 
   /**
    * ObjectInspector is not Java serializable. We serialize it using Kryo and
@@ -134,11 +134,9 @@ case class TableRDD(
     }
   }
 
-  override def splits = prev.splits
+  override def getSplits = firstParent[Any].splits
 
-  override val dependencies = List(new OneToOneDependency(prev))
-
-  override def compute(split: Split, context: TaskContext) = prev.iterator(split, context)
+  override def compute(split: Split, context: TaskContext) = firstParent[Any].iterator(split, context)
 
   /**
    * Initialize object inspector from the serializedObjectInspector.
