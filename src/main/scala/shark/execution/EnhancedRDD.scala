@@ -39,12 +39,17 @@ object EnhancedRDD {
 class SplitsPruningRDD[T: ClassManifest](
     prev: RDD[T],
     @transient splitsFilterFunc: Int => Boolean)
-  extends RDD[T](prev.context) {
+  extends RDD[T](prev) {
 
   @transient
-  val _splits: Array[Split] = prev.splits.filter(s => splitsFilterFunc(s.index))
+  var _splits: Array[Split] = firstParent[T].splits.filter(s => splitsFilterFunc(s.index))
 
-  override def splits = _splits
-  override val dependencies = List(new OneToOneDependency(prev))
-  override def compute(split: Split, context: TaskContext) = prev.iterator(split, context)
+  override def getSplits = _splits
+  
+  override def compute(split: Split, context: TaskContext) = firstParent[T].iterator(split, context)
+
+  override def clearDependencies() {
+    _splits = null
+  }
+  
 }

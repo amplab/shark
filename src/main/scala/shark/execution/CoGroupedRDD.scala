@@ -17,6 +17,7 @@
 
 package spark
 
+import java.io.{ObjectOutputStream, IOException}
 import java.util.{HashMap => JHashMap}
 
 import scala.collection.JavaConversions._
@@ -27,7 +28,21 @@ import scala.collection.mutable.ArrayBuffer
 // - Enforce return type to Array[ArrayBuffer].
 
 sealed trait CoGroupSplitDep extends Serializable
-case class NarrowCoGroupSplitDep(rdd: RDD[_], split: Split) extends CoGroupSplitDep
+
+case class NarrowCoGroupSplitDep(
+    rdd: RDD[_],
+    splitIndex: Int,
+    var split: Split
+  ) extends CoGroupSplitDep {
+
+  @throws(classOf[IOException])
+  private def writeObject(oos: ObjectOutputStream) {
+    // Update the reference to parent split at the time of task serialization
+    split = rdd.splits(splitIndex)
+    oos.defaultWriteObject()
+  }
+}
+
 case class ShuffleCoGroupSplitDep(shuffleId: Int) extends CoGroupSplitDep
 
 class CoGroupSplit(idx: Int, val deps: Seq[CoGroupSplitDep]) extends Split with Serializable {
@@ -43,13 +58,13 @@ class CoGroupAggregator
   with Serializable
 
 // Disable map-side combine during aggregation.
-class CoGroupedRDD[K](@transient rdds: Seq[RDD[(_, _)]], part: Partitioner)
-  extends RDD[(K, Array[ArrayBuffer[Any]])](rdds.head.context) with Logging {
+class CoGroupedRDD[K](@transient var rdds: Seq[RDD[(_, _)]], part: Partitioner)
+  extends RDD[(K, Array[ArrayBuffer[Any]])](rdds.head.context, Nil) with Logging {
 
   val aggr = new CoGroupAggregator
 
   @transient
-  override val dependencies = {
+  var deps_ = {
     val deps = new ArrayBuffer[Dependency[_]]
     for ((rdd, index) <- rdds.zipWithIndex) {
       if (rdd.partitioner == Some(part)) {
@@ -63,8 +78,9 @@ class CoGroupedRDD[K](@transient rdds: Seq[RDD[(_, _)]], part: Partitioner)
     deps.toList
   }
 
+  override def getDependencies = deps_
   @transient
-  val splits_ : Array[Split] = {
+  var splits_ : Array[Split] = {
     val firstRdd = rdds.head
     val array = new Array[Split](part.numPartitions)
     for (i <- 0 until array.size) {
@@ -73,18 +89,16 @@ class CoGroupedRDD[K](@transient rdds: Seq[RDD[(_, _)]], part: Partitioner)
           case s: ShuffleDependency[_, _] =>
             new ShuffleCoGroupSplitDep(s.shuffleId): CoGroupSplitDep
           case _ =>
-            new NarrowCoGroupSplitDep(r, r.splits(i)): CoGroupSplitDep
+            new NarrowCoGroupSplitDep(r, i, r.splits(i)): CoGroupSplitDep
         }
       }.toList)
     }
     array
   }
 
-  override def splits = splits_
+  override def getSplits = splits_
 
   override val partitioner = Some(part)
-
-  override def preferredLocations(s: Split) = Nil
 
   override def compute(s: Split, context: TaskContext): Iterator[(K, Array[ArrayBuffer[Any]])] = {
     val split = s.asInstanceOf[CoGroupSplit]
@@ -99,7 +113,7 @@ class CoGroupedRDD[K](@transient rdds: Seq[RDD[(_, _)]], part: Partitioner)
       values
     }
     for ((dep, depNum) <- split.deps.zipWithIndex) dep match {
-      case NarrowCoGroupSplitDep(rdd, itsSplit) => {
+      case NarrowCoGroupSplitDep(rdd, itsSplitIndex, itsSplit) => {
         // Read them from the parent
         for ((k, v) <- rdd.iterator(itsSplit, context)) { getSeq(k.asInstanceOf[K])(depNum) += v }
       }
@@ -111,5 +125,11 @@ class CoGroupedRDD[K](@transient rdds: Seq[RDD[(_, _)]], part: Partitioner)
       }
     }
     map.iterator
+  }
+  
+  override def clearDependencies() {
+    deps_ = null
+    splits_ = null
+    rdds = null
   }
 }
