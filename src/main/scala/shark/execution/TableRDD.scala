@@ -53,43 +53,50 @@ class RowWrapper(
   def getBoolean(field: Int): java.lang.Boolean = {
     val ref = oi.getAllStructFieldRefs.get(field)
     val data = oi.getStructFieldData(rawdata, ref)
-    ref.getFieldObjectInspector.asInstanceOf[BooleanObjectInspector].getPrimitiveJavaObject(data).asInstanceOf[java.lang.Boolean]
+    val obj = ref.getFieldObjectInspector.asInstanceOf[BooleanObjectInspector].getPrimitiveJavaObject(data)
+    obj.asInstanceOf[java.lang.Boolean]
   }
 
   def getByte(field: Int): java.lang.Byte = {
     val ref = oi.getAllStructFieldRefs.get(field)
     val data = oi.getStructFieldData(rawdata, ref)
-    ref.getFieldObjectInspector.asInstanceOf[ByteObjectInspector].getPrimitiveJavaObject(data).asInstanceOf[java.lang.Byte]
+    val obj = ref.getFieldObjectInspector.asInstanceOf[ByteObjectInspector].getPrimitiveJavaObject(data)
+    obj.asInstanceOf[java.lang.Byte]
   }
 
   def getDouble(field: Int): java.lang.Double = {
     val ref = oi.getAllStructFieldRefs.get(field)
     val data = oi.getStructFieldData(rawdata, ref)
-    ref.getFieldObjectInspector.asInstanceOf[DoubleObjectInspector].getPrimitiveJavaObject(data).asInstanceOf[java.lang.Double]
+    val obj = ref.getFieldObjectInspector.asInstanceOf[DoubleObjectInspector].getPrimitiveJavaObject(data)
+    obj.asInstanceOf[java.lang.Double]
   }
 
   def getFloat(field: Int): java.lang.Float = {
     val ref = oi.getAllStructFieldRefs.get(field)
     val data = oi.getStructFieldData(rawdata, ref)
-    ref.getFieldObjectInspector.asInstanceOf[FloatObjectInspector].getPrimitiveJavaObject(data).asInstanceOf[java.lang.Float]
+    val obj = ref.getFieldObjectInspector.asInstanceOf[FloatObjectInspector].getPrimitiveJavaObject(data)
+    obj.asInstanceOf[java.lang.Float]
   }
 
   def getInt(field: Int): java.lang.Integer = {
     val ref = oi.getAllStructFieldRefs.get(field)
     val data = oi.getStructFieldData(rawdata, ref)
-    ref.getFieldObjectInspector.asInstanceOf[IntObjectInspector].getPrimitiveJavaObject(data).asInstanceOf[java.lang.Integer]
+    val obj = ref.getFieldObjectInspector.asInstanceOf[IntObjectInspector].getPrimitiveJavaObject(data)
+    obj.asInstanceOf[java.lang.Integer]
   }
 
   def getLong(field: Int): java.lang.Long = {
     val ref = oi.getAllStructFieldRefs.get(field)
     val data = oi.getStructFieldData(rawdata, ref)
-    ref.getFieldObjectInspector.asInstanceOf[LongObjectInspector].getPrimitiveJavaObject(data).asInstanceOf[java.lang.Long]
+    val obj = ref.getFieldObjectInspector.asInstanceOf[LongObjectInspector].getPrimitiveJavaObject(data)
+    obj.asInstanceOf[java.lang.Long]
   }
 
   def getShort(field: Int): java.lang.Short = {
     val ref = oi.getAllStructFieldRefs.get(field)
     val data = oi.getStructFieldData(rawdata, ref)
-    ref.getFieldObjectInspector.asInstanceOf[ShortObjectInspector].getPrimitiveJavaObject(data).asInstanceOf[java.lang.Short]
+    val obj = ref.getFieldObjectInspector.asInstanceOf[ShortObjectInspector].getPrimitiveJavaObject(data)
+    obj.asInstanceOf[java.lang.Short]
   }
 
   def getString(field: Int): String = {
