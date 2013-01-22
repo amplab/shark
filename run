@@ -31,7 +31,7 @@ if [ "x$HIVE_HOME" == "x" ] ; then
     exit 1
 fi
 
-if [ ! -f "$HIVE_HOME/lib/hive-exec-0.9.0.jar" ] ; then
+if [ ! -f $HIVE_HOME/lib/hive-exec-0*.jar ] ; then
   echo "Cannot find $HIVE_HOME/lib/hive-exec-0.9.0.jar."
   echo "Are you sure your HIVE_HOME is set correctly?"
   echo "HIVE_HOME = $HIVE_HOME"
