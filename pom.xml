@@ -5,7 +5,7 @@
   <artifactId>shark</artifactId>
   <packaging>jar</packaging>
   <description>shark</description>
-  <version>0.3.0-csd-6-SNAPSHOT</version>
+  <version>0.3.0-csd-6</version>
   <name>shark</name>
   <organization>
     <name>edu.berkeley.cs.amplab</name>
