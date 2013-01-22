@@ -89,8 +89,12 @@ class SharkContext(
     SparkEnv.set(sparkEnv)
     SessionState.start(sessionState)
     val driver = new SharkDriver(hiveconf)
-    driver.init()
-    driver.tableRdd(cmd)
+    try {
+      driver.init()
+      driver.tableRdd(cmd)
+    } finally {
+      driver.destroy()
+    }
   }
 
   /**
