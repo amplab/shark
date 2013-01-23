@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,16 +30,15 @@ import spark.repl.SparkILoop
  */
 class SharkILoop extends SparkILoop(None, new PrintWriter(Console.out, true), None) {
 
-  // Forces initializing the Kryo register. If we don't make the call explicit,
-  // there is no guarantee that SharkEnv's static section is executed before
-  // the Kryo serializer is initialized by Spark.
-  SharkEnv.initWithSharkContext("shark-shell")
-
   override def initializeSpark() {
+    // Note: shark.SharkEnv.initWithSharkContext must be invoked after spark.repl.Main.interp
+    // is used because the slaves' executors depend on the environmental variable
+    // "spark.repl.class.uri" set to invoke Spark's ExecutorClassLoader.
     intp.beQuietDuring {
       command("""
         spark.repl.Main.interp.out.println("Creating SparkContext...");
         spark.repl.Main.interp.out.flush();
+        shark.SharkEnv.initWithSharkContext("shark-shell");
         @transient val sparkContext = shark.SharkEnv.sc;
         @transient val sc = sparkContext.asInstanceOf[shark.SharkContext];
         spark.repl.Main.interp.out.println("Shark context available as sc.");

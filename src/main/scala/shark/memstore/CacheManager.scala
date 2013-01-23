@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,22 +22,30 @@ import spark.storage.StorageLevel
 
 class CacheManager {
 
-  val keyToRdd = new collection.mutable.HashMap[CacheKey, RDD[_]]()
+  private val _keyToRdd = new collection.mutable.HashMap[String, RDD[_]]()
 
-  val keyToStats = new collection.mutable.HashMap[CacheKey, collection.Map[Int, TableStats]]
+  private val _keyToStats = new collection.mutable.HashMap[String, collection.Map[Int, TableStats]]
 
-  def put(key: CacheKey, rdd: RDD[_], storageLevel: StorageLevel) {
-    keyToRdd(key) = rdd
+  def put(key: String, rdd: RDD[_], storageLevel: StorageLevel) {
+    _keyToRdd(key.toLowerCase) = rdd
     rdd.persist(storageLevel)
   }
 
-  def get(key: CacheKey): Option[RDD[_]] = keyToRdd.get(key)
+  def get(key: String): Option[RDD[_]] = _keyToRdd.get(key.toLowerCase)
+
+  def putStats(key: String, stats: collection.Map[Int, TableStats]) {
+    _keyToStats.put(key.toLowerCase, stats)
+  }
+
+  def getStats(key: String): Option[collection.Map[Int, TableStats]] = {
+    _keyToStats.get(key.toLowerCase)
+  }
 
   /**
    * Find all keys that are strings. Used to drop tables after exiting.
    */
   def getAllKeyStrings(): Seq[String] = {
-    keyToRdd.keys.map(_.key).collect { case k: String => k } toSeq
+    _keyToRdd.keys.collect { case k: String => k } toSeq
   }
 }
 

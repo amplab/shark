@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -240,6 +240,7 @@ class CacheSinkOperator extends TerminalOperator {
       splitToStats = currentStats.toMap
     }
     SharkEnv.cache.put(cacheKey, rdd, storageLevel)
+
     rdd.foreach(_ => Unit)
 
     // Report remaining memory.
@@ -258,6 +259,7 @@ class CacheSinkOperator extends TerminalOperator {
 
     // Get the column statistics back to the cache manager.
     SharkEnv.cache.keyToStats.put(cacheKey, splitToStats)
+
 
     if (SharkConfVars.getBoolVar(localHconf, SharkConfVars.MAP_PRUNING_PRINT_DEBUG)) {
       splitToStats.foreach { case(split, tableStats) =>

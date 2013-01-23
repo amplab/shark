@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +21,7 @@ import java.util.{ArrayList, Arrays}
 
 import scala.reflect.BeanProperty
 
-import org.apache.hadoop.mapred.InputFormat
+import org.apache.hadoop.mapred.{FileInputFormat, InputFormat, JobConf}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_PARTITION_COLUMNS
 import org.apache.hadoop.hive.ql.exec.{TableScanOperator => HiveTableScanOperator}
@@ -32,13 +32,12 @@ import org.apache.hadoop.hive.ql.plan.{PartitionDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorFactory,
   StructObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
+import org.apache.hadoop.hive.ql.exec.MapSplitPruning
 import org.apache.hadoop.io.Writable
 
-import org.apache.hadoop.hive.ql.exec.MapSplitPruning
 import shark.{SharkConfVars, SharkEnv}
 import shark.execution.serialization.XmlSerializer
-import shark.memstore.{CacheKey, TableStats, TableStorage}
-
+import shark.memstore.{TableStats, TableStorage}
 import spark.RDD
 import spark.EnhancedRDD._
 import spark.rdd.UnionRDD
@@ -99,8 +98,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
 
   override def execute(): RDD[_] = {
     assert(parentOperators.size == 0)
-    val tableKey = new CacheKey(tableDesc.getTableName.split('.')(1))
-
+    val tableKey: String = tableDesc.getTableName.split('.')(1)
     SharkEnv.cache.get(tableKey) match {
       // The RDD already exists in cache manager. Try to load it from memory.
       // In this case, skip the normal execution chain, i.e. skip
@@ -111,11 +109,11 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     }
   }
 
-  def loadRddFromCache(tableKey: CacheKey, rdd: RDD[_]): RDD[_] = {
+  private def loadRddFromCache(tableKey: String, rdd: RDD[_]): RDD[_] = {
     logInfo("Loading table from cache " + tableKey)
 
     // Stats used for map pruning.
-    val splitToStats: collection.Map[Int, TableStats] = SharkEnv.cache.keyToStats(tableKey)
+    val splitToStats: collection.Map[Int, TableStats] = SharkEnv.cache.getStats(tableKey).get
 
     // Run map pruning if the flag is set, there exists a filter predicate on
     // the input table and we have statistics on the table.
@@ -174,8 +172,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
       val ifc = table.getInputFormatClass
           .asInstanceOf[java.lang.Class[InputFormat[Writable, Writable]]]
       logInfo("Table input: %s".format(tablePath))
-      SharkEnv.sc.hadoopFile(
-        tablePath, ifc, classOf[Writable], classOf[Writable]).map(_._2)
+      createHadoopRdd(tablePath, ifc)
     }
   }
 
@@ -190,7 +187,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     }
   }
 
-  def makePartitionRDD[T](rdd: RDD[T]): RDD[_] = {
+  private def makePartitionRDD[T](rdd: RDD[T]): RDD[_] = {
     val partitions = parts
     val rdds = new Array[RDD[Any]](partitions.size)
 
@@ -202,9 +199,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
 
       val ifc = partition.getInputFormatClass
         .asInstanceOf[java.lang.Class[InputFormat[Writable, Writable]]]
-
-      val parts = SharkEnv.sc.hadoopFile(
-        tablePath, ifc, classOf[Writable], classOf[Writable]).map(_._2)
+      val parts = createHadoopRdd(tablePath, ifc)
 
       val serializedHconf = XmlSerializer.serialize(localHconf, localHconf)
       val partRDD = parts.mapPartitions { iter =>
@@ -247,4 +242,35 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     }
   }
 
+  private def createHadoopRdd(path: String, ifc: Class[InputFormat[Writable, Writable]])
+  : RDD[Writable] = {
+    val conf = new JobConf()
+    FileInputFormat.setInputPaths(conf, path)
+    val bufferSize = System.getProperty("spark.buffer.size", "65536")
+    conf.set("io.file.buffer.size", bufferSize)
+
+    // Set s3/s3n credentials. Setting them in conf ensures the settings propagate
+    // from Spark's master all the way to Spark's slaves.
+    var s3varsSet = false
+    val s3vars = Seq("fs.s3n.awsAccessKeyId", "fs.s3n.awsSecretAccessKey",
+      "fs.s3.awsAccessKeyId", "fs.s3.awsSecretAccessKey").foreach { variableName =>
+      if (localHconf.get(variableName) != null) {
+        s3varsSet = true
+        conf.set(variableName, localHconf.get(variableName))
+      }
+    }
+
+    // If none of the s3 credentials are set in Hive conf, try use the environmental
+    // variables AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.
+    if (!s3varsSet && System.getenv("AWS_ACCESS_KEY_ID") != null &&
+      System.getenv("AWS_SECRET_ACCESS_KEY") != null) {
+      conf.set("fs.s3n.awsAccessKeyId", System.getenv("AWS_ACCESS_KEY_ID"))
+      conf.set("fs.s3.awsAccessKeyId", System.getenv("AWS_ACCESS_KEY_ID"))
+      conf.set("fs.s3n.awsSecretAccessKey", System.getenv("AWS_SECRET_ACCESS_KEY"))
+      conf.set("fs.s3.awsSecretAccessKey", System.getenv("AWS_SECRET_ACCESS_KEY"))
+    }
+
+    // Only take the value (skip the key) because Hive works only with values.
+    SharkEnv.sc.hadoopRDD(conf, ifc, classOf[Writable], classOf[Writable]).map(_._2)
+  }
 }
