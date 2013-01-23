@@ -37,7 +37,7 @@ import shark.CachedTableRecovery
 import shark.execution.{HiveOperator, Operator, OperatorFactory, ReduceSinkOperator, SparkWork,
   TerminalOperator}
 import shark.LogHelper
-import shark.memstore.{CacheKey, CacheManager, ColumnarSerDe}
+import shark.memstore.{CacheManager, ColumnarSerDe}
 import shark.SharkConfVars
 import shark.SharkEnv
 import shark.Utils
@@ -167,7 +167,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         hiveSinkOps.map { hiveSinkOp =>
           val destTableName = hiveSinkOp.asInstanceOf[org.apache.hadoop.hive.ql.exec.FileSinkOperator]
             .getConf.getTableInfo.getTableName.split('.')(1)
-          SharkEnv.cache.get(CacheKey(destTableName)) match {
+          SharkEnv.cache.get(destTableName) match {
             case Some(rdd) => {
               if (hiveSinkOps.size == 1) {
                 // If useUnionRDD is false, the sink op is for INSERT OVERWRITE.

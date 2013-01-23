@@ -227,20 +227,18 @@ class CacheSinkOperator extends TerminalOperator {
       if (storageLevel.useMemory && storageLevel.useDisk) "and" else "",
       if (storageLevel.useDisk) "on disk" else ""))
 
-    val cacheKey = new CacheKey(tableName)
     if (useUnionRDD) {
-      rdd = rdd.union(SharkEnv.cache.get(cacheKey).get.asInstanceOf[RDD[Any]])
+      rdd = rdd.union(SharkEnv.cache.get(tableName).get.asInstanceOf[RDD[Any]])
       // Combine stats for the two tables being combined.
       val splits = splitToStats.size
       val currentStats = statsAcc.value
-      val otherSplitsToStats = SharkEnv.cache.keyToStats(cacheKey)
+      val otherSplitsToStats = SharkEnv.cache.getStats(tableName).get
       for ((otherSplit, tableStats) <- otherSplitsToStats) {
         currentStats.append((otherSplit + splits, tableStats))
       }
       splitToStats = currentStats.toMap
     }
-    SharkEnv.cache.put(cacheKey, rdd, storageLevel)
-
+    SharkEnv.cache.put(tableName, rdd, storageLevel)
     rdd.foreach(_ => Unit)
 
     // Report remaining memory.
@@ -258,7 +256,7 @@ class CacheSinkOperator extends TerminalOperator {
     */
 
     // Get the column statistics back to the cache manager.
-    SharkEnv.cache.keyToStats.put(cacheKey, splitToStats)
+    SharkEnv.cache.putStats(tableName, splitToStats)
 
 
     if (SharkConfVars.getBoolVar(localHconf, SharkConfVars.MAP_PRUNING_PRINT_DEBUG)) {
