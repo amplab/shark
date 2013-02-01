@@ -40,61 +40,75 @@ class RowWrapper(
   val colname2indexMap: Map[String, Int],
   val oi: StructObjectInspector) {
 
-  def getBoolean(field: String): Boolean = getBoolean(colname2indexMap(field))
-  def getByte(field: String): Byte = getByte(colname2indexMap(field))
-  def getDouble(field: String): Double = getDouble(colname2indexMap(field))
-  def getFloat(field: String): Float = getFloat(colname2indexMap(field))
-  def getInt(field: String): Int = getInt(colname2indexMap(field))
-  def getLong(field: String): Long = getLong(colname2indexMap(field))
-  def getShort(field: String): Short = getShort(colname2indexMap(field))
+  def getBoolean(field: String): java.lang.Boolean = getBoolean(colname2indexMap(field))
+  def getByte(field: String): java.lang.Byte = getByte(colname2indexMap(field))
+  def getDouble(field: String): java.lang.Double = getDouble(colname2indexMap(field))
+  def getFloat(field: String): java.lang.Float = getFloat(colname2indexMap(field))
+  def getInt(field: String): java.lang.Integer = getInt(colname2indexMap(field))
+  def getLong(field: String): java.lang.Long = getLong(colname2indexMap(field))
+  def getShort(field: String): java.lang.Short = getShort(colname2indexMap(field))
   def getString(field: String): String = getString(colname2indexMap(field))
+  def getTimestamp(field: String): java.sql.Timestamp = getTimestamp(colname2indexMap(field))
 
-  def getBoolean(field: Int): Boolean = {
+  def getBoolean(field: Int): java.lang.Boolean = {
     val ref = oi.getAllStructFieldRefs.get(field)
     val data = oi.getStructFieldData(rawdata, ref)
-    ref.getFieldObjectInspector.asInstanceOf[BooleanObjectInspector].get(data)
+    val obj = ref.getFieldObjectInspector.asInstanceOf[BooleanObjectInspector].getPrimitiveJavaObject(data)
+    obj.asInstanceOf[java.lang.Boolean]
   }
 
-  def getByte(field: Int): Byte = {
+  def getByte(field: Int): java.lang.Byte = {
     val ref = oi.getAllStructFieldRefs.get(field)
     val data = oi.getStructFieldData(rawdata, ref)
-    ref.getFieldObjectInspector.asInstanceOf[ByteObjectInspector].get(data)
+    val obj = ref.getFieldObjectInspector.asInstanceOf[ByteObjectInspector].getPrimitiveJavaObject(data)
+    obj.asInstanceOf[java.lang.Byte]
   }
 
-  def getDouble(field: Int): Double = {
+  def getDouble(field: Int): java.lang.Double = {
     val ref = oi.getAllStructFieldRefs.get(field)
     val data = oi.getStructFieldData(rawdata, ref)
-    ref.getFieldObjectInspector.asInstanceOf[DoubleObjectInspector].get(data)
+    val obj = ref.getFieldObjectInspector.asInstanceOf[DoubleObjectInspector].getPrimitiveJavaObject(data)
+    obj.asInstanceOf[java.lang.Double]
   }
 
-  def getFloat(field: Int): Float = {
+  def getFloat(field: Int): java.lang.Float = {
     val ref = oi.getAllStructFieldRefs.get(field)
     val data = oi.getStructFieldData(rawdata, ref)
-    ref.getFieldObjectInspector.asInstanceOf[FloatObjectInspector].get(data)
+    val obj = ref.getFieldObjectInspector.asInstanceOf[FloatObjectInspector].getPrimitiveJavaObject(data)
+    obj.asInstanceOf[java.lang.Float]
   }
 
-  def getInt(field: Int): Int = {
+  def getInt(field: Int): java.lang.Integer = {
     val ref = oi.getAllStructFieldRefs.get(field)
     val data = oi.getStructFieldData(rawdata, ref)
-    ref.getFieldObjectInspector.asInstanceOf[IntObjectInspector].get(data)
+    val obj = ref.getFieldObjectInspector.asInstanceOf[IntObjectInspector].getPrimitiveJavaObject(data)
+    obj.asInstanceOf[java.lang.Integer]
   }
 
-  def getLong(field: Int): Long = {
+  def getLong(field: Int): java.lang.Long = {
     val ref = oi.getAllStructFieldRefs.get(field)
     val data = oi.getStructFieldData(rawdata, ref)
-    ref.getFieldObjectInspector.asInstanceOf[LongObjectInspector].get(data)
+    val obj = ref.getFieldObjectInspector.asInstanceOf[LongObjectInspector].getPrimitiveJavaObject(data)
+    obj.asInstanceOf[java.lang.Long]
   }
 
-  def getShort(field: Int): Short = {
+  def getShort(field: Int): java.lang.Short = {
     val ref = oi.getAllStructFieldRefs.get(field)
     val data = oi.getStructFieldData(rawdata, ref)
-    ref.getFieldObjectInspector.asInstanceOf[ShortObjectInspector].get(data)
+    val obj = ref.getFieldObjectInspector.asInstanceOf[ShortObjectInspector].getPrimitiveJavaObject(data)
+    obj.asInstanceOf[java.lang.Short]
   }
 
   def getString(field: Int): String = {
     val ref = oi.getAllStructFieldRefs.get(field)
     val data = oi.getStructFieldData(rawdata, ref)
     ref.getFieldObjectInspector.asInstanceOf[StringObjectInspector].getPrimitiveJavaObject(data)
+  }
+
+  def getTimestamp(field: Int): java.sql.Timestamp = {
+    val ref = oi.getAllStructFieldRefs.get(field)
+    val data = oi.getStructFieldData(rawdata, ref)
+    ref.getFieldObjectInspector.asInstanceOf[TimestampObjectInspector].getPrimitiveJavaObject(data)
   }
 }
 
