@@ -15,7 +15,7 @@
     <maven.compiler.target>1.7</maven.compiler.target>
     <encoding>UTF-8</encoding>
     <scala.version>2.9.2</scala.version>
-    <hive.version>0.9.0-amplab-4</hive.version>
+    <hive.version>0.9.0-csd-6</hive.version>
     <spark.version>0.7.0-csd-3</spark.version>
     <cdh.version>4.1.2</cdh.version>
     <java.version>1.5</java.version>
