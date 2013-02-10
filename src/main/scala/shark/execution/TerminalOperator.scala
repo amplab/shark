@@ -24,8 +24,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.reflect.BeanProperty
 
 import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.hadoop.io.Text
-import org.apache.hadoop.io.BytesWritable
+import org.apache.hadoop.io.{BytesWritable, Text, Writable}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{FileSinkOperator => HiveFileSinkOperator, JobCloseFeedBack}
 import org.apache.hadoop.hive.serde2.Serializer
@@ -33,7 +32,8 @@ import org.apache.hadoop.mapred.{TaskID, TaskAttemptID, HadoopWriter}
 
 import shark.{SharkConfVars, SharkEnv, Utils}
 import shark.execution.serialization.OperatorSerializationWrapper
-import shark.memstore._
+import shark.memstore.TableStats
+import shark.memstore2._
 
 import spark.{GrowableAccumulableParam, RDD, TaskContext}
 import spark.EnhancedRDD._
@@ -204,16 +204,24 @@ class CacheSinkOperator extends TerminalOperator {
     val rdd = inputRdd.mapPartitionsWithSplit { case(split, iter) =>
       op.initializeOnSlave()
 
-      val serdeClass = op.localHiveOp.getConf.getTableInfo.getDeserializerClass
-      op.logInfo("Using serde: " + serdeClass)
-      val serde = serdeClass.newInstance().asInstanceOf[ColumnarSerDe]
+      val serde = new ColumnarSerDe
       serde.initialize(op.hconf, op.localHiveOp.getConf.getTableInfo.getProperties())
 
-      val rddSerialzier = new RDDSerializer(serde)
-      val iterToReturn = rddSerialzier.serialize(iter, op.objectInspector)
+      var tablePartitionBuilder: Writable = null
+      iter.foreach { row =>
+        tablePartitionBuilder = serde.serialize(row.asInstanceOf[AnyRef], op.objectInspector)
+      }
 
-      statsAcc += (split, serde.stats)
-      iterToReturn
+      val partition =
+        if (tablePartitionBuilder != null) {
+          Iterator(tablePartitionBuilder.asInstanceOf[TablePartitionBuilder].build)
+        } else {
+          // This partition is empty.
+          Iterator()
+        }
+
+      //statsAcc += (split, serde.stats)
+      partition
     }
 
     // Put the RDD in cache and force evaluate it.

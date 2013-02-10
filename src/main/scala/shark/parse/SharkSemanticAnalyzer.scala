@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,10 +36,10 @@ import org.apache.hadoop.hive.ql.session.SessionState
 import shark.{LogHelper, SharkConfVars, Utils}
 import shark.execution.{HiveOperator, Operator, OperatorFactory, ReduceSinkOperator, SparkWork,
   TerminalOperator}
-import shark.memstore.ColumnarSerDe
 import shark.CachedTableRecovery
-
 import shark.SharkConfVars
+import shark.memstore2.ColumnarSerDe
+
 import spark.storage.StorageLevel
 
 
@@ -105,7 +105,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
 
         if (shouldCache && (td.getSerName == null || !td.getSerName.startsWith("shark.memstore"))) {
           // By default use the Basic columnar ser de.
-          td.setSerName(classOf[ColumnarSerDe.Basic].getName)
+          td.setSerName(classOf[ColumnarSerDe].getName)
         }
 
         qb.setTableDesc(td)

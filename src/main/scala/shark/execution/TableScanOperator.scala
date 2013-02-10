@@ -37,7 +37,8 @@ import org.apache.hadoop.io.Writable
 
 import shark.{SharkConfVars, SharkEnv}
 import shark.execution.serialization.XmlSerializer
-import shark.memstore.{TableStats, TableStorage}
+import shark.memstore.{TableStats}
+import shark.memstore2.TablePartition
 import spark.RDD
 import spark.EnhancedRDD._
 import spark.rdd.UnionRDD
@@ -60,7 +61,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
   override def initializeHiveTopOperator() {
 
     val rowObjectInspector = {
-      if (parts == null ) {
+      if (parts == null) {
         val serializer = tableDesc.getDeserializerClass().newInstance()
         serializer.initialize(hconf, tableDesc.getProperties)
         serializer.getObjectInspector()
@@ -151,8 +152,8 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
 
     prunedRdd.mapPartitions { iter =>
       if (iter.hasNext) {
-        val tableStorage = iter.next.asInstanceOf[TableStorage]
-        tableStorage.iterator
+        val tablePartition = iter.next.asInstanceOf[TablePartition]
+        tablePartition.iterator
       } else {
         Iterator()
       }
