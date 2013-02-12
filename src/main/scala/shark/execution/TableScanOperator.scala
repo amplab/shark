@@ -28,7 +28,7 @@ import org.apache.hadoop.hive.ql.exec.{TableScanOperator => HiveTableScanOperato
 import org.apache.hadoop.hive.ql.exec.Utilities
 import org.apache.hadoop.hive.ql.metadata.Partition
 import org.apache.hadoop.hive.ql.metadata.Table
-import org.apache.hadoop.hive.ql.plan.{PartitionDesc, TableDesc}
+import org.apache.hadoop.hive.ql.plan.{PlanUtils, PartitionDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorFactory,
   StructObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
@@ -243,7 +243,10 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
 
   private def createHadoopRdd(path: String, ifc: Class[InputFormat[Writable, Writable]])
   : RDD[Writable] = {
-    val conf = new JobConf()
+    val conf = new JobConf(localHconf)
+    if (tableDesc != null) {
+      Utilities.copyTableJobPropertiesToConf(tableDesc, conf)
+    }
     FileInputFormat.setInputPaths(conf, path)
     val bufferSize = System.getProperty("spark.buffer.size", "65536")
     conf.set("io.file.buffer.size", bufferSize)
