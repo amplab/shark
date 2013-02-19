@@ -143,7 +143,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         }
         val timeTaken = System.currentTimeMillis - startTime
         logInfo("Map pruning %d splits into %s splits took %d ms".format(
-            rdd.splits.size, prunedRdd.splits.size, timeTaken))
+            rdd.partitions.size, prunedRdd.partitions.size, timeTaken))
         prunedRdd
       } else {
         rdd

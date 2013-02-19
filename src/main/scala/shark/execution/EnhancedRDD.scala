@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -41,15 +41,14 @@ class SplitsPruningRDD[T: ClassManifest](
     @transient splitsFilterFunc: Int => Boolean)
   extends RDD[T](prev) {
 
-  @transient
-  var _splits: Array[Split] = firstParent[T].splits.filter(s => splitsFilterFunc(s.index))
+  override def getPartitions = firstParent[T].partitions.filter(s => splitsFilterFunc(s.index))
 
-  override def getSplits = _splits
-  
-  override def compute(split: Split, context: TaskContext) = firstParent[T].iterator(split, context)
+  override def compute(split: Partition, context: TaskContext) = {
+    firstParent[T].iterator(split, context)
+  }
 
   override def clearDependencies() {
-    _splits = null
+    super.clearDependencies()
   }
-  
+
 }
