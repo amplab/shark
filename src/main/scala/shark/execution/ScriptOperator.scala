@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -35,7 +35,7 @@ import org.apache.hadoop.io.{BytesWritable, Writable}
 
 import shark.execution.serialization.OperatorSerializationWrapper
 
-import spark.{OneToOneDependency, RDD, SparkEnv, Split}
+import spark.{OneToOneDependency, RDD, SparkEnv}
 
 
 /**

@@ -28,7 +28,7 @@ import org.apache.hadoop.hive.ql.exec.{TableScanOperator => HiveTableScanOperato
 import org.apache.hadoop.hive.ql.exec.Utilities
 import org.apache.hadoop.hive.ql.metadata.Partition
 import org.apache.hadoop.hive.ql.metadata.Table
-import org.apache.hadoop.hive.ql.plan.{PartitionDesc, TableDesc}
+import org.apache.hadoop.hive.ql.plan.{PlanUtils, PartitionDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorFactory,
   StructObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
@@ -40,8 +40,7 @@ import shark.execution.serialization.XmlSerializer
 import shark.memstore.{TableStats}
 import shark.memstore2.TablePartition
 import spark.RDD
-import spark.EnhancedRDD._
-import spark.rdd.UnionRDD
+import spark.rdd.{PartitionPruningRDD, UnionRDD}
 
 
 class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopOperator {
@@ -131,8 +130,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         val filterOp = childOperators(0).asInstanceOf[FilterOperator]
         filterOp.initializeOnSlave()
 
-        // Do the pruning.
-        val prunedRdd = rdd.pruneSplits { split =>
+        def prunePartitionFunc(split: Int): Boolean = {
           if (printPruneDebug) {
             logInfo("\nSplit " + split + "\n" + splitToStats(split))
           }
@@ -142,9 +140,12 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
             MapSplitPruning.test(splitStats, filterOp.conditionEvaluator)
           else true
         }
+
+        // Do the pruning.
+        val prunedRdd = PartitionPruningRDD.create(rdd, prunePartitionFunc)
         val timeTaken = System.currentTimeMillis - startTime
         logInfo("Map pruning %d splits into %s splits took %d ms".format(
-            rdd.splits.size, prunedRdd.splits.size, timeTaken))
+            rdd.partitions.size, prunedRdd.partitions.size, timeTaken))
         prunedRdd
       } else {
         rdd
@@ -244,7 +245,10 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
 
   private def createHadoopRdd(path: String, ifc: Class[InputFormat[Writable, Writable]])
   : RDD[Writable] = {
-    val conf = new JobConf()
+    val conf = new JobConf(localHconf)
+    if (tableDesc != null) {
+      Utilities.copyTableJobPropertiesToConf(tableDesc, conf)
+    }
     FileInputFormat.setInputPaths(conf, path)
     val bufferSize = System.getProperty("spark.buffer.size", "65536")
     conf.set("io.file.buffer.size", bufferSize)

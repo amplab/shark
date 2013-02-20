@@ -26,7 +26,7 @@ import org.apache.hadoop.hive.ql.exec.{TableScanOperator => HiveTableScanOperato
 import org.apache.hadoop.hive.ql.metadata.{Partition, Table}
 import org.apache.hadoop.hive.ql.optimizer.ppr.PartitionPruner
 import org.apache.hadoop.hive.ql.parse._
-import org.apache.hadoop.hive.ql.plan.{CreateTableDesc, PartitionDesc}
+import org.apache.hadoop.hive.ql.plan.{PlanUtils, CreateTableDesc, PartitionDesc}
 import org.apache.hadoop.hive.ql.plan.api.StageType
 import org.apache.hadoop.hive.ql.session.SessionState
 
@@ -104,6 +104,7 @@ with java.io.Serializable with LogHelper {
     topOps.foreach { op =>
       op.table = topToTable.get(op.hiveOp)
       op.tableDesc = Utilities.getTableDesc(op.table)
+      PlanUtils.configureInputJobPropertiesForStorageHandler(op.tableDesc)
       if (op.table.isPartitioned) {
         val ppl = PartitionPruner.prune(
           op.table,
@@ -117,7 +118,7 @@ with java.io.Serializable with LogHelper {
         } else {
           op.firstConfPartDesc = Utilities.getPartitionDesc(allParts(0).asInstanceOf[Partition])
         }
-       }
+      }
     }
   }
 
