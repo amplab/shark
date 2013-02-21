@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -49,7 +49,8 @@ object SharkBuild extends Build {
       "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
       "JBoss Repository" at "http://repository.jboss.org/nexus/content/repositories/releases/",
       "Spray Repository" at "http://repo.spray.cc/",
-      "Cloudera Repository" at "http://repository.cloudera.com/artifactory/cloudera-repos/"
+      "Cloudera Repository" at "http://repository.cloudera.com/artifactory/cloudera-repos/",
+      "Local Maven Repository" at Path.userHome.asFile.toURI.toURL + "/.m2/repository"
     ),
 
     testListeners <<= target.map(
@@ -74,7 +75,8 @@ object SharkBuild extends Build {
       "org.apache.hadoop" % "hadoop-core" % HADOOP_VERSION,
       "it.unimi.dsi" % "fastutil" % "6.4.2",
       "org.scalatest" %% "scalatest" % "1.6.1" % "test",
-      "junit" % "junit" % "4.10" % "test")
+      "junit" % "junit" % "4.10" % "test",
+      "tachyon" % "tachyon" % "0.2-SNAPSHOT")
 
   ) ++ assemblySettings ++ Seq(test in assembly := {}) ++ Seq(getClassPathTask)
 
@@ -83,6 +85,4 @@ object SharkBuild extends Build {
   val getClassPathTask = getClasspath <<= (target, fullClasspath in Runtime) map {
     (target, cp) => println(cp.map(_.data).mkString(":"))
   }
-
 }
-

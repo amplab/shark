@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,6 +26,7 @@ import shark.memstore.CacheManager
 
 import spark.SparkContext
 
+import tachyon.client.TachyonClient
 
 /** A singleton object for the master program. The slaves should not access this. */
 object SharkEnv extends LogHelper {
@@ -69,6 +70,7 @@ object SharkEnv extends LogHelper {
   executorEnvVars.put("HADOOP_HOME", getEnv("HADOOP_HOME"))
   executorEnvVars.put("JAVA_HOME", getEnv("JAVA_HOME"))
   executorEnvVars.put("MESOS_NATIVE_LIBRARY", getEnv("MESOS_NATIVE_LIBRARY"))
+  executorEnvVars.put("TACHYON_MASTER", getEnv("TACHYON_MASTER"))
 
   var sc: SparkContext = _
 
@@ -99,7 +101,6 @@ object SharkEnv extends LogHelper {
     if (System.getenv(variable) == null) "" else System.getenv(variable)
 }
 
-
 /** A singleton object for the slaves. */
 object SharkEnvSlave {
   /**
@@ -109,4 +110,5 @@ object SharkEnvSlave {
    * that object in a synchronized lock on this.
    */
   val objectInspectorLock: AnyRef = new Object()
+  val tachyonClient = TachyonClient.getClient(System.getenv("TACHYON_MASTER"))
 }
