@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -45,11 +45,13 @@ object OperatorFactory extends LogHelper {
   def createSharkCacheOutputPlan(
       hiveTerminalOp: HiveOperator,
       tableName: String,
-      storageLevel: StorageLevel): TerminalOperator = {
+      storageLevel: StorageLevel,
+      numColumns: Int): TerminalOperator = {
     val terminalOp = _newOperatorInstance(
       classOf[CacheSinkOperator], hiveTerminalOp).asInstanceOf[CacheSinkOperator]
     terminalOp.tableName = tableName
     terminalOp.storageLevel = storageLevel
+    terminalOp.numColumns = numColumns
     _createAndSetParents(
       terminalOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }

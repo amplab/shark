@@ -76,6 +76,8 @@ object SharkEnv extends LogHelper {
 
   val cache: CacheManager = new CacheManager
 
+  val tachyonClient = TachyonClient.getClient(System.getenv("TACHYON_MASTER"))
+
   // The following line turns Kryo serialization debug log on. It is extremely chatty.
   //com.esotericsoftware.minlog.Log.set(com.esotericsoftware.minlog.Log.LEVEL_DEBUG)
 

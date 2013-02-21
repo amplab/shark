@@ -30,7 +30,7 @@ import org.apache.hadoop.hive.ql.exec.{FileSinkOperator => HiveFileSinkOperator,
 import org.apache.hadoop.hive.serde2.Serializer
 import org.apache.hadoop.mapred.{TaskID, TaskAttemptID, HadoopWriter}
 
-import shark.{SharkConfVars, SharkEnv, Utils}
+import shark.{SharkConfVars, SharkEnv, Utils, SharkEnvSlave}
 import shark.execution.serialization.OperatorSerializationWrapper
 import shark.memstore.TableStats
 import shark.memstore2._
@@ -39,6 +39,9 @@ import spark.{GrowableAccumulableParam, RDD, TaskContext}
 import spark.SparkContext._
 import spark.storage.StorageLevel
 
+import tachyon.client.RawColumn
+import tachyon.client.RawTable
+import tachyon.client.TachyonClient
 
 /**
  * File sink operator. It can accomplish one of the three things:
@@ -182,6 +185,7 @@ class CacheSinkOperator extends TerminalOperator {
   @BeanProperty var initialColumnSize: Int = _
   @BeanProperty var storageLevel: StorageLevel = _
   @BeanProperty var tableName: String = _
+  @transient var numColumns: Int = _
 
   override def initializeOnMaster() {
     super.initializeOnMaster()
@@ -199,8 +203,13 @@ class CacheSinkOperator extends TerminalOperator {
     val statsAcc = SharkEnv.sc.accumulableCollection(ArrayBuffer[(Int, TableStats)]())
     val op = OperatorSerializationWrapper(this)
 
+    SharkEnv.tachyonClient.mkdir("/sharktable")
+    val rawTableId: Int = SharkEnv.tachyonClient.createRawTable("/sharktable/" + tableName, numColumns)
+
     // Serialize the RDD on all partitions before putting it into the cache.
     val rdd = inputRdd.mapPartitionsWithIndex { case(split, iter) =>
+      val rawTable = SharkEnvSlave.tachyonClient.getRawTable(rawTableId)
+
       op.initializeOnSlave()
 
       val serde = new ColumnarSerDe
@@ -213,7 +222,17 @@ class CacheSinkOperator extends TerminalOperator {
 
       val partition =
         if (tablePartitionBuilder != null) {
-          Iterator(tablePartitionBuilder.asInstanceOf[TablePartitionBuilder].build)
+          var temp = tablePartitionBuilder.asInstanceOf[TablePartitionBuilder].build
+          for (i <- 0 until temp.buffers.length) {
+            op.logInfo("Filing Column " + i + " partition " + split + " into Tachyon")
+            val rawColumn = rawTable.getRawColumn(i)
+            rawColumn.createPartition(split)
+            val file = rawColumn.getPartition(split)
+            file.open("w")
+            file.append(temp.buffers(i))
+            file.close()
+          }
+          Iterator(temp)
         } else {
           // This partition is empty.
           Iterator()
