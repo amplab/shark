@@ -220,26 +220,24 @@ class CacheSinkOperator extends TerminalOperator {
         tablePartitionBuilder = serde.serialize(row.asInstanceOf[AnyRef], op.objectInspector)
       }
 
-      val partition =
+      val partitionIter =
         if (tablePartitionBuilder != null) {
-          var temp = tablePartitionBuilder.asInstanceOf[TablePartitionBuilder].build
-          for (i <- 0 until temp.buffers.length) {
+          var partition = tablePartitionBuilder.asInstanceOf[TablePartitionBuilder].build
+          for (i <- 0 until partition.buffers.length) {
             op.logInfo("Filing Column " + i + " partition " + split + " into Tachyon")
-            val rawColumn = rawTable.getRawColumn(i)
-            rawColumn.createPartition(split)
-            val file = rawColumn.getPartition(split)
+            val file = rawTable.getRawColumn(i).createPartition(split)
             file.open("w")
-            file.append(temp.buffers(i))
+            file.append(partition.buffers(i))
             file.close()
           }
-          Iterator(temp)
+          Iterator(partition)
         } else {
           // This partition is empty.
           Iterator()
         }
 
       //statsAcc += (split, serde.stats)
-      partition
+      partitionIter
     }
 
     // Put the RDD in cache and force evaluate it.
