@@ -34,8 +34,8 @@ trait ColumnIterator {
   protected var _bytes: ByteBuffer = null
 
   def initialize(bytes: ByteBuffer) {
-    bytes.order(ByteOrder.nativeOrder())
-    _bytes = bytes
+    _bytes = bytes.duplicate()
+    _bytes.order(ByteOrder.nativeOrder())
   }
 
   def next: Object
