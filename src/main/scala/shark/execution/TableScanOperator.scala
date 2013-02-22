@@ -99,6 +99,14 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
   override def execute(): RDD[_] = {
     assert(parentOperators.size == 0)
     val tableKey: String = tableDesc.getTableName.split('.')(1)
+
+    val fileId = SharkEnv.tachyonClient.getFileId("/sharktable/" + tableKey)
+
+    if (fileId != -1) {
+      logInfo("Loading table from Tachyon " + tableKey)
+      return new shark.TachyonTableRDD(SharkEnv.sc, 2, "/sharktable/" + tableKey)
+    }
+
     SharkEnv.cache.get(tableKey) match {
       // The RDD already exists in cache manager. Try to load it from memory.
       // In this case, skip the normal execution chain, i.e. skip

@@ -19,7 +19,6 @@ package shark.memstore2
 
 import java.nio.ByteBuffer
 
-
 /**
  * TablePartition contains a whole partition of data in columnar format. It
  * simply contains a list of columns. It should be built using a
@@ -32,4 +31,3 @@ class TablePartition(val size: Int, val buffers: Array[ByteBuffer]) {
    */
   def iterator = new TablePartitionIterator(this)
 }
-

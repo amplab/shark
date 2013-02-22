@@ -17,7 +17,9 @@
 
 package shark.memstore2
 
+import java.lang.StringBuilder
 import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 import org.apache.hadoop.hive.serde2.io.{ByteWritable, DoubleWritable, ShortWritable}
 import org.apache.hadoop.io.{BooleanWritable, IntWritable, LongWritable, FloatWritable, Text,
@@ -32,6 +34,7 @@ trait ColumnIterator {
   protected var _bytes: ByteBuffer = null
 
   def initialize(bytes: ByteBuffer) {
+    bytes.order(ByteOrder.nativeOrder())
     _bytes = bytes
   }
 
@@ -133,8 +136,23 @@ class VoidColumnIterator extends ColumnIterator {
 }
 
 
+class StringColumnIterator extends ColumnIterator {
+  private val _writable = new Text
+
+  override def next: Object = {
+    val length = _bytes.getInt
+    val stringBuilder = new StringBuilder()
+    for (i <- 0 until length) {
+      stringBuilder.append(_bytes.getChar)
+    }
+    _writable.set(stringBuilder.toString())
+    _writable
+  }
+
+  override def current = _writable
+}
+
 // TODO: Add column iterators for
-// Text
 // Lazy format
 
 // TODO: Add nullable column iterators.

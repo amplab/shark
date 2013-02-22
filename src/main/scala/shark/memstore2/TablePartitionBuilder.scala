@@ -71,13 +71,13 @@ object TablePartitionBuilder {
       case ObjectInspector.Category.PRIMITIVE => {
         columnOi.asInstanceOf[PrimitiveObjectInspector].getPrimitiveCategory match {
           case PrimitiveCategory.BOOLEAN => new BooleanColumnBuilder
-          case PrimitiveCategory.BYTE    => null
-          case PrimitiveCategory.SHORT   => null
+          case PrimitiveCategory.BYTE    => new ByteColumnBuilder
+          case PrimitiveCategory.SHORT   => new ShortColumnBuilder
           case PrimitiveCategory.INT     => new IntColumnBuilder
-          case PrimitiveCategory.LONG    => null
-          case PrimitiveCategory.FLOAT   => null
-          case PrimitiveCategory.DOUBLE  => null
-          case PrimitiveCategory.STRING  => null
+          case PrimitiveCategory.LONG    => new LongColumnBuilder
+          case PrimitiveCategory.FLOAT   => new FloatColumnBuilder
+          case PrimitiveCategory.DOUBLE  => new DoubleColumnBuilder
+          case PrimitiveCategory.STRING  => new StringColumnBuilder
           case PrimitiveCategory.VOID    => null
           // TODO: add timestamp and binary column.
           case _ => throw new Exception("Invalid primitive object inspector category")
