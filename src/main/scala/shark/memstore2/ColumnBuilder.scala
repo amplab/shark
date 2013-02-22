@@ -18,6 +18,7 @@
 package shark.memstore2
 
 import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 import it.unimi.dsi.fastutil.booleans.BooleanArrayList
 import it.unimi.dsi.fastutil.bytes.ByteArrayList
@@ -132,6 +133,7 @@ class IntColumnBuilder extends ColumnBuilder[Int] {
   override def build: ByteBuffer = {
     // TODO: This only supports non-null iterators.
     val buffer = ByteBuffer.allocate(_arr.size * 4)
+    buffer.order(ByteOrder.nativeOrder())
     var i = 0
     while (i < _arr.size) {
       buffer.putInt(_arr.get(i))

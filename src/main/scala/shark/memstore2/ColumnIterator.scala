@@ -18,6 +18,7 @@
 package shark.memstore2
 
 import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 import org.apache.hadoop.hive.serde2.io.{ByteWritable, DoubleWritable, ShortWritable}
 import org.apache.hadoop.io.{BooleanWritable, IntWritable, LongWritable, FloatWritable, Text,
@@ -32,6 +33,7 @@ trait ColumnIterator {
   protected var _bytes: ByteBuffer = null
 
   def initialize(bytes: ByteBuffer) {
+    bytes.order(ByteOrder.nativeOrder())
     _bytes = bytes
   }
 

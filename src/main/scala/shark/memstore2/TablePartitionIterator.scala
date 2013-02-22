@@ -27,6 +27,7 @@ import java.nio.ByteBuffer
 class TablePartitionIterator(table: TablePartition) extends Iterator[ColumnarStruct] {
 
   val columnIterators: Array[ColumnIterator] = table.buffers.map { buffer: ByteBuffer =>
+    buffer.rewind()
     val iter = new IntColumnIterator
     iter.initialize(buffer)
     iter

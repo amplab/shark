@@ -176,7 +176,6 @@ object FileSinkOperator {
   }
 }
 
-
 /**
  * Cache the RDD and force evaluate it (so the cache is filled).
  */
@@ -225,12 +224,14 @@ class CacheSinkOperator extends TerminalOperator {
           var partition = tablePartitionBuilder.asInstanceOf[TablePartitionBuilder].build
           for (i <- 0 until partition.buffers.length) {
             op.logInfo("Filing Column " + i + " partition " + split + " into Tachyon")
-            val file = rawTable.getRawColumn(i).createPartition(split)
+            val rawColumn = rawTable.getRawColumn(i)
+            rawColumn.createPartition(split)
+            val file = rawColumn.getPartition(split)
             file.open("w")
             file.append(partition.buffers(i))
             file.close()
           }
-          Iterator(partition)
+          partition.iterator
         } else {
           // This partition is empty.
           Iterator()
