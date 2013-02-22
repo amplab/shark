@@ -17,6 +17,7 @@
 
 package shark.memstore2
 
+import java.lang.StringBuilder
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -135,8 +136,23 @@ class VoidColumnIterator extends ColumnIterator {
 }
 
 
+class StringColumnIterator extends ColumnIterator {
+  private val _writable = new Text
+
+  override def next: Object = {
+    val length = _bytes.getInt
+    val stringBuilder = new StringBuilder()
+    for (i <- 0 until length) {
+      stringBuilder.append(_bytes.getChar)
+    }
+    _writable.set(stringBuilder.toString())
+    _writable
+  }
+
+  override def current = _writable
+}
+
 // TODO: Add column iterators for
-// Text
 // Lazy format
 
 // TODO: Add nullable column iterators.

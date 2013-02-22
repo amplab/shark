@@ -22,6 +22,7 @@ import java.nio.ByteOrder
 
 import it.unimi.dsi.fastutil.booleans.BooleanArrayList
 import it.unimi.dsi.fastutil.bytes.ByteArrayList
+import it.unimi.dsi.fastutil.chars.CharArrayList
 import it.unimi.dsi.fastutil.doubles.DoubleArrayList
 import it.unimi.dsi.fastutil.floats.FloatArrayList
 import it.unimi.dsi.fastutil.ints.IntArrayList
@@ -93,16 +94,87 @@ class BooleanColumnBuilder extends ColumnBuilder[Boolean] {
   }
 }
 
+class ByteColumnBuilder extends ColumnBuilder[Byte] {
+  private var _arr: ByteArrayList = null
+  private val zero: Byte = 0
 
-// TODO: Add column builder for
-// Short
-// Long
-// Float
-// Double
-// String
-// Void
-// Lazy format
+  override def initialize(initialSize: Int) {
+    _arr = new ByteArrayList(initialSize)
+    super.initialize(initialSize)
+  }
 
+  override def append(o: Object, oi: ObjectInspector) {
+    if (o == null) {
+      appendNull()
+    } else {
+      val v = oi.asInstanceOf[ByteObjectInspector].get(o)
+      append(v)
+    }
+  }
+
+  override def append(v: Byte) {
+    _arr.add(v)
+  }
+
+  override def appendNull() {
+    _nulls.set(_arr.size)
+    _arr.add(zero)
+  }
+
+  override def build: ByteBuffer = {
+    // TODO: This only supports non-null iterators.
+    val buffer = ByteBuffer.allocate(_arr.size)
+    buffer.order(ByteOrder.nativeOrder())
+    var i = 0
+    while (i < _arr.size) {
+      buffer.put(_arr.get(i))
+      i += 1
+    }
+    buffer.rewind()
+    buffer
+  }
+}
+
+class ShortColumnBuilder extends ColumnBuilder[Short] {
+  private var _arr: ShortArrayList = null
+  private val zero: Short = 0
+
+  override def initialize(initialSize: Int) {
+    _arr = new ShortArrayList(initialSize)
+    super.initialize(initialSize)
+  }
+
+  override def append(o: Object, oi: ObjectInspector) {
+    if (o == null) {
+      appendNull()
+    } else {
+      val v = oi.asInstanceOf[ShortObjectInspector].get(o)
+      append(v)
+    }
+  }
+
+  override def append(v: Short) {
+    _arr.add(v)
+  }
+
+  override def appendNull() {
+    _nulls.set(_arr.size)
+    _arr.add(zero)
+  }
+
+  override def build: ByteBuffer = {
+    // TODO: This only supports non-null iterators.
+    val buffer = ByteBuffer.allocate(_arr.size * 2)
+    buffer.order(ByteOrder.nativeOrder())
+    var i = 0
+    while (i < _arr.size) {
+      buffer.putShort(_arr.get(i))
+      i += 1
+    }
+    buffer.rewind()
+    buffer
+  }
+}
 
 class IntColumnBuilder extends ColumnBuilder[Int] {
   private var _arr: IntArrayList = null
@@ -143,3 +215,178 @@ class IntColumnBuilder extends ColumnBuilder[Int] {
     buffer
   }
 }
+
+class LongColumnBuilder extends ColumnBuilder[Long] {
+  private var _arr: LongArrayList = null
+
+  override def initialize(initialSize: Int) {
+    _arr = new LongArrayList(initialSize)
+    super.initialize(initialSize)
+  }
+
+  override def append(o: Object, oi: ObjectInspector) {
+    if (o == null) {
+      appendNull()
+    } else {
+      val v = oi.asInstanceOf[LongObjectInspector].get(o)
+      append(v)
+    }
+  }
+
+  override def append(v: Long) {
+    _arr.add(v)
+  }
+
+  override def appendNull() {
+    _nulls.set(_arr.size)
+    _arr.add(0)
+  }
+
+  override def build: ByteBuffer = {
+    // TODO: This only supports non-null iterators.
+    val buffer = ByteBuffer.allocate(_arr.size * 8)
+    buffer.order(ByteOrder.nativeOrder())
+    var i = 0
+    while (i < _arr.size) {
+      buffer.putLong(_arr.get(i))
+      i += 1
+    }
+    buffer.rewind()
+    buffer
+  }
+}
+
+class FloatColumnBuilder extends ColumnBuilder[Float] {
+  private var _arr: FloatArrayList = null
+
+  override def initialize(initialSize: Int) {
+    _arr = new FloatArrayList(initialSize)
+    super.initialize(initialSize)
+  }
+
+  override def append(o: Object, oi: ObjectInspector) {
+    if (o == null) {
+      appendNull()
+    } else {
+      val v = oi.asInstanceOf[FloatObjectInspector].get(o)
+      append(v)
+    }
+  }
+
+  override def append(v: Float) {
+    _arr.add(v)
+  }
+
+  override def appendNull() {
+    _nulls.set(_arr.size)
+    _arr.add(0)
+  }
+
+  override def build: ByteBuffer = {
+    // TODO: This only supports non-null iterators.
+    val buffer = ByteBuffer.allocate(_arr.size * 4)
+    buffer.order(ByteOrder.nativeOrder())
+    var i = 0
+    while (i < _arr.size) {
+      buffer.putFloat(_arr.get(i))
+      i += 1
+    }
+    buffer.rewind()
+    buffer
+  }
+}
+
+class DoubleColumnBuilder extends ColumnBuilder[Double] {
+  private var _arr: DoubleArrayList = null
+
+  override def initialize(initialSize: Int) {
+    _arr = new DoubleArrayList(initialSize)
+    super.initialize(initialSize)
+  }
+
+  override def append(o: Object, oi: ObjectInspector) {
+    if (o == null) {
+      appendNull()
+    } else {
+      val v = oi.asInstanceOf[DoubleObjectInspector].get(o)
+      append(v)
+    }
+  }
+
+  override def append(v: Double) {
+    _arr.add(v)
+  }
+
+  override def appendNull() {
+    _nulls.set(_arr.size)
+    _arr.add(0)
+  }
+
+  override def build: ByteBuffer = {
+    // TODO: This only supports non-null iterators.
+    val buffer = ByteBuffer.allocate(_arr.size * 8)
+    buffer.order(ByteOrder.nativeOrder())
+    var i = 0
+    while (i < _arr.size) {
+      buffer.putDouble(_arr.get(i))
+      i += 1
+    }
+    buffer.rewind()
+    buffer
+  }
+}
+
+class StringColumnBuilder extends ColumnBuilder[String] {
+  private var _arr: CharArrayList = null
+  private var _indexArr: IntArrayList = null
+
+  override def initialize(initialSize: Int) {
+    _arr = new CharArrayList(initialSize)
+    _indexArr = new IntArrayList(initialSize)
+    super.initialize(initialSize)
+  }
+
+  override def append(o: Object, oi: ObjectInspector) {
+    if (o == null) {
+      appendNull()
+    } else {
+      val v = oi.asInstanceOf[StringObjectInspector].getPrimitiveJavaObject(o)
+      append(v)
+    }
+  }
+
+  override def append(v: String) {
+    for (i <- 0 until v.length) {
+      _arr.add(v(i))
+    }
+
+    _indexArr.add(v.length)
+  }
+
+  override def appendNull() {
+    _nulls.set(_arr.size)
+    _indexArr.add(0)
+  }
+
+  override def build: ByteBuffer = {
+    // TODO: This only supports non-null iterators.
+    val buffer = ByteBuffer.allocate(_arr.size * 8)
+    buffer.order(ByteOrder.nativeOrder())
+    var i = 0
+    var count = 0
+    while (i < _indexArr.size) {
+      buffer.putInt(_indexArr.get(i))
+      for (j <- 0 until _indexArr.get(i)) {
+        buffer.putChar(_arr.get(count))
+        count += 1
+      }
+      i += 1
+    }
+    buffer.rewind()
+    buffer
+  }
+}
+
+// TODO: Add column builder for
+// Void
+// Lazy format
