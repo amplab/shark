@@ -18,6 +18,7 @@
 package shark.memstore2
 
 import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 /**
  * TablePartition contains a whole partition of data in columnar format. It
@@ -38,7 +39,8 @@ class TablePartition(val numRows: Long, val columns: Array[ByteBuffer]) {
   }
 
   def metadata: ByteBuffer = {
-    val buffer = ByteBuffer.allocate(8 + 4 * columns.size)
+    val buffer = ByteBuffer.allocate(8)
+    buffer.order(ByteOrder.nativeOrder())
     buffer.putLong(numRows)
     buffer.rewind()
     buffer

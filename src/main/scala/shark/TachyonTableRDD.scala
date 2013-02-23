@@ -22,7 +22,6 @@ private class TachyonTablePartition(rddId: Int, idx: Int)
  */
 class TachyonTableRDD(
     sc: SparkContext,
-    columns: Int,
     tablePath: String
     )
   extends RDD[ColumnarStruct](sc, Nil) {
@@ -40,7 +39,7 @@ class TachyonTableRDD(
 
   override def compute(theSplit: Partition, context: TaskContext) = {
     val rawTable = SharkEnvSlave.tachyonClient.getRawTable(tablePath)
-    val buffers: Array[ByteBuffer] = new Array[ByteBuffer](2)
+    val buffers: Array[ByteBuffer] = new Array[ByteBuffer](rawTable.getColumns())
     for (i <- 0 until rawTable.getColumns()) {
       logInfo("Getting Column " + i + " partition " + 0 + " from Tachyon")
       val rawColumn = rawTable.getRawColumn(i)

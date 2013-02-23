@@ -204,7 +204,7 @@ class CacheSinkOperator extends TerminalOperator {
 
     SharkEnv.tachyonClient.mkdir("/sharktable")
     val rawTableId: Int = SharkEnv.tachyonClient.createRawTable(
-      "/sharktable/" + tableName, numColumns)
+      "/sharktable/" + tableName, numColumns + 1)
 
     // Serialize the RDD on all partitions before putting it into the cache.
     val rdd = inputRdd.mapPartitionsWithIndex { case(split, iter) =>
