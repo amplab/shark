@@ -142,12 +142,14 @@ class StringColumnIterator extends ColumnIterator {
   override def next: Object = {
     // TODO: This is very inefficient. We should build Text directly.
     val length = _bytes.getInt
-    val stringBuilder = new StringBuilder()
-    for (i <- 0 until length) {
-      stringBuilder.append(_bytes.getChar)
+    if (length >= 0) {
+      val newBytes = new Array[Byte](length)
+      _bytes.get(newBytes, 0, length)
+      _writable.set(newBytes)
+      _writable
+    } else {
+      null
     }
-    _writable.set(stringBuilder.toString())
-    _writable
   }
 
   override def current = _writable

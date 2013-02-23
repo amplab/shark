@@ -34,7 +34,6 @@ class TablePartitionIterator(val numRows: Long, val columnIterators: Array[Colum
   def hasNext(): Boolean = position < numRows
 
   def next(): ColumnarStruct = {
-    System.out.println("POSITION ========================== " + position + " " + numRows)
     position += 1
     columnIterators.foreach(_.next)
     struct
