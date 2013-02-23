@@ -24,20 +24,14 @@ import java.nio.ByteBuffer
  * An iterator for a partition of data. Each element returns a ColumnarStruct
  * that can be read by a ColumnarStructObjectInspector.
  */
-class TablePartitionIterator(table: TablePartition) extends Iterator[ColumnarStruct] {
-
-  val columnIterators: Array[ColumnIterator] = table.buffers.map { buffer: ByteBuffer =>
-    buffer.rewind()
-    val iter = new IntColumnIterator
-    iter.initialize(buffer)
-    iter
-  }
+class TablePartitionIterator(val numRows: Int, val columnIterators: Array[ColumnIterator])
+  extends Iterator[ColumnarStruct] {
 
   val struct = new ColumnarStruct(columnIterators)
 
   var position = 0
 
-  def hasNext(): Boolean = position < table.size
+  def hasNext(): Boolean = position < numRows
 
   def next(): ColumnarStruct = {
     position += 1

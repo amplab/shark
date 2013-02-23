@@ -203,7 +203,8 @@ class CacheSinkOperator extends TerminalOperator {
     val op = OperatorSerializationWrapper(this)
 
     SharkEnv.tachyonClient.mkdir("/sharktable")
-    val rawTableId: Int = SharkEnv.tachyonClient.createRawTable("/sharktable/" + tableName, numColumns)
+    val rawTableId: Int = SharkEnv.tachyonClient.createRawTable(
+      "/sharktable/" + tableName, numColumns)
 
     // Serialize the RDD on all partitions before putting it into the cache.
     val rdd = inputRdd.mapPartitionsWithIndex { case(split, iter) =>
@@ -222,13 +223,13 @@ class CacheSinkOperator extends TerminalOperator {
       val partitionIter =
         if (tablePartitionBuilder != null) {
           var partition = tablePartitionBuilder.asInstanceOf[TablePartitionBuilder].build
-          for (i <- 0 until partition.buffers.length) {
+          for (i <- 0 until partition.columns.size) {
             op.logInfo("Filing Column " + i + " partition " + split + " into Tachyon")
             val rawColumn = rawTable.getRawColumn(i)
             rawColumn.createPartition(split)
             val file = rawColumn.getPartition(split)
             file.open("w")
-            file.append(partition.buffers(i))
+            file.append(partition.columns(i))
             file.close()
           }
           partition.iterator

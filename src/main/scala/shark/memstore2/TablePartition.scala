@@ -21,13 +21,28 @@ import java.nio.ByteBuffer
 
 /**
  * TablePartition contains a whole partition of data in columnar format. It
- * simply contains a list of columns. It should be built using a
- * TablePartitionBuilder.
+ * simply contains a list of columns and their meta data. It should be built
+ * using a TablePartitionBuilder.
  */
-class TablePartition(val size: Int, val buffers: Array[ByteBuffer]) {
+class TablePartition(val numRows: Int, val columns: Array[ByteBuffer]) {
+
+  def metadata: ByteBuffer = {
+    val buffer = ByteBuffer.allocate(8 + 4 * columns.size)
+    buffer.putLong(numRows)
+    buffer.rewind()
+    buffer
+  }
 
   /**
    * Return an iterator for the partition.
    */
-  def iterator = new TablePartitionIterator(this)
+  def iterator: TablePartitionIterator = {
+    val columnIterators: Array[ColumnIterator] = columns.map { case buffer: ByteBuffer =>
+      val columnType = buffer.getInt()
+      val iter = ColumnIterators.getIteratorClass(columnType).newInstance
+      iter.initialize(buffer)
+      iter
+    }
+    new TablePartitionIterator(numRows, columnIterators)
+  }
 }
