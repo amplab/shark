@@ -223,15 +223,17 @@ class CacheSinkOperator extends TerminalOperator {
       val partitionIter =
         if (tablePartitionBuilder != null) {
           var partition = tablePartitionBuilder.asInstanceOf[TablePartitionBuilder].build
-          for (i <- 0 until partition.columns.size) {
+
+          partition.toTachyon.zipWithIndex.foreach { case(buffer, i) =>
             op.logInfo("Filing Column " + i + " partition " + split + " into Tachyon")
             val rawColumn = rawTable.getRawColumn(i)
             rawColumn.createPartition(split)
             val file = rawColumn.getPartition(split)
             file.open("w")
-            file.append(partition.columns(i))
+            file.append(buffer)
             file.close()
           }
+
           partition.iterator
         } else {
           // This partition is empty.

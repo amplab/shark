@@ -24,7 +24,18 @@ import java.nio.ByteBuffer
  * simply contains a list of columns and their meta data. It should be built
  * using a TablePartitionBuilder.
  */
-class TablePartition(val numRows: Int, val columns: Array[ByteBuffer]) {
+class TablePartition(val numRows: Long, val columns: Array[ByteBuffer]) {
+
+  def this(columns: Array[ByteBuffer]) {
+    this(columns(0).getLong(), columns.tail)
+  }
+
+  def toTachyon: Array[ByteBuffer] = {
+    val buffers = new Array[ByteBuffer](1 + columns.size)
+    buffers(0) = metadata
+    System.arraycopy(columns, 0, buffers, 1, columns.size)
+    buffers
+  }
 
   def metadata: ByteBuffer = {
     val buffer = ByteBuffer.allocate(8 + 4 * columns.size)

@@ -140,6 +140,7 @@ class StringColumnIterator extends ColumnIterator {
   private val _writable = new Text
 
   override def next: Object = {
+    // TODO: This is very inefficient. We should build Text directly.
     val length = _bytes.getInt
     val stringBuilder = new StringBuilder()
     for (i <- 0 until length) {

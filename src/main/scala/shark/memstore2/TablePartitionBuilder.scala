@@ -36,7 +36,7 @@ import org.apache.hadoop.io.Writable
 class TablePartitionBuilder(oi: StructObjectInspector, initialColumnSize: Int)
   extends Writable {
 
-  var numRows = 0
+  var numRows: Long = 0
   val fields: JList[_ <: StructField] = oi.getAllStructFieldRefs
 
   val columnBuilders = Array.tabulate[ColumnBuilder[_]](fields.size) { i =>

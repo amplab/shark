@@ -48,7 +48,7 @@ class TachyonTableRDD(
       file.open("r")
       buffers(i) = file.readByteBuffer()
     }
-    val partition = new TablePartition(10, buffers)
+    val partition = new TablePartition(buffers)
     partition.iterator
   }
 
