@@ -29,8 +29,10 @@ class TachyonTableRDD(
 
   override def getPartitions: Array[Partition] = {
     val rawTable = SharkEnv.tachyonClient.getRawTable(tablePath)
-    val array = new Array[Partition](2)
-    for (i <- 0 until 2) {
+    val rawColumn = rawTable.getRawColumn(0)
+    val partitions = rawColumn.getPartitions()
+    val array = new Array[Partition](partitions)
+    for (i <- 0 until partitions) {
       array(i) = new TachyonTablePartition(id, i)
     }
     array
@@ -39,14 +41,14 @@ class TachyonTableRDD(
   override def compute(theSplit: Partition, context: TaskContext) = {
     val rawTable = SharkEnvSlave.tachyonClient.getRawTable(tablePath)
     val buffers: Array[ByteBuffer] = new Array[ByteBuffer](2)
-    for (i <- 0 until 2) {
+    for (i <- 0 until rawTable.getColumns()) {
       logInfo("Getting Column " + i + " partition " + 0 + " from Tachyon")
       val rawColumn = rawTable.getRawColumn(i)
       val file = rawColumn.getPartition(0)
       file.open("r")
       buffers(i) = file.readByteBuffer()
     }
-    val partition = new TablePartition(5, buffers)
+    val partition = new TablePartition(10, buffers)
     partition.iterator
   }
 
