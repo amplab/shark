@@ -23,6 +23,11 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.{BooleanObjectIns
   ByteObjectInspector, ShortObjectInspector, IntObjectInspector, LongObjectInspector,
   FloatObjectInspector, DoubleObjectInspector, StringObjectInspector}
 import org.apache.hadoop.io.Text
+import org.apache.hadoop.hive.serde2.`lazy`.LazyBinary
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector
+import org.apache.hadoop.hive.serde2.lazybinary.LazyBinaryObject
+import org.apache.hadoop.io.BytesWritable
+import org.apache.hadoop.hive.serde2.`lazy`.ByteArrayRef
 
 
 /**
@@ -192,6 +197,33 @@ object Column {
     override def append(o: Object, oi: ObjectInspector) {
       val bytes = o.asInstanceOf[ByteStream.Output]
       format.append(bytes)
+    }
+
+    override def build = new Column(format.build, ColumnStats.GenericColumnNoStats)
+  }
+
+  class TimestampColumnBuilder(initialSize: Int) extends ColumnBuilder {
+    val format = new UncompressedColumnFormat.TimestampColumnFormat( initialSize)
+
+    override def append(o: Object, oi: ObjectInspector) {
+      if (o == null) {
+        format.appendNull()
+      } else {
+        val v = oi.asInstanceOf[TimestampObjectInspector].getPrimitiveJavaObject(o)
+        format.append(v)
+      }
+    }
+
+    override def build = new Column(format.build, ColumnStats.GenericColumnNoStats)
+  }
+
+  class BinaryColumnBuilder(outputOI: ObjectInspector, initialSize: Int) extends ColumnBuilder {
+    
+    val format = new UncompressedColumnFormat.BinaryColumnFormat(outputOI, initialSize)
+    
+    override def append(o: Object, oi: ObjectInspector) {
+      println("Object Type : " + o.getClass)
+      format.append(o.asInstanceOf[LazyBinary])    
     }
 
     override def build = new Column(format.build, ColumnStats.GenericColumnNoStats)

@@ -18,9 +18,7 @@
 package shark.memstore
 
 import java.util.{List => JList, Properties}
-
 import scala.collection.JavaConversions._
-
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hdfs.DFSConfigKeys
 import org.apache.hadoop.hive.serde2.{ByteStream, SerDe, SerDeStats}
@@ -31,8 +29,8 @@ import org.apache.hadoop.hive.serde2.objectinspector.{ListObjectInspector, MapOb
   UnionObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
 import org.apache.hadoop.io.Writable
-
 import shark.{LogHelper, SharkConfVars}
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.WritableBinaryObjectInspector
 
 
 class ColumnarSerDe(builderFunc: ColumnBuilderCreateFunc.TYPE) extends SerDe with LogHelper {
@@ -172,7 +170,8 @@ object ColumnarSerDe {
           case PrimitiveCategory.DOUBLE => DOUBLE_SIZE
           case PrimitiveCategory.STRING => STRING_SIZE
           case PrimitiveCategory.VOID => NULL_SIZE
-          case _ => throw new Exception("Invalid primitive object inspector category")
+          case PrimitiveCategory.BINARY => 16
+          case _ => throw new Exception("Invalid primitive object inspector category" + oi + " " + oi.asInstanceOf[PrimitiveObjectInspector].getPrimitiveCategory)
         }
       }
       case ObjectInspector.Category.LIST => {
@@ -199,7 +198,7 @@ object ColumnarSerDe {
         val valueSize = getFieldSize(mapOI.getMapValueObjectInspector())
         MAP_SIZE * (keySize + valueSize)
       }
-      case _ => throw new Exception("Invalid primitive object inspector category")
+      case _ => throw new Exception("Invalid primitive object inspector category" + oi.getCategory)
     }
     size
   }

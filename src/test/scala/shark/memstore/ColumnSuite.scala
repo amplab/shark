@@ -17,13 +17,30 @@
 
 package shark.memstore
 
+import java.sql.Timestamp
+import java.util.Arrays
+import java.util.Properties
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.hive.serde.Constants
+import org.apache.hadoop.hive.serde2.SerDe
+import org.apache.hadoop.hive.serde2.`lazy`.ByteArrayRef
+import org.apache.hadoop.hive.serde2.`lazy`.LazyObjectBase
+import org.apache.hadoop.hive.serde2.lazybinary.LazyBinarySerDe
 import org.apache.hadoop.hive.serde2.objectinspector.ConstantObjectInspector
-import org.apache.hadoop.hive.serde2.objectinspector.primitive._
-import org.apache.hadoop.io._
-
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory.ObjectInspectorOptions
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitiveObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitiveWritableObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
+import org.apache.hadoop.io.BytesWritable
 import org.scalatest.FunSuite
-
-import shark.memstore.ColumnStats._
+import shark.memstore.ColumnStats.TextColumnNoStats
+import org.apache.hadoop.hive.serde2.`lazy`.LazyBinary
+import org.apache.hadoop.hive.serde2.lazybinary.LazyBinaryBinary
+import org.apache.hadoop.hive.serde2.`lazy`.LazyFactory
+import org.apache.hadoop.hive.serde2.`lazy`.objectinspector.primitive.LazyPrimitiveObjectInspectorFactory
 
 
 class ColumnSuite extends FunSuite {
@@ -223,29 +240,79 @@ class ColumnSuite extends FunSuite {
       PrimitiveObjectInspectorFactory.javaVoidObjectInspector,
       PrimitiveObjectInspectorFactory.writableVoidObjectInspector)
   }
+
+  test("TimestampColumn") {
+    testUncompressedPrimitiveColumn(Array[java.sql.Timestamp](),
+        PrimitiveObjectInspectorFactory.javaTimestampObjectInspector,
+        PrimitiveObjectInspectorFactory.writableTimestampObjectInspector)
+
+    testUncompressedPrimitiveColumn(
+        Array[java.sql.Timestamp](
+            Timestamp.valueOf("2011-10-02 18:48:05.123"),
+            Timestamp.valueOf("2011-11-02 18:48:05.456")),
+        PrimitiveObjectInspectorFactory.javaTimestampObjectInspector,
+        PrimitiveObjectInspectorFactory.writableTimestampObjectInspector)
+  }
+
+  test("BinaryColumn") {
+	testUncompressedPrimitiveColumn(Array[LazyBinary](), 
+	    LazyPrimitiveObjectInspectorFactory.LAZY_BINARY_OBJECT_INSPECTOR,
+	    PrimitiveObjectInspectorFactory.writableBinaryObjectInspector)
+	    
+	val rowOI = LazyPrimitiveObjectInspectorFactory.LAZY_BINARY_OBJECT_INSPECTOR
+    val binary1 = LazyFactory.createLazyPrimitiveClass(rowOI).asInstanceOf[LazyBinary]
+    val ref1 = new ByteArrayRef
+    val data = Array[Byte](0,1,2)
+    ref1.setData(data)
+    binary1.init(ref1, 0, 3)
+    testUncompressedPrimitiveColumn(Array[LazyBinary](binary1), 
+        PrimitiveObjectInspectorFactory.writableBinaryObjectInspector,
+        PrimitiveObjectInspectorFactory.writableBinaryObjectInspector, 
+        (x, y) => {
+        	val ydata = y.asInstanceOf[ByteArrayRef].getData
+        	Arrays.equals(data, ydata)
+        })
+
+  }
+
 }
+
+case class TestClass1(b: Byte, s: Short, i: Int)
+
+case class TestClass2(l: ByteArrayRef, s: String)
 
 object ColumnSuite {
 
   implicit def int2Byte(v: Int): java.lang.Byte = v.toByte
   implicit def int2Short(v: Int): java.lang.Short = v.toShort
 
+  def initLazyObject(ba: LazyObjectBase, 
+      bytes: Array[Byte], start: Int,
+      end: Int): Unit = {
+    val b = new ByteArrayRef()
+    b.setData(bytes)
+    ba.init(b, start, end)
+  }
+
   def testUncompressedPrimitiveColumn(
     data: Array[_ <: Object],
-    javaOi: AbstractPrimitiveJavaObjectInspector,
-    writableOi: AbstractPrimitiveWritableObjectInspector): Column = {
+    javaOi: AbstractPrimitiveObjectInspector,
+    writableOi: AbstractPrimitiveWritableObjectInspector,
+    comp: (AnyRef, AnyRef) => Boolean = _.equals(_)): Column = {
     testPrimitiveColumn(
       data,
       ColumnBuilderCreateFunc.uncompressedArrayFormat(javaOi, 5),
       javaOi,
-      writableOi)
+      writableOi,
+      comp)
   }
 
   def testPrimitiveColumn(
     data: Array[_ <: Object],
     builder: Column.ColumnBuilder,
-    javaOi: AbstractPrimitiveJavaObjectInspector,
-    writableOi: AbstractPrimitiveWritableObjectInspector): Column = {
+    javaOi: AbstractPrimitiveObjectInspector,
+    writableOi: AbstractPrimitiveWritableObjectInspector,
+    comp: (AnyRef, AnyRef) => Boolean = _.equals(_)): Column = {
 
     data foreach(builder.append(_, javaOi))
     val column: Column = builder.build
@@ -267,7 +334,7 @@ object ColumnSuite {
           case _ => writableOi.getPrimitiveJavaObject(columnIter.current())
         }
 
-        assert((expected == null && reality == null) || reality == expected,
+        assert((expected == null && reality == null) || comp(expected, reality),
           "at position " + i + " expected " + expected + ", but saw " + reality)
         i += 1
       }
