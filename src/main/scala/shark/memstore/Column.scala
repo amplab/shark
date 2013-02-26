@@ -18,16 +18,14 @@
 package shark.memstore
 
 import org.apache.hadoop.hive.serde2.ByteStream
+import org.apache.hadoop.hive.serde2.`lazy`.{ByteArrayRef, LazyBinary}
+import org.apache.hadoop.hive.serde2.lazybinary.LazyBinaryObject
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.{BooleanObjectInspector,
   ByteObjectInspector, ShortObjectInspector, IntObjectInspector, LongObjectInspector,
-  FloatObjectInspector, DoubleObjectInspector, StringObjectInspector}
-import org.apache.hadoop.io.Text
-import org.apache.hadoop.hive.serde2.`lazy`.LazyBinary
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector
-import org.apache.hadoop.hive.serde2.lazybinary.LazyBinaryObject
-import org.apache.hadoop.io.BytesWritable
-import org.apache.hadoop.hive.serde2.`lazy`.ByteArrayRef
+  FloatObjectInspector, DoubleObjectInspector, StringObjectInspector, TimestampObjectInspector}
+import org.apache.hadoop.io.{BytesWritable, Text}
+
 
 
 /**

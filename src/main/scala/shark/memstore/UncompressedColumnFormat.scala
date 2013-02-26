@@ -17,6 +17,7 @@
 
 package shark.memstore
 
+import java.sql.Timestamp
 import it.unimi.dsi.fastutil.booleans.BooleanArrayList
 import it.unimi.dsi.fastutil.bytes.ByteArrayList
 import it.unimi.dsi.fastutil.doubles.DoubleArrayList
@@ -37,7 +38,6 @@ import org.apache.hadoop.hive.serde2.lazybinary.LazyBinaryBinary
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.WritableBinaryObjectInspector
 import org.apache.hadoop.hive.serde2.lazybinary.LazyBinaryFactory
 import org.apache.hadoop.hive.serde2.lazybinary.LazyBinaryFactory
-import java.sql.Timestamp
 import org.apache.hadoop.hive.serde2.io.TimestampWritable
 import org.apache.hadoop.hive.serde2.lazybinary.LazyBinaryObject
 import org.apache.hadoop.hive.serde2.lazybinary.LazyBinaryNonPrimitive
@@ -328,11 +328,10 @@ object UncompressedColumnFormat {
       }
     }
   }
-  
-   class BinaryColumnFormat(outputOI: ObjectInspector, initialSize: Int)
+
+  class BinaryColumnFormat(outputOI: ObjectInspector, initialSize: Int)
     extends ColumnFormat[LazyBinary] {
     val arr = new ByteArrayList(initialSize * ColumnarSerDe.getFieldSize(outputOI))
-
     val sizes = new IntArrayList(initialSize)
     sizes.add(0)
 
@@ -357,20 +356,25 @@ object UncompressedColumnFormat {
     override def iterator: ColumnFormatIterator = new ColumnFormatIterator {
       var _position = 0
       var _offset = 0
+      val bw = new BytesWritable
       override def nextRow() {
         _offset += sizes.getInt(_position)
         _position += 1
       }
       override def current(): Object = {
         val size = sizes.get(_position)
-        val b = new Array[Byte](size)
-        arr.getElements(_offset, b, 0, size)
-        new BytesWritable(b)
+        if (size >= 0) {
+          bw.set(arr.elements(), _offset, size)
+          bw
+        } else {
+          null
+        }
       }
     }
   }
-  
-  class TimestampColumnFormat(initialSize: Int) extends UncompressedColumnFormat[Timestamp] {
+
+  class TimestampColumnFormat(initialSize: Int) 
+  	extends UncompressedColumnFormat[Timestamp] {
     val arr = new LongArrayList(initialSize)
 
     override def size: Int = arr.size

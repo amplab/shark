@@ -269,8 +269,9 @@ class ColumnSuite extends FunSuite {
         PrimitiveObjectInspectorFactory.writableBinaryObjectInspector,
         PrimitiveObjectInspectorFactory.writableBinaryObjectInspector, 
         (x, y) => {
+          val xdata = x.asInstanceOf[LazyBinary].getWritableObject().getBytes()
         	val ydata = y.asInstanceOf[ByteArrayRef].getData
-        	Arrays.equals(data, ydata)
+        	Arrays.equals(xdata, ydata)
         })
 
   }
