@@ -220,7 +220,6 @@ object Column {
     val format = new UncompressedColumnFormat.BinaryColumnFormat(outputOI, initialSize)
     
     override def append(o: Object, oi: ObjectInspector) {
-      println("Object Type : " + o.getClass)
       format.append(o.asInstanceOf[LazyBinary])    
     }
 
