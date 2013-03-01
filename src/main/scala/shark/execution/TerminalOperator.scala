@@ -245,14 +245,14 @@ class CacheSinkOperator extends TerminalOperator {
     }
 
     // Put the RDD in cache and force evaluate it.
-    op.logInfo("Putting RDD for %s in cache, %s %s %s %s".format(
-      tableName,
-      if (storageLevel.deserialized) "deserialized" else "serialized",
-      if (storageLevel.useMemory) "in memory" else "",
-      if (storageLevel.useMemory && storageLevel.useDisk) "and" else "",
-      if (storageLevel.useDisk) "on disk" else ""))
+    // op.logInfo("Putting RDD for %s in cache, %s %s %s %s".format(
+    //   tableName,
+    //   if (storageLevel.deserialized) "deserialized" else "serialized",
+    //   if (storageLevel.useMemory) "in memory" else "",
+    //   if (storageLevel.useMemory && storageLevel.useDisk) "and" else "",
+    //   if (storageLevel.useDisk) "on disk" else ""))
 
-    SharkEnv.cache.put(tableName, rdd, storageLevel)
+    // SharkEnv.cache.put(tableName, rdd, storageLevel)
     rdd.foreach(_ => Unit)
 
     // Report remaining memory.
