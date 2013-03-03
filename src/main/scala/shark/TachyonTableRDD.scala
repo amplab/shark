@@ -1,5 +1,7 @@
 package shark
 
+import collection.JavaConverters._
+
 import java.io.EOFException
 import java.nio.ByteBuffer
 import java.util.NoSuchElementException
@@ -11,7 +13,7 @@ import spark.{Dependency, RDD, SerializableWritable, SparkContext, Partition, Ta
 /**
  * A Spark split class that wraps around a Hadoop InputSplit.
  */
-private class TachyonTablePartition(rddId: Int, idx: Int)
+private class TachyonTablePartition(rddId: Int, idx: Int, val locations: Seq[String])
   extends Partition {
 
   override val index: Int = idx
@@ -32,7 +34,8 @@ class TachyonTableRDD(
     val partitions = rawColumn.getPartitions()
     val array = new Array[Partition](partitions)
     for (i <- 0 until partitions) {
-      array(i) = new TachyonTablePartition(id, i)
+      val hosts = rawColumn.getPartition(i).getLocationHosts().asScala
+      array(i) = new TachyonTablePartition(id, i, hosts)
     }
     array
   }
@@ -51,11 +54,11 @@ class TachyonTableRDD(
     partition.iterator
   }
 
-  // override def getPreferredLocations(split: Partition): Seq[String] = {
-  //   // TODO: Filtering out "localhost" in case of file:// URLs
-  //   val hadoopSplit = split.asInstanceOf[HadoopPartition]
-  //   hadoopSplit.inputSplit.value.getLocations.filter(_ != "localhost")
-  // }
+  override def getPreferredLocations(split: Partition): Seq[String] = {
+    // TODO: Filtering out "localhost" in case of file:// URLs
+    val tachyonSplit = split.asInstanceOf[TachyonTablePartition]
+    tachyonSplit.locations.filter(_ != "localhost")
+  }
 
   // override def checkpoint() {
   //   // Do nothing. Hadoop RDD should not be checkpointed.
