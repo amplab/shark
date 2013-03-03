@@ -43,10 +43,11 @@ class TachyonTableRDD(
   override def compute(theSplit: Partition, context: TaskContext) = {
     val rawTable = SharkEnvSlave.tachyonClient.getRawTable(tablePath)
     val buffers: Array[ByteBuffer] = new Array[ByteBuffer](rawTable.getColumns())
+    val tachyonSplit = theSplit.asInstanceOf[TachyonTablePartition]
     for (i <- 0 until rawTable.getColumns()) {
-      logInfo("Getting Column " + i + " partition " + 0 + " from Tachyon")
+      logInfo("Getting Column " + i + " partition " + tachyonSplit.index + " from Tachyon")
       val rawColumn = rawTable.getRawColumn(i)
-      val file = rawColumn.getPartition(0)
+      val file = rawColumn.getPartition(tachyonSplit.index)
       file.open("r")
       buffers(i) = file.readByteBuffer()
     }
@@ -61,6 +62,6 @@ class TachyonTableRDD(
   }
 
   // override def checkpoint() {
-  //   // Do nothing. Hadoop RDD should not be checkpointed.
+  //   // Do nothing. Tachyon RDD should not be checkpointed.
   // }
 }
