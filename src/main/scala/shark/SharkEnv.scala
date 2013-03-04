@@ -82,6 +82,14 @@ object SharkEnv extends LogHelper {
     tachyonClient = TachyonClient.getClient(System.getenv("TACHYON_MASTER"))
     useTachyon = true
   }
+  var selectiveTachyon: Boolean = false
+  if (System.getenv("TACHYON_SELECTIVE") != null) {
+    selectiveTachyon = true
+  }
+  var tachyonTableFolder = "/sharktable/"
+  if (System.getenv("TACHYON_TABLE_FOLDER") != null) {
+    tachyonTableFolder = System.getenv("TACHYON_TABLE_FOLDER")
+  }
 
   // The following line turns Kryo serialization debug log on. It is extremely chatty.
   //com.esotericsoftware.minlog.Log.set(com.esotericsoftware.minlog.Log.LEVEL_DEBUG)
@@ -123,5 +131,13 @@ object SharkEnvSlave {
   if (System.getenv("TACHYON_MASTER") != null) {
     tachyonClient = TachyonClient.getClient(System.getenv("TACHYON_MASTER"))
     useTachyon = true
+  }
+  var selectiveTachyon: Boolean = false
+  if (System.getenv("TACHYON_SELECTIVE") != null) {
+    selectiveTachyon = true
+  }
+  var tachyonTableFolder = "/sharktable/"
+  if (System.getenv("TACHYON_TABLE_FOLDER") != null) {
+    tachyonTableFolder = System.getenv("TACHYON_TABLE_FOLDER")
   }
 }

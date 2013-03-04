@@ -203,9 +203,10 @@ class CacheSinkOperator extends TerminalOperator {
     val op = OperatorSerializationWrapper(this)
 
     var rawTableId: Int = -1;
-    if (SharkEnv.useTachyon) {
-      SharkEnv.tachyonClient.mkdir("/sharktable")
-      rawTableId = SharkEnv.tachyonClient.createRawTable("/sharktable/" + tableName, numColumns + 1)
+    if (SharkEnv.useTachyon && (!SharkEnv.selectiveTachyon || tableName.contains("tachyon"))) {
+      SharkEnv.tachyonClient.mkdir(SharkEnv.tachyonTableFolder)
+      rawTableId = SharkEnv.tachyonClient.createRawTable(
+        SharkEnv.tachyonTableFolder + tableName, numColumns + 1)
     }
 
     // Serialize the RDD on all partitions before putting it into the cache.
@@ -220,17 +221,7 @@ class CacheSinkOperator extends TerminalOperator {
         tablePartitionBuilder = serde.serialize(row.asInstanceOf[AnyRef], op.objectInspector)
       }
 
-      if (!SharkEnv.useTachyon) {
-        val partition =
-          if (tablePartitionBuilder != null) {
-            Iterator(tablePartitionBuilder.asInstanceOf[TablePartitionBuilder].build)
-          } else {
-            // This partition is empty.
-            Iterator()
-          }
-        //statsAcc += (split, serde.stats)
-        partition
-      } else {
+      if (SharkEnv.useTachyon && (!SharkEnv.selectiveTachyon || tableName.contains("tachyon"))) {
         val rawTable = SharkEnvSlave.tachyonClient.getRawTable(rawTableId)
         val partitionIter =
           if (tablePartitionBuilder != null) {
@@ -254,10 +245,21 @@ class CacheSinkOperator extends TerminalOperator {
 
         //statsAcc += (split, serde.stats)
         partitionIter
+      } else {
+        val partition =
+          if (tablePartitionBuilder != null) {
+            Iterator(tablePartitionBuilder.asInstanceOf[TablePartitionBuilder].build)
+          } else {
+            // This partition is empty.
+            Iterator()
+          }
+        //statsAcc += (split, serde.stats)
+        partition
       }
     }
 
-    if (!SharkEnv.useTachyon) {
+    if (SharkEnv.useTachyon && (!SharkEnv.selectiveTachyon || tableName.contains("tachyon"))) {
+    } else{
       // Put the RDD in cache and force evaluate it.
       op.logInfo("Putting RDD for %s in cache, %s %s %s %s".format(
         tableName,
