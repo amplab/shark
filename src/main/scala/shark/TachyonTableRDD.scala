@@ -56,9 +56,7 @@ class TachyonTableRDD(
   }
 
   override def getPreferredLocations(split: Partition): Seq[String] = {
-    // TODO: Filtering out "localhost" in case of file:// URLs
-    val tachyonSplit = split.asInstanceOf[TachyonTablePartition]
-    tachyonSplit.locations.filter(_ != "localhost")
+    split.asInstanceOf[TachyonTablePartition].locations
   }
 
   // override def checkpoint() {
