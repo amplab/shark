@@ -202,14 +202,14 @@ class CacheSinkOperator extends TerminalOperator {
     val statsAcc = SharkEnv.sc.accumulableCollection(ArrayBuffer[(Int, TableStats)]())
     val op = OperatorSerializationWrapper(this)
 
-    SharkEnv.tachyonClient.mkdir("/sharktable")
-    val rawTableId: Int = SharkEnv.tachyonClient.createRawTable(
-      "/sharktable/" + tableName, numColumns + 1)
+    var rawTableId: Int = -1;
+    if (SharkEnv.useTachyon) {
+      SharkEnv.tachyonClient.mkdir("/sharktable")
+      rawTableId = SharkEnv.tachyonClient.createRawTable("/sharktable/" + tableName, numColumns + 1)
+    }
 
     // Serialize the RDD on all partitions before putting it into the cache.
     val rdd = inputRdd.mapPartitionsWithIndex { case(split, iter) =>
-      val rawTable = SharkEnvSlave.tachyonClient.getRawTable(rawTableId)
-
       op.initializeOnSlave()
 
       val serde = new ColumnarSerDe
@@ -220,39 +220,54 @@ class CacheSinkOperator extends TerminalOperator {
         tablePartitionBuilder = serde.serialize(row.asInstanceOf[AnyRef], op.objectInspector)
       }
 
-      val partitionIter =
-        if (tablePartitionBuilder != null) {
-          var partition = tablePartitionBuilder.asInstanceOf[TablePartitionBuilder].build
+      if (!SharkEnv.useTachyon) {
+        val partition =
+          if (tablePartitionBuilder != null) {
+            Iterator(tablePartitionBuilder.asInstanceOf[TablePartitionBuilder].build)
+          } else {
+            // This partition is empty.
+            Iterator()
+          }
+        //statsAcc += (split, serde.stats)
+        partition
+      } else {
+        val rawTable = SharkEnvSlave.tachyonClient.getRawTable(rawTableId)
+        val partitionIter =
+          if (tablePartitionBuilder != null) {
+            var partition = tablePartitionBuilder.asInstanceOf[TablePartitionBuilder].build
 
-          partition.toTachyon.zipWithIndex.foreach { case(buffer, i) =>
-            op.logInfo("Filing Column " + i + " partition " + split + " into Tachyon")
-            val rawColumn = rawTable.getRawColumn(i)
-            rawColumn.createPartition(split)
-            val file = rawColumn.getPartition(split)
-            file.open("w")
-            file.append(buffer)
-            file.close()
+            partition.toTachyon.zipWithIndex.foreach { case(buffer, i) =>
+              op.logInfo("Filing Column " + i + " partition " + split + " into Tachyon")
+              val rawColumn = rawTable.getRawColumn(i)
+              rawColumn.createPartition(split)
+              val file = rawColumn.getPartition(split)
+              file.open("w")
+              file.append(buffer)
+              file.close()
+            }
+
+            partition.iterator
+          } else {
+            // This partition is empty.
+            Iterator()
           }
 
-          partition.iterator
-        } else {
-          // This partition is empty.
-          Iterator()
-        }
-
-      //statsAcc += (split, serde.stats)
-      partitionIter
+        //statsAcc += (split, serde.stats)
+        partitionIter
+      }
     }
 
-    // Put the RDD in cache and force evaluate it.
-    // op.logInfo("Putting RDD for %s in cache, %s %s %s %s".format(
-    //   tableName,
-    //   if (storageLevel.deserialized) "deserialized" else "serialized",
-    //   if (storageLevel.useMemory) "in memory" else "",
-    //   if (storageLevel.useMemory && storageLevel.useDisk) "and" else "",
-    //   if (storageLevel.useDisk) "on disk" else ""))
+    if (!SharkEnv.useTachyon) {
+      // Put the RDD in cache and force evaluate it.
+      op.logInfo("Putting RDD for %s in cache, %s %s %s %s".format(
+        tableName,
+        if (storageLevel.deserialized) "deserialized" else "serialized",
+        if (storageLevel.useMemory) "in memory" else "",
+        if (storageLevel.useMemory && storageLevel.useDisk) "and" else "",
+        if (storageLevel.useDisk) "on disk" else ""))
 
-    // SharkEnv.cache.put(tableName, rdd, storageLevel)
+      SharkEnv.cache.put(tableName, rdd, storageLevel)
+    }
     rdd.foreach(_ => Unit)
 
     // Report remaining memory.

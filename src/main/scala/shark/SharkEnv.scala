@@ -76,7 +76,12 @@ object SharkEnv extends LogHelper {
 
   val cache: CacheManager = new CacheManager
 
-  val tachyonClient = TachyonClient.getClient(System.getenv("TACHYON_MASTER"))
+  var useTachyon: Boolean = false
+  var tachyonClient: TachyonClient = null
+  if (System.getenv("TACHYON_MASTER") != null) {
+    tachyonClient = TachyonClient.getClient(System.getenv("TACHYON_MASTER"))
+    useTachyon = true
+  }
 
   // The following line turns Kryo serialization debug log on. It is extremely chatty.
   //com.esotericsoftware.minlog.Log.set(com.esotericsoftware.minlog.Log.LEVEL_DEBUG)
@@ -112,5 +117,11 @@ object SharkEnvSlave {
    * that object in a synchronized lock on this.
    */
   val objectInspectorLock: AnyRef = new Object()
-  val tachyonClient = TachyonClient.getClient(System.getenv("TACHYON_MASTER"))
+
+  var useTachyon: Boolean = false
+  var tachyonClient: TachyonClient = null
+  if (System.getenv("TACHYON_MASTER") != null) {
+    tachyonClient = TachyonClient.getClient(System.getenv("TACHYON_MASTER"))
+    useTachyon = true
+  }
 }

@@ -100,11 +100,12 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     assert(parentOperators.size == 0)
     val tableKey: String = tableDesc.getTableName.split('.')(1)
 
-    val fileId = SharkEnv.tachyonClient.getFileId("/sharktable/" + tableKey)
-
-    if (fileId != -1) {
-      logInfo("Loading table from Tachyon " + tableKey)
-      return new shark.TachyonTableRDD(SharkEnv.sc, "/sharktable/" + tableKey)
+    if (SharkEnv.useTachyon) {
+      val fileId = SharkEnv.tachyonClient.getFileId("/sharktable/" + tableKey)
+      if (fileId != -1) {
+        logInfo("Loading table from Tachyon " + tableKey)
+        return new shark.TachyonTableRDD(SharkEnv.sc, "/sharktable/" + tableKey)
+      }
     }
 
     SharkEnv.cache.get(tableKey) match {
