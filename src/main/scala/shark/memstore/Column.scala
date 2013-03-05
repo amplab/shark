@@ -18,11 +18,14 @@
 package shark.memstore
 
 import org.apache.hadoop.hive.serde2.ByteStream
+import org.apache.hadoop.hive.serde2.`lazy`.{ByteArrayRef, LazyBinary}
+import org.apache.hadoop.hive.serde2.lazybinary.LazyBinaryObject
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.{BooleanObjectInspector,
   ByteObjectInspector, ShortObjectInspector, IntObjectInspector, LongObjectInspector,
-  FloatObjectInspector, DoubleObjectInspector, StringObjectInspector}
-import org.apache.hadoop.io.Text
+  FloatObjectInspector, DoubleObjectInspector, StringObjectInspector, TimestampObjectInspector}
+import org.apache.hadoop.io.{BytesWritable, Text}
+
 
 
 /**
@@ -192,6 +195,32 @@ object Column {
     override def append(o: Object, oi: ObjectInspector) {
       val bytes = o.asInstanceOf[ByteStream.Output]
       format.append(bytes)
+    }
+
+    override def build = new Column(format.build, ColumnStats.GenericColumnNoStats)
+  }
+
+  class TimestampColumnBuilder(initialSize: Int) extends ColumnBuilder {
+    val format = new UncompressedColumnFormat.TimestampColumnFormat( initialSize)
+
+    override def append(o: Object, oi: ObjectInspector) {
+      if (o == null) {
+        format.appendNull()
+      } else {
+        val v = oi.asInstanceOf[TimestampObjectInspector].getPrimitiveJavaObject(o)
+        format.append(v)
+      }
+    }
+
+    override def build = new Column(format.build, ColumnStats.GenericColumnNoStats)
+  }
+
+  class BinaryColumnBuilder(outputOI: ObjectInspector, initialSize: Int) extends ColumnBuilder {
+    
+    val format = new UncompressedColumnFormat.BinaryColumnFormat(outputOI, initialSize)
+    
+    override def append(o: Object, oi: ObjectInspector) {
+      format.append(o.asInstanceOf[LazyBinary])    
     }
 
     override def build = new Column(format.build, ColumnStats.GenericColumnNoStats)

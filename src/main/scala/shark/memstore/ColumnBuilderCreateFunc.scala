@@ -51,6 +51,8 @@ object ColumnBuilderCreateFunc {
           case PrimitiveCategory.STRING =>
             new TextColumnBuilder(new TextColumnFormat(initialSize), TextColumnNoStats)
           case PrimitiveCategory.VOID => new VoidColumnBuilder()
+          case PrimitiveCategory.TIMESTAMP => new TimestampColumnBuilder(initialSize)
+          case PrimitiveCategory.BINARY => new BinaryColumnBuilder(oi, initialSize)
           case _ => throw new Exception("Invalid primitive object inspector category")
         }
       }

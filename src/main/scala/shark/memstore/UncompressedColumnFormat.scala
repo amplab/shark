@@ -17,6 +17,7 @@
 
 package shark.memstore
 
+import java.sql.Timestamp
 import it.unimi.dsi.fastutil.booleans.BooleanArrayList
 import it.unimi.dsi.fastutil.bytes.ByteArrayList
 import it.unimi.dsi.fastutil.doubles.DoubleArrayList
@@ -24,15 +25,23 @@ import it.unimi.dsi.fastutil.floats.FloatArrayList
 import it.unimi.dsi.fastutil.ints.IntArrayList
 import it.unimi.dsi.fastutil.longs.LongArrayList
 import it.unimi.dsi.fastutil.shorts.ShortArrayList
-
 import javaewah.EWAHCompressedBitmap
-
 import org.apache.hadoop.hive.serde2.ByteStream
 import org.apache.hadoop.hive.serde2.io.{ByteWritable, DoubleWritable, ShortWritable}
 import org.apache.hadoop.hive.serde2.`lazy`.{ByteArrayRef, LazyFactory, LazyObject}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.io.{BooleanWritable, IntWritable, LongWritable, FloatWritable, Text,
   NullWritable}
+import org.apache.hadoop.hive.serde2.`lazy`.LazyBinary
+import org.apache.hadoop.hive.serde2.`lazy`.objectinspector.primitive.LazyBinaryObjectInspector
+import org.apache.hadoop.hive.serde2.lazybinary.LazyBinaryBinary
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.WritableBinaryObjectInspector
+import org.apache.hadoop.hive.serde2.lazybinary.LazyBinaryFactory
+import org.apache.hadoop.hive.serde2.lazybinary.LazyBinaryFactory
+import org.apache.hadoop.hive.serde2.io.TimestampWritable
+import org.apache.hadoop.hive.serde2.lazybinary.LazyBinaryObject
+import org.apache.hadoop.hive.serde2.lazybinary.LazyBinaryNonPrimitive
+import org.apache.hadoop.io.BytesWritable
 
 
 trait UncompressedColumnFormat[T] extends NullBitmapColumnFormat[T] {
@@ -319,4 +328,75 @@ object UncompressedColumnFormat {
       }
     }
   }
+
+  class BinaryColumnFormat(outputOI: ObjectInspector, initialSize: Int)
+    extends ColumnFormat[LazyBinary] {
+    val arr = new ByteArrayList(initialSize * ColumnarSerDe.getFieldSize(outputOI))
+    val sizes = new IntArrayList(initialSize)
+    sizes.add(0)
+
+    override def size: Int = sizes.size - 1
+
+    override def append(v: LazyBinary) {
+      val w = v.getWritableObject()
+      sizes.add(w.getLength())
+      arr.addElements(arr.size(), w.getBytes(), 0, w.getLength())
+    }
+
+    override def appendNull =
+      throw new UnsupportedOperationException("LazyColumnFormat.appendNull()")
+
+    override def build = {
+      // Not sure if we should make a copy of the array
+      arr.trim
+      sizes.trim
+      this
+    }
+
+    override def iterator: ColumnFormatIterator = new ColumnFormatIterator {
+      var _position = 0
+      var _offset = 0
+      val bw = new BytesWritable
+      override def nextRow() {
+        _offset += sizes.getInt(_position)
+        _position += 1
+      }
+      override def current(): Object = {
+        val size = sizes.get(_position)
+        if (size >= 0) {
+          bw.set(arr.elements(), _offset, size)
+          bw
+        } else {
+          null
+        }
+      }
+    }
+  }
+
+  class TimestampColumnFormat(initialSize: Int) 
+  	extends UncompressedColumnFormat[Timestamp] {
+    val arr = new LongArrayList(initialSize)
+
+    override def size: Int = arr.size
+    override def append(v: Timestamp) = arr.add(v.getTime())
+
+    override def appendNull = {
+      nulls.set(arr.size)
+      arr.add(0)
+    }
+
+    override def build = {
+      arr.trim
+      this
+    }
+
+    override def iterator: ColumnFormatIterator = new NullBitmapColumnIterator[Timestamp](this) {
+      val writable = new TimestampWritable
+      override def getObject(i: Int): Object = {
+        writable.set(new Timestamp(arr.getLong(i)))
+        writable
+      }
+    }
+  }
+
 }
