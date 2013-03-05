@@ -17,15 +17,34 @@
 
 package shark.memstore2.buffer
 
+import java.nio.{ByteBuffer, ByteOrder}
+
 
 /**
  * An implementation of the ByteBufferReader using methods from ByteBuffer.
  */
 class JavaByteBufferReader(buf: ByteBuffer) extends ByteBufferReader {
-  override def getByte(): Byte = buf.get()
-  override def getShort(): Short = buf.getShort()
-  override def getInt(): Int = buf.getInt()
-  override def getLong(): Long = buf.getLong()
-  override def getFloat(): Float = buf.getFloat()
-  override def getDouble(): Double = buf.getDouble()
+
+  val _buf = buf.duplicate()
+  _buf.order(ByteOrder.nativeOrder())
+
+  override def getByte(): Byte = _buf.get()
+
+  override def getBytes(dst: Array[Byte], length: Int) {
+    _buf.get(dst, 0, length)
+  }
+
+  override def getShort(): Short = _buf.getShort()
+
+  override def getInt(): Int = _buf.getInt()
+
+  override def getLong(): Long = _buf.getLong()
+
+  override def getFloat(): Float = _buf.getFloat()
+
+  override def getDouble(): Double = _buf.getDouble()
+
+  override def position(newPosition: Int) {
+    _buf.position(newPosition)
+  }
 }

@@ -17,30 +17,17 @@
 
 package shark.memstore2.buffer
 
-import java.nio.ByteBuffer
 
+/**
+ * Get Unsafe object using reflection.
+ */
+object Unsafe {
 
-trait ByteBufferReader {
-  def getByte(): Byte
-  def getBytes(dst: Array[Byte], length: Int)
-  def getShort(): Short
-  def getInt(): Int
-  def getLong(): Long
-  def getFloat(): Float
-  def getDouble(): Double
-  def position(newPosition: Int)
-}
-
-
-object ByteBufferReader {
-
-  def createUnsafeReader(buf: ByteBuffer): ByteBufferReader = {
-    if (buf.hasArray()) {
-      Console.flush()
-      new UnsafeHeapByteBufferReader(buf)
-    } else {
-      Console.flush()
-      new UnsafeDirectByteBufferReader(buf)
-    }
+  val unsafe: sun.misc.Unsafe = {
+    val unsafeField = classOf[sun.misc.Unsafe].getDeclaredField("theUnsafe")
+    unsafeField.setAccessible(true)
+    unsafeField.get(null).asInstanceOf[sun.misc.Unsafe]
   }
+
+  val BYTE_ARRAY_BASE_OFFSET = Unsafe.unsafe.arrayBaseOffset(classOf[Array[Byte]])
 }

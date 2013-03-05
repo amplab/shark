@@ -25,17 +25,20 @@ import org.apache.hadoop.hive.serde2.io.{ByteWritable, DoubleWritable, ShortWrit
 import org.apache.hadoop.io.{BooleanWritable, IntWritable, LongWritable, FloatWritable, Text,
   NullWritable}
 
+import shark.memstore2.buffer.ByteBufferReader
+
 
 /**
  * Iterator interface for a column. The iterator should be initialized by a byte
  * buffer, and next can be invoked to get the value for each cell.
  */
 trait ColumnIterator {
-  protected var _bytes: ByteBuffer = null
+  protected var _bytesReader: ByteBufferReader = null
 
   def initialize(bytes: ByteBuffer) {
-    _bytes = bytes.duplicate()
-    _bytes.order(ByteOrder.nativeOrder())
+    _bytesReader = ByteBufferReader.createUnsafeReader(bytes)
+    // Skip the first integer, which is metadata for the column type.
+    _bytesReader.position(4)
   }
 
   def next: Object
@@ -49,7 +52,7 @@ class BooleanColumnIterator extends ColumnIterator {
   private val _writable = new BooleanWritable
 
   override def next: Object = {
-    _writable.set(_bytes.get != 0)
+    _writable.set(_bytesReader.getByte() != 0)
     _writable
   }
 
@@ -61,7 +64,7 @@ class ByteColumnIterator extends ColumnIterator {
   private val _writable = new ByteWritable
 
   override def next: Object = {
-    _writable.set(_bytes.get)
+    _writable.set(_bytesReader.getByte())
     _writable
   }
 
@@ -73,7 +76,7 @@ class ShortColumnIterator extends ColumnIterator {
   private val _writable = new ShortWritable
 
   override def next: Object = {
-    _writable.set(_bytes.getShort)
+    _writable.set(_bytesReader.getShort())
     _writable
   }
 
@@ -85,7 +88,7 @@ class IntColumnIterator extends ColumnIterator {
   private val _writable = new IntWritable
 
   override def next: Object = {
-    _writable.set(_bytes.getInt)
+    _writable.set(_bytesReader.getInt())
     _writable
   }
 
@@ -97,7 +100,7 @@ class LongColumnIterator extends ColumnIterator {
   private val _writable = new LongWritable
 
   override def next: Object = {
-    _writable.set(_bytes.getLong)
+    _writable.set(_bytesReader.getLong())
     _writable
   }
 
@@ -109,7 +112,7 @@ class FloatColumnIterator extends ColumnIterator {
   private val _writable = new FloatWritable
 
   override def next: Object = {
-    _writable.set(_bytes.getFloat)
+    _writable.set(_bytesReader.getFloat())
     _writable
   }
 
@@ -121,7 +124,7 @@ class DoubleColumnIterator extends ColumnIterator {
   private val _writable = new DoubleWritable
 
   override def next: Object = {
-    _writable.set(_bytes.getDouble)
+    _writable.set(_bytesReader.getDouble())
     _writable
   }
 
@@ -140,11 +143,11 @@ class StringColumnIterator extends ColumnIterator {
   private val _writable = new Text
 
   override def next: Object = {
-    // TODO: This is very inefficient. We should build Text directly.
-    val length = _bytes.getInt
+    // TODO: This is very inefficient. We should build Text directly using Java reflection.
+    val length = _bytesReader.getInt
     if (length >= 0) {
       val newBytes = new Array[Byte](length)
-      _bytes.get(newBytes, 0, length)
+      _bytesReader.getBytes(newBytes, length)
       _writable.set(newBytes)
       _writable
     } else {

@@ -37,6 +37,22 @@ class ColumnIteratorSuite extends FunSuite {
       classOf[BooleanColumnIterator])
   }
 
+  test("non-null byte column") {
+    testNonNullColumnIterator(
+      Array[java.lang.Byte](1.toByte, 2.toByte, 15.toByte, 55.toByte, 0.toByte, 40.toByte),
+      new ByteColumnBuilder,
+      PrimitiveObjectInspectorFactory.writableByteObjectInspector,
+      classOf[ByteColumnIterator])
+  }
+
+  test("non-null short column") {
+    testNonNullColumnIterator(
+      Array[java.lang.Short](1.toShort, 2.toShort, -15.toShort, 355.toShort, 0.toShort, 40.toShort),
+      new ShortColumnBuilder,
+      PrimitiveObjectInspectorFactory.writableShortObjectInspector,
+      classOf[ShortColumnIterator])
+  }
+
   test("non-null int column") {
     testNonNullColumnIterator(
       Array[java.lang.Integer](0, 1, 2, 5, 134, -12, 1, 0, 99, 1),
@@ -44,6 +60,39 @@ class ColumnIteratorSuite extends FunSuite {
       PrimitiveObjectInspectorFactory.writableIntObjectInspector,
       classOf[IntColumnIterator])
   }
+
+  test("non-null long column") {
+    testNonNullColumnIterator(
+      Array[java.lang.Long](1.toShort, -345345.toShort, 15.toShort, 0.toShort, 23445456.toShort),
+      new LongColumnBuilder,
+      PrimitiveObjectInspectorFactory.writableLongObjectInspector,
+      classOf[LongColumnIterator])
+  }
+
+  test("non-null float column") {
+    testNonNullColumnIterator(
+      Array[java.lang.Float](1.1.toFloat, -2.5.toFloat, 20000.toFloat, 0.toFloat, 15.0.toFloat),
+      new FloatColumnBuilder,
+      PrimitiveObjectInspectorFactory.writableFloatObjectInspector,
+      classOf[FloatColumnIterator])
+  }
+
+  test("non-null double column") {
+    testNonNullColumnIterator(
+      Array[java.lang.Double](1.1, 2.2, -2.5, 20000, 0, 15.0),
+      new DoubleColumnBuilder,
+      PrimitiveObjectInspectorFactory.writableDoubleObjectInspector,
+      classOf[DoubleColumnIterator])
+  }
+
+  test("non-null string column") {
+    testNonNullColumnIterator(
+      Array[Text](new Text("a"), new Text(""), new Text("b"), new Text("Abcdz")),
+      new StringColumnBuilder,
+      PrimitiveObjectInspectorFactory.writableStringObjectInspector,
+      classOf[StringColumnIterator])
+  }
+
 
   def testNonNullColumnIterator[T](
     testData: Array[_ <: Object],
@@ -54,16 +103,23 @@ class ColumnIteratorSuite extends FunSuite {
     builder.initialize(5)
     testData.foreach(x => builder.append(x.asInstanceOf[T]))
     val buffer = builder.build
+    buffer.rewind()
 
     // parallelize to test concurrency
     (1 to 10).par.foreach { parallelIndex =>
       val iter = iteratorClass.newInstance.asInstanceOf[ColumnIterator]
-      iter.initialize(buffer.asReadOnlyBuffer)
+      iter.initialize(buffer)
       (0 until testData.size).foreach { i =>
         val expected = testData(i)
         val reality = writableOi.getPrimitiveJavaObject(iter.next)
-        assert((expected == null && reality == null) || reality == expected,
+
+        if (expected.isInstanceOf[Text]) {
+          assert((expected == null && reality == null) || reality.equals(expected.toString),
             "at position " + i + " expected " + expected + ", but saw " + reality)
+        } else {
+          assert((expected == null && reality == null) || reality == expected,
+            "at position " + i + " expected " + expected + ", but saw " + reality)
+        }
       }
     }
   }
