@@ -20,6 +20,9 @@ package shark.memstore2
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
+import shark.memstore2.column.ColumnIterator
+
+
 /**
  * TablePartition contains a whole partition of data in columnar format. It
  * simply contains a list of columns and their meta data. It should be built
@@ -52,7 +55,7 @@ class TablePartition(val numRows: Long, val columns: Array[ByteBuffer]) {
   def iterator: TablePartitionIterator = {
     val columnIterators: Array[ColumnIterator] = columns.map { case buffer: ByteBuffer =>
       val columnType = buffer.getInt()
-      val iter = ColumnIterators.getIteratorClass(columnType).newInstance
+      val iter = ColumnIterator.getIteratorClass(columnType).newInstance
       iter.initialize(buffer)
       iter
     }

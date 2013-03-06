@@ -15,29 +15,29 @@
  * limitations under the License.
  */
 
-package shark.memstore2
+package shark.memstore2.column
 
 import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
-import shark.memstore2.column.ColumnIterator
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 
 
-/**
- * An iterator for a partition of data. Each element returns a ColumnarStruct
- * that can be read by a ColumnarStructObjectInspector.
- */
-class TablePartitionIterator(val numRows: Long, val columnIterators: Array[ColumnIterator])
-  extends Iterator[ColumnarStruct] {
+class VoidColumnBuilder extends ColumnBuilder[Void] {
 
-  val struct = new ColumnarStruct(columnIterators)
+  override def initialize(initialSize: Int) {}
 
-  var position: Long = 0
+  override def append(o: Object, oi: ObjectInspector) {}
 
-  def hasNext(): Boolean = position < numRows
+  override def append(v: Void) {}
 
-  def next(): ColumnarStruct = {
-    position += 1
-    columnIterators.foreach(_.next)
-    struct
+  override def appendNull() {}
+
+  override def build: ByteBuffer = {
+    val buf = ByteBuffer.allocate(ColumnIterator.COLUMN_TYPE_LENGTH)
+    buf.order(ByteOrder.nativeOrder())
+    buf.putLong(ColumnIterator.VOID)
+    buf.rewind()
+    buf
   }
 }

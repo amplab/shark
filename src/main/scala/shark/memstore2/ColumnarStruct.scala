@@ -19,6 +19,8 @@ package shark.memstore2
 
 import java.util.{List => JList, ArrayList => JArrayList}
 
+import shark.memstore2.column.ColumnIterator
+
 
 class ColumnarStruct(columnIterators: Array[ColumnIterator]) {
 

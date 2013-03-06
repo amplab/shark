@@ -21,13 +21,21 @@ import java.nio.ByteBuffer
 
 
 trait ByteBufferReader {
+
   def getByte(): Byte
+
   def getBytes(dst: Array[Byte], length: Int)
+
   def getShort(): Short
+
   def getInt(): Int
+
   def getLong(): Long
+
   def getFloat(): Float
+
   def getDouble(): Double
+
   def position(newPosition: Int)
 }
 

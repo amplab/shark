@@ -15,24 +15,72 @@
  * limitations under the License.
  */
 
-package shark.memstore2
+package shark.memstore2.column
+
+import java.nio.ByteBuffer
+
+import shark.memstore2.buffer.ByteBufferReader
+
+
+/**
+ * Iterator interface for a column. The iterator should be initialized by a byte
+ * buffer, and next can be invoked to get the value for each cell.
+ */
+trait ColumnIterator {
+  protected var _bytesReader: ByteBufferReader = null
+
+  def initialize(bytes: ByteBuffer) {
+    _bytesReader = ByteBufferReader.createUnsafeReader(bytes)
+    // Skip the first few bytes, which is metadata for the column type.
+    _bytesReader.position(ColumnIterator.COLUMN_TYPE_LENGTH)
+  }
+
+  def next: Object
+
+  def current: Object
+}
 
 
 /**
  * A mapping from an integer column type to the respective ColumnIterator class.
  */
-object ColumnIterators {
+object ColumnIterator {
+
+  // TODO: Implement Decimal data type.
 
   type IteratorType = Int
 
-  val COLUMN_TYPE_LENGTH = 4
+  val COLUMN_TYPE_LENGTH = 8
 
-  private val _iteratorClass = new Array[Class[_ <: ColumnIterator]](1200)
+  private val _iteratorClass = new Array[Class[_ <: ColumnIterator]](2000)
 
   def getIteratorClass(columnType: IteratorType): Class[_ <: ColumnIterator] = {
     _iteratorClass(columnType)
   }
 
+  /////////////////////////////////////////////////////////////////////////////
+  // List of data type sizes.
+  /////////////////////////////////////////////////////////////////////////////
+  val BOOLEAN_SIZE = 1
+  val BYTE_SIZE = 1
+  val SHORT_SIZE = 2
+  val INT_SIZE = 4
+  val LONG_SIZE = 8
+  val FLOAT_SIZE = 4
+  val DOUBLE_SIZE = 8
+  val TIMESTAMP_SIZE = 12
+
+  // Strings, binary types, and complex types (map, list) are assumed to be 16 bytes on average.
+  val BINARY_SIZE = 16
+  val STRING_SIZE = 8
+  val COMPLEX_TYPE_SIZE = 16
+
+  // Void columns are represented by NullWritable, which is a singleton.
+  val NULL_SIZE = 0
+
+  /////////////////////////////////////////////////////////////////////////////
+  // List of column iterators.
+  /////////////////////////////////////////////////////////////////////////////
   val BOOLEAN = 0
   _iteratorClass(BOOLEAN) = classOf[BooleanColumnIterator]
 
@@ -76,13 +124,11 @@ object ColumnIterators {
 
   val STRING_NULLABLE = 801
 
-  val LAZY = 900
-  //_iteratorClass(LAZY) = classOf[LazyColumnIterator]
-
-  val LAZY_NULLABLE = 901
+  val COMPLEX = 900
+  _iteratorClass(COMPLEX) = classOf[ComplexColumnIterator]
 
   val TIMESTAMP = 1000
-  //_iteratorClass(TIMESTAMP) = classOf[TimestampColumnIterator]
+  _iteratorClass(TIMESTAMP) = classOf[TimestampColumnIterator]
 
   val TIMESTAMP_NULLABLE = 1001
 
@@ -90,5 +136,4 @@ object ColumnIterators {
   //_iteratorClass(BINARY) = classOf[BinaryColumnIterator]
 
   val BINARY_NULLABLE = 1101
-
 }

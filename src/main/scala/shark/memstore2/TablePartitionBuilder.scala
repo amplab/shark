@@ -28,6 +28,8 @@ import org.apache.hadoop.hive.serde2.objectinspector.StructField
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 import org.apache.hadoop.io.Writable
 
+import shark.memstore2.column.ColumnBuilder
+
 
 /**
  * Used to build a TablePartition. This is used in the serializer to convert a
@@ -40,8 +42,7 @@ class TablePartitionBuilder(oi: StructObjectInspector, initialColumnSize: Int)
   val fields: JList[_ <: StructField] = oi.getAllStructFieldRefs
 
   val columnBuilders = Array.tabulate[ColumnBuilder[_]](fields.size) { i =>
-    val columnBuilder = TablePartitionBuilder.createColumnBuilder(
-      fields.get(i).getFieldObjectInspector)
+    val columnBuilder = ColumnBuilder.create(fields.get(i).getFieldObjectInspector)
     columnBuilder.initialize(initialColumnSize)
     columnBuilder
   }
@@ -50,8 +51,8 @@ class TablePartitionBuilder(oi: StructObjectInspector, initialColumnSize: Int)
     numRows += 1
   }
 
-  def append(id: Int, o: Object, oi: ObjectInspector) {
-    columnBuilders(id).append(o, oi)
+  def append(columnIndex: Int, o: Object, oi: ObjectInspector) {
+    columnBuilders(columnIndex).append(o, oi)
   }
 
   def build: TablePartition = {
@@ -61,29 +62,4 @@ class TablePartitionBuilder(oi: StructObjectInspector, initialColumnSize: Int)
   // We don't use these, but want to maintain Writable interface for SerDe
   override def write(out: DataOutput) {}
   override def readFields(in: DataInput) {}
-}
-
-
-object TablePartitionBuilder {
-
-  def createColumnBuilder(columnOi: ObjectInspector): ColumnBuilder[_] = {
-    columnOi.getCategory match {
-      case ObjectInspector.Category.PRIMITIVE => {
-        columnOi.asInstanceOf[PrimitiveObjectInspector].getPrimitiveCategory match {
-          case PrimitiveCategory.BOOLEAN => new BooleanColumnBuilder
-          case PrimitiveCategory.BYTE    => new ByteColumnBuilder
-          case PrimitiveCategory.SHORT   => new ShortColumnBuilder
-          case PrimitiveCategory.INT     => new IntColumnBuilder
-          case PrimitiveCategory.LONG    => new LongColumnBuilder
-          case PrimitiveCategory.FLOAT   => new FloatColumnBuilder
-          case PrimitiveCategory.DOUBLE  => new DoubleColumnBuilder
-          case PrimitiveCategory.STRING  => new StringColumnBuilder
-          case PrimitiveCategory.VOID    => null
-          // TODO: add timestamp and binary column.
-          case _ => throw new Exception("Invalid primitive object inspector category")
-        }
-      }
-      case _ => null // new LazyColumnBuilder(oi, initialSize)
-    }
-  }
 }

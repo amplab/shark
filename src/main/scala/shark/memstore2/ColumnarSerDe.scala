@@ -32,7 +32,9 @@ import org.apache.hadoop.hive.serde2.objectinspector.{ListObjectInspector, MapOb
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
 import org.apache.hadoop.io.Writable
 
-import shark.{LogHelper, SharkConfVars}
+import shark.LogHelper
+import shark.SharkConfVars
+import shark.memstore2.column.ColumnIterator
 
 
 class ColumnarSerDe extends SerDe with LogHelper {
@@ -125,67 +127,35 @@ class ColumnarSerDe extends SerDe with LogHelper {
 
 object ColumnarSerDe {
 
-  // Sizes of primitive types
-  val BOOLEAN_SIZE = 1
-  val BYTE_SIZE = 1
-  val SHORT_SIZE = 2
-  val INT_SIZE = 4
-  val LONG_SIZE = 8
-  val FLOAT_SIZE = 4
-  val DOUBLE_SIZE = 8
-
-  // Strings are assumed to be 16 bytes on average.
-  val STRING_SIZE = 16
-
-  // Void columns are represented by NullWritable, which is a singleton, so it's not
-  // large enough to matter.
-  val NULL_SIZE = 0
-
-  // Estimates for average sizes of Lists and Maps.
-  val MAP_SIZE = 5
-  val LIST_SIZE = 5
-
-  // Determine average field size from the ObjectInspector passed. Should remove parts for
-  // nested data once those are supported.
+  // Determine the size of the field.
   def getFieldSize(oi: ObjectInspector): Int = {
     val size = oi.getCategory match {
       case ObjectInspector.Category.PRIMITIVE => {
         oi.asInstanceOf[PrimitiveObjectInspector].getPrimitiveCategory match {
-          case PrimitiveCategory.BOOLEAN => BOOLEAN_SIZE
-          case PrimitiveCategory.BYTE => BYTE_SIZE
-          case PrimitiveCategory.SHORT => SHORT_SIZE
-          case PrimitiveCategory.INT => INT_SIZE
-          case PrimitiveCategory.LONG => LONG_SIZE
-          case PrimitiveCategory.FLOAT => FLOAT_SIZE
-          case PrimitiveCategory.DOUBLE => DOUBLE_SIZE
-          case PrimitiveCategory.STRING => STRING_SIZE
-          case PrimitiveCategory.VOID => NULL_SIZE
+          case PrimitiveCategory.BOOLEAN   => ColumnIterator.BOOLEAN_SIZE
+          case PrimitiveCategory.BYTE      => ColumnIterator.BYTE_SIZE
+          case PrimitiveCategory.SHORT     => ColumnIterator.SHORT_SIZE
+          case PrimitiveCategory.INT       => ColumnIterator.INT_SIZE
+          case PrimitiveCategory.LONG      => ColumnIterator.LONG_SIZE
+          case PrimitiveCategory.FLOAT     => ColumnIterator.FLOAT_SIZE
+          case PrimitiveCategory.DOUBLE    => ColumnIterator.DOUBLE_SIZE
+          case PrimitiveCategory.STRING    => ColumnIterator.STRING_SIZE
+          case PrimitiveCategory.TIMESTAMP => ColumnIterator.TIMESTAMP_SIZE
+          case PrimitiveCategory.BINARY    => ColumnIterator.BINARY_SIZE
+          case PrimitiveCategory.VOID      => ColumnIterator.NULL_SIZE
+          // TODO: add decimal type.
+          // TODO: add binary type.
           case _ => throw new Exception("Invalid primitive object inspector category")
         }
       }
-      case ObjectInspector.Category.LIST => {
-        val listOISize = getFieldSize(
-          oi.asInstanceOf[ListObjectInspector].getListElementObjectInspector)
-        LIST_SIZE * listOISize
-      }
+      case ObjectInspector.Category.LIST   => ColumnIterator.COMPLEX_TYPE_SIZE
+      case ObjectInspector.Category.UNION  => ColumnIterator.COMPLEX_TYPE_SIZE
+      case ObjectInspector.Category.MAP    => ColumnIterator.COMPLEX_TYPE_SIZE
       case ObjectInspector.Category.STRUCT => {
         val fieldRefs: JList[_ <: StructField] =
           oi.asInstanceOf[StructObjectInspector].getAllStructFieldRefs
         fieldRefs.foldLeft(0)((sum, structField) =>
           sum + getFieldSize(structField.getFieldObjectInspector))
-      }
-      case ObjectInspector.Category.UNION => {
-        val unionOIs: JList[ObjectInspector] =
-          oi.asInstanceOf[UnionObjectInspector].getObjectInspectors
-        val unionOISizes = unionOIs.foldLeft(0)((sum, unionOI) =>
-          sum + getFieldSize(unionOI))
-        unionOISizes / unionOIs.size
-      }
-      case ObjectInspector.Category.MAP => {
-        val mapOI = oi.asInstanceOf[MapObjectInspector]
-        val keySize = getFieldSize(mapOI.getMapKeyObjectInspector())
-        val valueSize = getFieldSize(mapOI.getMapValueObjectInspector())
-        MAP_SIZE * (keySize + valueSize)
       }
       case _ => throw new Exception("Invalid primitive object inspector category")
     }

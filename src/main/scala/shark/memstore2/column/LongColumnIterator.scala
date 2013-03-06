@@ -15,29 +15,18 @@
  * limitations under the License.
  */
 
-package shark.memstore2
+package shark.memstore2.column
 
-import java.nio.ByteBuffer
-
-import shark.memstore2.column.ColumnIterator
+import org.apache.hadoop.io.LongWritable
 
 
-/**
- * An iterator for a partition of data. Each element returns a ColumnarStruct
- * that can be read by a ColumnarStructObjectInspector.
- */
-class TablePartitionIterator(val numRows: Long, val columnIterators: Array[ColumnIterator])
-  extends Iterator[ColumnarStruct] {
+class LongColumnIterator extends ColumnIterator {
+  private val _writable = new LongWritable
 
-  val struct = new ColumnarStruct(columnIterators)
-
-  var position: Long = 0
-
-  def hasNext(): Boolean = position < numRows
-
-  def next(): ColumnarStruct = {
-    position += 1
-    columnIterators.foreach(_.next)
-    struct
+  override def next: Object = {
+    _writable.set(_bytesReader.getLong())
+    _writable
   }
+
+  override def current = _writable
 }

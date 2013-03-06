@@ -60,9 +60,6 @@ object SharkEnv extends LogHelper {
   System.setProperty("spark.serializer", classOf[spark.KryoSerializer].getName)
   System.setProperty("spark.kryo.registrator", classOf[KryoRegistrator].getName)
 
-  // Use Kryo to serialize closures. This is too buggy to be used.
-  //System.setProperty("spark.closure.serializer", "spark.KryoSerializer")
-
   val executorEnvVars = new HashMap[String, String]
   executorEnvVars.put("SCALA_HOME", getEnv("SCALA_HOME"))
   executorEnvVars.put("SPARK_MEM", getEnv("SPARK_MEM"))
