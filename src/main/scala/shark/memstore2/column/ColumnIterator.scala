@@ -133,7 +133,7 @@ object ColumnIterator {
   val TIMESTAMP_NULLABLE = 1001
 
   val BINARY = 1100
-  //_iteratorClass(BINARY) = classOf[BinaryColumnIterator]
+  _iteratorClass(BINARY) = classOf[BinaryColumnIterator]
 
   val BINARY_NULLABLE = 1101
 }

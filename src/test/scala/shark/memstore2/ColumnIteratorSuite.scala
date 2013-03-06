@@ -22,9 +22,15 @@ import java.sql.Timestamp
 import org.apache.hadoop.hive.serde2.io.ByteWritable
 import org.apache.hadoop.hive.serde2.io.DoubleWritable
 import org.apache.hadoop.hive.serde2.io.ShortWritable
+import org.apache.hadoop.hive.serde2.`lazy`.ByteArrayRef
+import org.apache.hadoop.hive.serde2.`lazy`.LazyBinary
+import org.apache.hadoop.hive.serde2.`lazy`.LazyFactory
+import org.apache.hadoop.hive.serde2.`lazy`.objectinspector.primitive.LazyPrimitiveObjectInspectorFactory
+import org.apache.hadoop.hive.serde2.lazybinary.LazyBinaryBinary
 import org.apache.hadoop.hive.serde2.objectinspector.ConstantObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive._
 import org.apache.hadoop.io._
+
 
 import org.scalatest.FunSuite
 
@@ -33,7 +39,7 @@ import shark.memstore2.column._
 
 class ColumnIteratorSuite extends FunSuite {
 
-  val PARALLEL_MODE = false
+  val PARALLEL_MODE = true
 
   test("non-null void column") {
     val builder = new VoidColumnBuilder
@@ -130,6 +136,28 @@ class ColumnIteratorSuite extends FunSuite {
     )
   }
 
+  test("non-null binary column") {
+    val rowOI = LazyPrimitiveObjectInspectorFactory.LAZY_BINARY_OBJECT_INSPECTOR
+    val binary1 = LazyFactory.createLazyPrimitiveClass(rowOI).asInstanceOf[LazyBinary]
+    val ref1 = new ByteArrayRef
+    val data = Array[Byte](0, 1, 2)
+    ref1.setData(data)
+    binary1.init(ref1, 0, 3)
+
+    testNonNullColumnIterator(
+      Array[LazyBinary](binary1),
+      new BinaryColumnBuilder,
+      PrimitiveObjectInspectorFactory.writableBinaryObjectInspector,
+      classOf[BinaryColumnIterator],
+      compareBinary)
+
+    def compareBinary(x: Object, y: Object): Boolean = {
+      val xdata = x.asInstanceOf[ByteArrayRef].getData
+      val ydata = y.asInstanceOf[LazyBinary].getWritableObject().getBytes()
+      java.util.Arrays.equals(xdata, ydata)
+    }
+  }
+
   def testNonNullColumnIterator[T](
     testData: Array[_ <: Object],
     builder: ColumnBuilder[T],
@@ -140,6 +168,10 @@ class ColumnIteratorSuite extends FunSuite {
     builder.initialize(5)
     testData.foreach(x => builder.append(x.asInstanceOf[T]))
     val buffer = builder.build
+    val columnType = buffer.getLong().toInt
+    buffer.rewind()
+
+    assert(ColumnIterator.getIteratorClass(columnType) === iteratorClass)
 
     def executeOneTest() {
       val iter = iteratorClass.newInstance.asInstanceOf[ColumnIterator]

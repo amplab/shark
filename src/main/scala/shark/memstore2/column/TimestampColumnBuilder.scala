@@ -75,7 +75,7 @@ class TimestampColumnBuilder extends ColumnBuilder[Timestamp] {
     val buf = ByteBuffer.allocate(
       _arrTime.size * 8 + _arrNanos.size * 4 + ColumnIterator.COLUMN_TYPE_LENGTH)
     buf.order(ByteOrder.nativeOrder())
-    buf.putLong(ColumnIterator.DOUBLE)
+    buf.putLong(ColumnIterator.TIMESTAMP)
     var i = 0
     while (i < _arrTime.size) {
       buf.putLong(_arrTime.get(i))

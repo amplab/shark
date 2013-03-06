@@ -132,6 +132,7 @@ object ColumnarSerDe {
     val size = oi.getCategory match {
       case ObjectInspector.Category.PRIMITIVE => {
         oi.asInstanceOf[PrimitiveObjectInspector].getPrimitiveCategory match {
+          case PrimitiveCategory.VOID      => ColumnIterator.NULL_SIZE
           case PrimitiveCategory.BOOLEAN   => ColumnIterator.BOOLEAN_SIZE
           case PrimitiveCategory.BYTE      => ColumnIterator.BYTE_SIZE
           case PrimitiveCategory.SHORT     => ColumnIterator.SHORT_SIZE
@@ -139,13 +140,13 @@ object ColumnarSerDe {
           case PrimitiveCategory.LONG      => ColumnIterator.LONG_SIZE
           case PrimitiveCategory.FLOAT     => ColumnIterator.FLOAT_SIZE
           case PrimitiveCategory.DOUBLE    => ColumnIterator.DOUBLE_SIZE
-          case PrimitiveCategory.STRING    => ColumnIterator.STRING_SIZE
           case PrimitiveCategory.TIMESTAMP => ColumnIterator.TIMESTAMP_SIZE
+          case PrimitiveCategory.STRING    => ColumnIterator.STRING_SIZE
           case PrimitiveCategory.BINARY    => ColumnIterator.BINARY_SIZE
-          case PrimitiveCategory.VOID      => ColumnIterator.NULL_SIZE
           // TODO: add decimal type.
-          // TODO: add binary type.
-          case _ => throw new Exception("Invalid primitive object inspector category")
+          case _ => throw new Exception(
+            "Invalid primitive object inspector category" + oi + " " +
+            oi.asInstanceOf[PrimitiveObjectInspector].getPrimitiveCategory)
         }
       }
       case ObjectInspector.Category.LIST   => ColumnIterator.COMPLEX_TYPE_SIZE
@@ -157,7 +158,8 @@ object ColumnarSerDe {
         fieldRefs.foldLeft(0)((sum, structField) =>
           sum + getFieldSize(structField.getFieldObjectInspector))
       }
-      case _ => throw new Exception("Invalid primitive object inspector category")
+      case _ => throw new Exception(
+        "Invalid object inspector category " + oi + " " + oi.getCategory)
     }
     size
   }

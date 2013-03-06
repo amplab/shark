@@ -59,9 +59,10 @@ object ColumnBuilder {
           case PrimitiveCategory.STRING    => new StringColumnBuilder
           case PrimitiveCategory.VOID      => new VoidColumnBuilder
           case PrimitiveCategory.TIMESTAMP => new TimestampColumnBuilder
-          // TODO: add binary column.
+          case PrimitiveCategory.BINARY    => new BinaryColumnBuilder
           // TODO: add decimal column.
-          case _ => throw new Exception("Invalid primitive object inspector category")
+          case _ => throw new Exception(
+            "Invalid primitive object inspector category" + columnOi.getCategory)
         }
       }
       case _ => new ComplexColumnBuilder(columnOi)
