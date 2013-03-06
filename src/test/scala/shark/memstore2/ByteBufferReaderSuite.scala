@@ -55,7 +55,7 @@ class ByteBufferReaderSuite extends FunSuite {
 
   def testPosition(reader: ByteBufferReader) {
     reader.position(4)
-    assert(reader.getLong() === 10000L)
+    assert(reader.getLong() === 10034534500L)
   }
 
   test("JavaByteBufferReader") {

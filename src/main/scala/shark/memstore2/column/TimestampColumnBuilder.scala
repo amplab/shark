@@ -21,8 +21,8 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.sql.Timestamp
 
-import it.unimi.dsi.fastutil.doubles.DoubleArrayList
 import it.unimi.dsi.fastutil.ints.IntArrayList
+import it.unimi.dsi.fastutil.longs.LongArrayList
 
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector
@@ -33,13 +33,13 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectIn
  */
 class TimestampColumnBuilder extends ColumnBuilder[Timestamp] {
 
-  private var _arrTime: DoubleArrayList = null
+  private var _arrTime: LongArrayList = null
   private var _arrNanos: IntArrayList = null
 
   private var _hasNanoField = false
 
   override def initialize(initialSize: Int) {
-    _arrTime = new DoubleArrayList(initialSize)
+    _arrTime = new LongArrayList(initialSize)
     _arrNanos = new IntArrayList(initialSize)
     _hasNanoField = false
     super.initialize(initialSize)
@@ -78,7 +78,7 @@ class TimestampColumnBuilder extends ColumnBuilder[Timestamp] {
     buf.putLong(ColumnIterator.DOUBLE)
     var i = 0
     while (i < _arrTime.size) {
-      buf.putDouble(_arrTime.get(i))
+      buf.putLong(_arrTime.get(i))
       buf.putInt(_arrNanos.get(i))
       i += 1
     }
