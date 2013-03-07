@@ -26,7 +26,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
 
 
-trait ColumnBuilder[T] {
+trait ColumnBuilder[@specialized(Boolean, Byte, Short, Int, Long, Float, Double) T] {
   protected var _nulls: EWAHCompressedBitmap = null
 
   def initialize(initialSize: Int) {

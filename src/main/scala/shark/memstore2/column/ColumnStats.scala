@@ -35,11 +35,12 @@ sealed trait ColumnStats[@specialized(Boolean, Byte, Short, Int, Long, Float, Do
 
   def append(v: T)
 
-  def appendNull() { _nullCount += 1 }
-
   protected def _min: T
   protected def _max: T
 
+  def appendNull() { _nullCount += 1 }
+
+  def nullCount: Int = _nullCount
   def min: T = _min
   def max: T = _max
 
