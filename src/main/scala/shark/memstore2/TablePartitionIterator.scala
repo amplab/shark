@@ -19,25 +19,47 @@ package shark.memstore2
 
 import java.nio.ByteBuffer
 
+import scala.collection.immutable.BitSet
+
 import shark.memstore2.column.ColumnIterator
 
 
 /**
  * An iterator for a partition of data. Each element returns a ColumnarStruct
  * that can be read by a ColumnarStructObjectInspector.
+ *
+ * @param numRows: total number of rows in this partition.
+ * @param columnIterators: iterators for all columns.
+ @ @param columnUsed: an optional bitmap indicating whether a column is used.
  */
-class TablePartitionIterator(val numRows: Long, val columnIterators: Array[ColumnIterator])
+class TablePartitionIterator(
+    val numRows: Long,
+    val columnIterators: Array[ColumnIterator],
+    val columnUsed: BitSet = null)
   extends Iterator[ColumnarStruct] {
-
-  val struct = new ColumnarStruct(columnIterators)
-
-  var position: Long = 0
 
   def hasNext(): Boolean = position < numRows
 
   def next(): ColumnarStruct = {
     position += 1
-    columnIterators.foreach(_.next)
+    var i = 0
+    while (i < columnIteratorsToAdvance.size) {
+      columnIteratorsToAdvance(i).next
+      i += 1
+    }
     struct
   }
+
+  // Track the list of columns we need to call next on.
+  val columnIteratorsToAdvance: Array[ColumnIterator] = {
+    if (columnUsed == null) {
+      columnIterators
+    } else {
+      columnUsed.map(colId => columnIterators(colId)).toArray
+    }
+  }
+
+  val struct = new ColumnarStruct(columnIterators)
+
+  var position: Long = 0
 }
