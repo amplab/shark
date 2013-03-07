@@ -33,6 +33,9 @@ class VoidColumnBuilder extends ColumnBuilder[Void] {
 
   override def appendNull() {}
 
+  // Don't collect stats for binary types.
+  override def stats: ColumnStats[Void] = null
+
   override def build: ByteBuffer = {
     val buf = ByteBuffer.allocate(ColumnIterator.COLUMN_TYPE_LENGTH)
     buf.order(ByteOrder.nativeOrder())

@@ -33,6 +33,8 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectIn
  */
 class TimestampColumnBuilder extends ColumnBuilder[Timestamp] {
 
+  private var _stats: ColumnStats.TimestampColumnStats = null
+
   private var _arrTime: LongArrayList = null
   private var _arrNanos: IntArrayList = null
 
@@ -42,6 +44,7 @@ class TimestampColumnBuilder extends ColumnBuilder[Timestamp] {
     _arrTime = new LongArrayList(initialSize)
     _arrNanos = new IntArrayList(initialSize)
     _hasNanoField = false
+    _stats = new ColumnStats.TimestampColumnStats
     super.initialize(initialSize)
   }
 
@@ -61,13 +64,17 @@ class TimestampColumnBuilder extends ColumnBuilder[Timestamp] {
       _hasNanoField = true
     }
     _arrNanos.add(nano)
+    _stats.append(v)
   }
 
   override def appendNull() {
     _nulls.set(_arrTime.size)
     _arrTime.add(0)
     _arrNanos.add(0)
+    _stats.appendNull()
   }
+
+  override def stats: ColumnStats.TimestampColumnStats = _stats
 
   override def build: ByteBuffer = {
     // TODO: This only supports non-null iterators.

@@ -55,6 +55,9 @@ class BinaryColumnBuilder extends ColumnBuilder[LazyBinary] {
     throw new UnsupportedOperationException("Binary column cannot be null.")
   }
 
+  // Don't collect stats for binary types.
+  override def stats: ColumnStats[LazyBinary] = null
+
   override def build: ByteBuffer = {
     val buf = ByteBuffer.allocate(
       _lengthArr.size * 4 + _arr.size + ColumnIterator.COLUMN_TYPE_LENGTH)

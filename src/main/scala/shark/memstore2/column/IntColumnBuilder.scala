@@ -27,10 +27,13 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.IntObjectInspecto
 
 
 class IntColumnBuilder extends ColumnBuilder[Int] {
+
+  private var _stats: ColumnStats.IntColumnStats = null
   private var _arr: IntArrayList = null
 
   override def initialize(initialSize: Int) {
     _arr = new IntArrayList(initialSize)
+    _stats = new ColumnStats.IntColumnStats
     super.initialize(initialSize)
   }
 
@@ -45,12 +48,16 @@ class IntColumnBuilder extends ColumnBuilder[Int] {
 
   override def append(v: Int) {
     _arr.add(v)
+    _stats.append(v)
   }
 
   override def appendNull() {
     _nulls.set(_arr.size)
     _arr.add(0)
+    _stats.appendNull()
   }
+
+  override def stats: ColumnStats.IntColumnStats = _stats
 
   override def build: ByteBuffer = {
     // TODO: This only supports non-null iterators.

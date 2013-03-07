@@ -27,10 +27,13 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.BooleanObjectInsp
 
 
 class BooleanColumnBuilder extends ColumnBuilder[Boolean] {
+
+  private var _stats: ColumnStats.BooleanColumnStats = null
   private var _arr: BooleanArrayList = null
 
   override def initialize(initialSize: Int) {
     _arr = new BooleanArrayList(initialSize)
+    _stats = new ColumnStats.BooleanColumnStats
     super.initialize(initialSize)
   }
 
@@ -45,12 +48,16 @@ class BooleanColumnBuilder extends ColumnBuilder[Boolean] {
 
   override def append(v: Boolean) {
     _arr.add(v)
+    _stats.append(v)
   }
 
   override def appendNull() {
     _nulls.set(_arr.size)
     _arr.add(false)
+    _stats.appendNull()
   }
+
+  override def stats: ColumnStats.BooleanColumnStats = _stats
 
   override def build: ByteBuffer = {
     // TODO: This only supports non-null iterators.

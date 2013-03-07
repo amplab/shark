@@ -30,6 +30,8 @@ import org.apache.hadoop.io.Text
 
 class StringColumnBuilder extends ColumnBuilder[Text] {
 
+  private var _stats: ColumnStats.StringColumnStats = null
+
   private val NULL_VALUE = -1
   private var _arr: ByteArrayList = null
   private var _lengthArr: IntArrayList = null
@@ -37,6 +39,7 @@ class StringColumnBuilder extends ColumnBuilder[Text] {
   override def initialize(initialSize: Int) {
     _arr = new ByteArrayList(initialSize * ColumnIterator.STRING_SIZE)
     _lengthArr = new IntArrayList(initialSize)
+    _stats = new ColumnStats.StringColumnStats
     super.initialize(initialSize)
   }
 
@@ -52,11 +55,15 @@ class StringColumnBuilder extends ColumnBuilder[Text] {
   override def append(v: Text) {
     _lengthArr.add(v.getLength)
     _arr.addElements(_arr.size, v.getBytes, 0, v.getLength)
+    _stats.append(v)
   }
 
   override def appendNull() {
     _lengthArr.add(NULL_VALUE)
+    _stats.appendNull()
   }
+
+  override def stats: ColumnStats.StringColumnStats = _stats
 
   override def build: ByteBuffer = {
     // TODO: This only supports non-null iterators.

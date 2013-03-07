@@ -27,10 +27,13 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.FloatObjectInspec
 
 
 class FloatColumnBuilder extends ColumnBuilder[Float] {
+
+  private var _stats: ColumnStats.FloatColumnStats = null
   private var _arr: FloatArrayList = null
 
   override def initialize(initialSize: Int) {
     _arr = new FloatArrayList(initialSize)
+    _stats = new ColumnStats.FloatColumnStats
     super.initialize(initialSize)
   }
 
@@ -45,12 +48,16 @@ class FloatColumnBuilder extends ColumnBuilder[Float] {
 
   override def append(v: Float) {
     _arr.add(v)
+    _stats.append(v)
   }
 
   override def appendNull() {
     _nulls.set(_arr.size)
     _arr.add(0)
+    _stats.appendNull()
   }
+
+  override def stats: ColumnStats.FloatColumnStats = _stats
 
   override def build: ByteBuffer = {
     // TODO: This only supports non-null iterators.

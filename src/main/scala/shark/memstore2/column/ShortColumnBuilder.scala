@@ -27,11 +27,14 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.ShortObjectInspec
 
 
 class ShortColumnBuilder extends ColumnBuilder[Short] {
+
+  private var _stats: ColumnStats.ShortColumnStats = null
   private var _arr: ShortArrayList = null
   private val zero: Short = 0
 
   override def initialize(initialSize: Int) {
     _arr = new ShortArrayList(initialSize)
+    _stats = new ColumnStats.ShortColumnStats
     super.initialize(initialSize)
   }
 
@@ -46,12 +49,16 @@ class ShortColumnBuilder extends ColumnBuilder[Short] {
 
   override def append(v: Short) {
     _arr.add(v)
+    _stats.append(v)
   }
 
   override def appendNull() {
     _nulls.set(_arr.size)
     _arr.add(zero)
+    _stats.appendNull()
   }
+
+  override def stats: ColumnStats.ShortColumnStats = _stats
 
   override def build: ByteBuffer = {
     // TODO: This only supports non-null iterators.

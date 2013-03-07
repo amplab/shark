@@ -27,11 +27,14 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.ByteObjectInspect
 
 
 class ByteColumnBuilder extends ColumnBuilder[Byte] {
+
+  private var _stats: ColumnStats.ByteColumnStats = null
   private var _arr: ByteArrayList = null
   private val zero: Byte = 0
 
   override def initialize(initialSize: Int) {
     _arr = new ByteArrayList(initialSize)
+    _stats = new ColumnStats.ByteColumnStats
     super.initialize(initialSize)
   }
 
@@ -46,12 +49,16 @@ class ByteColumnBuilder extends ColumnBuilder[Byte] {
 
   override def append(v: Byte) {
     _arr.add(v)
+    _stats.append(v)
   }
 
   override def appendNull() {
     _nulls.set(_arr.size)
     _arr.add(zero)
+    _stats.appendNull()
   }
+
+  override def stats: ColumnStats.ByteColumnStats = _stats
 
   override def build: ByteBuffer = {
     // TODO: This only supports non-null iterators.

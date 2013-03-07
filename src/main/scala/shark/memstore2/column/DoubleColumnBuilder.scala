@@ -27,10 +27,13 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.DoubleObjectInspe
 
 
 class DoubleColumnBuilder extends ColumnBuilder[Double] {
+
+  private var _stats: ColumnStats.DoubleColumnStats = null
   private var _arr: DoubleArrayList = null
 
   override def initialize(initialSize: Int) {
     _arr = new DoubleArrayList(initialSize)
+    _stats = new ColumnStats.DoubleColumnStats
     super.initialize(initialSize)
   }
 
@@ -45,12 +48,16 @@ class DoubleColumnBuilder extends ColumnBuilder[Double] {
 
   override def append(v: Double) {
     _arr.add(v)
+    _stats.append(v)
   }
 
   override def appendNull() {
     _nulls.set(_arr.size)
     _arr.add(0)
+    _stats.appendNull()
   }
+
+  override def stats: ColumnStats.DoubleColumnStats = _stats
 
   override def build: ByteBuffer = {
     // TODO: This only supports non-null iterators.

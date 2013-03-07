@@ -27,10 +27,13 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.LongObjectInspect
 
 
 class LongColumnBuilder extends ColumnBuilder[Long] {
+
+  private var _stats: ColumnStats.LongColumnStats = null
   private var _arr: LongArrayList = null
 
   override def initialize(initialSize: Int) {
     _arr = new LongArrayList(initialSize)
+    _stats = new ColumnStats.LongColumnStats
     super.initialize(initialSize)
   }
 
@@ -45,12 +48,16 @@ class LongColumnBuilder extends ColumnBuilder[Long] {
 
   override def append(v: Long) {
     _arr.add(v)
+    _stats.append(v)
   }
 
   override def appendNull() {
     _nulls.set(_arr.size)
     _arr.add(0)
+    _stats.appendNull()
   }
+
+  override def stats: ColumnStats.LongColumnStats = _stats
 
   override def build: ByteBuffer = {
     // TODO: This only supports non-null iterators.

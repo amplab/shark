@@ -39,6 +39,8 @@ trait ColumnBuilder[@specialized(Boolean, Byte, Short, Int, Long, Float, Double)
 
   def appendNull()
 
+  def stats: ColumnStats[T]
+
   def build: ByteBuffer
 }
 
