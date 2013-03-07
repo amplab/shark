@@ -46,10 +46,20 @@ class UnsafeDirectByteBufferReader(buf: java.nio.ByteBuffer) extends ByteBufferR
     v
   }
 
+  override def getShorts(dst: Array[Short], length: Int) {
+    Unsafe.unsafe.copyMemory(null, _offset, dst, Unsafe.BYTE_ARRAY_BASE_OFFSET, length * 2)
+    _offset += length * 2
+  }
+
   override def getInt(): Int = {
     val v = Unsafe.unsafe.getInt(_offset)
     _offset += 4
     v
+  }
+
+  override def getInts(dst: Array[Int], length: Int) {
+    Unsafe.unsafe.copyMemory(null, _offset, dst, Unsafe.BYTE_ARRAY_BASE_OFFSET, length * 4)
+    _offset += length * 4
   }
 
   override def getLong(): Long = {
@@ -58,16 +68,31 @@ class UnsafeDirectByteBufferReader(buf: java.nio.ByteBuffer) extends ByteBufferR
     v
   }
 
+  override def getLongs(dst: Array[Long], length: Int) {
+    Unsafe.unsafe.copyMemory(null, _offset, dst, Unsafe.BYTE_ARRAY_BASE_OFFSET, length * 8)
+    _offset += length * 8
+  }
+
   override def getFloat(): Float = {
     val v = Unsafe.unsafe.getFloat(_offset)
     _offset += 4
     v
   }
 
+  override def getFloats(dst: Array[Float], length: Int) {
+    Unsafe.unsafe.copyMemory(null, _offset, dst, Unsafe.BYTE_ARRAY_BASE_OFFSET, length * 4)
+    _offset += length * 4
+  }
+
   override def getDouble(): Double = {
     val v = Unsafe.unsafe.getDouble(_offset)
     _offset += 8
     v
+  }
+
+  override def getDoubles(dst: Array[Double], length: Int) {
+    Unsafe.unsafe.copyMemory(null, _offset, dst, Unsafe.BYTE_ARRAY_BASE_OFFSET, length * 8)
+    _offset += length * 8
   }
 
   override def position(newPosition: Int) {

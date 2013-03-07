@@ -24,17 +24,27 @@ trait ByteBufferReader {
 
   def getByte(): Byte
 
-  def getBytes(dst: Array[Byte], length: Int)
+  def getBytes(dst: Array[Byte], len: Int)
 
   def getShort(): Short
 
+  def getShorts(dst: Array[Short], len: Int)
+
   def getInt(): Int
+
+  def getInts(dst: Array[Int], len: Int)
 
   def getLong(): Long
 
+  def getLongs(dst: Array[Long], len: Int)
+
   def getFloat(): Float
 
+  def getFloats(dst: Array[Float], len: Int)
+
   def getDouble(): Double
+
+  def getDoubles(dst: Array[Double], len: Int)
 
   def position(newPosition: Int)
 }

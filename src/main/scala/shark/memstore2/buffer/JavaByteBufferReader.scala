@@ -36,13 +36,53 @@ class JavaByteBufferReader(buf: ByteBuffer) extends ByteBufferReader {
 
   override def getShort(): Short = _buf.getShort()
 
+  override def getShorts(dst: Array[Short], len: Int) {
+    var i = 0
+    while (i < len) {
+      dst(i) = _buf.getShort()
+      i += 1
+    }
+  }
+
   override def getInt(): Int = _buf.getInt()
+
+  override def getInts(dst: Array[Int], len: Int) {
+    var i = 0
+    while (i < len) {
+      dst(i) = _buf.getInt()
+      i += 1
+    }
+  }
 
   override def getLong(): Long = _buf.getLong()
 
+  override def getLongs(dst: Array[Long], len: Int) {
+    var i = 0
+    while (i < len) {
+      dst(i) = _buf.getLong()
+      i += 1
+    }
+  }
+
   override def getFloat(): Float = _buf.getFloat()
 
+  override def getFloats(dst: Array[Float], len: Int) {
+    var i = 0
+    while (i < len) {
+      dst(i) = _buf.getFloat()
+      i += 1
+    }
+  }
+
   override def getDouble(): Double = _buf.getDouble()
+
+  override def getDoubles(dst: Array[Double], len: Int) {
+    var i = 0
+    while (i < len) {
+      dst(i) = _buf.getDouble()
+      i += 1
+    }
+  }
 
   override def position(newPosition: Int) {
     _buf.position(newPosition)
