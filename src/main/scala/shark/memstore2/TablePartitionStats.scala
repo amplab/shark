@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,14 +15,21 @@
  * limitations under the License.
  */
 
-package shark.memstore.compress
+package shark.memstore2
+
+import shark.memstore2.column.ColumnStats
 
 
-trait IntIterable {
-  def size: Int
-  def iterator: IntIterator
-}
+/**
+ * Stores column statistics for a table partition.
+ */
+class TablePartitionStats(val stats: Array[ColumnStats[_]], val numRows: Long)
+  extends Serializable {
 
-trait IntIterator {
-  def next: Int
+  override def toString =
+    numRows + " rows\n" +
+    stats.zipWithIndex.map { case (column, index) =>
+      "  column " + index + " " +
+      { if (column != null) column.toString else "no column statistics" }
+    }.mkString("\n")
 }

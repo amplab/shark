@@ -74,7 +74,7 @@ class TimestampColumnBuilder extends ColumnBuilder[Timestamp] {
     _stats.appendNull()
   }
 
-  override def stats: ColumnStats.TimestampColumnStats = _stats
+  override def stats = _stats
 
   override def build: ByteBuffer = {
     // TODO: This only supports non-null iterators.

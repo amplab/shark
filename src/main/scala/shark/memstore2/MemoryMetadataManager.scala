@@ -15,16 +15,18 @@
  * limitations under the License.
  */
 
-package shark.memstore
+package shark.memstore2
 
 import spark.RDD
 import spark.storage.StorageLevel
 
-class CacheManager {
+
+class MemoryMetadataManager {
 
   private val _keyToRdd = new collection.mutable.HashMap[String, RDD[_]]()
 
-  private val _keyToStats = new collection.mutable.HashMap[String, collection.Map[Int, TableStats]]
+  private val _keyToStats =
+    new collection.mutable.HashMap[String, collection.Map[Int, TablePartitionStats]]
 
   def put(key: String, rdd: RDD[_], storageLevel: StorageLevel) {
     _keyToRdd(key.toLowerCase) = rdd
@@ -33,11 +35,11 @@ class CacheManager {
 
   def get(key: String): Option[RDD[_]] = _keyToRdd.get(key.toLowerCase)
 
-  def putStats(key: String, stats: collection.Map[Int, TableStats]) {
+  def putStats(key: String, stats: collection.Map[Int, TablePartitionStats]) {
     _keyToStats.put(key.toLowerCase, stats)
   }
 
-  def getStats(key: String): Option[collection.Map[Int, TableStats]] = {
+  def getStats(key: String): Option[collection.Map[Int, TablePartitionStats]] = {
     _keyToStats.get(key.toLowerCase)
   }
 

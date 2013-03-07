@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -35,7 +35,7 @@ import org.apache.hadoop.hive.serde2.{SerDe, SerDeUtils}
 import org.apache.hadoop.util.StringUtils
 
 import shark.execution.{SharkExplainTask, SharkExplainWork, SparkTask, SparkWork, TableRDD}
-import shark.memstore.ColumnarSerDe
+import shark.memstore2.ColumnarSerDe
 import shark.parse.{QueryContext, SharkSemanticAnalyzerFactory}
 
 
@@ -57,9 +57,7 @@ object SharkDriver extends LogHelper {
     SerDeUtils.registerSerDe(serdeClass.getName, serdeClass)
   }
 
-  registerSerDe(classOf[ColumnarSerDe.Basic])
-  registerSerDe(classOf[ColumnarSerDe.WithStats])
-  registerSerDe(classOf[ColumnarSerDe.Compressed])
+  registerSerDe(classOf[ColumnarSerDe])
 
   // Task factory. Add Shark specific tasks.
   TaskFactory.taskvec.addAll(Seq(

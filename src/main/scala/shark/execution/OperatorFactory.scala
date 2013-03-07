@@ -42,30 +42,28 @@ object OperatorFactory extends LogHelper {
     _createOperatorTree(hiveTerminalOp).asInstanceOf[TerminalOperator]
   }
 
-  def createSharkCacheOutputPlan(
+  def createSharkMemoryStoreOutputPlan(
       hiveTerminalOp: HiveOperator,
       tableName: String,
       storageLevel: StorageLevel,
       numColumns: Int): TerminalOperator = {
-    val terminalOp = _newOperatorInstance(
-      classOf[CacheSinkOperator], hiveTerminalOp).asInstanceOf[CacheSinkOperator]
-    terminalOp.tableName = tableName
-    terminalOp.storageLevel = storageLevel
-    terminalOp.numColumns = numColumns
-    _createAndSetParents(
-      terminalOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
+    val sinkOp = _newOperatorInstance(
+      classOf[MemoryStoreSinkOperator], hiveTerminalOp).asInstanceOf[MemoryStoreSinkOperator]
+    sinkOp.tableName = tableName
+    sinkOp.storageLevel = storageLevel
+    sinkOp.numColumns = numColumns
+    _createAndSetParents(sinkOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }
 
   def createSharkFileOutputPlan(hiveTerminalOp: HiveOperator): TerminalOperator = {
-    val terminalOp = _newOperatorInstance(classOf[FileSinkOperator], hiveTerminalOp)
+    val sinkOp = _newOperatorInstance(classOf[FileSinkOperator], hiveTerminalOp)
     _createAndSetParents(
-      terminalOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
+      sinkOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }
 
   def createSharkRddOutputPlan(hiveTerminalOp: HiveOperator): TerminalOperator = {
-    val terminalOp = _newOperatorInstance(classOf[TableRddSinkOperator], hiveTerminalOp)
-    _createAndSetParents(
-      terminalOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
+    val sinkOp = _newOperatorInstance(classOf[TableRddSinkOperator], hiveTerminalOp)
+    _createAndSetParents(sinkOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }
 
   /** Create a Shark operator given the Hive operator. */

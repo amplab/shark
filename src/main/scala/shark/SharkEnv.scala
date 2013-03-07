@@ -22,7 +22,7 @@ import scala.collection.mutable.{HashMap, HashSet}
 import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.hadoop.hive.conf.HiveConf
 
-import shark.memstore.CacheManager
+import shark.memstore2.MemoryMetadataManager
 
 import spark.SparkContext
 
@@ -71,7 +71,7 @@ object SharkEnv extends LogHelper {
 
   var sc: SparkContext = _
 
-  val cache: CacheManager = new CacheManager
+  val memoryMetadataManager = new MemoryMetadataManager
 
   var useTachyon: Boolean = false
   var tachyonClient: TachyonClient = null
@@ -91,8 +91,7 @@ object SharkEnv extends LogHelper {
   // The following line turns Kryo serialization debug log on. It is extremely chatty.
   //com.esotericsoftware.minlog.Log.set(com.esotericsoftware.minlog.Log.LEVEL_DEBUG)
 
-  // Keeps track of added JARs and files so that we don't add them twice in
-  // consecutive queries.
+  // Keeps track of added JARs and files so that we don't add them twice in consecutive queries.
   val addedFiles = HashSet[String]()
   val addedJars = HashSet[String]()
 

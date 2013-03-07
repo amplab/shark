@@ -56,7 +56,7 @@ class ComplexColumnBuilder(oi: ObjectInspector) extends ColumnBuilder[ByteStream
   }
 
   // Don't collect stats for complex data types.
-  override def stats: ColumnStats[ByteStream.Output] = null
+  override def stats = null
 
   override def build: ByteBuffer = {
     val buf = ByteBuffer.allocate(

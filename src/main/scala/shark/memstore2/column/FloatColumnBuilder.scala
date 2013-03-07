@@ -57,7 +57,7 @@ class FloatColumnBuilder extends ColumnBuilder[Float] {
     _stats.appendNull()
   }
 
-  override def stats: ColumnStats.FloatColumnStats = _stats
+  override def stats = _stats
 
   override def build: ByteBuffer = {
     // TODO: This only supports non-null iterators.

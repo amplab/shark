@@ -58,7 +58,7 @@ class ShortColumnBuilder extends ColumnBuilder[Short] {
     _stats.appendNull()
   }
 
-  override def stats: ColumnStats.ShortColumnStats = _stats
+  override def stats = _stats
 
   override def build: ByteBuffer = {
     // TODO: This only supports non-null iterators.

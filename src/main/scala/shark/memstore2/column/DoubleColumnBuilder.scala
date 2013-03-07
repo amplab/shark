@@ -57,7 +57,7 @@ class DoubleColumnBuilder extends ColumnBuilder[Double] {
     _stats.appendNull()
   }
 
-  override def stats: ColumnStats.DoubleColumnStats = _stats
+  override def stats = _stats
 
   override def build: ByteBuffer = {
     // TODO: This only supports non-null iterators.

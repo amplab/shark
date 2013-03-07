@@ -35,12 +35,15 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectIn
 import org.apache.hadoop.hive.ql.exec.MapSplitPruning
 import org.apache.hadoop.io.Writable
 
-import shark.{SharkConfVars, SharkEnv}
+import shark.SharkConfVars
+import shark.SharkEnv
 import shark.execution.serialization.XmlSerializer
-import shark.memstore.{TableStats}
 import shark.memstore2.TablePartition
+import shark.memstore2.TablePartitionStats
+
 import spark.RDD
-import spark.rdd.{PartitionPruningRDD, UnionRDD}
+import spark.rdd.PartitionPruningRDD
+import spark.rdd.UnionRDD
 
 
 class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopOperator {
@@ -108,7 +111,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
       }
     }
 
-    SharkEnv.cache.get(tableKey) match {
+    SharkEnv.memoryMetadataManager.get(tableKey) match {
       // The RDD already exists in cache manager. Try to load it from memory.
       // In this case, skip the normal execution chain, i.e. skip
       // preprocessRdd, processPartition, postprocessRdd, etc.
@@ -122,7 +125,8 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     logInfo("Loading table from cache " + tableKey)
 
     // Stats used for map pruning.
-    val splitToStats: collection.Map[Int, TableStats] = SharkEnv.cache.getStats(tableKey).get
+    val splitToStats: collection.Map[Int, TablePartitionStats] =
+      SharkEnv.memoryMetadataManager.getStats(tableKey).get
 
     // Run map pruning if the flag is set, there exists a filter predicate on
     // the input table and we have statistics on the table.
@@ -141,7 +145,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
 
         def prunePartitionFunc(split: Int): Boolean = {
           if (printPruneDebug) {
-            logInfo("\nSplit " + split + "\n" + splitToStats(split))
+            logInfo("\nPartition " + split + " " + splitToStats(split))
           }
           // Only test for pruning if we have stats on the column.
           val splitStats = splitToStats(split)

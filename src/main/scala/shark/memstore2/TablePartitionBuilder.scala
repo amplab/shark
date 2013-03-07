@@ -55,9 +55,9 @@ class TablePartitionBuilder(oi: StructObjectInspector, initialColumnSize: Int)
     columnBuilders(columnIndex).append(o, oi)
   }
 
-  def build: TablePartition = {
-    new TablePartition(numRows, columnBuilders.map(_.build))
-  }
+  def stats: TablePartitionStats = new TablePartitionStats(columnBuilders.map(_.stats), numRows)
+
+  def build: TablePartition = new TablePartition(numRows, columnBuilders.map(_.build))
 
   // We don't use these, but want to maintain Writable interface for SerDe
   override def write(out: DataOutput) {}

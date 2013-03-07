@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +17,8 @@
 
 package org.apache.hadoop.hive.ql.exec
 
+import java.sql.Timestamp
+
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPOr
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPAnd
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqual
@@ -28,8 +30,8 @@ import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqualOrLessThan
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.io.Text
 
-import shark.memstore.ColumnarStructObjectInspector.IDStructField
-import shark.memstore.TableStats
+import shark.memstore2.ColumnarStructObjectInspector.IDStructField
+import shark.memstore2.TablePartitionStats
 
 
 object MapSplitPruning {
@@ -42,7 +44,7 @@ object MapSplitPruning {
    *
    * s and s.stats must not be null here.
    */
-  def test(s: TableStats, e: ExprNodeEvaluator): Boolean = e match {
+  def test(s: TablePartitionStats, e: ExprNodeEvaluator): Boolean = e match {
     case e: ExprNodeGenericFuncEvaluator => {
       e.genericUDF match {
         case _: GenericUDFOPAnd => test(s, e.children(0)) && test(s, e.children(1))
@@ -61,7 +63,7 @@ object MapSplitPruning {
    * the split should be pruned.
    */
   def testComparisonPredicate(
-    s: TableStats,
+    s: TablePartitionStats,
     udf: GenericUDFBaseCompare,
     left: ExprNodeEvaluator,
     right: ExprNodeEvaluator): Boolean = {
@@ -87,22 +89,22 @@ object MapSplitPruning {
       //  column op const, where op is <, >, =, <=, >=, !=.
       val field = columnEval.field.asInstanceOf[IDStructField]
       val value: Object = constEval.expr.getValue
+      val columnStats = s.stats(field.fieldID)
 
-      s.stats(field.fieldID) match {
-        case Some(columnStats) => {
-          val min = columnStats.min
-          val max = columnStats.max
-          udf match {
-            case _: GenericUDFOPEqual => testEqual(min, max, value)
-            case _: GenericUDFOPEqualOrGreaterThan => testEqualOrGreaterThan(min, max, value)
-            case _: GenericUDFOPEqualOrLessThan => testEqualOrLessThan(min, max, value)
-            case _: GenericUDFOPGreaterThan => testGreaterThan(min, max, value)
-            case _: GenericUDFOPLessThan => testLessThan(min, max, value)
-            case _ => true
-          }
+      if (columnStats != null) {
+        val min = columnStats.min
+        val max = columnStats.max
+        udf match {
+          case _: GenericUDFOPEqual => testEqual(min, max, value)
+          case _: GenericUDFOPEqualOrGreaterThan => testEqualOrGreaterThan(min, max, value)
+          case _: GenericUDFOPEqualOrLessThan => testEqualOrLessThan(min, max, value)
+          case _: GenericUDFOPGreaterThan => testGreaterThan(min, max, value)
+          case _: GenericUDFOPLessThan => testLessThan(min, max, value)
+          case _ => true
         }
+      } else {
         // If there is no stats on the column, don't prune.
-        case None => true
+        true
       }
     } else {
       // If the predicate is not of type column op value, don't prune.
@@ -112,6 +114,7 @@ object MapSplitPruning {
 
   def testEqual(min: Any, max: Any, value: Any): Boolean = {
     // Assume min and max have the same type.
+    val c = tryCompare(min, value)
     tryCompare(min, value) match {
       case Some(c) => c <= 0 && tryCompare(max, value).get >= 0
       case None => true
@@ -182,6 +185,10 @@ object MapSplitPruning {
     case a: String => b match {
       case b: Text => Some((new Text(a)).compareTo(b))
       case b: String => Some(a.compareTo(b))
+      case _ => None
+    }
+    case a: Timestamp => b match {
+      case b: Timestamp => Some(a.compareTo(b))
       case _ => None
     }
     case _ => None

@@ -180,7 +180,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
               case "MEMORY_AND_DISK_SER_2" => StorageLevel.MEMORY_AND_DISK_SER_2
             }
           qb.getTableDesc().getTblProps().put(CachedTableRecovery.QUERY_STRING, ctx.getCmd())
-          OperatorFactory.createSharkCacheOutputPlan(
+          OperatorFactory.createSharkMemoryStoreOutputPlan(
             hiveSinkOps.head, qb.getTableDesc.getTableName, storageLevel, _resSchema.size)
         } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink) {
           OperatorFactory.createSharkRddOutputPlan(hiveSinkOps.head)

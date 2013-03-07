@@ -58,7 +58,7 @@ class ByteColumnBuilder extends ColumnBuilder[Byte] {
     _stats.appendNull()
   }
 
-  override def stats: ColumnStats.ByteColumnStats = _stats
+  override def stats = _stats
 
   override def build: ByteBuffer = {
     // TODO: This only supports non-null iterators.
