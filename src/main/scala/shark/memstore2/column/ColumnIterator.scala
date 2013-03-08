@@ -17,8 +17,6 @@
 
 package shark.memstore2.column
 
-import java.nio.ByteBuffer
-
 import shark.memstore2.buffer.ByteBufferReader
 
 
@@ -29,13 +27,11 @@ import shark.memstore2.buffer.ByteBufferReader
 trait ColumnIterator {
   protected var _bytesReader: ByteBufferReader = null
 
-  def initialize(bytes: ByteBuffer) {
-    _bytesReader = ByteBufferReader.createUnsafeReader(bytes)
-    // Skip the first few bytes, which is metadata for the column type.
-    _bytesReader.position(ColumnIterator.COLUMN_TYPE_LENGTH)
+  def initialize(bytes: ByteBufferReader) {
+    _bytesReader = bytes
   }
 
-  def next: Object
+  def next()
 
   def current: Object
 }
@@ -52,10 +48,11 @@ object ColumnIterator {
 
   val COLUMN_TYPE_LENGTH = 8
 
-  private val _iteratorClass = new Array[Class[_ <: ColumnIterator]](2000)
+  // A mapping between column type to the column iterator factory.
+  private val _iteratorFactory = new Array[ColumnIteratorFactory](32)
 
-  def getIteratorClass(columnType: IteratorType): Class[_ <: ColumnIterator] = {
-    _iteratorClass(columnType)
+  def getFactory(columnType: IteratorType): ColumnIteratorFactory = {
+    _iteratorFactory(columnType)
   }
 
   /////////////////////////////////////////////////////////////////////////////
@@ -82,58 +79,50 @@ object ColumnIterator {
   // List of column iterators.
   /////////////////////////////////////////////////////////////////////////////
   val BOOLEAN = 0
-  _iteratorClass(BOOLEAN) = classOf[BooleanColumnIterator]
+  _iteratorFactory(BOOLEAN) = createFactoryWithEWAH(classOf[BooleanColumnIterator.Default])
 
-  val BOOLEAN_NULLABLE = 1
+  val BYTE = 1
+  _iteratorFactory(BYTE) = createFactoryWithEWAH(classOf[ByteColumnIterator.Default])
 
-  val BYTE = 100
-  _iteratorClass(BYTE) = classOf[ByteColumnIterator]
+  val SHORT = 2
+  _iteratorFactory(SHORT) = createFactoryWithEWAH(classOf[ShortColumnIterator.Default])
 
-  val BYTE_NULLABLE = 101
+  val INT = 3
+  _iteratorFactory(INT) = createFactoryWithEWAH(classOf[IntColumnIterator.Default])
 
-  val SHORT = 200
-  _iteratorClass(SHORT) = classOf[ShortColumnIterator]
+  val LONG = 4
+  _iteratorFactory(LONG) = createFactoryWithEWAH(classOf[LongColumnIterator.Default])
 
-  val SHORT_NULLABLE = 201
+  val FLOAT = 5
+  _iteratorFactory(FLOAT) = createFactoryWithEWAH(classOf[FloatColumnIterator.Default])
 
-  val INT = 300
-  _iteratorClass(INT) = classOf[IntColumnIterator]
+  val DOUBLE = 6
+  _iteratorFactory(DOUBLE) = createFactoryWithEWAH(classOf[DoubleColumnIterator.Default])
 
-  val INT_NULLABLE = 301
+  val VOID = 7
+  _iteratorFactory(VOID) = createFactory(classOf[VoidColumnIterator.Default])
 
-  val LONG = 400
-  _iteratorClass(LONG) = classOf[LongColumnIterator]
+  val TIMESTAMP = 8
+  _iteratorFactory(TIMESTAMP) = createFactoryWithEWAH(classOf[TimestampColumnIterator.Default])
 
-  val LONG_NULLABLE = 401
+  // TODO: Add decimal data type.
 
-  val FLOAT = 500
-  _iteratorClass(FLOAT) = classOf[FloatColumnIterator]
+  val STRING = 10
+  _iteratorFactory(STRING) = createFactory(classOf[StringColumnIterator.Default])
 
-  val FLOAT_NULLABLE = 501
+  val COMPLEX = 11
+  _iteratorFactory(COMPLEX) = createFactory(classOf[ComplexColumnIterator.Default])
 
-  val DOUBLE = 600
-  _iteratorClass(DOUBLE) = classOf[DoubleColumnIterator]
+  val BINARY = 12
+  _iteratorFactory(BINARY) = createFactory(classOf[BinaryColumnIterator.Default])
 
-  val DOUBLE_NULLABLE = 601
+  // Helper methods so we don't need to write the whole thing up there.
+  def createFactory[T <: ColumnIterator](c: Class[T]) = {
+    ColumnIteratorFactory.create(c)
+  }
 
-  val VOID = 700
-  _iteratorClass(VOID) = classOf[VoidColumnIterator]
+  def createFactoryWithEWAH[T <: ColumnIterator](c: Class[T]) = {
+    ColumnIteratorFactory.createWithEWAH(c)
+  }
 
-  val STRING = 800
-  _iteratorClass(STRING) = classOf[StringColumnIterator]
-
-  val STRING_NULLABLE = 801
-
-  val COMPLEX = 900
-  _iteratorClass(COMPLEX) = classOf[ComplexColumnIterator]
-
-  val TIMESTAMP = 1000
-  _iteratorClass(TIMESTAMP) = classOf[TimestampColumnIterator]
-
-  val TIMESTAMP_NULLABLE = 1001
-
-  val BINARY = 1100
-  _iteratorClass(BINARY) = classOf[BinaryColumnIterator]
-
-  val BINARY_NULLABLE = 1101
 }

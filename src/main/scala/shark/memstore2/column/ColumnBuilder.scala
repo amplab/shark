@@ -20,6 +20,7 @@ package shark.memstore2.column
 import java.nio.ByteBuffer
 
 import javaewah.EWAHCompressedBitmap
+import javaewah.EWAHCompressedBitmapSerializer
 
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
@@ -27,11 +28,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.Pr
 
 
 trait ColumnBuilder[@specialized(Boolean, Byte, Short, Int, Long, Float, Double) T] {
-  protected var _nulls: EWAHCompressedBitmap = null
-
-  def initialize(initialSize: Int) {
-    _nulls = new EWAHCompressedBitmap
-  }
 
   def append(o: Object, oi: ObjectInspector)
 
@@ -42,6 +38,24 @@ trait ColumnBuilder[@specialized(Boolean, Byte, Short, Int, Long, Float, Double)
   def stats: ColumnStats[T]
 
   def build: ByteBuffer
+
+  // Subclasses should call super.initialize to initialize the null bitmap.
+  def initialize(initialSize: Int) {
+    _nullBitmap = new EWAHCompressedBitmap
+  }
+
+  protected var _nullBitmap: EWAHCompressedBitmap = null
+
+  protected def sizeOfNullBitmap: Int = 8 + EWAHCompressedBitmapSerializer.sizeof(_nullBitmap)
+
+  protected def writeNullBitmap(buf: ByteBuffer) = {
+    if (_nullBitmap.cardinality() > 0) {
+      buf.putLong(1L)
+      EWAHCompressedBitmapSerializer.writeToBuffer(buf, _nullBitmap)
+    } else {
+      buf.putLong(0L)
+    }
+  }
 }
 
 

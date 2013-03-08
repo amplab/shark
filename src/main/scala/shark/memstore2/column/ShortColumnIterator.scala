@@ -19,14 +19,18 @@ package shark.memstore2.column
 
 import org.apache.hadoop.hive.serde2.io.ShortWritable
 
+import shark.memstore2.buffer.ByteBufferReader
 
-class ShortColumnIterator extends ColumnIterator {
-  private val _writable = new ShortWritable
 
-  override def next: Object = {
-    _writable.set(_bytesReader.getShort())
-    _writable
+object ShortColumnIterator {
+
+  sealed class Default extends ColumnIterator {
+    private val _writable = new ShortWritable
+
+    override def next() {
+      _writable.set(_bytesReader.getShort())
+    }
+
+    override def current = _writable
   }
-
-  override def current = _writable
 }

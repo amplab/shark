@@ -99,6 +99,8 @@ class UnsafeDirectByteBufferReader(buf: java.nio.ByteBuffer) extends ByteBufferR
     _offset = _base_offset + newPosition
   }
 
+  override def position: Int = (_offset - _base_offset).toInt
+
   private def getMemoryAddress(buffer: java.nio.ByteBuffer): Long = {
     val addressField = classOf[java.nio.Buffer].getDeclaredField("address")
     addressField.setAccessible(true)

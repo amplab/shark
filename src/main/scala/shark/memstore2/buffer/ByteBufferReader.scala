@@ -47,6 +47,8 @@ trait ByteBufferReader {
   def getDoubles(dst: Array[Double], len: Int)
 
   def position(newPosition: Int)
+
+  def position: Int
 }
 
 

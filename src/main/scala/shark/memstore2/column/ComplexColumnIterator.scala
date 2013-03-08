@@ -25,45 +25,48 @@ import org.apache.hadoop.io.Text
 import shark.execution.serialization.KryoSerializer
 import shark.memstore2.buffer.ByteBufferReader
 
+import shark.memstore2.buffer.ByteBufferReader
 
-class ComplexColumnIterator extends ColumnIterator {
 
-  private val _obj = {
-    val oiSize = _bytesReader.getLong().toInt
-    val oiSerialized = new Array[Byte](oiSize)
-    _bytesReader.getBytes(oiSerialized, oiSize)
-    val oi = KryoSerializer.deserialize[ObjectInspector](oiSerialized)
-    LazyFactory.createLazyObject(oi)
-  }
+object ComplexColumnIterator {
 
-  private val _byteArrayRef = new ByteArrayRefWithReader(_bytesReader)
+  sealed class Default extends ColumnIterator {
 
-  override def next: Object = {
-    val len = _bytesReader.getInt
-    _byteArrayRef.readFromReader(len)
-    _obj.init(_byteArrayRef, 0, len)
-    _obj
-  }
-
-  override def current = _obj
-
-  // A custom ByteArrayRef class that reads directly from a ByteBufferReader.
-  class ByteArrayRefWithReader(reader: ByteBufferReader) extends ByteArrayRef {
-
-    private var _data: Array[Byte] = new Array[Byte](32)
-
-    override def getData(): Array[Byte] = _data
-
-    override def setData(data: Array[Byte]) {
-      _data = data
+    private val _obj = {
+      val oiSize = _bytesReader.getLong().toInt
+      val oiSerialized = new Array[Byte](oiSize)
+      _bytesReader.getBytes(oiSerialized, oiSize)
+      val oi = KryoSerializer.deserialize[ObjectInspector](oiSerialized)
+      LazyFactory.createLazyObject(oi)
     }
 
-    def readFromReader(size: Int) {
-      if (_data.size < size) {
-        _data = new Array[Byte](size)
+    private val _byteArrayRef = new ByteArrayRefWithReader(_bytesReader)
+
+    override def next() = {
+      val len = _bytesReader.getInt
+      _byteArrayRef.readFromReader(len)
+      _obj.init(_byteArrayRef, 0, len)
+    }
+
+    override def current = _obj
+
+    // A custom ByteArrayRef class that reads directly from a ByteBufferReader.
+    class ByteArrayRefWithReader(reader: ByteBufferReader) extends ByteArrayRef {
+
+      private var _data: Array[Byte] = new Array[Byte](32)
+
+      override def getData(): Array[Byte] = _data
+
+      override def setData(data: Array[Byte]) {
+        _data = data
       }
-      reader.getBytes(_data, size)
+
+      def readFromReader(size: Int) {
+        if (_data.size < size) {
+          _data = new Array[Byte](size)
+        }
+        reader.getBytes(_data, size)
+      }
     }
   }
 }
-

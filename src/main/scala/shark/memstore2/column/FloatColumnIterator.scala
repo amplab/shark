@@ -19,14 +19,18 @@ package shark.memstore2.column
 
 import org.apache.hadoop.io.FloatWritable
 
+import shark.memstore2.buffer.ByteBufferReader
 
-class FloatColumnIterator extends ColumnIterator {
-  private val _writable = new FloatWritable
 
-  override def next: Object = {
-    _writable.set(_bytesReader.getFloat())
-    _writable
+object FloatColumnIterator {
+
+  sealed class Default extends ColumnIterator {
+    private val _writable = new FloatWritable
+
+    override def next() {
+      _writable.set(_bytesReader.getFloat())
+    }
+
+    override def current = _writable
   }
-
-  override def current = _writable
 }

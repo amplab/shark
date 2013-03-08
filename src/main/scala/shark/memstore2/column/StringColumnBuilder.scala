@@ -32,6 +32,7 @@ class StringColumnBuilder extends ColumnBuilder[Text] {
 
   private var _stats: ColumnStats.StringColumnStats = null
 
+  // In string, a length of -1 is used to represent null values.
   private val NULL_VALUE = -1
   private var _arr: ByteArrayList = null
   private var _lengthArr: IntArrayList = null

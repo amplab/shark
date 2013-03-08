@@ -68,7 +68,7 @@ class TimestampColumnBuilder extends ColumnBuilder[Timestamp] {
   }
 
   override def appendNull() {
-    _nulls.set(_arrTime.size)
+    _nullBitmap.set(_arrTime.size)
     _arrTime.add(0)
     _arrNanos.add(0)
     _stats.appendNull()
@@ -80,9 +80,12 @@ class TimestampColumnBuilder extends ColumnBuilder[Timestamp] {
     // TODO: This only supports non-null iterators.
     // TODO: As an optimization, we can optionally skip nanos field if it is not used.
     val buf = ByteBuffer.allocate(
-      _arrTime.size * 8 + _arrNanos.size * 4 + ColumnIterator.COLUMN_TYPE_LENGTH)
+      _arrTime.size * 8 + _arrNanos.size * 4 + ColumnIterator.COLUMN_TYPE_LENGTH + sizeOfNullBitmap)
     buf.order(ByteOrder.nativeOrder())
     buf.putLong(ColumnIterator.TIMESTAMP)
+
+    writeNullBitmap(buf)
+
     var i = 0
     while (i < _arrTime.size) {
       buf.putLong(_arrTime.get(i))

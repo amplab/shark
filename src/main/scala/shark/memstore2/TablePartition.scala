@@ -20,6 +20,7 @@ package shark.memstore2
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
+import shark.memstore2.buffer.ByteBufferReader
 import shark.memstore2.column.ColumnIterator
 
 
@@ -49,14 +50,17 @@ class TablePartition(val numRows: Long, val columns: Array[ByteBuffer]) {
     buffer
   }
 
+  // TODO: Add column pruning to TablePartition for creating a TablePartitionIterator.
+
   /**
    * Return an iterator for the partition.
    */
   def iterator: TablePartitionIterator = {
     val columnIterators: Array[ColumnIterator] = columns.map { case buffer: ByteBuffer =>
-      val columnType = buffer.getInt()
-      val iter = ColumnIterator.getIteratorClass(columnType).newInstance
-      iter.initialize(buffer)
+      val bufReader = ByteBufferReader.createUnsafeReader(buffer)
+      val columnType = bufReader.getInt()
+      val factory = ColumnIterator.getFactory(columnType)
+      val iter = factory.createIterator(bufReader)
       iter
     }
     new TablePartitionIterator(numRows, columnIterators)

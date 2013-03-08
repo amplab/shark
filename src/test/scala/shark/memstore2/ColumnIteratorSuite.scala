@@ -31,9 +31,9 @@ import org.apache.hadoop.hive.serde2.objectinspector.ConstantObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive._
 import org.apache.hadoop.io._
 
-
 import org.scalatest.FunSuite
 
+import shark.memstore2.buffer.ByteBufferReader
 import shark.memstore2.column._
 
 
@@ -41,130 +41,226 @@ class ColumnIteratorSuite extends FunSuite {
 
   val PARALLEL_MODE = true
 
-  test("non-null void column") {
+  test("void column") {
     val builder = new VoidColumnBuilder
     builder.initialize(5)
     builder.append(null, null)
     builder.appendNull()
     builder.append(null, null)
-    val buffer = builder.build
+    val buf = builder.build
 
-    val iter = new VoidColumnIterator
-    iter.initialize(buffer)
-    assert(iter.next == NullWritable.get())
-    assert(iter.next == NullWritable.get())
-    assert(iter.next == NullWritable.get())
+    val bufreader = ByteBufferReader.createUnsafeReader(buf)
+    val columnType = bufreader.getLong().toInt
+
+    val factory = ColumnIterator.getFactory(columnType)
+    assert(factory.createIterator(bufreader).getClass === classOf[VoidColumnIterator.Default])
+
+    val iter = new VoidColumnIterator.Default
+    iter.initialize(ByteBufferReader.createUnsafeReader(buf))
+    iter.next()
+    assert(iter.current == NullWritable.get())
+    iter.next()
+    assert(iter.current == NullWritable.get())
+    iter.next()
+    assert(iter.current == NullWritable.get())
   }
 
-  test("non-null boolean column") {
-    val builder = new BooleanColumnBuilder
-    testNonNullColumnIterator(
+  test("boolean column") {
+    var builder = new BooleanColumnBuilder
+    testColumn(
       Array[java.lang.Boolean](true, false, true, true, true),
       builder,
       PrimitiveObjectInspectorFactory.writableBooleanObjectInspector,
-      classOf[BooleanColumnIterator])
+      classOf[BooleanColumnIterator.Default])
+    assert(builder.stats.min === false)
+    assert(builder.stats.max === true)
+
+    testColumn(
+      Array[java.lang.Boolean](null, false, null, true, true),
+      builder,
+      PrimitiveObjectInspectorFactory.writableBooleanObjectInspector,
+      classOf[BooleanColumnIterator.Default],
+      true)
     assert(builder.stats.min === false)
     assert(builder.stats.max === true)
   }
 
-  test("non-null byte column") {
+  test("byte column") {
     val builder = new ByteColumnBuilder
-    testNonNullColumnIterator(
+    testColumn(
       Array[java.lang.Byte](1.toByte, 2.toByte, 15.toByte, 55.toByte, 0.toByte, 40.toByte),
       builder,
       PrimitiveObjectInspectorFactory.writableByteObjectInspector,
-      classOf[ByteColumnIterator])
+      classOf[ByteColumnIterator.Default])
     assert(builder.stats.min === 0.toByte)
     assert(builder.stats.max === 55.toByte)
+
+    testColumn(
+      Array[java.lang.Byte](null, 2.toByte, 15.toByte, null, 0.toByte, null),
+      builder,
+      PrimitiveObjectInspectorFactory.writableByteObjectInspector,
+      classOf[ByteColumnIterator.Default],
+      true)
+    assert(builder.stats.min === 0.toByte)
+    assert(builder.stats.max === 15.toByte)
   }
 
-  test("non-null short column") {
+  test("short column") {
     val builder = new ShortColumnBuilder
-    testNonNullColumnIterator(
+    testColumn(
       Array[java.lang.Short](1.toShort, 2.toShort, -15.toShort, 355.toShort, 0.toShort, 40.toShort),
       builder,
       PrimitiveObjectInspectorFactory.writableShortObjectInspector,
-      classOf[ShortColumnIterator])
+      classOf[ShortColumnIterator.Default])
     assert(builder.stats.min === -15.toShort)
     assert(builder.stats.max === 355.toShort)
+
+    testColumn(
+      Array[java.lang.Short](1.toShort, 2.toShort, -15.toShort, null, 0.toShort, null),
+      builder,
+      PrimitiveObjectInspectorFactory.writableShortObjectInspector,
+      classOf[ShortColumnIterator.Default],
+      true)
+    assert(builder.stats.min === -15.toShort)
+    assert(builder.stats.max === 2.toShort)
   }
 
-  test("non-null int column") {
+  test("int column") {
     val builder = new IntColumnBuilder
-    testNonNullColumnIterator(
+    testColumn(
       Array[java.lang.Integer](0, 1, 2, 5, 134, -12, 1, 0, 99, 1),
       builder,
       PrimitiveObjectInspectorFactory.writableIntObjectInspector,
-      classOf[IntColumnIterator])
+      classOf[IntColumnIterator.Default])
+    assert(builder.stats.min === -12)
+    assert(builder.stats.max === 134)
+
+    testColumn(
+      Array[java.lang.Integer](null, 1, 2, 5, 134, -12, null, 0, 99, 1),
+      builder,
+      PrimitiveObjectInspectorFactory.writableIntObjectInspector,
+      classOf[IntColumnIterator.Default],
+      true)
     assert(builder.stats.min === -12)
     assert(builder.stats.max === 134)
   }
 
-  test("non-null long column") {
+  test("long column") {
     val builder = new LongColumnBuilder
-    testNonNullColumnIterator(
+    testColumn(
       Array[java.lang.Long](1L, -345345L, 15L, 0L, 23445456L),
       builder,
       PrimitiveObjectInspectorFactory.writableLongObjectInspector,
-      classOf[LongColumnIterator])
+      classOf[LongColumnIterator.Default])
     assert(builder.stats.min === -345345L)
     assert(builder.stats.max === 23445456L)
+
+    testColumn(
+      Array[java.lang.Long](null, -345345L, 15L, 0L, null),
+      builder,
+      PrimitiveObjectInspectorFactory.writableLongObjectInspector,
+      classOf[LongColumnIterator.Default],
+      true)
+    assert(builder.stats.min === -345345L)
+    assert(builder.stats.max === 15L)
   }
 
-  test("non-null float column") {
+  test("float column") {
     val builder = new FloatColumnBuilder
-    testNonNullColumnIterator(
+    testColumn(
       Array[java.lang.Float](1.1.toFloat, -2.5.toFloat, 20000.toFloat, 0.toFloat, 15.0.toFloat),
       builder,
       PrimitiveObjectInspectorFactory.writableFloatObjectInspector,
-      classOf[FloatColumnIterator])
+      classOf[FloatColumnIterator.Default])
     assert(builder.stats.min === -2.5.toFloat)
+    assert(builder.stats.max === 20000.toFloat)
+
+    testColumn(
+      Array[java.lang.Float](1.1.toFloat, null, 20000.toFloat, null, 15.0.toFloat),
+      builder,
+      PrimitiveObjectInspectorFactory.writableFloatObjectInspector,
+      classOf[FloatColumnIterator.Default],
+      true)
+    assert(builder.stats.min === 1.1.toFloat)
     assert(builder.stats.max === 20000.toFloat)
   }
 
-  test("non-null double column") {
+  test("double column") {
     val builder = new DoubleColumnBuilder
-    testNonNullColumnIterator(
+    testColumn(
       Array[java.lang.Double](1.1, 2.2, -2.5, 20000, 0, 15.0),
       builder,
       PrimitiveObjectInspectorFactory.writableDoubleObjectInspector,
-      classOf[DoubleColumnIterator])
+      classOf[DoubleColumnIterator.Default])
     assert(builder.stats.min === -2.5)
     assert(builder.stats.max === 20000)
+
+    testColumn(
+      Array[java.lang.Double](1.1, 2.2, -2.5, null, 0, 15.0),
+      builder,
+      PrimitiveObjectInspectorFactory.writableDoubleObjectInspector,
+      classOf[DoubleColumnIterator.Default],
+      true)
+    assert(builder.stats.min === -2.5)
+    assert(builder.stats.max === 15.0)
   }
 
-  test("non-null string column") {
+  test("string column") {
     val builder = new StringColumnBuilder
-    testNonNullColumnIterator(
+    testColumn(
       Array[Text](new Text("a"), new Text(""), new Text("b"), new Text("Abcdz")),
       builder,
       PrimitiveObjectInspectorFactory.writableStringObjectInspector,
-      classOf[StringColumnIterator],
+      classOf[StringColumnIterator.Default],
+      false,
+      (a, b) => (a.equals(b.toString))
+    )
+    assert(builder.stats.min.toString === "")
+    assert(builder.stats.max.toString === "b")
+
+    testColumn(
+      Array[Text](new Text("a"), new Text(""), null, new Text("b"), new Text("Abcdz"), null),
+      builder,
+      PrimitiveObjectInspectorFactory.writableStringObjectInspector,
+      classOf[StringColumnIterator.Default],
+      false,
       (a, b) => (a.equals(b.toString))
     )
     assert(builder.stats.min.toString === "")
     assert(builder.stats.max.toString === "b")
   }
 
-  test("non-null timestamp column") {
+  test("timestamp column") {
     val ts1 = new java.sql.Timestamp(0)
     val ts2 = new java.sql.Timestamp(500)
     ts2.setNanos(400)
     val ts3 = new java.sql.Timestamp(1362561610000L)
 
     val builder = new TimestampColumnBuilder
-    testNonNullColumnIterator(
+    testColumn(
       Array(ts1, ts2, ts3),
       builder,
       PrimitiveObjectInspectorFactory.writableTimestampObjectInspector,
-      classOf[TimestampColumnIterator],
+      classOf[TimestampColumnIterator.Default],
+      false,
+      (a, b) => (a.equals(b))
+    )
+    assert(builder.stats.min.equals(ts1))
+    assert(builder.stats.max.equals(ts3))
+
+    testColumn(
+      Array(ts1, ts2, null, ts3, null),
+      builder,
+      PrimitiveObjectInspectorFactory.writableTimestampObjectInspector,
+      classOf[TimestampColumnIterator.Default],
+      true,
       (a, b) => (a.equals(b))
     )
     assert(builder.stats.min.equals(ts1))
     assert(builder.stats.max.equals(ts3))
   }
 
-  test("non-null binary column") {
+  test("binary column") {
     val rowOI = LazyPrimitiveObjectInspectorFactory.LAZY_BINARY_OBJECT_INSPECTOR
     val binary1 = LazyFactory.createLazyPrimitiveClass(rowOI).asInstanceOf[LazyBinary]
     val ref1 = new ByteArrayRef
@@ -173,11 +269,12 @@ class ColumnIteratorSuite extends FunSuite {
     binary1.init(ref1, 0, 3)
 
     val builder = new BinaryColumnBuilder
-    testNonNullColumnIterator(
+    testColumn(
       Array[LazyBinary](binary1),
       builder,
       PrimitiveObjectInspectorFactory.writableBinaryObjectInspector,
-      classOf[BinaryColumnIterator],
+      classOf[BinaryColumnIterator.Default],
+      false,
       compareBinary)
     assert(builder.stats == null)
 
@@ -188,29 +285,40 @@ class ColumnIteratorSuite extends FunSuite {
     }
   }
 
-  def testNonNullColumnIterator[T](
+  def testColumn[T, U <: ColumnIterator](
     testData: Array[_ <: Object],
     builder: ColumnBuilder[T],
     writableOi: AbstractPrimitiveWritableObjectInspector,
-    iteratorClass: Class[_ <: ColumnIterator],
+    iteratorClass: Class[U],
+    expectEWAHWrapper: Boolean = false,
     compareFunc: (Object, Object) => Boolean = (a, b) => a == b) {
 
     builder.initialize(5)
-    testData.foreach(x => builder.append(x.asInstanceOf[T]))
-    val buffer = builder.build
-    val columnType = buffer.getLong().toInt
-    buffer.rewind()
-
-    assert(ColumnIterator.getIteratorClass(columnType) === iteratorClass)
+    testData.foreach { x =>
+      if (x == null) builder.appendNull() else builder.append(x.asInstanceOf[T])
+    }
+    val buf = builder.build
 
     def executeOneTest() {
-      val iter = iteratorClass.newInstance.asInstanceOf[ColumnIterator]
-      iter.initialize(buffer)
+      val bufreader = ByteBufferReader.createUnsafeReader(buf)
+      val columnType = bufreader.getLong().toInt
+
+      val factory = ColumnIterator.getFactory(columnType)
+      val iter = factory.createIterator(bufreader)
+
+      if (expectEWAHWrapper) {
+        assert(iter.getClass === classOf[EWAHNullableColumnIterator[U]])
+      } else {
+        assert(iter.getClass === iteratorClass)
+      }
+
       (0 until testData.size).foreach { i =>
+        iter.next()
         val expected = testData(i)
-        val reality = writableOi.getPrimitiveJavaObject(iter.next)
+        val reality = writableOi.getPrimitiveJavaObject(iter.current)
+        //println ("at position " + i + " expected " + expected + ", but saw " + reality)
         assert((expected == null && reality == null) || compareFunc(reality, expected),
-          "at position " + i + " expected " + expected + ", but saw " + reality)
+           "at position " + i + " expected " + expected + ", but saw " + reality)
       }
     }
 

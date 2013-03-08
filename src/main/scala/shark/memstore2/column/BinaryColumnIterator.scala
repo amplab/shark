@@ -19,24 +19,26 @@ package shark.memstore2.column
 
 import org.apache.hadoop.io.BytesWritable
 
+import shark.memstore2.buffer.ByteBufferReader
 
-class BinaryColumnIterator extends ColumnIterator {
 
-  private val _writable = new BytesWritable
+object BinaryColumnIterator {
 
-  override def next: Object = {
-    // Ideally we want to set the bytes in BytesWritable directly without creating
-    // a new byte array.
-    val length = _bytesReader.getInt
-    if (length >= 0) {
-      val newBytes = new Array[Byte](length)
-      _bytesReader.getBytes(newBytes, length)
-      _writable.set(newBytes, 0, newBytes.size)
-      _writable
-    } else {
-      null
+  sealed class Default extends ColumnIterator {
+    private val _writable = new BytesWritable
+    private var _currentLen = 0
+
+    override def next() {
+      // Ideally we want to set the bytes in BytesWritable directly without creating
+      // a new byte array.
+      val _currentLen = _bytesReader.getInt
+      if (_currentLen >= 0) {
+        val newBytes = new Array[Byte](_currentLen)
+        _bytesReader.getBytes(newBytes, _currentLen)
+        _writable.set(newBytes, 0, newBytes.size)
+      }
     }
-  }
 
-  override def current = _writable
+    override def current = if (_currentLen >= 0) _writable else null
+  }
 }

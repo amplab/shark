@@ -19,13 +19,14 @@ package shark.memstore2.column
 
 import org.apache.hadoop.io.NullWritable
 
+import shark.memstore2.buffer.ByteBufferReader
 
-class VoidColumnIterator extends ColumnIterator {
 
-  private val _writable = NullWritable.get()
+object VoidColumnIterator {
 
-  override def next: Object = _writable
-
-  override def current = _writable
+  sealed class Default extends ColumnIterator {
+    private val _writable = NullWritable.get()
+    override def next() {}
+    override def current = _writable
+  }
 }
-

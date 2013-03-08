@@ -19,14 +19,18 @@ package shark.memstore2.column
 
 import org.apache.hadoop.io.IntWritable
 
+import shark.memstore2.buffer.ByteBufferReader
 
-class IntColumnIterator extends ColumnIterator {
-  private val _writable = new IntWritable
 
-  override def next: Object = {
-    _writable.set(_bytesReader.getInt())
-    _writable
+object IntColumnIterator {
+
+  sealed class Default extends ColumnIterator {
+    private val _writable = new IntWritable
+
+    override def next() {
+      _writable.set(_bytesReader.getInt())
+    }
+
+    override def current = _writable
   }
-
-  override def current = _writable
 }

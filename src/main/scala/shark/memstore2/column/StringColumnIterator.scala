@@ -19,22 +19,26 @@ package shark.memstore2.column
 
 import org.apache.hadoop.io.Text
 
+import shark.memstore2.buffer.ByteBufferReader
 
-class StringColumnIterator extends ColumnIterator {
-  private val _writable = new Text
 
-  override def next: Object = {
-    // TODO: This is very inefficient. We should build Text directly using Java reflection.
-    val length = _bytesReader.getInt
-    if (length >= 0) {
-      val newBytes = new Array[Byte](length)
-      _bytesReader.getBytes(newBytes, length)
-      _writable.set(newBytes)
-      _writable
-    } else {
-      null
+object StringColumnIterator {
+
+  sealed class Default extends ColumnIterator {
+    // In string, a length of -1 is used to represent null values.
+    private val _writable = new Text
+    private var _currentLen = 0
+
+    override def next()  {
+      // TODO: This is very inefficient. We should build Text directly using Java reflection.
+      _currentLen = _bytesReader.getInt
+      if (_currentLen >= 0) {
+        val newBytes = new Array[Byte](_currentLen)
+        _bytesReader.getBytes(newBytes, _currentLen)
+        _writable.set(newBytes)
+      }
     }
-  }
 
-  override def current = _writable
+    override def current = if (_currentLen >= 0) _writable else null
+  }
 }

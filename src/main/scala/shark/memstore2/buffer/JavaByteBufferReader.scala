@@ -87,4 +87,6 @@ class JavaByteBufferReader(buf: ByteBuffer) extends ByteBufferReader {
   override def position(newPosition: Int) {
     _buf.position(newPosition)
   }
+
+  override def position: Int = _buf.position()
 }

@@ -103,4 +103,6 @@ class UnsafeHeapByteBufferReader(buf: ByteBuffer) extends ByteBufferReader {
   override def position(newPosition: Int) {
     _offset = _base_offset + newPosition
   }
+
+  override def position: Int = (_offset - _base_offset).toInt
 }

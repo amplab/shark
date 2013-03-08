@@ -19,15 +19,19 @@ package shark.memstore2.column
 
 import org.apache.hadoop.io.BooleanWritable
 
+import shark.memstore2.buffer.ByteBufferReader
 
-class BooleanColumnIterator extends ColumnIterator {
-  // TODO: Use a single bit per boolean value.
-  private val _writable = new BooleanWritable
 
-  override def next: Object = {
-    _writable.set(_bytesReader.getByte() != 0)
-    _writable
+object BooleanColumnIterator {
+
+  sealed class Default extends ColumnIterator {
+    // TODO: Use a single bit per boolean value.
+    private val _writable = new BooleanWritable
+
+    override def next() {
+      _writable.set(_bytesReader.getByte() != 0)
+    }
+
+    override def current = _writable
   }
-
-  override def current = _writable
 }

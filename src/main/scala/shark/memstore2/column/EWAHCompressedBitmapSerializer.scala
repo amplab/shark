@@ -27,7 +27,12 @@ import shark.memstore2.buffer.Unsafe
 
 object EWAHCompressedBitmapSerializer {
 
-  def serializeIntoBuffer(buf: ByteBuffer, bitmap: EWAHCompressedBitmap) {
+  def sizeof(bitmap: EWAHCompressedBitmap): Int = {
+    4 + 4 + 4 + bitmap.actualsizeinwords * 8 + 4
+  }
+
+  // Append the serialized bytes of the EWAHCompressedBitmap into the ByteBuffer.
+  def writeToBuffer(buf: ByteBuffer, bitmap: EWAHCompressedBitmap) {
     buf.putInt(bitmap.sizeinbits)
     buf.putInt(bitmap.actualsizeinwords)
     buf.putInt(bitmap.buffer.length)
@@ -39,7 +44,8 @@ object EWAHCompressedBitmapSerializer {
     buf.putInt(bitmap.rlw.position)
   }
 
-  def deserializeFromBuffer(buf: ByteBufferReader): EWAHCompressedBitmap = {
+  // Create an EWAHCompressedBitmap from the byte buffer.
+  def readFromBuffer(buf: ByteBufferReader): EWAHCompressedBitmap = {
     val bitmap = Unsafe.unsafe.allocateInstance(
       classOf[EWAHCompressedBitmap]).asInstanceOf[EWAHCompressedBitmap]
 
@@ -47,7 +53,7 @@ object EWAHCompressedBitmapSerializer {
     bitmap.actualsizeinwords = buf.getInt()
     val bufferLength = buf.getInt()
     bitmap.buffer = new Array[Long](bufferLength)
-    buf.getLongs(bitmap.buffer, bufferLength)
+    buf.getLongs(bitmap.buffer, bitmap.actualsizeinwords)
     bitmap.rlw = new RunningLengthWord(bitmap.buffer, buf.getInt())
     bitmap
   }

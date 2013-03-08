@@ -19,14 +19,18 @@ package shark.memstore2.column
 
 import org.apache.hadoop.hive.serde2.io.DoubleWritable
 
+import shark.memstore2.buffer.ByteBufferReader
 
-class DoubleColumnIterator extends ColumnIterator {
-  private val _writable = new DoubleWritable
 
-  override def next: Object = {
-    _writable.set(_bytesReader.getDouble())
-    _writable
+object DoubleColumnIterator {
+
+  sealed class Default extends ColumnIterator {
+    private val _writable = new DoubleWritable
+
+    override def next() {
+      _writable.set(_bytesReader.getDouble())
+    }
+
+    override def current = _writable
   }
-
-  override def current = _writable
 }

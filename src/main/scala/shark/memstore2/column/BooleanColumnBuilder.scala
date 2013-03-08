@@ -52,7 +52,7 @@ class BooleanColumnBuilder extends ColumnBuilder[Boolean] {
   }
 
   override def appendNull() {
-    _nulls.set(_arr.size)
+    _nullBitmap.set(_arr.size)
     _arr.add(false)
     _stats.appendNull()
   }
@@ -61,9 +61,12 @@ class BooleanColumnBuilder extends ColumnBuilder[Boolean] {
 
   override def build: ByteBuffer = {
     // TODO: This only supports non-null iterators.
-    val buf = ByteBuffer.allocate(_arr.size + ColumnIterator.COLUMN_TYPE_LENGTH)
+    val buf = ByteBuffer.allocate(_arr.size + ColumnIterator.COLUMN_TYPE_LENGTH + sizeOfNullBitmap)
     buf.order(ByteOrder.nativeOrder())
     buf.putLong(ColumnIterator.BOOLEAN)
+
+    writeNullBitmap(buf)
+
     var i = 0
     while (i < _arr.size) {
       buf.put(if (_arr.get(i)) 1.toByte else 0.toByte)

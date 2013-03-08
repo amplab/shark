@@ -21,17 +21,20 @@ import java.sql.Timestamp
 
 import org.apache.hadoop.hive.serde2.io.TimestampWritable
 
+import shark.memstore2.buffer.ByteBufferReader
 
-class TimestampColumnIterator extends ColumnIterator {
 
-  private val _timestamp = new Timestamp(0)
-  private val _writable = new TimestampWritable(_timestamp)
+object TimestampColumnIterator {
 
-  override def next: Object = {
-    _timestamp.setTime(_bytesReader.getLong())
-    _timestamp.setNanos(_bytesReader.getInt())
-    _writable
+  sealed class Default extends ColumnIterator {
+    private val _timestamp = new Timestamp(0)
+    private val _writable = new TimestampWritable(_timestamp)
+
+    override def next()  {
+      _timestamp.setTime(_bytesReader.getLong())
+      _timestamp.setNanos(_bytesReader.getInt())
+    }
+
+    override def current = _writable
   }
-
-  override def current = _writable
 }
