@@ -22,6 +22,10 @@ import java.util.{List => JList, ArrayList => JArrayList}
 import shark.memstore2.column.ColumnIterator
 
 
+/**
+ * A struct returned by the TablePartitionIterator. It contains references to the same set of
+ * ColumnIterators and use those to return individual fields back to the object inspectors.
+ */
 class ColumnarStruct(columnIterators: Array[ColumnIterator]) {
 
   def getField(id: Int): Object = columnIterators(id).current
