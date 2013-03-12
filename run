@@ -74,10 +74,7 @@ fi
 
 # Add Hive jars.
 for jar in `find $HIVE_HOME/lib -name '*jar'`; do
-  # Ignore the logging library since it has already been included with the Spark jar.
-  if [[ "$jar" != *slf4j* ]]; then
-    SPARK_CLASSPATH+=:$jar
-  fi
+  SPARK_CLASSPATH+=:$jar
 done
 
 SPARK_CLASSPATH+=:$HIVE_CONF_DIR
