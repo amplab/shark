@@ -202,14 +202,15 @@
       <version>${hive.version}</version>
       <optional>true</optional>
     </dependency>
+
+    <!-- Testing -->
     <dependency>
+      <!-- This is omitted from the shaded jar -->
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-log4j12</artifactId>
       <version>1.6.1</version>
       <scope>test</scope>
     </dependency>
-
-    <!-- Testing -->
     <dependency>
       <groupId>org.scalatest</groupId>
       <artifactId>scalatest_${scala.version}</artifactId>
