@@ -439,7 +439,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
-        <version>3.0-SNAPSHOT-csd-3</version>
+        <version>2.0-csd-2</version>
         <configuration>
           <shadedArtifactAttached>true</shadedArtifactAttached>
           <shadedClassifierName>shaded-${classifier}</shadedClassifierName>
