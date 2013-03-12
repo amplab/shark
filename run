@@ -130,12 +130,15 @@ export ANT_OPTS=$JAVA_OPTS
 
 if [ "x$RUNNER" == "x" ] ; then
   if [ "$SHARK_LAUNCH_WITH_JAVA" == "1" ]; then
+    JAVA_WRAPPER=/usr/local/bin/java_wrapper.sh
     if [ -n "$SCALA_HOME" ]; then
       CLASSPATH+=":$SCALA_HOME/lib/scala-library.jar"
       CLASSPATH+=":$SCALA_HOME/lib/scala-compiler.jar"
       CLASSPATH+=":$SCALA_HOME/lib/jline.jar"
     fi
-    if [ -n "$JAVA_HOME" ]; then
+    if [ -x "$JAVA_WRAPPER" ]; then
+      RUNNER="$JAVA_WRAPPER"
+    elif [ -n "$JAVA_HOME" ]; then
       RUNNER="${JAVA_HOME}/bin/java"
     else
       RUNNER=java
