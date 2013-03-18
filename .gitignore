@@ -47,3 +47,7 @@ paper.aux
 # Test Reports
 TEST*.xml
 test_warehouses
+
+# This is copied by Hive to the project directory (should be fixed)
+hive-builtins-*.jar
+
