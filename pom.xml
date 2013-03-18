@@ -328,6 +328,7 @@
             <test.tmp.dir>${ql.build.path}/tmp</test.tmp.dir>
             <test.warehouse.dir>${ql.build.path}/test/data/warehouse</test.warehouse.dir>
             <derby.version>10.4.2.0</derby.version>
+            <hive.test.dir>${hive.build.dir}</hive.test.dir>
           </systemPropertyVariables>
           <workingDirectory>${hive.build.dir}</workingDirectory>
           <additionalClasspathElements>
