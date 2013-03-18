@@ -28,7 +28,7 @@
 <!-- Hive Execution Parameters -->
 <property>
   <name>hadoop.tmp.dir</name>
-  <value>${build.dir.hive}/test/hadoop-${user.name}</value>
+  <value>${hive.test.dir}/test/hadoop-${user.name}</value>
   <description>A base for other temporary directories.</description>
 </property>
 
@@ -42,7 +42,7 @@
 
 <property>
   <name>hive.exec.scratchdir</name>
-  <value>${build.dir}/scratchdir</value>
+  <value>${hive.test.dir}/scratchdir</value>
   <description>Scratch space for Hive jobs</description>
 </property>
 
@@ -76,13 +76,13 @@
 <property>
   <!--  this should eventually be deprecated since the metastore should supply this -->
   <name>hive.metastore.warehouse.dir</name>
-  <value>${test.warehouse.dir}</value>
+  <value>${hive.test.dir}/test/warehouse</value>
   <description></description>
 </property>
 
 <property>
   <name>hive.metastore.metadb.dir</name>
-  <value>file://${build.dir}/test/data/metadb/</value>
+  <value>${hive.test.dir}/test/data/metadb/</value>
   <description>
   Required by metastore server or if the uris argument below is not supplied
   </description>
@@ -90,13 +90,13 @@
 
 <property>
   <name>test.log.dir</name>
-  <value>${build.dir}/test/logs</value>
+  <value>${hive.test.dir}/test/logs</value>
   <description></description>
 </property>
 
 <property>
   <name>test.src.dir</name>
-  <value>file://${build.dir}/src/test</value>
+  <value>${hive.test.dir}/src/test</value>
   <description></description>
 </property>
 
@@ -127,7 +127,7 @@
 
 <property>
   <name>hive.querylog.location</name>
-  <value>${build.dir}/tmp</value>
+  <value>${hive.test.dir}/tmp</value>
   <description>Location of the structured hive logs</description>
 </property>
 
