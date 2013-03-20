@@ -1,2 +1,2 @@
-rhel.*.package.*/
+rhel.*.package*/
 *tgz

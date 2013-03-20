@@ -9,7 +9,7 @@ CUSTODIAN = shark-devel@yahoo-inc.com https://git.corp.yahoo.com/harshars/shark
 # Pick up version number from the README file
 VERSION = `awk '/^Version/ {print $2; exit}' README`
 
-SPARK_HOME = libexec/$(PRODUCT_NAME)-$(VERSION)
+SHARK_HOME = libexec/$(PRODUCT_NAME)-$(VERSION)
 
 YINST bug-product miner CORE libraries
 YINST bug-component General
