@@ -216,9 +216,12 @@ class CacheSinkOperator extends TerminalOperator {
       statsAcc += (split, serde.stats)
       iterToReturn
     }
+    
+    // Force execute the RDD and collect stats.
+    rdd.foreach(_ => Unit)
     var splitToStats = statsAcc.value.toMap
 
-    // Put the RDD in cache and force evaluate it.
+    // Put the RDD in the cache.
     op.logInfo("Putting %sRDD for %s in cache, %s %s %s %s".format(
       if (useUnionRDD) "Union" else "",
       tableName,
@@ -239,7 +242,6 @@ class CacheSinkOperator extends TerminalOperator {
       splitToStats = currentStats.toMap
     }
     SharkEnv.cache.put(tableName, rdd, storageLevel)
-    rdd.foreach(_ => Unit)
 
     // Report remaining memory.
     /* Commented out for now waiting for the reporting code to make into Spark.
