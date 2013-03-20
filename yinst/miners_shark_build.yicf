@@ -1,0 +1,23 @@
+
+PRODUCT_NAME = miners_shark_build
+
+SHORT_DESC = Dependencies needed to build miners_shark
+LONG_DESC = Dependencies needed to build miners_shark 
+
+CUSTODIAN = shark-devel@yahoo-inc.com https://git.corp.yahoo.com/harshars/shark/
+
+# Pick up version number from the README file so that it matches the version of miners_shark
+VERSION = `awk '/^Version/ {print $2; exit}' README`
+
+YINST bug-product miner CORE libraries
+YINST bug-component General
+
+PACKAGE_OS_SPECIFIC = no
+
+YINST requires pkg yjava_jdk 1.7.0 *
+YINST requires pkg scala 2.9.0 2.9.2
+YINST requires pkg miners_hive 0.9.0 *
+YINST requires pkg miners_spark 0.7.0 *
+YINST requires pkg yahoo_cfg_dev * *
+YINST requires pkg gitzip * *
+YINST requires pkg git * *

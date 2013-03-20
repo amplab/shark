@@ -1,0 +1,38 @@
+
+PRODUCT_NAME = miners_shark
+
+SHORT_DESC = Shark is a large-scale data warehouse system for Spark designed to be compatible with Apache Hive.
+LONG_DESC = `cat README` 
+
+CUSTODIAN = shark-devel@yahoo-inc.com https://git.corp.yahoo.com/harshars/shark
+
+# Pick up version number from the README file
+VERSION = `awk '/^Version/ {print $2; exit}' README`
+
+SPARK_HOME = libexec/$(PRODUCT_NAME)-$(VERSION)
+
+YINST bug-product miner CORE libraries
+YINST bug-component General
+
+SRCDIRS = ..
+
+PACKAGE_OS_SPECIFIC = no
+YINST requires pkg yjava_jdk 1.7.0 *
+YINST requires pkg miners_spark 0.7.0.4 *
+YINST requires pkg miners_scala 2.9.2 *
+YINST requires pkg miners_hive 0.9.0.2 *
+# YINST requires pkg hadoop 0.20.205 *
+
+YINST set SPARK_HOME /home/y/libexec/miners_spark
+YINST set SCALA_HOME /home/y/libexec/miners_scala
+YINST set HIVE_HOME /home/y/libexec/miners_hive/build/dist
+YINST set HADOOP_PREFIX /home/y/libexec/hadoop
+YINST set HADOOP_HOME /home/y/libexec/hadoop
+
+PERM  = 0755
+OWNER = root
+GROUP = wheel
+
+lfind $(PERM:stat) - - $(SHARK_HOME)/  .. \! -name "*.scala" \! -name "*.class" \! -regex ".*yinst.*" \! -regex ".*git.*" -type f
+symlink - - - libexec/$(PRODUCT_NAME) $(PRODUCT_NAME)-$(VERSION)/
+configfile 644 - - $(SHARK_HOME)/conf/shark-env.sh shark-env.sh expand overwrite

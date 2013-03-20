@@ -1,0 +1,21 @@
+The Yahoo! miners_shark tool is created from
+https://git.corp.yahoo.com/harshars/shark
+branch - adp
+
+version number format - W.X.Y.Z
+W.X.Y are from the open source project.
+Z is yahoo-specific versioning.
+
+Release Notes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Version 0.2.0.1
+        First cut
+        All external deps are brought in as jars
+        Standard yinst directory structure not in use.
+        Symlink /home/y/libexec/miners_shark/ will always be available
+        and kept current pointing to
+        /home/y/libexec/miners_shark-VERSION
+        Added a conf file & yinst setting to set SCALA_HOME,
+        SPARK_HOME etc...
+        yinst set params control where deps are picked up from - see
+        yicf.
