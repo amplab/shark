@@ -2,7 +2,7 @@
 PRODUCT_NAME = miners_shark_build
 
 SHORT_DESC = Dependencies needed to build miners_shark
-LONG_DESC = Dependencies needed to build miners_shark 
+LONG_DESC = Dependencies needed to build miners_shark. Build instructions in Makefile
 
 CUSTODIAN = shark-devel@yahoo-inc.com https://git.corp.yahoo.com/harshars/shark/
 
