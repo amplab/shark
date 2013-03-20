@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,7 +27,7 @@ object SharkBuild extends Build {
   val HADOOP_VERSION = "0.20.205.0"
 
   // Spark version to build against.
-  val SPARK_VERSION = "0.7.0-SNAPSHOT"
+  val SPARK_VERSION = "0.7.0"
 
   lazy val root = Project(
     id = "root",
