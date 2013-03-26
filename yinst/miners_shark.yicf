@@ -29,6 +29,14 @@ YINST set HIVE_HOME /home/y/libexec/miners_hive/build/dist
 YINST set HADOOP_PREFIX /home/y/libexec/hadoop
 YINST set HADOOP_HOME /home/y/libexec/hadoop
 
+DEFAULT_MASTER = `hostname`
+YINST set SPARK_MASTER_IP $(DEFAULT_MASTER)
+DEFAULT_PORT = 5050
+YINST set SPARK_MASTER_PORT $(DEFAULT_PORT)
+YINST set MASTER spark://$(DEFAULT_MASTER):$(DEFAULT_PORT)
+YINST set SPARK_MEM=10g
+YINST set SHARK_MASTER_MEM=10g
+
 PERM  = 0755
 OWNER = root
 GROUP = wheel

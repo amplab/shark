@@ -8,6 +8,8 @@ Z is yahoo-specific versioning.
 
 Release Notes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Version 0.2.0.3
+	Adding config params that can be over-ridden through yinst.
 Version 0.2.0.2
 	Dependency on hadoop binaries will be resolved prior to other packages, forcing the build tool to pull in the right version.
 Version 0.2.0.1

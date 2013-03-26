@@ -17,13 +17,16 @@
 
 # (Required) Amount of memory used per slave node. This should be in the same
 # format as the JVM's -Xmx option, e.g. 300m or 1g.
-export SPARK_MEM=4g
+export SPARK_MEM=$(miners_shark__SPARK_MEM)
 
 # (Required) Set the master program's memory
-export SHARK_MASTER_MEM=4g
+export SHARK_MASTER_MEM=$(miners_shark__SHARK_MASTER_MEM)
 
 # (Required) Point to your Scala installation.
+export SCALA_VERSION=2.9.2
 export SCALA_HOME=$(miners_shark__SCALA_HOME)
+
+export JAVA_HOME=/home/y/libexec64/jdk1.7.0/
 
 # (Required) Point to the patched Hive binary distribution
 export HIVE_HOME=$(miners_shark__HIVE_HOME)
@@ -36,7 +39,10 @@ export HIVE_HOME=$(miners_shark__HIVE_HOME)
 export HADOOP_HOME=$(miners_shark__HADOOP_HOME)
 export HADOOP_PREFIX=$(miners_shark__HADOOP_PREFIX)
 export SPARK_HOME=$(miners_shark__SPARK_HOME)
-#export MASTER=""
+
+export MASTER=$(miners_shark__MASTER)
+export SPARK_MASTER_IP=$(miners_shark__SPARK_MASTER_IP)
+export SPARK_MASTER_PORT=$(miners_shark__SPARK_MASTER_PORT)
 #export MESOS_NATIVE_LIBRARY=/usr/local/lib/libmesos.so
 
 # (Optional) Extra classpath
@@ -44,7 +50,11 @@ export SPARK_HOME=$(miners_shark__SPARK_HOME)
 
 # Java options
 # On EC2, change the local.dir to /mnt/tmp
-SPARK_JAVA_OPTS="-Dspark.local.dir=/tmp "
+export GC_OPTS="-verbose:gc -XX:-PrintGCDetails -XX:+PrintGCTimeStamps"
+export DEBUG_OPTS="-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=8787"
+
+SPARK_JAVA_OPTS="$DEBUG_OPTS -XX:ReservedCodeCacheSize=256m -XX:MaxPermSize=1g"
+SPARK_JAVA_OPTS+="-Dspark.local.dir=/tmp "
 SPARK_JAVA_OPTS+="-Dspark.kryoserializer.buffer.mb=10 "
 SPARK_JAVA_OPTS+="-verbose:gc -XX:-PrintGCDetails -XX:+PrintGCTimeStamps "
 export SPARK_JAVA_OPTS
