@@ -8,6 +8,8 @@ Z is yahoo-specific versioning.
 
 Release Notes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Version 0.2.0.4
+	Packaging the shark libraries created by simple build tool.
 Version 0.2.0.3
 	Adding config params that can be over-ridden through yinst.
 Version 0.2.0.2
