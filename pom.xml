@@ -66,6 +66,11 @@
       <url>http://www.datanucleus.org/downloads/maven2/</url>
       <layout>default</layout>
     </repository>
+    <repository>
+      <id>cloudera</id>
+      <name>Cloudera CDH4 Maven Repository</name>
+      <url>https://repository.cloudera.com/artifactory/cloudera-repos/</url>
+    </repository>
   </repositories>
 
   <pluginRepositories>
