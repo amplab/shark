@@ -53,7 +53,7 @@ export SPARK_MASTER_PORT=$(miners_shark__SPARK_MASTER_PORT)
 export GC_OPTS="-verbose:gc -XX:-PrintGCDetails -XX:+PrintGCTimeStamps"
 export DEBUG_OPTS="-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=8787"
 
-SPARK_JAVA_OPTS="$DEBUG_OPTS -XX:ReservedCodeCacheSize=256m -XX:MaxPermSize=1g"
+SPARK_JAVA_OPTS="$DEBUG_OPTS -XX:-UseSplitVerifier -XX:ReservedCodeCacheSize=256m -XX:MaxPermSize=1g "
 SPARK_JAVA_OPTS+="-Dspark.local.dir=/tmp "
 SPARK_JAVA_OPTS+="-Dspark.kryoserializer.buffer.mb=10 "
 SPARK_JAVA_OPTS+="-verbose:gc -XX:-PrintGCDetails -XX:+PrintGCTimeStamps "

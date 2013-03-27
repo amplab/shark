@@ -8,6 +8,8 @@ Z is yahoo-specific versioning.
 
 Release Notes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Version 0.2.0.6
+	Do not use the type checker with StackMapTable attribute by setting JAVA_OPTS -XX:-UseSplitVerifier
 Version 0.2.0.5
 	Need to run 'sbt/sbt package' to create shark jars.
 Version 0.2.0.4
