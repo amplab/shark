@@ -23,10 +23,10 @@ import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.hadoop.hive.conf.HiveConf
 
 import shark.memstore2.MemoryMetadataManager
+import shark.tachyon.TachyonUtilImpl
 
 import spark.SparkContext
 
-import tachyon.client.TachyonClient
 
 /** A singleton object for the master program. The slaves should not access this. */
 object SharkEnv extends LogHelper {
@@ -68,25 +68,14 @@ object SharkEnv extends LogHelper {
   executorEnvVars.put("JAVA_HOME", getEnv("JAVA_HOME"))
   executorEnvVars.put("MESOS_NATIVE_LIBRARY", getEnv("MESOS_NATIVE_LIBRARY"))
   executorEnvVars.put("TACHYON_MASTER", getEnv("TACHYON_MASTER"))
+  executorEnvVars.put("TACHYON_WAREHOUSE_PATH", getEnv("TACHYON_WAREHOUSE_PATH"))
 
   var sc: SparkContext = _
 
   val memoryMetadataManager = new MemoryMetadataManager
 
-  var useTachyon: Boolean = false
-  var tachyonClient: TachyonClient = null
-  if (System.getenv("TACHYON_MASTER") != null) {
-    tachyonClient = TachyonClient.getClient(System.getenv("TACHYON_MASTER"))
-    useTachyon = true
-  }
-  var selectiveTachyon: Boolean = false
-  if (System.getenv("TACHYON_SELECTIVE") != null) {
-    selectiveTachyon = true
-  }
-  var tachyonTableFolder = "/sharktable/"
-  if (System.getenv("TACHYON_TABLE_FOLDER") != null) {
-    tachyonTableFolder = System.getenv("TACHYON_TABLE_FOLDER")
-  }
+  val tachyonUtil = new TachyonUtilImpl(
+    System.getenv("TACHYON_MASTER"), System.getenv("TACHYON_WAREHOUSE_PATH"))
 
   // The following line turns Kryo serialization debug log on. It is extremely chatty.
   //com.esotericsoftware.minlog.Log.set(com.esotericsoftware.minlog.Log.LEVEL_DEBUG)
@@ -95,10 +84,7 @@ object SharkEnv extends LogHelper {
   val addedFiles = HashSet[String]()
   val addedJars = HashSet[String]()
 
-  /**
-   * Cleans up and shuts down the Shark environments.
-   * Stops the SparkContext and drops cached tables.
-  */
+  /** Cleans up and shuts down the Shark environments. */
   def stop() {
     logInfo("Shutting down Shark Environment")
     // Stop the SparkContext
@@ -108,9 +94,10 @@ object SharkEnv extends LogHelper {
     }
   }
 
-  def getEnv(variable: String) =
-    if (System.getenv(variable) == null) "" else System.getenv(variable)
+  /** Return the value of an environmental variable as a string. */
+  def getEnv(varname: String) = if (System.getenv(varname) == null) "" else System.getenv(varname)
 }
+
 
 /** A singleton object for the slaves. */
 object SharkEnvSlave {
@@ -122,18 +109,6 @@ object SharkEnvSlave {
    */
   val objectInspectorLock: AnyRef = new Object()
 
-  var useTachyon: Boolean = false
-  var tachyonClient: TachyonClient = null
-  if (System.getenv("TACHYON_MASTER") != null) {
-    tachyonClient = TachyonClient.getClient(System.getenv("TACHYON_MASTER"))
-    useTachyon = true
-  }
-  var selectiveTachyon: Boolean = false
-  if (System.getenv("TACHYON_SELECTIVE") != null) {
-    selectiveTachyon = true
-  }
-  var tachyonTableFolder = "/sharktable/"
-  if (System.getenv("TACHYON_TABLE_FOLDER") != null) {
-    tachyonTableFolder = System.getenv("TACHYON_TABLE_FOLDER")
-  }
+  val tachyonUtil = new TachyonUtilImpl(
+    System.getenv("TACHYON_MASTER"), System.getenv("TACHYON_WAREHOUSE_PATH"))
 }

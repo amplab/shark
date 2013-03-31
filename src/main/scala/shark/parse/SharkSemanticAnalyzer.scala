@@ -18,7 +18,8 @@
 package shark.parse
 
 import java.lang.reflect.Method
-import java.util.{ArrayList, List => JavaList}
+import java.util.ArrayList
+import java.util.{List => JavaList}
 
 import scala.collection.JavaConversions._
 
@@ -33,12 +34,10 @@ import org.apache.hadoop.hive.ql.parse._
 import org.apache.hadoop.hive.ql.plan._
 import org.apache.hadoop.hive.ql.session.SessionState
 
-import shark.{LogHelper, SharkConfVars, Utils}
+import shark.{CachedTableRecovery, LogHelper, SharkConfVars, Utils}
 import shark.execution.{HiveOperator, Operator, OperatorFactory, ReduceSinkOperator, SparkWork,
   TerminalOperator}
-import shark.CachedTableRecovery
-import shark.SharkConfVars
-import shark.memstore2.ColumnarSerDe
+import shark.memstore2.{CacheType, ColumnarSerDe}
 
 import spark.storage.StorageLevel
 
@@ -76,7 +75,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
 
     //TODO: can probably reuse Hive code for this
     // analyze create table command
-    var shouldCache = false
+    var cacheMode = CacheType.none
     var isCTAS = false
     var shouldReset = false
 
@@ -99,12 +98,16 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       if (!isCTAS || td == null) {
         return
       } else {
-        shouldCache = td.getTblProps().getOrElse("shark.cache", "false").toBoolean ||
-          (SharkConfVars.getBoolVar(conf, SharkConfVars.CHECK_TABLENAME_FLAG) &&
-          td.getTableName.endsWith("_cached"))
+        val cacheType = CacheType.fromString(td.getTblProps().get("shark.cache"))
+        if (cacheType == CacheType.heap || td.getTableName.endsWith("_cached")) {
+          cacheMode = CacheType.heap
+          td.getTblProps().put("shark.cache", cacheMode.toString)
+        } else if (cacheType == CacheType.tachyon || td.getTableName.endsWith("_tachyon")) {
+          cacheMode = CacheType.tachyon
+          td.getTblProps().put("shark.cache", cacheMode.toString)
+        }
 
-        if (shouldCache && (td.getSerName == null || !td.getSerName.startsWith("shark.memstore"))) {
-          // By default use the Basic columnar ser de.
+        if (CacheType.shouldCache(cacheMode)) {
           td.setSerName(classOf[ColumnarSerDe].getName)
         }
 
@@ -164,7 +167,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       // For a single output, we have the option of choosing the output
       // destination (e.g. CTAS with table property "shark.cache" = "true").
       val terminalOp = {
-        if (isCTAS && qb.getTableDesc != null && shouldCache) {
+        if (isCTAS && qb.getTableDesc != null && CacheType.shouldCache(cacheMode)) {
           val storageLevel = qb.getTableDesc.getTblProps.getOrElse("shark.cache.storageLevel",
             SharkConfVars.getVar(conf, SharkConfVars.STORAGE_LEVEL)).toUpperCase match {
               case "NONE" => StorageLevel.NONE

@@ -29,6 +29,9 @@ object SharkBuild extends Build {
   // Spark version to build against.
   val SPARK_VERSION = "0.7.0"
 
+  // Whether to build Shark with Tachyon jar.
+  val TACHYON_ENABLED = false
+
   lazy val root = Project(
     id = "root",
     base = file("."),
@@ -56,6 +59,14 @@ object SharkBuild extends Build {
     testListeners <<= target.map(
       t => Seq(new eu.henkelmann.sbt.JUnitXmlTestsListener(t.getAbsolutePath))),
 
+    unmanagedSourceDirectories in Compile <+= baseDirectory { base =>
+      if (TACHYON_ENABLED) {
+        base / ("src/tachyon_enabled/scala")
+      } else {
+        base / ("src/tachyon_disabled/scala")
+      }
+    },
+
     unmanagedJars in Compile <++= baseDirectory map { base =>
       val hiveFile = file(System.getenv("HIVE_HOME")) / "lib"
       val baseDirectories = (base / "lib") +++ (hiveFile)
@@ -63,6 +74,7 @@ object SharkBuild extends Build {
       // Hive uses an old version of guava that doesn't have what we want.
       customJars.classpath.filter(!_.toString.contains("guava"))
     },
+
     unmanagedJars in Test ++= Seq(
       file(System.getenv("HIVE_DEV_HOME")) / "build" / "ql" / "test" / "classes",
       file(System.getenv("HIVE_DEV_HOME")) / "build/ivy/lib/test/hadoop-test-0.20.2.jar"
@@ -75,8 +87,8 @@ object SharkBuild extends Build {
       "org.apache.hadoop" % "hadoop-core" % HADOOP_VERSION,
       "it.unimi.dsi" % "fastutil" % "6.4.2",
       "org.scalatest" %% "scalatest" % "1.6.1" % "test",
-      "junit" % "junit" % "4.10" % "test",
-      "tachyon" % "tachyon" % "0.2-SNAPSHOT")
+      "junit" % "junit" % "4.10" % "test") ++
+      (if (TACHYON_ENABLED) Some("tachyon" % "tachyon" % "0.2-SNAPSHOT") else None).toSeq
 
   ) ++ assemblySettings ++ Seq(test in assembly := {}) ++ Seq(getClassPathTask)
 

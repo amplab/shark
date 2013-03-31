@@ -25,25 +25,21 @@ import org.apache.hadoop.mapred.{FileInputFormat, InputFormat, JobConf}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_PARTITION_COLUMNS
 import org.apache.hadoop.hive.ql.exec.{TableScanOperator => HiveTableScanOperator}
-import org.apache.hadoop.hive.ql.exec.Utilities
-import org.apache.hadoop.hive.ql.metadata.Partition
-import org.apache.hadoop.hive.ql.metadata.Table
+import org.apache.hadoop.hive.ql.exec.{MapSplitPruning, Utilities}
+import org.apache.hadoop.hive.ql.metadata.{Partition, Table}
 import org.apache.hadoop.hive.ql.plan.{PlanUtils, PartitionDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorFactory,
   StructObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
-import org.apache.hadoop.hive.ql.exec.MapSplitPruning
 import org.apache.hadoop.io.Writable
 
-import shark.SharkConfVars
-import shark.SharkEnv
+import shark.{SharkConfVars, SharkEnv}
 import shark.execution.serialization.XmlSerializer
-import shark.memstore2.TablePartition
-import shark.memstore2.TablePartitionStats
+import shark.memstore2.{CacheType, TablePartition, TablePartitionStats}
+import shark.tachyon.TachyonException
 
 import spark.RDD
-import spark.rdd.PartitionPruningRDD
-import spark.rdd.UnionRDD
+import spark.rdd.{PartitionPruningRDD, UnionRDD}
 
 
 class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopOperator {
@@ -103,27 +99,32 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     assert(parentOperators.size == 0)
     val tableKey: String = tableDesc.getTableName.split('.')(1)
 
-    if (SharkEnv.useTachyon && (!SharkEnv.selectiveTachyon || tableKey.contains("tachyon"))) {
-      val fileId = SharkEnv.tachyonClient.getFileId(SharkEnv.tachyonTableFolder + tableKey)
-      if (fileId != -1) {
-        logInfo("Loading table from Tachyon " + tableKey)
-        return new shark.TachyonTableRDD(SharkEnv.sc, SharkEnv.tachyonTableFolder + tableKey)
-      }
-    }
+    // There are three places we can load the table from.
+    // 1. Tachyon table
+    // 2. Spark heap (block manager)
+    // 3. Hive table on HDFS (or other Hadoop storage)
 
-    SharkEnv.memoryMetadataManager.get(tableKey) match {
-      // The RDD already exists in cache manager. Try to load it from memory.
-      // In this case, skip the normal execution chain, i.e. skip
-      // preprocessRdd, processPartition, postprocessRdd, etc.
-      case Some(rdd) => loadRddFromCache(tableKey, rdd)
-      // The RDD is new, i.e. reading the table from disk.
-      case None => super.execute()
+    val cacheMode = CacheType.fromString(
+      tableDesc.getProperties().get("shark.cache").asInstanceOf[String])
+    if (cacheMode == CacheType.heap) {
+      // Table is in Spark heap (block manager).
+      val rdd = SharkEnv.memoryMetadataManager.get(tableKey).get
+      logInfo("Loading table " + tableKey + " from Spark block manager")
+      loadRddFromSpark(tableKey, rdd)
+    } else if (cacheMode == CacheType.tachyon) {
+      // Table is in Tachyon.
+      if (!SharkEnv.tachyonUtil.tableExists(tableKey)) {
+        throw new TachyonException("Table " + tableKey + " does not exist in Tachyon")
+      }
+      logInfo("Loading table " + tableKey + " from Tachyon")
+      SharkEnv.tachyonUtil.createRDD(tableKey)
+    } else {
+      // Table is a Hive table on HDFS (or other Hadoop storage).
+      super.execute()
     }
   }
 
-  private def loadRddFromCache(tableKey: String, rdd: RDD[_]): RDD[_] = {
-    logInfo("Loading table from cache " + tableKey)
-
+  private def loadRddFromSpark(tableKey: String, rdd: RDD[_]): RDD[_] = {
     // Stats used for map pruning.
     val splitToStats: collection.Map[Int, TablePartitionStats] =
       SharkEnv.memoryMetadataManager.getStats(tableKey).get

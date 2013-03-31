@@ -44,17 +44,25 @@ object MapSplitPruning {
    *
    * s and s.stats must not be null here.
    */
-  def test(s: TablePartitionStats, e: ExprNodeEvaluator): Boolean = e match {
-    case e: ExprNodeGenericFuncEvaluator => {
-      e.genericUDF match {
-        case _: GenericUDFOPAnd => test(s, e.children(0)) && test(s, e.children(1))
-        case _: GenericUDFOPOr =>  test(s, e.children(0)) || test(s, e.children(1))
-        case udf: GenericUDFBaseCompare =>
-          testComparisonPredicate(s, udf, e.children(0), e.children(1))
+  def test(s: TablePartitionStats, e: ExprNodeEvaluator): Boolean = {
+    if (s.numRows == 0) {
+      // If the partition is empty, it can be pruned.
+      false
+    } else {
+      // If the partition is not empty, test the condition based on the operator.
+      e match {
+        case e: ExprNodeGenericFuncEvaluator => {
+          e.genericUDF match {
+            case _: GenericUDFOPAnd => test(s, e.children(0)) && test(s, e.children(1))
+            case _: GenericUDFOPOr =>  test(s, e.children(0)) || test(s, e.children(1))
+            case udf: GenericUDFBaseCompare =>
+              testComparisonPredicate(s, udf, e.children(0), e.children(1))
+            case _ => true
+          }
+        }
         case _ => true
       }
     }
-    case _ => true
   }
 
   /**

@@ -19,15 +19,23 @@ package shark
 
 import java.sql.Timestamp
 
+import org.apache.hadoop.hive.ql.exec.MapSplitPruning
 import org.apache.hadoop.hive.ql.exec.MapSplitPruning._
 import org.apache.hadoop.io.Text
 
 import org.scalatest.FunSuite
 
+import shark.memstore2.TablePartitionStats
+
 
 class MapSplitPruningSuite extends FunSuite {
 
   def T(str: String): Text = new Text(str)
+
+  test("test empty partition") {
+    val s = new TablePartitionStats(Array(), 0)
+    assert(!MapSplitPruning.test(s, null))
+  }
 
   test("test different data types") {
     assert(testEqual(1, 2, true))

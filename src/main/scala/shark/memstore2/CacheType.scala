@@ -17,26 +17,28 @@
 
 package shark.memstore2
 
-import java.util.{List => JList, ArrayList => JArrayList}
 
-import shark.memstore2.column.ColumnIterator
+object CacheType extends Enumeration {
 
+  type CacheType = Value
+  val none, heap, tachyon = Value
 
-/**
- * A struct returned by the TablePartitionIterator. It contains references to the same set of
- * ColumnIterators and use those to return individual fields back to the object inspectors.
- */
-class ColumnarStruct(columnIterators: Array[ColumnIterator]) {
+  def shouldCache(c: CacheType): Boolean = (c != none)
 
-  def getField(columnId: Int): Object = columnIterators(columnId).current
-
-  def getFieldsAsList(): JList[Object] = {
-    val list = new JArrayList[Object](columnIterators.length)
-    var i = 0
-    while (i < columnIterators.length) {
-      list.add(columnIterators(i).current)
-      i += 1
+  /** Get the cache type object from a string representation. */
+  def fromString(name: String): CacheType = {
+    if (name == null || name == "") {
+      none
+    } else if (name.toLowerCase == "true") {
+      heap
+    } else {
+      try {
+        withName(name.toLowerCase)
+      } catch {
+        case e: java.util.NoSuchElementException => throw new InvalidCacheTypeException(name)
+      }
     }
-    list
   }
+
+  class InvalidCacheTypeException(name: String) extends Exception("Invalid cache type " + name)
 }

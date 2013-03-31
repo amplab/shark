@@ -22,21 +22,14 @@ import scala.reflect.BeanProperty
 
 import org.apache.hadoop.io.Writable
 
-import shark.SharkConfVars
-import shark.SharkEnv
-import shark.SharkEnvSlave
-import shark.Utils
-import shark.memstore2._
+import shark.{SharkConfVars, SharkEnv, SharkEnvSlave, Utils}
 import shark.execution.serialization.OperatorSerializationWrapper
+import shark.memstore2._
+import shark.tachyon.TachyonTableWriter
 
-import spark.RDD
-import spark.TaskContext
+import spark.{RDD, TaskContext}
 import spark.SparkContext._
 import spark.storage.StorageLevel
-
-import tachyon.client.RawColumn
-import tachyon.client.RawTable
-import tachyon.client.TachyonClient
 
 
 /**
@@ -65,78 +58,64 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     val statsAcc = SharkEnv.sc.accumulableCollection(ArrayBuffer[(Int, TablePartitionStats)]())
     val op = OperatorSerializationWrapper(this)
 
-    var rawTableId: Int = -1
-    // TODO: properly handle where the table goes.
-    if (SharkEnv.useTachyon && (!SharkEnv.selectiveTachyon || op.tableName.contains("tachyon"))) {
-      SharkEnv.tachyonClient.mkdir(SharkEnv.tachyonTableFolder)
-      rawTableId = SharkEnv.tachyonClient.createRawTable(
-        SharkEnv.tachyonTableFolder + tableName, numColumns + 1)
-    }
+    val cacheMode = CacheType.fromString(
+      hiveOp.getConf.getTableInfo().getProperties().getProperty("shark.cache"))
 
-    // Serialize the RDD on all partitions before putting it into the cache.
-    val rdd = inputRdd.mapPartitionsWithIndex { case(split, iter) =>
+    val tachyonWriter: TachyonTableWriter =
+      if (cacheMode == CacheType.tachyon) {
+        // Use an additional row to store metadata (e.g. number of rows in each partition).
+        SharkEnv.tachyonUtil.createTableWriter(tableName, numColumns + 1)
+      } else {
+        null
+      }
+
+    // Put all rows of the table into a set of TablePartition's. Each partition contains
+    // only one TablePartition object.
+    val rdd: RDD[TablePartition] = inputRdd.mapPartitionsWithIndex { case(partitionIndex, iter) =>
       op.initializeOnSlave()
-
       val serde = new ColumnarSerDe
       serde.initialize(op.hconf, op.localHiveOp.getConf.getTableInfo.getProperties())
 
+      // Serialize each row into the builder object.
       // ColumnarSerDe will return a TablePartitionBuilder.
       var builder: Writable = null
       iter.foreach { row =>
         builder = serde.serialize(row.asInstanceOf[AnyRef], op.objectInspector)
       }
 
-      if (SharkEnv.useTachyon && (!SharkEnv.selectiveTachyon || op.tableName.contains("tachyon"))) {
-        val rawTable = SharkEnvSlave.tachyonClient.getRawTable(rawTableId)
-        val partitionIter =
-          if (builder != null) {
-            var partition = builder.asInstanceOf[TablePartitionBuilder].build
-
-            partition.toTachyon.zipWithIndex.foreach { case(buffer, i) =>
-              op.logInfo("Filing Column " + i + " partition " + split + " into Tachyon")
-              val rawColumn = rawTable.getRawColumn(i)
-              rawColumn.createPartition(split)
-              val file = rawColumn.getPartition(split)
-              file.open("w")
-              file.append(buffer)
-              file.close()
-            }
-
-            partition.iterator
-          } else {
-            // This partition is empty.
-            Iterator()
-          }
-
-        //statsAcc += (split, serde.stats)
-        partitionIter
+      if (builder != null) {
+        statsAcc += Tuple2(partitionIndex, builder.asInstanceOf[TablePartitionBuilder].stats)
+        Iterator(builder.asInstanceOf[TablePartitionBuilder].build)
       } else {
-        val partition =
-          if (builder != null) {
-            Iterator(builder.asInstanceOf[TablePartitionBuilder].build)
-          } else {
-            // This partition is empty.
-            Iterator()
-          }
-
-        statsAcc += Tuple2(split, builder.asInstanceOf[TablePartitionBuilder].stats)
-        partition
+        // Empty partition.
+        statsAcc += Tuple2(partitionIndex, new TablePartitionStats(Array(), 0))
+        Iterator(new TablePartition(0, Array()))
       }
     }
 
-    if (SharkEnv.useTachyon && (!SharkEnv.selectiveTachyon || tableName.contains("tachyon"))) {
-    } else{
-      // Put the RDD in cache and force evaluate it.
-      op.logInfo("Putting RDD for %s in cache, %s %s %s %s".format(
+    if (tachyonWriter != null) {
+      val tachyonRdd = rdd.mapPartitionsWithIndex { case(partitionIndex, iter) =>
+        val partition = iter.next()
+        partition.toTachyon.zipWithIndex.foreach { case(buf, column) =>
+          tachyonWriter.writeColumnPartition(column, partitionIndex, buf)
+        }
+        Iterator()
+      }
+      // Force evaluate so the data gets put into Tachyon.
+      tachyonRdd.foreach(_ => Unit)
+    } else {
+      // Put the table in Spark block manager.
+      op.logInfo("Putting RDD for %s in Spark block manager, %s %s %s %s".format(
         tableName,
         if (storageLevel.deserialized) "deserialized" else "serialized",
         if (storageLevel.useMemory) "in memory" else "",
         if (storageLevel.useMemory && storageLevel.useDisk) "and" else "",
         if (storageLevel.useDisk) "on disk" else ""))
-
       SharkEnv.memoryMetadataManager.put(tableName, rdd, storageLevel)
+
+      // Force evaluate so the data gets put into Spark block manager.
+      rdd.foreach(_ => Unit)
     }
-    rdd.foreach(_ => Unit)
 
     // Report remaining memory.
     /* Commented out for now waiting for the reporting code to make into Spark.
