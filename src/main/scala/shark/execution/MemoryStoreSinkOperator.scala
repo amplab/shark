@@ -40,6 +40,8 @@ class MemoryStoreSinkOperator extends TerminalOperator {
   @BeanProperty var initialColumnSize: Int = _
   @BeanProperty var storageLevel: StorageLevel = _
   @BeanProperty var tableName: String = _
+  @transient var useTachyon: Boolean = _
+  @transient var useUnionRDD: Boolean = _
   @transient var numColumns: Int = _
 
   override def initializeOnMaster() {
@@ -58,11 +60,8 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     val statsAcc = SharkEnv.sc.accumulableCollection(ArrayBuffer[(Int, TablePartitionStats)]())
     val op = OperatorSerializationWrapper(this)
 
-    val cacheMode = CacheType.fromString(
-      hiveOp.getConf.getTableInfo().getProperties().getProperty("shark.cache"))
-
     val tachyonWriter: TachyonTableWriter =
-      if (cacheMode == CacheType.tachyon) {
+      if (useTachyon) {
         // Use an additional row to store metadata (e.g. number of rows in each partition).
         SharkEnv.tachyonUtil.createTableWriter(tableName, numColumns + 1)
       } else {
@@ -71,7 +70,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
     // Put all rows of the table into a set of TablePartition's. Each partition contains
     // only one TablePartition object.
-    val rdd: RDD[TablePartition] = inputRdd.mapPartitionsWithIndex { case(partitionIndex, iter) =>
+    var rdd: RDD[TablePartition] = inputRdd.mapPartitionsWithIndex { case(partitionIndex, iter) =>
       op.initializeOnSlave()
       val serde = new ColumnarSerDe
       serde.initialize(op.hconf, op.localHiveOp.getConf.getTableInfo.getProperties())
@@ -94,27 +93,34 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     }
 
     if (tachyonWriter != null) {
-      val tachyonRdd = rdd.mapPartitionsWithIndex { case(partitionIndex, iter) =>
+      rdd = rdd.mapPartitionsWithIndex { case(partitionIndex, iter) =>
         val partition = iter.next()
         partition.toTachyon.zipWithIndex.foreach { case(buf, column) =>
           tachyonWriter.writeColumnPartition(column, partitionIndex, buf)
         }
-        Iterator()
+        Iterator(partition)
       }
       // Force evaluate so the data gets put into Tachyon.
-      tachyonRdd.foreach(_ => Unit)
+      rdd.foreach(_ => Unit)
     } else {
       // Put the table in Spark block manager.
-      op.logInfo("Putting RDD for %s in Spark block manager, %s %s %s %s".format(
+      op.logInfo("Putting %sRDD for %s in Spark block manager, %s %s %s %s".format(
+        if (useUnionRDD) "Union" else "",
         tableName,
         if (storageLevel.deserialized) "deserialized" else "serialized",
         if (storageLevel.useMemory) "in memory" else "",
         if (storageLevel.useMemory && storageLevel.useDisk) "and" else "",
         if (storageLevel.useDisk) "on disk" else ""))
-      SharkEnv.memoryMetadataManager.put(tableName, rdd, storageLevel)
 
       // Force evaluate so the data gets put into Spark block manager.
+      rdd.persist(storageLevel)
       rdd.foreach(_ => Unit)
+
+      if (useUnionRDD) {
+        rdd = rdd.union(
+          SharkEnv.memoryMetadataManager.get(tableName).get.asInstanceOf[RDD[TablePartition]])
+      }
+      SharkEnv.memoryMetadataManager.put(tableName, rdd)
     }
 
     // Report remaining memory.
@@ -131,12 +137,26 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       Utils.memoryBytesToString(remainingMems.map(_._2._1).sum)))
     */
 
+    var columnStats =
+      if (useUnionRDD) {
+        // Combine stats for the two tables being combined.
+        val numPartitions = statsAcc.value.toMap.size
+        val currentStats = statsAcc.value
+        val otherIndexToStats = SharkEnv.memoryMetadataManager.getStats(tableName).get
+        for ((otherIndex, tableStats) <- otherIndexToStats) {
+          currentStats.append((otherIndex + numPartitions, tableStats))
+        }
+        currentStats.toMap
+      } else {
+        statsAcc.value.toMap
+      }
+
     // Get the column statistics back to the cache manager.
-    SharkEnv.memoryMetadataManager.putStats(tableName, statsAcc.value.toMap)
+    SharkEnv.memoryMetadataManager.putStats(tableName, columnStats)
 
     if (SharkConfVars.getBoolVar(localHconf, SharkConfVars.MAP_PRUNING_PRINT_DEBUG)) {
-      statsAcc.value.foreach { case(split, tableStats) =>
-        println("Partition " + split + " " + tableStats.toString)
+      columnStats.foreach { case(index, tableStats) =>
+        println("Partition " + index + " " + tableStats.toString)
       }
     }
 

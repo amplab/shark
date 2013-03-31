@@ -46,12 +46,16 @@ object OperatorFactory extends LogHelper {
       hiveTerminalOp: HiveOperator,
       tableName: String,
       storageLevel: StorageLevel,
-      numColumns: Int): TerminalOperator = {
+      numColumns: Int,
+      useTachyon: Boolean,
+      useUnionRDD: Boolean): TerminalOperator = {
     val sinkOp = _newOperatorInstance(
       classOf[MemoryStoreSinkOperator], hiveTerminalOp).asInstanceOf[MemoryStoreSinkOperator]
     sinkOp.tableName = tableName
     sinkOp.storageLevel = storageLevel
     sinkOp.numColumns = numColumns
+    sinkOp.useTachyon = useTachyon
+    sinkOp.useUnionRDD = useUnionRDD
     _createAndSetParents(sinkOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }
 

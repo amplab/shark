@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,8 +17,7 @@
 
 package shark
 
-import java.io.File
-import java.io.{BufferedReader, InputStreamReader, PrintWriter}
+import java.io.{BufferedReader, File, InputStreamReader, PrintWriter}
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
 class CachedSuite extends FunSuite with BeforeAndAfterAll with CliTestToolkit {
@@ -97,6 +96,50 @@ class CachedSuite extends FunSuite with BeforeAndAfterAll with CliTestToolkit {
     val out = executeQuery("select * from sharktest5Cached where key = 407;")
     assert(out.contains("val_407"))
     assert(isCachedTable("sharkTest5Cached"))
+  }
+
+  test("Update single cached table using INSERT") {
+    val kv1FilePath = System.getenv("HIVE_DEV_HOME") + "/data/files/kv1.txt"
+    val kv2FilePath = System.getenv("HIVE_DEV_HOME") + "/data/files/kv2.txt"
+    executeQuery("create table shark_test6_kv1(key int, val string);")
+    executeQuery("create table shark_test6_kv2(key int, val string);")
+    executeQuery("load data local inpath '" + kv1FilePath+ "' overwrite into table shark_test6_kv1;")
+    executeQuery("load data local inpath '" + kv2FilePath+ "' overwrite into table shark_test6_kv2;")
+    executeQuery("""create table shark_test6_kv1kv2_cached TBLPROPERTIES ("shark.cache" = "true") as select * from shark_test6_kv1;""")
+    executeQuery("insert into table shark_test6_kv1kv2_cached select * from shark_test6_kv2;")
+    val cachedKeySum = executeQuery("select sum(key) from shark_test6_kv1kv2_cached;")
+    // sum(kv1.key) + sum(kv2.key)
+    assert(cachedKeySum.contains("257965"))
+    assert(isCachedTable("shark_test6_kv1kv2_cached"))
+  }
+
+  test("Overwrite cached table using INSERT") {
+    val kv1FilePath = System.getenv("HIVE_DEV_HOME") + "/data/files/kv1.txt"
+    val kv2FilePath = System.getenv("HIVE_DEV_HOME") + "/data/files/kv2.txt"
+    executeQuery("create table shark_test9_kv1(key int, val string);")
+    executeQuery("create table shark_test9_kv2(key int, val string);")
+    executeQuery("load data local inpath '" + kv1FilePath+ "' overwrite into table shark_test9_kv1;")
+    executeQuery("load data local inpath '" + kv2FilePath+ "' overwrite into table shark_test9_kv2;")
+    executeQuery("""create table shark_test9_kv1kv2_cached TBLPROPERTIES ("shark.cache" = "true") as select * from shark_test9_kv1;""")
+    executeQuery("insert overwrite table shark_test9_kv1kv2_cached select * from shark_test9_kv2;")
+    val cachedKeySum = executeQuery("select sum(key) from shark_test9_kv1kv2_cached;")
+    // sum(kv2.key)
+    assert(cachedKeySum.contains("127874"))
+    assert(isCachedTable("shark_test9_kv1kv2_cached"))
+  }
+
+  test("Returns error when attempting to update cached table(s) using command with multiple INSERTs") {
+    val kv1FilePath = System.getenv("HIVE_DEV_HOME") + "/data/files/kv1.txt"
+    val kv2FilePath = System.getenv("HIVE_DEV_HOME") + "/data/files/kv2.txt"
+    executeQuery("create table shark_test7_kv1(key int, val string);")
+    executeQuery("create table shark_test7_kv2(key int, val string);")
+    executeQuery("load data local inpath '" + kv1FilePath+ "' overwrite into table shark_test7_kv1;")
+    executeQuery("load data local inpath '" + kv2FilePath+ "' overwrite into table shark_test7_kv2;")
+    executeQuery("""create table shark_test7_kv1_cached TBLPROPERTIES ("shark.cache" = "true") as select * from shark_test7_kv2;""")
+    val multipleInsertQuery = "from shark_test7_kv2 " +
+      "insert into table shark_test7_kv1 select * " +
+      "insert into table shark_test7_kv1_cached select *;"
+    executeQuery(multipleInsertQuery, "Shark does not support updating cached table(s) with multiple INSERTs")
   }
 
   def isCachedTable(tableName: String) : Boolean = {

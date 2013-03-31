@@ -55,7 +55,6 @@ class TerminalOperator extends UnaryOperator[HiveFileSinkOperator] {
 }
 
 
-
 /**
  * Collect the output as a TableRDD.
  */

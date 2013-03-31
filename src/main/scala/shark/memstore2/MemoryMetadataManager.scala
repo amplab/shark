@@ -17,6 +17,8 @@
 
 package shark.memstore2
 
+import shark.SharkConfVars
+
 import spark.RDD
 import spark.storage.StorageLevel
 
@@ -28,9 +30,8 @@ class MemoryMetadataManager {
   private val _keyToStats =
     new collection.mutable.HashMap[String, collection.Map[Int, TablePartitionStats]]
 
-  def put(key: String, rdd: RDD[_], storageLevel: StorageLevel) {
+  def put(key: String, rdd: RDD[_]) {
     _keyToRdd(key.toLowerCase) = rdd
-    rdd.persist(storageLevel)
   }
 
   def get(key: String): Option[RDD[_]] = _keyToRdd.get(key.toLowerCase)
@@ -48,5 +49,31 @@ class MemoryMetadataManager {
    */
   def getAllKeyStrings(): Seq[String] = {
     _keyToRdd.keys.collect { case k: String => k } toSeq
+  }
+}
+
+
+object MemoryMetadataManager {
+
+  /** Return a StorageLevel corresponding to its String name. */
+  def getStorageLevelFromString(s: String): StorageLevel = {
+    if (s == null || s =="") {
+      getStorageLevelFromString(SharkConfVars.STORAGE_LEVEL.defaultVal)
+    } else {
+      s.toUpperCase match {
+        case "NONE" => StorageLevel.NONE
+        case "DISK_ONLY" => StorageLevel.DISK_ONLY
+        case "DISK_ONLY2" => StorageLevel.DISK_ONLY_2
+        case "MEMORY_ONLY" => StorageLevel.MEMORY_ONLY
+        case "MEMORY_ONLY_2" => StorageLevel.MEMORY_ONLY_2
+        case "MEMORY_ONLY_SER" => StorageLevel.MEMORY_ONLY_SER
+        case "MEMORY_ONLY_SER2" => StorageLevel.MEMORY_ONLY_SER_2
+        case "MEMORY_AND_DISK" => StorageLevel.MEMORY_AND_DISK
+        case "MEMORY_AND_DISK_2" => StorageLevel.MEMORY_AND_DISK_2
+        case "MEMORY_AND_DISK_SER" => StorageLevel.MEMORY_AND_DISK_SER
+        case "MEMORY_AND_DISK_SER_2" => StorageLevel.MEMORY_AND_DISK_SER_2
+        case _ => throw new IllegalArgumentException("Unrecognized storage level: " + s)
+      }
+    }
   }
 }
