@@ -55,8 +55,7 @@ class ColumnIteratorSuite extends FunSuite {
     val factory = ColumnIterator.getFactory(columnType)
     assert(factory.createIterator(bufreader).getClass === classOf[VoidColumnIterator.Default])
 
-    val iter = new VoidColumnIterator.Default
-    iter.initialize(ByteBufferReader.createUnsafeReader(buf))
+    val iter = new VoidColumnIterator.Default(ByteBufferReader.createUnsafeReader(buf))
     iter.next()
     assert(iter.current == NullWritable.get())
     iter.next()

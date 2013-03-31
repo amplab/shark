@@ -60,7 +60,6 @@ class BooleanColumnBuilder extends ColumnBuilder[Boolean] {
   override def stats = _stats
 
   override def build: ByteBuffer = {
-    // TODO: This only supports non-null iterators.
     val buf = ByteBuffer.allocate(_arr.size + ColumnIterator.COLUMN_TYPE_LENGTH + sizeOfNullBitmap)
     buf.order(ByteOrder.nativeOrder())
     buf.putLong(ColumnIterator.BOOLEAN)

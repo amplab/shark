@@ -58,7 +58,7 @@ class TablePartition(val numRows: Long, val columns: Array[ByteBuffer]) {
   def iterator: TablePartitionIterator = {
     val columnIterators: Array[ColumnIterator] = columns.map { case buffer: ByteBuffer =>
       val bufReader = ByteBufferReader.createUnsafeReader(buffer)
-      val columnType = bufReader.getInt()
+      val columnType = bufReader.getLong()
       val factory = ColumnIterator.getFactory(columnType)
       val iter = factory.createIterator(bufReader)
       iter

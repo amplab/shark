@@ -59,12 +59,13 @@ class ComplexColumnBuilder(oi: ObjectInspector) extends ColumnBuilder[ByteStream
   override def stats = null
 
   override def build: ByteBuffer = {
+    val objectInspectorSerialized = KryoSerializer.serialize(oi)
     val buf = ByteBuffer.allocate(
-      _lengthArr.size * 4 + _arr.size + ColumnIterator.COLUMN_TYPE_LENGTH)
+      _lengthArr.size * 4 + _arr.size + ColumnIterator.COLUMN_TYPE_LENGTH +
+      objectInspectorSerialized.size + 8)
     buf.order(ByteOrder.nativeOrder())
     buf.putLong(ColumnIterator.COMPLEX)
 
-    val objectInspectorSerialized = KryoSerializer.serialize(oi)
     buf.putLong(objectInspectorSerialized.size)
     buf.put(objectInspectorSerialized)
 

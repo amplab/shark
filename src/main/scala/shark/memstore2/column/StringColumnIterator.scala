@@ -24,7 +24,7 @@ import shark.memstore2.buffer.ByteBufferReader
 
 object StringColumnIterator {
 
-  sealed class Default extends ColumnIterator {
+  sealed class Default(private val _bytesReader: ByteBufferReader) extends ColumnIterator {
     // In string, a length of -1 is used to represent null values.
     private val _writable = new Text
     private var _currentLen = 0

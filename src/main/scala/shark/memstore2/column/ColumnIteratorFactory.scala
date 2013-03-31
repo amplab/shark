@@ -39,9 +39,8 @@ object ColumnIteratorFactory {
   def create[T <: ColumnIterator](baseIterClass: Class[T]): ColumnIteratorFactory = {
     new ColumnIteratorFactory {
       override def createIterator(buf: ByteBufferReader): ColumnIterator = {
-        val iter = baseIterClass.newInstance.asInstanceOf[T]
-        iter.initialize(buf)
-        iter
+        val ctor = baseIterClass.getConstructor(classOf[ByteBufferReader])
+        ctor.newInstance(buf).asInstanceOf[T]
       }
     }
   }
@@ -53,10 +52,12 @@ object ColumnIteratorFactory {
     new ColumnIteratorFactory {
       override def createIterator(buf: ByteBufferReader): ColumnIterator = {
         val nullable = buf.getLong() == 1L
-        val baseIter = baseIterClass.newInstance.asInstanceOf[T]
-        val iter = if (nullable) new EWAHNullableColumnIterator[T](baseIter) else baseIter
-        iter.initialize(buf)
-        iter
+        if (nullable) {
+          new EWAHNullableColumnIterator[T](baseIterClass, buf)
+        } else {
+          val ctor = baseIterClass.getConstructor(classOf[ByteBufferReader])
+          ctor.newInstance(buf).asInstanceOf[T]
+        }
       }
     }
   }

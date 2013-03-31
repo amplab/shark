@@ -24,7 +24,7 @@ import shark.memstore2.buffer.ByteBufferReader
 
 object BooleanColumnIterator {
 
-  sealed class Default extends ColumnIterator {
+  sealed class Default(private val _bytesReader: ByteBufferReader) extends ColumnIterator {
     // TODO: Use a single bit per boolean value.
     private val _writable = new BooleanWritable
 

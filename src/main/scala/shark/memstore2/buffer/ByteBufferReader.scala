@@ -49,6 +49,8 @@ trait ByteBufferReader {
   def position(newPosition: Int)
 
   def position: Int
+
+  def printDebug()
 }
 
 
@@ -56,10 +58,8 @@ object ByteBufferReader {
 
   def createUnsafeReader(buf: ByteBuffer): ByteBufferReader = {
     if (buf.hasArray()) {
-      Console.flush()
       new UnsafeHeapByteBufferReader(buf)
     } else {
-      Console.flush()
       new UnsafeDirectByteBufferReader(buf)
     }
   }

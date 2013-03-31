@@ -24,12 +24,7 @@ import shark.memstore2.buffer.ByteBufferReader
  * Iterator interface for a column. The iterator should be initialized by a byte
  * buffer, and next can be invoked to get the value for each cell.
  */
-trait ColumnIterator {
-  protected var _bytesReader: ByteBufferReader = null
-
-  def initialize(bytes: ByteBufferReader) {
-    _bytesReader = bytes
-  }
+abstract class ColumnIterator {
 
   def next()
 
@@ -44,15 +39,13 @@ object ColumnIterator {
 
   // TODO: Implement Decimal data type.
 
-  type IteratorType = Int
-
   val COLUMN_TYPE_LENGTH = 8
 
   // A mapping between column type to the column iterator factory.
   private val _iteratorFactory = new Array[ColumnIteratorFactory](32)
 
-  def getFactory(columnType: IteratorType): ColumnIteratorFactory = {
-    _iteratorFactory(columnType)
+  def getFactory(columnType: Long): ColumnIteratorFactory = {
+    _iteratorFactory(columnType.toInt)
   }
 
   /////////////////////////////////////////////////////////////////////////////

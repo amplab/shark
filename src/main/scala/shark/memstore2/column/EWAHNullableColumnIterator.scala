@@ -27,18 +27,18 @@ import shark.memstore2.buffer.ByteBufferReader
 /**
  * A wrapper around non-null ColumnIterator so it can handle null values.
  */
-class EWAHNullableColumnIterator[T <: ColumnIterator](baseIter: T) extends ColumnIterator {
+class EWAHNullableColumnIterator[T <: ColumnIterator](
+    baseIterCls: Class[T], bytes: ByteBufferReader)
+  extends ColumnIterator {
 
-  var _nullBitmap: EWAHCompressedBitmap = null
+  val _nullBitmap: EWAHCompressedBitmap = EWAHCompressedBitmapSerializer.readFromBuffer(bytes)
+  val _nullsIter: IntIterator = _nullBitmap.intIterator
   var _pos = -1
   var _nextNullPosition = -1
-  var _nullsIter: IntIterator = null
 
-  override def initialize(bytes: ByteBufferReader) {
-    _nullBitmap = EWAHCompressedBitmapSerializer.readFromBuffer(bytes)
-    _nullsIter = _nullBitmap.intIterator
-    baseIter.initialize(bytes)
-    _pos = -1
+  val baseIter: T = {
+    val ctor = baseIterCls.getConstructor(classOf[ByteBufferReader])
+    ctor.newInstance(bytes).asInstanceOf[T]
   }
 
   override def next() {

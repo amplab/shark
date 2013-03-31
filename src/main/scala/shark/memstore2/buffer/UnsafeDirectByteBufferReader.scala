@@ -106,4 +106,12 @@ class UnsafeDirectByteBufferReader(buf: java.nio.ByteBuffer) extends ByteBufferR
     addressField.setAccessible(true)
     addressField.get(buffer).asInstanceOf[Long]
   }
+
+  override def printDebug() {
+    var i = 0
+    while (i < buf.remaining()) {
+      print(Unsafe.unsafe.getByte(_base_offset + i) + " ")
+      i += 1
+    }
+  }
 }

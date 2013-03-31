@@ -39,30 +39,28 @@ class TablePartitionIterator(
     val columnUsed: BitSet = null)
   extends Iterator[ColumnarStruct] {
 
-  def hasNext(): Boolean = position < numRows
+  private val _struct = new ColumnarStruct(columnIterators)
+
+  private var _position: Long = 0
+
+  def hasNext(): Boolean = _position < numRows
 
   def next(): ColumnarStruct = {
-    position += 1
+    _position += 1
     var i = 0
-    while (i < columnIteratorsToAdvance.size) {
-      columnIteratorsToAdvance(i).next
+    while (i < _columnIteratorsToAdvance.size) {
+      _columnIteratorsToAdvance(i).next
       i += 1
     }
-    struct
+    _struct
   }
 
   // Track the list of columns we need to call next on.
-  val columnIteratorsToAdvance: Array[ColumnIterator] = {
+  private val _columnIteratorsToAdvance: Array[ColumnIterator] = {
     if (columnUsed == null) {
       columnIterators
     } else {
       columnUsed.map(colId => columnIterators(colId)).toArray
     }
   }
-
-  val struct = new ColumnarStruct(columnIterators)
-
-  var position: Long = -1
-
-  next()
 }

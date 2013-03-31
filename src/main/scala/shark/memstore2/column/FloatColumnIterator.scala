@@ -24,7 +24,7 @@ import shark.memstore2.buffer.ByteBufferReader
 
 object FloatColumnIterator {
 
-  sealed class Default extends ColumnIterator {
+  sealed class Default(private val _bytesReader: ByteBufferReader) extends ColumnIterator {
     private val _writable = new FloatWritable
 
     override def next() {

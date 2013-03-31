@@ -17,30 +17,27 @@
 
 package shark.memstore2.column
 
-import org.apache.hadoop.hive.serde2.`lazy`.ByteArrayRef
-import org.apache.hadoop.hive.serde2.`lazy`.LazyFactory
+import org.apache.hadoop.hive.serde2.`lazy`.{ByteArrayRef, LazyFactory, LazyObject}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.io.Text
 
 import shark.execution.serialization.KryoSerializer
 import shark.memstore2.buffer.ByteBufferReader
 
-import shark.memstore2.buffer.ByteBufferReader
-
 
 object ComplexColumnIterator {
 
-  sealed class Default extends ColumnIterator {
+  sealed class Default(private val _bytesReader: ByteBufferReader) extends ColumnIterator {
 
-    private val _obj = {
-      val oiSize = _bytesReader.getLong().toInt
-      val oiSerialized = new Array[Byte](oiSize)
-      _bytesReader.getBytes(oiSerialized, oiSize)
+    private var _obj: LazyObject[_] = {
+      val oiSize = _bytesReader.getLong()
+      val oiSerialized = new Array[Byte](oiSize.toInt)
+      _bytesReader.getBytes(oiSerialized, oiSize.toInt)
       val oi = KryoSerializer.deserialize[ObjectInspector](oiSerialized)
       LazyFactory.createLazyObject(oi)
     }
 
-    private val _byteArrayRef = new ByteArrayRefWithReader(_bytesReader)
+    private var _byteArrayRef = new ByteArrayRefWithReader(_bytesReader)
 
     override def next() = {
       val len = _bytesReader.getInt
@@ -50,7 +47,7 @@ object ComplexColumnIterator {
 
     override def current = _obj
 
-    // A custom ByteArrayRef class that reads directly from a ByteBufferReader.
+    // A custom ByteArrayRef implementation that reads directly from a ByteBufferReader.
     class ByteArrayRefWithReader(reader: ByteBufferReader) extends ByteArrayRef {
 
       private var _data: Array[Byte] = new Array[Byte](32)

@@ -89,4 +89,9 @@ class JavaByteBufferReader(buf: ByteBuffer) extends ByteBufferReader {
   }
 
   override def position: Int = _buf.position()
+
+  override def printDebug() {
+    val b = _buf.duplicate()
+    while (b.hasRemaining()) print(b.get() + " ")
+  }
 }

@@ -26,7 +26,7 @@ import shark.memstore2.buffer.ByteBufferReader
 
 object TimestampColumnIterator {
 
-  sealed class Default extends ColumnIterator {
+  sealed class Default(private val _bytesReader: ByteBufferReader) extends ColumnIterator {
     private val _timestamp = new Timestamp(0)
     private val _writable = new TimestampWritable(_timestamp)
 

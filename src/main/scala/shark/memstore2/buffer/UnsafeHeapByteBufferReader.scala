@@ -105,4 +105,12 @@ class UnsafeHeapByteBufferReader(buf: ByteBuffer) extends ByteBufferReader {
   }
 
   override def position: Int = (_offset - _base_offset).toInt
+
+  override def printDebug() {
+    var i = 0
+    while (i < buf.remaining()) {
+      print(Unsafe.unsafe.getByte(_arr, _base_offset + i) + " ")
+      i += 1
+    }
+  }
 }
