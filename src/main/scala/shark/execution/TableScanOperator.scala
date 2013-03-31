@@ -112,13 +112,14 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     logInfo("Loading table from cache " + tableKey)
 
     // Stats used for map pruning.
-    val splitToStats: collection.Map[Int, TableStats] = SharkEnv.cache.getStats(tableKey).get
+    val indexToStats: collection.Map[Int, TableStats] = SharkEnv.cache.getStats(tableKey).get
 
     // Run map pruning if the flag is set, there exists a filter predicate on
     // the input table and we have statistics on the table.
     val prunedRdd: RDD[_] =
       if (SharkConfVars.getBoolVar(localHconf, SharkConfVars.MAP_PRUNING) &&
-          childOperators(0).isInstanceOf[FilterOperator] && splitToStats.size > 0) {
+          childOperators(0).isInstanceOf[FilterOperator] &&
+          indexToStats.size == rdd.partitions.size) {
 
         val startTime = System.currentTimeMillis
         val printPruneDebug = SharkConfVars.getBoolVar(
@@ -129,21 +130,21 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         val filterOp = childOperators(0).asInstanceOf[FilterOperator]
         filterOp.initializeOnSlave()
 
-        def prunePartitionFunc(split: Int): Boolean = {
+        def prunePartitionFunc(index: Int): Boolean = {
           if (printPruneDebug) {
-            logInfo("\nSplit " + split + "\n" + splitToStats(split))
+            logInfo("\nPartition " + index + "\n" + indexToStats(index))
           }
           // Only test for pruning if we have stats on the column.
-          val splitStats = splitToStats(split)
-          if (splitStats != null && splitStats.stats != null)
-            MapSplitPruning.test(splitStats, filterOp.conditionEvaluator)
+          val partitionStats = indexToStats(index)
+          if (partitionStats != null && partitionStats.stats != null)
+            MapSplitPruning.test(partitionStats, filterOp.conditionEvaluator)
           else true
         }
 
         // Do the pruning.
         val prunedRdd = PartitionPruningRDD.create(rdd, prunePartitionFunc)
         val timeTaken = System.currentTimeMillis - startTime
-        logInfo("Map pruning %d splits into %s splits took %d ms".format(
+        logInfo("Map pruning %d partitions into %s partitions took %d ms".format(
             rdd.partitions.size, prunedRdd.partitions.size, timeTaken))
         prunedRdd
       } else {
@@ -176,7 +177,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     }
   }
 
-  override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
+  override def processPartition(index: Int, iter: Iterator[_]): Iterator[_] = {
     val deserializer = tableDesc.getDeserializerClass().newInstance()
     deserializer.initialize(localHconf, tableDesc.getProperties)
     iter.map { value =>

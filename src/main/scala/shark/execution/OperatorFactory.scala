@@ -45,11 +45,13 @@ object OperatorFactory extends LogHelper {
   def createSharkCacheOutputPlan(
       hiveTerminalOp: HiveOperator,
       tableName: String,
-      storageLevel: StorageLevel): TerminalOperator = {
+      storageLevel: StorageLevel,
+      useUnionRDD: Boolean): TerminalOperator = {
     val terminalOp = _newOperatorInstance(
       classOf[CacheSinkOperator], hiveTerminalOp).asInstanceOf[CacheSinkOperator]
     terminalOp.tableName = tableName
     terminalOp.storageLevel = storageLevel
+    terminalOp.useUnionRDD = useUnionRDD
     _createAndSetParents(
       terminalOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }

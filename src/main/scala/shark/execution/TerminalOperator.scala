@@ -182,6 +182,7 @@ class CacheSinkOperator extends TerminalOperator {
   @BeanProperty var initialColumnSize: Int = _
   @BeanProperty var storageLevel: StorageLevel = _
   @BeanProperty var tableName: String = _
+  @BeanProperty var useUnionRDD: Boolean = _
 
   override def initializeOnMaster() {
     super.initializeOnMaster()
@@ -200,7 +201,7 @@ class CacheSinkOperator extends TerminalOperator {
     val op = OperatorSerializationWrapper(this)
 
     // Serialize the RDD on all partitions before putting it into the cache.
-    val rdd = inputRdd.mapPartitionsWithIndex { case(split, iter) =>
+    var rdd = inputRdd.mapPartitionsWithIndex { case(index, iter) =>
       op.initializeOnSlave()
 
       val serdeClass = op.localHiveOp.getConf.getTableInfo.getDeserializerClass
@@ -211,20 +212,35 @@ class CacheSinkOperator extends TerminalOperator {
       val rddSerialzier = new RDDSerializer(serde)
       val iterToReturn = rddSerialzier.serialize(iter, op.objectInspector)
 
-      statsAcc += (split, serde.stats)
+      statsAcc += (index, serde.stats)
       iterToReturn
     }
+    
+    // Force execute the RDD and collect stats.
+    rdd.foreach(_ => Unit)
+    var indexToStats = statsAcc.value.toMap
 
-    // Put the RDD in cache and force evaluate it.
-    op.logInfo("Putting RDD for %s in cache, %s %s %s %s".format(
+    // Put the RDD in the cache.
+    op.logInfo("Putting %sRDD for %s in cache, %s %s %s %s".format(
+      if (useUnionRDD) "Union" else "",
       tableName,
       if (storageLevel.deserialized) "deserialized" else "serialized",
       if (storageLevel.useMemory) "in memory" else "",
       if (storageLevel.useMemory && storageLevel.useDisk) "and" else "",
       if (storageLevel.useDisk) "on disk" else ""))
 
+    if (useUnionRDD) {
+      rdd = rdd.union(SharkEnv.cache.get(tableName).get.asInstanceOf[RDD[Any]])
+      // Combine stats for the two tables being combined.
+      val numPartitions = indexToStats.size
+      val currentStats = statsAcc.value
+      val otherIndexToStats = SharkEnv.cache.getStats(tableName).get
+      for ((otherIndex, tableStats) <- otherIndexToStats) {
+        currentStats.append((otherIndex + numPartitions, tableStats))
+      }
+      indexToStats = currentStats.toMap
+    }
     SharkEnv.cache.put(tableName, rdd, storageLevel)
-    rdd.foreach(_ => Unit)
 
     // Report remaining memory.
     /* Commented out for now waiting for the reporting code to make into Spark.
@@ -241,11 +257,11 @@ class CacheSinkOperator extends TerminalOperator {
     */
 
     // Get the column statistics back to the cache manager.
-    SharkEnv.cache.putStats(tableName, statsAcc.value.toMap)
+    SharkEnv.cache.putStats(tableName, indexToStats)
 
     if (SharkConfVars.getBoolVar(localHconf, SharkConfVars.MAP_PRUNING_PRINT_DEBUG)) {
-      statsAcc.value.foreach { case(split, tableStats) =>
-        println("Split " + split)
+      indexToStats.foreach { case(index, tableStats) =>
+        println("Stats for partition: " + index)
         println(tableStats.toString)
       }
     }
