@@ -288,7 +288,12 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
       conf.set("fs.s3.awsSecretAccessKey", System.getenv("AWS_SECRET_ACCESS_KEY"))
     }
 
+    // Choose the minimum number of splits. If mapred.map.tasks is set, use that unless
+    // it is smaller than what Spark suggests.
+    val minSplits = math.max(localHconf.getInt("mapred.map.tasks", 1), SharkEnv.sc.defaultMinSplits)
+    val rdd = SharkEnv.sc.hadoopRDD(conf, ifc, classOf[Writable], classOf[Writable], minSplits)
+
     // Only take the value (skip the key) because Hive works only with values.
-    SharkEnv.sc.hadoopRDD(conf, ifc, classOf[Writable], classOf[Writable]).map(_._2)
+    rdd.map(_._2)
   }
 }
