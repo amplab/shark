@@ -77,7 +77,6 @@ class TimestampColumnBuilder extends ColumnBuilder[Timestamp] {
   override def stats = _stats
 
   override def build: ByteBuffer = {
-    // TODO: This only supports non-null iterators.
     // TODO: As an optimization, we can optionally skip nanos field if it is not used.
     val buf = ByteBuffer.allocate(
       _arrTime.size * 8 + _arrNanos.size * 4 + ColumnIterator.COLUMN_TYPE_LENGTH + sizeOfNullBitmap)

@@ -67,7 +67,6 @@ class StringColumnBuilder extends ColumnBuilder[Text] {
   override def stats = _stats
 
   override def build: ByteBuffer = {
-    // TODO: This only supports non-null iterators.
     val buf = ByteBuffer.allocate(
       _lengthArr.size * 4 + _arr.size + ColumnIterator.COLUMN_TYPE_LENGTH)
     buf.order(ByteOrder.nativeOrder())
