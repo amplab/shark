@@ -17,18 +17,23 @@
 
 package shark.memstore2
 
-import shark.SharkConfVars
+import java.util.concurrent.ConcurrentHashMap
 
+import scala.collection.JavaConversions._
+import scala.collection.mutable.ConcurrentMap
+
+import shark.SharkConfVars
 import spark.RDD
 import spark.storage.StorageLevel
 
 
 class MemoryMetadataManager {
 
-  private val _keyToRdd = new collection.mutable.HashMap[String, RDD[_]]()
+  private val _keyToRdd: ConcurrentMap[String, RDD[_]] =
+    new ConcurrentHashMap[String, RDD[_]]()
 
-  private val _keyToStats =
-    new collection.mutable.HashMap[String, collection.Map[Int, TablePartitionStats]]
+  private val _keyToStats: ConcurrentMap[String, collection.Map[Int, TablePartitionStats]] =
+    new ConcurrentHashMap[String, collection.Map[Int, TablePartitionStats]]
 
   def contains(key: String) = _keyToRdd.contains(key)
 

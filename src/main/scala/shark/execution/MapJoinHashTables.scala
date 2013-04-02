@@ -34,17 +34,17 @@ import spark.RDD
  * and read them back in on the slave nodes.
  */
 trait MapJoinHashTablesFetcher {
-  def get: Map[Int, MapJoinOperator.MapJoinHashTable]
+  def get: Map[Int, Map[AnyRef, Seq[AnyRef]]]
 }
 
 
 /**
  * Uses Spark's broadcast variable to fetch the hash tables on slaves.
  */
-class MapJoinHashTablesBroadcast(hashtables: Map[Int, MapJoinOperator.MapJoinHashTable])
+class MapJoinHashTablesBroadcast(hashtables: Map[Int, Map[AnyRef, Seq[AnyRef]]])
   extends MapJoinHashTablesFetcher with Serializable
 {
   val broadcast = SharkEnv.sc.broadcast(hashtables)
-  def get: Map[Int, MapJoinOperator.MapJoinHashTable] = broadcast.value
+  def get: Map[Int, Map[AnyRef, Seq[AnyRef]]] = broadcast.value
 }
 
