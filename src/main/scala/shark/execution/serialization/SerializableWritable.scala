@@ -6,6 +6,9 @@ import org.apache.hadoop.io.Writable
 import org.apache.hadoop.mapred.JobConf
 import org.apache.hadoop.io.NullWritable
 
+object SerializableWritable {
+  val conf = new JobConf()
+}
 class SerializableWritable[T <: Writable](@transient var t: T) extends Serializable {
   def value = if (t == null) NullWritable.get else t
 
@@ -19,7 +22,7 @@ class SerializableWritable[T <: Writable](@transient var t: T) extends Serializa
   private def readObject(in: ObjectInputStream) {
     in.defaultReadObject()
     val ow = new ObjectWritable()
-    ow.setConf(new JobConf())
+    ow.setConf(SerializableWritable.conf)
     ow.readFields(in)
     val s = ow.get
     if (s != null) {
