@@ -101,6 +101,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
 
   override def combineMultipleRdds(rdds: Seq[(Int, RDD[_])]): RDD[_] = {
     logInfo("%d small tables to map join a large table (%d)".format(rdds.size - 1, posBigTable))
+    logInfo("Big table alias " + bigTableAlias)
 
     val op1 = OperatorSerializationWrapper(this)
 
@@ -121,7 +122,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
       // following mapParititons will fail because it tries to include the
       // outer closure, which references "this".
       val op = op1
-      val rddForHash: RDD[(Seq[SerializableWritable[_]], Seq[Array[SerializableWritable[_]]])] =
+      val rddForHash: RDD[(Seq[AnyRef], Seq[Array[AnyRef]])] =
         rdd.mapPartitions { partition =>
           op.initializeOnSlave()
           // Put serialization metadata for values in slave's MapJoinMetaData.
@@ -132,21 +133,20 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
 
       // Collect the RDD and build a hash table.
       val startCollect = System.currentTimeMillis()
-      val wrappedRows: Array[(Seq[SerializableWritable[_]], Seq[Array[SerializableWritable[_]]])] = rddForHash.collect()
+      val wrappedRows: Array[(Seq[AnyRef], Seq[Array[AnyRef]])] = rddForHash.collect()
       val collectTime = System.currentTimeMillis() - startCollect
-
+      logInfo("HashTable collect took " + collectTime + " ms")
       
       // Build the hash table.
       val hash = wrappedRows.groupBy(x => x._1)
        .mapValues(v => v.flatMap(t => t._2))
        
-      val map = new JHashMap[Seq[SerializableWritable[_]], Array[Array[SerializableWritable[_]]]]()
+      val map = new JHashMap[Seq[AnyRef], Array[Array[AnyRef]]]()
       hash.foreach(x => map.put(x._1, x._2))
       (pos, map)
     }.toMap
 
     val fetcher = SharkEnv.sc.broadcast(hashtables)
-
     val op = op1
     rdds(bigTableAlias)._2.mapPartitions { partition =>
       op.logDebug("Started executing mapPartitions for operator: " + op)
@@ -154,36 +154,36 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
 
       op.initializeOnSlave()
       val newPart = op.joinOnPartition(partition, fetcher.value)
-      //op.logDebug("Finished executing mapPartitions for operator: " + op)
+      op.logDebug("Finished executing mapPartitions for operator: " + op)
 
       newPart
     }
   }
 
   def computeJoinKeyValuesOnPartition[T](iter: Iterator[T], posByte: Byte)
-  : Iterator[(Seq[SerializableWritable[_]], Seq[Array[SerializableWritable[_]]])] = {
+  : Iterator[(Seq[AnyRef], Seq[Array[AnyRef]])] = {
     // MapJoinObjectValue contains a MapJoinRowContainer, which contains a list of
     // rows to be joined.
-    var valueMap = new JHashMap[Seq[SerializableWritable[_]], Seq[Array[SerializableWritable[_]]]]
+    var valueMap = new JHashMap[Seq[AnyRef], Seq[Array[AnyRef]]]
     iter.foreach { row =>
       val key = JoinUtil.computeJoinKey(
         row,
-        joinKeys.get(posByte).toList,
-        joinKeysObjectInspectors.get(posByte).toList)
-      val value: Array[SerializableWritable[_]] = JoinUtil.computeJoinValues(
+        joinKeys.get(posByte),
+        joinKeysObjectInspectors.get(posByte))
+      val value: Array[AnyRef] = JoinUtil.computeJoinValues(
         row,
-        joinVals.get(posByte).toList,
-        joinValuesObjectInspectors.get(posByte).toList,
-        joinFilters.get(posByte).toList,
-        joinFilterObjectInspectors.get(posByte).toList,
+        joinVals.get(posByte),
+        joinValuesObjectInspectors.get(posByte),
+        joinFilters.get(posByte),
+        joinFilterObjectInspectors.get(posByte),
         noOuterJoin)
       // If we've seen the key before, just add it to the row container wrapped by
       // corresponding MapJoinObjectValue.
       val objValue = valueMap.get(key)
       if (objValue == null) {
-        valueMap.put(key, Seq[Array[SerializableWritable[_]]](value))
+        valueMap.put(key, Seq[Array[AnyRef]](value))
       } else {
-        valueMap.put(key, objValue ++ List[Array[SerializableWritable[_]]](value))
+        valueMap.put(key, objValue ++ List[Array[AnyRef]](value))
       }
     }
     valueMap.iterator
@@ -195,7 +195,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
    * parameter for the hash tables (built from the small tables).
    */
   def joinOnPartition[T](iter: Iterator[T], 
-      hashtables: Map[Int, JHashMap[Seq[SerializableWritable[_]], Array[Array[SerializableWritable[_]]]]]): Iterator[_] = {
+      hashtables: Map[Int, JHashMap[Seq[AnyRef], Array[Array[AnyRef]]]]): Iterator[_] = {
 
     val joinKeyEval = joinKeys.get(bigTableAlias.toByte)
     val joinValueEval = joinVals.get(bigTableAlias.toByte)
@@ -208,20 +208,22 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
       // Build the join key and value for the row in the large table.
       val key = JoinUtil.computeJoinKey(
         row,
-        joinKeyEval.toList,
-        joinKeysObjectInspectors.get(bigTableAliasByte).toList)
-      val value: Array[AnyRef] = JoinUtil.computeJoinValues(
+        joinKeyEval,
+        joinKeysObjectInspectors.get(bigTableAliasByte))
+      val v: Array[AnyRef] = JoinUtil.computeJoinValues(
         row,
-        joinValueEval.toList,
-        joinValuesObjectInspectors.get(bigTableAliasByte).toList,
-        joinFilters.get(bigTableAliasByte).toList,
-        joinFilterObjectInspectors.get(bigTableAliasByte).toList,
-        noOuterJoin).map(x => x.value.asInstanceOf[AnyRef])
-
+        joinValueEval,
+        joinValuesObjectInspectors.get(bigTableAliasByte),
+        joinFilters.get(bigTableAliasByte),
+        joinFilterObjectInspectors.get(bigTableAliasByte),
+        noOuterJoin)
+      val value = new Array[AnyRef](v.size)
+      Range(0,v.size).foreach(i => value(i) = v(i).asInstanceOf[SerializableWritable[_]].value)
+      
       if (nullCheck && JoinUtil.joinKeyHasAnyNulls(key, nullSafes)) {
         val bufsNull = Array.fill[Seq[Array[Object]]](numTables)(Seq())
         bufsNull(bigTableAlias) = Seq(value)
-        cp.product(bufsNull.asInstanceOf[Array[Seq[Array[Object]]]], joinConditions)
+        cp.product(bufsNull, joinConditions)
       } else {
         // Build the join bufs.
         var i = 0
@@ -232,17 +234,15 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
             val smallTableValues = hashtables.getOrElse(i, null).getOrElse(key, null)
             bufs(i) =
               if (smallTableValues == null) Seq[Array[AnyRef]]()
-              else smallTableValues.map(x => x.map(v => v.value.asInstanceOf[AnyRef]))
+              else smallTableValues.map(x => x.map(v => v.asInstanceOf[SerializableWritable[_]].value.asInstanceOf[AnyRef]))
           }
           i += 1
         }
-        cp.product(bufs.asInstanceOf[Array[Seq[Array[AnyRef]]]], joinConditions)
+        cp.product(bufs, joinConditions)
       }
     }
-
     val rowSize = joinVals.values.map(_.size).sum
     val rowToReturn = new Array[Object](rowSize)
-
     // For each row, combine the tuples from multiple tables into a single tuple.
     jointRows.map { row: Array[Array[Object]] =>
       var tupleIndex = 0
@@ -266,6 +266,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
         }
         tupleIndex += 1
       }
+      
       rowToReturn
     }
   }
