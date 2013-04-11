@@ -37,7 +37,7 @@ class TachyonUtilImpl(val master: String, val warehousePath: String) extends Tac
   def getPath(tableName: String): String = warehousePath + "/" + tableName
 
   override def tableExists(tableName: String): Boolean = {
-    client.getFileId(getPath(tableName)) != -1
+    client.exist(getPath(tableName))
   }
 
   override def createRDD(tableName: String): RDD[ColumnarStruct] = {
