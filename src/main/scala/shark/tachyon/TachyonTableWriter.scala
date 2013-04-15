@@ -20,7 +20,7 @@ package shark.tachyon
 import java.nio.ByteBuffer
 
 
-abstract class TachyonTableWriter {
+abstract class TachyonTableWriter extends Serializable {
 
   /** Create a table in Tachyon. Called only on the driver node. */
   def createTable()

@@ -93,6 +93,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     }
 
     if (tachyonWriter != null) {
+      tachyonWriter.createTable()
       rdd = rdd.mapPartitionsWithIndex { case(partitionIndex, iter) =>
         val partition = iter.next()
         partition.toTachyon.zipWithIndex.foreach { case(buf, column) =>
