@@ -45,7 +45,9 @@ class TachyonUtilImpl(val master: String, val warehousePath: String) extends Tac
   }
 
   override def createTableWriter(tableName: String, numColumns: Int): TachyonTableWriter = {
-    client.mkdir(warehousePath)
+    if (!client.exist(warehousePath)) {
+      client.mkdir(warehousePath)
+    }
     new TachyonTableWriterImpl(getPath(tableName), numColumns)
   }
 }
