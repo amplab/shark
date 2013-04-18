@@ -40,7 +40,6 @@ object SharkEnv extends LogHelper {
           System.getenv("SPARK_HOME"),
           Nil,
           executorEnvVars)
-      closureSerializer = SparkEnv.get.closureSerializer
     }
   }
 
@@ -73,9 +72,6 @@ object SharkEnv extends LogHelper {
   executorEnvVars.put("TACHYON_WAREHOUSE_PATH", getEnv("TACHYON_WAREHOUSE_PATH"))
 
   var sc: SparkContext = _
-
-  // Table stats ser/de
-  var closureSerializer: spark.serializer.Serializer = _
 
   val memoryMetadataManager = new MemoryMetadataManager
 

@@ -34,7 +34,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectIn
 import org.apache.hadoop.io.Writable
 
 import shark.{SharkConfVars, SharkEnv}
-import shark.execution.serialization.XmlSerializer
+import shark.execution.serialization.{XmlSerializer, JavaSerializer}
 import shark.memstore2.{CacheType, TablePartition, TablePartitionStats}
 import shark.tachyon.TachyonException
 
@@ -123,9 +123,8 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
 
       if (indexToStats == null) {
         val statsByteBuffer = SharkEnv.tachyonUtil.getTableMetadata(tableKey)
-        val serializer = SharkEnv.closureSerializer.newInstance
-        indexToStats =
-          serializer.deserialize[collection.Map[Int, TablePartitionStats]](statsByteBuffer)
+        indexToStats = JavaSerializer.deserialize[collection.Map[Int, TablePartitionStats]](
+          statsByteBuffer.array())
         SharkEnv.memoryMetadataManager.putStats(tableKey, indexToStats)
       }
       SharkEnv.tachyonUtil.createRDD(tableKey)

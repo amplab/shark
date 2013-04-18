@@ -17,13 +17,15 @@
 
 package shark.execution
 
+import java.nio.ByteBuffer
+
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.BeanProperty
 
 import org.apache.hadoop.io.Writable
 
 import shark.{SharkConfVars, SharkEnv, SharkEnvSlave, Utils}
-import shark.execution.serialization.OperatorSerializationWrapper
+import shark.execution.serialization.{OperatorSerializationWrapper, JavaSerializer}
 import shark.memstore2._
 import shark.tachyon.TachyonTableWriter
 
@@ -105,7 +107,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       // Get the column statistics back to the cache manager.
       SharkEnv.memoryMetadataManager.putStats(tableName, columnStats)
 
-      tachyonWriter.createTable(SharkEnv.closureSerializer.newInstance.serialize(columnStats))
+      tachyonWriter.createTable(ByteBuffer.wrap(JavaSerializer.serialize(columnStats)))
       rdd = rdd.mapPartitionsWithIndex { case(partitionIndex, iter) =>
         val partition = iter.next()
         partition.toTachyon.zipWithIndex.foreach { case(buf, column) =>
