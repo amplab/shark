@@ -17,6 +17,8 @@
 
 package shark.tachyon
 
+import java.nio.ByteBuffer
+
 import scala.collection.JavaConverters._
 
 import shark.SharkEnv
@@ -25,7 +27,6 @@ import shark.memstore2.ColumnarStruct
 import spark.RDD
 
 import tachyon.client.{RawTable, RawColumn, TachyonClient}
-
 
 /**
  * An abstraction for the Tachyon APIs.
@@ -38,6 +39,13 @@ class TachyonUtilImpl(val master: String, val warehousePath: String) extends Tac
 
   override def tableExists(tableName: String): Boolean = {
     client.exist(getPath(tableName))
+  }
+
+  override def getTableMetadata(tableName: String): ByteBuffer = {
+    if (!tableExists(tableName)) {
+       throw new TachyonException("Table " + tableName + " does not exist in Tachyon")
+    }
+    client.getRawTable(getPath(tableName)).getMetadata()
   }
 
   override def createRDD(tableName: String): RDD[ColumnarStruct] = {

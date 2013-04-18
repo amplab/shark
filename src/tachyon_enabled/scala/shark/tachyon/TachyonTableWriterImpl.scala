@@ -32,8 +32,8 @@ class TachyonTableWriterImpl(@transient path: String, @transient numColumns: Int
   var rawTableId: Int = -1
 
   /** Create a table in Tachyon. Called only on the driver node. */
-  override def createTable() {
-    rawTableId = SharkEnv.tachyonUtil.client.createRawTable(path, numColumns)
+  override def createTable(metadata: ByteBuffer) {
+    rawTableId = SharkEnv.tachyonUtil.client.createRawTable(path, numColumns, metadata)
   }
 
   // rawTable is a lazy val so it gets created the first time it is referenced.

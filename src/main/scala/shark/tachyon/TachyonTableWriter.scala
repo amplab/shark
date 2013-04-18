@@ -23,7 +23,7 @@ import java.nio.ByteBuffer
 abstract class TachyonTableWriter extends Serializable {
 
   /** Create a table in Tachyon. Called only on the driver node. */
-  def createTable()
+  def createTable(metadata: ByteBuffer)
 
   /** Write the data of a partition of a given column to Tachyon. Called only on worker nodes. */
   def writeColumnPartition(column: Int, part: Int, data: ByteBuffer)

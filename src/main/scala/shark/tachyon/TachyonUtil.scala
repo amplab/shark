@@ -17,6 +17,8 @@
 
 package shark.tachyon
 
+import java.nio.ByteBuffer
+
 import shark.memstore2.ColumnarStruct
 
 import spark.RDD
@@ -30,6 +32,8 @@ import spark.RDD
 abstract class TachyonUtil {
 
   def tableExists(tableName: String): Boolean
+
+  def getTableMetadata(tableName: String): ByteBuffer
 
   def createRDD(tableName: String): RDD[ColumnarStruct]
 

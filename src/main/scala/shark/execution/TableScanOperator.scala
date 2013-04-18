@@ -117,6 +117,17 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         throw new TachyonException("Table " + tableKey + " does not exist in Tachyon")
       }
       logInfo("Loading table " + tableKey + " from Tachyon")
+
+      var indexToStats: collection.Map[Int, TablePartitionStats] =
+        SharkEnv.memoryMetadataManager.getStats(tableKey).getOrElse(null)
+
+      if (indexToStats == null) {
+        val statsByteBuffer = SharkEnv.tachyonUtil.getTableMetadata(tableKey)
+        val serializer = SharkEnv.closureSerializer.newInstance
+        indexToStats =
+          serializer.deserialize[collection.Map[Int, TablePartitionStats]](statsByteBuffer)
+        SharkEnv.memoryMetadataManager.putStats(tableKey, indexToStats)
+      }
       SharkEnv.tachyonUtil.createRDD(tableKey)
     } else {
       // Table is a Hive table on HDFS (or other Hadoop storage).

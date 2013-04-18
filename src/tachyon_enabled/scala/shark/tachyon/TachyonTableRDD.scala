@@ -33,10 +33,6 @@ import tachyon.client.OpType
 import tachyon.client.RawTable
 import tachyon.client.TachyonFile
 
-
-/**
- * A Spark split class that wraps around a Hadoop InputSplit.
- */
 private class TachyonTablePartition(rddId: Int, idx: Int, val locations: Seq[String])
   extends Partition {
 
@@ -45,10 +41,8 @@ private class TachyonTablePartition(rddId: Int, idx: Int, val locations: Seq[Str
   override val index: Int = idx
 }
 
-
 /**
  * An RDD that reads a Tachyon Table.
- *
  */
 class TachyonTableRDD(path: String, @transient sc: SparkContext)
   extends RDD[ColumnarStruct](sc, Nil) {

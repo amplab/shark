@@ -17,6 +17,8 @@
 
 package shark.tachyon
 
+import java.nio.ByteBuffer
+
 import shark.memstore2.ColumnarStruct
 
 import spark.RDD
@@ -25,6 +27,11 @@ import spark.RDD
 class TachyonUtilImpl(val master: String, val warehousePath: String) extends TachyonUtil {
 
   override def tableExists(tableName: String): Boolean = {
+    throw new UnsupportedOperationException(
+      "This version of Shark is not compiled with Tachyon support.")
+  }
+
+  override def getTableMetadata(tableName: String): ByteBuffer = {
     throw new UnsupportedOperationException(
       "This version of Shark is not compiled with Tachyon support.")
   }
