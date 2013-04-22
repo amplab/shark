@@ -51,7 +51,7 @@ class TachyonTableRDD(path: String, @transient sc: SparkContext)
     val rawTable: RawTable = SharkEnv.tachyonUtil.client.getRawTable(path)
     // Use the first column to get preferred locations for all partitions.
     val rawColumn = rawTable.getRawColumn(0)
-    val numPartitions: Int = rawColumn.getPartitions()
+    val numPartitions: Int = rawColumn.partitions()
     Array.tabulate[Partition](numPartitions) { part =>
       val locations = rawColumn.getPartition(part).getLocationHosts().asScala
       new TachyonTablePartition(id, part, locations) : Partition

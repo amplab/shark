@@ -24,13 +24,13 @@ object SharkBuild extends Build {
 
   // Hadoop version to build against. For example, "0.20.2", "0.20.205.0", or
   // "1.0.1" for Apache releases, or "0.20.2-cdh3u3" for Cloudera Hadoop.
-  val HADOOP_VERSION = "0.20.205.0"
+  val HADOOP_VERSION = "1.0.4"
 
   // Spark version to build against.
   val SPARK_VERSION = "0.7.0"
 
   // Whether to build Shark with Tachyon jar.
-  val TACHYON_ENABLED = false
+  val TACHYON_ENABLED = true
 
   lazy val root = Project(
     id = "root",
@@ -52,7 +52,8 @@ object SharkBuild extends Build {
       "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
       "JBoss Repository" at "http://repository.jboss.org/nexus/content/repositories/releases/",
       "Spray Repository" at "http://repo.spray.cc/",
-      "Cloudera Repository" at "http://repository.cloudera.com/artifactory/cloudera-repos/"
+      "Cloudera Repository" at "http://repository.cloudera.com/artifactory/cloudera-repos/",
+      "Local Maven Repository" at Path.userHome.asFile.toURI.toURL + "/.m2/repository"
     ),
 
     testListeners <<= target.map(
@@ -87,7 +88,7 @@ object SharkBuild extends Build {
       "it.unimi.dsi" % "fastutil" % "6.4.2",
       "org.scalatest" %% "scalatest" % "1.6.1" % "test",
       "junit" % "junit" % "4.10" % "test") ++
-      (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.2.0") else None).toSeq
+      (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.2.1-SNAPSHOT") else None).toSeq
 
   ) ++ assemblySettings ++ Seq(test in assembly := {}) ++ Seq(getClassPathTask)
 

@@ -94,20 +94,13 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       }
     }
 
-    var columnStats: scala.collection.Map[Int, TablePartitionStats] = null
-
     if (tachyonWriter != null) {
       // Put the table in Tachyon.
       op.logInfo("Putting RDD for %s in Tachyon".format(tableName))
 
       SharkEnv.memoryMetadataManager.put(tableName, rdd)
 
-      columnStats = statsAcc.value.toMap
-
-      // Get the column statistics back to the cache manager.
-      SharkEnv.memoryMetadataManager.putStats(tableName, columnStats)
-
-      tachyonWriter.createTable(ByteBuffer.wrap(JavaSerializer.serialize(columnStats)))
+      tachyonWriter.createTable(ByteBuffer.allocate(0))
       rdd = rdd.mapPartitionsWithIndex { case(partitionIndex, iter) =>
         val partition = iter.next()
         partition.toTachyon.zipWithIndex.foreach { case(buf, column) =>
@@ -136,23 +129,6 @@ class MemoryStoreSinkOperator extends TerminalOperator {
           SharkEnv.memoryMetadataManager.get(tableName).get.asInstanceOf[RDD[TablePartition]])
       }
       SharkEnv.memoryMetadataManager.put(tableName, rdd)
-
-      columnStats =
-      if (useUnionRDD) {
-        // Combine stats for the two tables being combined.
-        val numPartitions = statsAcc.value.toMap.size
-        val currentStats = statsAcc.value
-        val otherIndexToStats = SharkEnv.memoryMetadataManager.getStats(tableName).get
-        for ((otherIndex, tableStats) <- otherIndexToStats) {
-          currentStats.append((otherIndex + numPartitions, tableStats))
-        }
-        currentStats.toMap
-      } else {
-        statsAcc.value.toMap
-      }
-
-      // Get the column statistics back to the cache manager.
-      SharkEnv.memoryMetadataManager.putStats(tableName, columnStats)
     }
 
     // Report remaining memory.
@@ -168,6 +144,27 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       Utils.memoryBytesToString(remainingMems.map(_._2._2).sum),
       Utils.memoryBytesToString(remainingMems.map(_._2._1).sum)))
     */
+
+    var columnStats =
+      if (useUnionRDD) {
+        // Combine stats for the two tables being combined.
+        val numPartitions = statsAcc.value.toMap.size
+        val currentStats = statsAcc.value
+        val otherIndexToStats = SharkEnv.memoryMetadataManager.getStats(tableName).get
+        for ((otherIndex, tableStats) <- otherIndexToStats) {
+          currentStats.append((otherIndex + numPartitions, tableStats))
+        }
+        currentStats.toMap
+      } else {
+        statsAcc.value.toMap
+      }
+
+    // Get the column statistics back to the cache manager.
+    SharkEnv.memoryMetadataManager.putStats(tableName, columnStats)
+
+    if (tachyonWriter != null) {
+      tachyonWriter.updateMetadata(ByteBuffer.wrap(JavaSerializer.serialize(columnStats)))
+    }
 
     if (SharkConfVars.getBoolVar(localHconf, SharkConfVars.MAP_PRUNING_PRINT_DEBUG)) {
       columnStats.foreach { case(index, tableStats) =>

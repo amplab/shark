@@ -36,6 +36,11 @@ class TachyonTableWriterImpl(@transient path: String, @transient numColumns: Int
     rawTableId = SharkEnv.tachyonUtil.client.createRawTable(path, numColumns, metadata)
   }
 
+  /** Update the metadata in Tachyon. Called only on the driver node. */
+  override def updateMetadata(metadata: ByteBuffer) {
+    SharkEnv.tachyonUtil.client.updateRawTableMetadata(rawTableId, metadata)
+  }
+
   // rawTable is a lazy val so it gets created the first time it is referenced.
   // This is only used on worker nodes.
   @transient lazy val rawTable = SharkEnvSlave.tachyonUtil.client.getRawTable(rawTableId)
