@@ -62,13 +62,13 @@ class TachyonTableRDD(path: String, @transient sc: SparkContext)
     // TODO: Prune columns - there is no need to read all columns out.
     val rawTable: RawTable = SharkEnvSlave.tachyonUtil.client.getRawTable(path)
     val buffers = Array.tabulate[ByteBuffer](rawTable.getColumns()) { columnIndex =>
-      val fp = rawTable.getRawColumn(columnIndex).getPartition(theSplit.index)
+      val fp = rawTable.getRawColumn(columnIndex).getPartition(theSplit.index, true)
       var buf: ByteBuffer = fp.readByteBuffer()
       if (buf == null && fp.recacheData()) {
         buf = fp.readByteBuffer()
       }
       if (buf == null) {
-        // TODO Log that this is not good.
+        // TODO Log this. Reading data from remote is bad.
         buf = ByteBuffer.allocate(fp.length().toInt)
         val is = fp.createInStream(OpType.READ_TRY_CACHE)
         is.read(buf.array)
