@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +21,7 @@ import java.util.Arrays
 
 import scala.collection.mutable.StringBuilder
 
-import org.apache.hadoop.io.WritableComparator
+import org.apache.hadoop.io.{BytesWritable, WritableComparator}
 
 import spark.HashPartitioner
 
@@ -32,35 +32,27 @@ import spark.HashPartitioner
  * binary comparison, as well as enabling partitioning data based on the
  * partitionCode field using a ReduceKeyPartitioner.
  */
-class ReduceKey(val bytes: Array[Byte]) extends Serializable with Ordered[ReduceKey] {
-
-  override def hashCode(): Int = {
-    Arrays.hashCode(bytes)
-  }
+class ReduceKey(var bytes: BytesWritable = null) extends Ordered[ReduceKey] {
 
   /** Used by ReduceKeyPartitioner to determine the hash partition. */
   @transient var partitionCode = 0
 
+  def getLength(): Int = bytes.getLength()
+
+  def getBytes(): Array[Byte] = bytes.getBytes()
+
   override def equals(other: Any): Boolean  = {
     other match {
-      case other: ReduceKey => Arrays.equals(bytes, other.bytes)
+      case other: ReduceKey => bytes.equals(other.bytes)
       case _ => false
     }
   }
 
-  def compareBytes(a: Array[Byte], b: Array[Byte]): Int = {
-    WritableComparator.compareBytes(a, 0, a.length, b, 0, b.length)
-  }
+  override def compare(that: ReduceKey): Int = this.bytes.compareTo(that.bytes)
 
-  override def compare(that: ReduceKey): Int = {
-    compareBytes(this.bytes, that.bytes)
-  }
+  override def hashCode() = bytes.hashCode()
 
-  override def toString() = {
-    var s = StringBuilder.newBuilder
-    bytes.foreach { b => s.append(" " + String.valueOf(b.toInt) + " ") }
-    s.toString
-  }
+  override def toString() = bytes.toString()
 }
 
 

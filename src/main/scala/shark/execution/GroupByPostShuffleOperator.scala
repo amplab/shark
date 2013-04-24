@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -214,14 +214,14 @@ with HiveTopOperator {
     val aggrs = newAggregations()
 
     val newIter = iter.map { case (key: ReduceKey, values: Seq[_]) =>
-      bytes.set(key.bytes)
-      val deserializedKey = deserializeKey(bytes)
+      //bytes.set(key.bytes)
+      val deserializedKey = deserializeKey(key.bytes)
       reusedRow(0) = deserializedKey
       resetAggregations(aggrs)
       values.foreach {
-        case v: Array[Byte] => {
-          bytes.set(v)
-          reusedRow(1) = deserializeValue(bytes)
+        case v: BytesWritable => {
+          //bytes.set(v)
+          reusedRow(1) = deserializeValue(v)
           aggregate(reusedRow, aggrs, false)
         }
         case (key: Array[Byte], value: Array[Byte]) => {
