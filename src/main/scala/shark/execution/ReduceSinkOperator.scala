@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -168,6 +168,7 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
     // Buffer for key, value evaluation to avoid frequent object allocation.
     val evaluatedKey = new Array[Object](keyEval.length)
     val evaluatedValue = new Array[Object](valueEval.length)
+    val reduceKey = new ReduceKey
 
     // A random number generator, used to distribute keys evenly if there is
     // no partition columns specified. Use a constant seed to make the code
@@ -210,15 +211,10 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
 
       val key = keySer.serialize(evaluatedKey, keyObjInspector).asInstanceOf[BytesWritable]
       val value = valueSer.serialize(evaluatedValue, valObjInspector).asInstanceOf[BytesWritable]
-      val keyArr = new ReduceKey(new Array[Byte](key.getLength))
-      keyArr.partitionCode = partitionCode
-      val valueArr = new Array[Byte](value.getLength)
 
-      // TODO(rxin): we don't need to copy bytes if we get rid of Spark block
-      // manager's double buffering.
-      Array.copy(key.getBytes, 0, keyArr.bytes, 0, key.getLength)
-      Array.copy(value.getBytes, 0, valueArr, 0, value.getLength)
-      (keyArr, valueArr)
+      reduceKey.bytes = key
+      reduceKey.partitionCode = partitionCode
+      (reduceKey, value)
     }
   }
 
@@ -230,33 +226,34 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
     // TODO(rxin): Rewrite this pile of code.
 
     // We output one row per distinct column
-    val distinctExprs = conf.getDistinctColumnIndices()
-    iter.flatMap { row =>
-      val value = valueSer.serialize(valueEval.map(_.evaluate(row)), valObjInspector)
-        .asInstanceOf[BytesWritable]
+    // val distinctExprs = conf.getDistinctColumnIndices()
+    // iter.flatMap { row =>
+    //   val value = valueSer.serialize(valueEval.map(_.evaluate(row)), valObjInspector)
+    //     .asInstanceOf[BytesWritable]
 
-      val numDistributionKeys = conf.getNumDistributionKeys
-      val allKeys = keyEval.map(_.evaluate(row)) // The key without distinct cols
-      val currentKeys = new Array[Object](numDistributionKeys + 1)
-      System.arraycopy(allKeys, 0, currentKeys, 0, numDistributionKeys)
-      val serializedDistributionKey = keySer.serialize(currentKeys, keyObjInspector)
-        .asInstanceOf[BytesWritable]
-      val distributionKeyArray = new Array[Byte](serializedDistributionKey.getLength)
-      Array.copy(serializedDistributionKey.getBytes, 0,
-        distributionKeyArray, 0, serializedDistributionKey.getLength)
-      val distributionKey = new ReduceKey(distributionKeyArray)
-      for (i <- 0 until distinctExprs.size) yield {
-        val distinctParameters = conf.getDistinctColumnIndices()(i).map(allKeys(_)).toArray
-        currentKeys(numDistributionKeys) = new StandardUnion(i.toByte, distinctParameters)
-        val key = keySer.serialize(currentKeys, keyObjInspector)
-          .asInstanceOf[BytesWritable]
-        val keyArr = new Array[Byte](key.getLength)
-        val valueArr = new Array[Byte](value.getLength)
-        Array.copy(key.getBytes, 0, keyArr, 0, key.getLength)
-        Array.copy(value.getBytes, 0, valueArr, 0, value.getLength)
-        (distributionKey, (keyArr, valueArr)).asInstanceOf[Any]
-      }
-    }
+    //   val numDistributionKeys = conf.getNumDistributionKeys
+    //   val allKeys = keyEval.map(_.evaluate(row)) // The key without distinct cols
+    //   val currentKeys = new Array[Object](numDistributionKeys + 1)
+    //   System.arraycopy(allKeys, 0, currentKeys, 0, numDistributionKeys)
+    //   val serializedDistributionKey = keySer.serialize(currentKeys, keyObjInspector)
+    //     .asInstanceOf[BytesWritable]
+    //   val distributionKeyArray = new Array[Byte](serializedDistributionKey.getLength)
+    //   Array.copy(serializedDistributionKey.getBytes, 0,
+    //     distributionKeyArray, 0, serializedDistributionKey.getLength)
+    //   val distributionKey = new ReduceKey(distributionKeyArray)
+    //   for (i <- 0 until distinctExprs.size) yield {
+    //     val distinctParameters = conf.getDistinctColumnIndices()(i).map(allKeys(_)).toArray
+    //     currentKeys(numDistributionKeys) = new StandardUnion(i.toByte, distinctParameters)
+    //     val key = keySer.serialize(currentKeys, keyObjInspector)
+    //       .asInstanceOf[BytesWritable]
+    //     val keyArr = new Array[Byte](key.getLength)
+    //     val valueArr = new Array[Byte](value.getLength)
+    //     Array.copy(key.getBytes, 0, keyArr, 0, key.getLength)
+    //     Array.copy(value.getBytes, 0, valueArr, 0, value.getLength)
+    //     (distributionKey, (keyArr, valueArr)).asInstanceOf[Any]
+    //   }
+    // }
+    Iterator.empty
   }
 
 }

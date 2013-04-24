@@ -22,9 +22,9 @@ import Keys._
 object SharkBuild extends Build {
 
   // Shark version
-  val SHARK_VERSION = "0.7.0"
+  val SHARK_VERSION = "0.8.0-SNAPSHOT"
 
-  val SPARK_VERSION = "0.7.1-SNAPSHOT"
+  val SPARK_VERSION = "0.8.0-SNAPSHOT"
 
   val SCALA_VERSION = "2.9.3"
 
@@ -33,7 +33,7 @@ object SharkBuild extends Build {
   val HADOOP_VERSION = "1.0.4"
 
   // Whether to build Shark with Tachyon jar.
-  val TACHYON_ENABLED = true
+  val TACHYON_ENABLED = false
 
   lazy val root = Project(
     id = "root",
@@ -91,11 +91,12 @@ object SharkBuild extends Build {
       "org.spark-project" %% "spark-repl" % SPARK_VERSION,
       "com.google.guava" % "guava" % "11.0.1",
       "org.apache.hadoop" % "hadoop-core" % HADOOP_VERSION,
-      "it.unimi.dsi" % "fastutil" % "6.4.4",
+      // See https://code.google.com/p/guava-libraries/issues/detail?id=1095
+      "com.google.code.findbugs" % "jsr305" % "1.3.+",
+      "it.unimi.dsi" % "fastutil" % "6.4.2",
       "org.scalatest" %% "scalatest" % "1.9.1" % "test",
       "junit" % "junit" % "4.10" % "test",
       "com.novocode" % "junit-interface" % "0.8" % "test") ++
-      (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.2.1") else None).toSeq
-
+      (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.3.0-SNAPSHOT") else None).toSeq
   )
 }
