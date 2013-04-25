@@ -210,6 +210,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
       value match {
         case rowWithPart: Array[Object] => rowWithPart
         case v: Writable => deserializer.deserialize(v)
+        case _ => throw new RuntimeException("Failed to match " + value.toString)
       }
     }
   }
