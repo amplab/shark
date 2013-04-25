@@ -89,7 +89,7 @@ object SharkBuild extends Build {
     libraryDependencies ++= Seq(
       "org.spark-project" %% "spark-core" % SPARK_VERSION,
       "org.spark-project" %% "spark-repl" % SPARK_VERSION,
-      "com.google.guava" % "guava" % "11.0.1",
+      "com.google.guava" % "guava" % "14.0.1",
       "org.apache.hadoop" % "hadoop-core" % HADOOP_VERSION,
       // See https://code.google.com/p/guava-libraries/issues/detail?id=1095
       "com.google.code.findbugs" % "jsr305" % "1.3.+",
