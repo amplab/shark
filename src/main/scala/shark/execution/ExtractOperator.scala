@@ -116,8 +116,9 @@ class ExtractOperator extends UnaryOperator[HiveExtractOperator] with HiveTopOpe
   }
 
   override def processPartition(split: Int, iter: Iterator[_]) = {
-    iter map { case (key, value: BytesWritable) =>
-      valueDeser.deserialize(value)
+    iter map {
+      case (key, value: BytesWritable) => valueDeser.deserialize(value)
+      case err => throw new RuntimeException("Did not find key, value pair: " + err.toString)
     }
   }
 }
