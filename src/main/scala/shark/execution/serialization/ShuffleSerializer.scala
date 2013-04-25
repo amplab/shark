@@ -79,22 +79,26 @@ class ShuffleSerializationStream(stream: OutputStream) extends SerializationStre
 
 class ShuffleDeserializationStream(stream: InputStream) extends DeserializationStream {
 
-  val keyBytes = new BytesWritable
-  val reduceKey = new ReduceKey(keyBytes)
-  val valueBytes = new BytesWritable
+  //val keyBytes = new BytesWritable
+  //val reduceKey = new ReduceKey(keyBytes)
+  //val valueBytes = new BytesWritable
 
   override def readObject[T](): T = {
     val keyLen = readInt()
     if (keyLen < 0) {
       throw new java.io.EOFException
     }
-
     val valueLen = readInt()
-    keyBytes.setSize(keyLen)
+    // keyBytes.setSize(keyLen)
+    // stream.read(keyBytes.getBytes(), 0, keyLen)
+    // valueBytes.setSize(valueLen)
+    // stream.read(valueBytes.getBytes(), 0, valueLen)
+    // (new ReduceKey(keyBytes), valueBytes).asInstanceOf[T]
+    val keyBytes = new BytesWritable(new Array[Byte](keyLen))
     stream.read(keyBytes.getBytes(), 0, keyLen)
-    valueBytes.setSize(valueLen)
+    val valueBytes = new BytesWritable(new Array[Byte](valueLen))
     stream.read(valueBytes.getBytes(), 0, valueLen)
-    (reduceKey, valueBytes).asInstanceOf[T]
+    (new ReduceKey(keyBytes), valueBytes).asInstanceOf[T]
   }
 
   override def close() { }

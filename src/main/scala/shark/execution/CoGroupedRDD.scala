@@ -23,6 +23,9 @@ import java.util.{HashMap => JHashMap}
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ArrayBuffer
 
+import shark.SharkEnv
+import spark.serializer.Serializer
+
 // A version of CoGroupedRDD with the following changes:
 // - Disable map-side aggregation.
 // - Enforce return type to Array[ArrayBuffer].
@@ -72,7 +75,7 @@ class CoGroupedRDD[K](@transient var rdds: Seq[RDD[(_, _)]], part: Partitioner)
         new OneToOneDependency(rdd)
       } else {
         logInfo("Adding shuffle dependency with " + rdd)
-        new ShuffleDependency[Any, Any](rdd, part)
+        new ShuffleDependency[Any, Any](rdd, part, SharkEnv.shuffleSerializerName)
       }
     }
   }
@@ -108,6 +111,7 @@ class CoGroupedRDD[K](@transient var rdds: Seq[RDD[(_, _)]], part: Partitioner)
       }
       values
     }
+    val serializer = Serializer.get(SharkEnv.shuffleSerializerName)
     for ((dep, depNum) <- split.deps.zipWithIndex) dep match {
       case NarrowCoGroupSplitDep(rdd, itsSplitIndex, itsSplit) => {
         // Read them from the parent
@@ -117,7 +121,8 @@ class CoGroupedRDD[K](@transient var rdds: Seq[RDD[(_, _)]], part: Partitioner)
         // Read map outputs of shuffle
         def mergePair(pair: (K, Any)) { getSeq(pair._1)(depNum) += pair._2 }
         val fetcher = SparkEnv.get.shuffleFetcher
-        fetcher.fetch[K, Seq[Any]](shuffleId, split.index, context.taskMetrics).foreach(mergePair)
+        fetcher.fetch[K, Seq[Any]](shuffleId, split.index, context.taskMetrics, serializer)
+          .foreach(mergePair)
       }
     }
     map.iterator

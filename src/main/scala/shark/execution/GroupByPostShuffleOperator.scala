@@ -37,6 +37,7 @@ import org.apache.hadoop.hive.serde2.{Deserializer, SerDe}
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils
 import org.apache.hadoop.io.BytesWritable
 
+import shark.SharkEnv
 import shark.execution.{HiveTopOperator, ReduceKey}
 import spark.{Aggregator, HashPartitioner, RDD}
 import spark.rdd.ShuffledRDD
@@ -196,7 +197,8 @@ with HiveTopOperator {
       GroupByAggregator.mergeValue _,
       null,
       new HashPartitioner(numReduceTasks),
-      false)
+      false,
+      SharkEnv.shuffleSerializerName)
   }
 
   override def processPartition(split: Int, iter: Iterator[_]) = {

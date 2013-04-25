@@ -58,11 +58,7 @@ object SharkEnv extends LogHelper {
 
   logInfo("Initializing SharkEnv")
 
-  System.setProperty("spark.shuffle.serializer",
-    classOf[shark.execution.serialization.ShuffleSerializer].getName)
-  //System.setProperty("spark.serializer", classOf[spark.KryoSerializer].getName)
-  System.setProperty("spark.serializer",
-    classOf[shark.execution.serialization.ShuffleSerializer].getName)
+  System.setProperty("spark.serializer", classOf[spark.KryoSerializer].getName)
   System.setProperty("spark.kryo.registrator", classOf[KryoRegistrator].getName)
 
   val executorEnvVars = new HashMap[String, String]
@@ -76,6 +72,8 @@ object SharkEnv extends LogHelper {
   executorEnvVars.put("TACHYON_WAREHOUSE_PATH", getEnv("TACHYON_WAREHOUSE_PATH"))
 
   var sc: SparkContext = _
+
+  val shuffleSerializerName = classOf[shark.execution.serialization.ShuffleSerializer].getName
 
   val memoryMetadataManager = new MemoryMetadataManager
 
