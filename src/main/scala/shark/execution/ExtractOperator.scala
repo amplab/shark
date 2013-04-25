@@ -129,6 +129,7 @@ with HiveTopOperator {
         bytes.set(value)
         valueDeser.deserialize(bytes)
       }
+      case err => throw new RuntimeException("Did not find key, value pair: " + err.toString)
     }
   }
 
