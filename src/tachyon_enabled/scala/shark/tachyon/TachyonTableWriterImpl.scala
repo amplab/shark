@@ -50,7 +50,7 @@ class TachyonTableWriterImpl(@transient path: String, @transient numColumns: Int
     val rawColumn = rawTable.getRawColumn(column)
     rawColumn.createPartition(part)
     val file = rawColumn.getPartition(part)
-    val outStream = file.createOutStream(OpType.WRITE_CACHE_THROUGH)
+    val outStream = file.getOutStream(OpType.WRITE_CACHE_THROUGH)
     outStream.write(data)
     outStream.close()
   }

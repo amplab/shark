@@ -52,8 +52,7 @@ object SharkBuild extends Build {
       "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
       "JBoss Repository" at "http://repository.jboss.org/nexus/content/repositories/releases/",
       "Spray Repository" at "http://repo.spray.cc/",
-      "Cloudera Repository" at "http://repository.cloudera.com/artifactory/cloudera-repos/",
-      "Local Maven Repository" at Path.userHome.asFile.toURI.toURL + "/.m2/repository"
+      "Cloudera Repository" at "http://repository.cloudera.com/artifactory/cloudera-repos/"
     ),
 
     testListeners <<= target.map(
@@ -88,7 +87,7 @@ object SharkBuild extends Build {
       "it.unimi.dsi" % "fastutil" % "6.4.2",
       "org.scalatest" %% "scalatest" % "1.6.1" % "test",
       "junit" % "junit" % "4.10" % "test") ++
-      (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.2.1-SNAPSHOT") else None).toSeq
+      (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.2.1") else None).toSeq
 
   ) ++ assemblySettings ++ Seq(test in assembly := {}) ++ Seq(getClassPathTask)
 
