@@ -2,6 +2,7 @@
 
 # This file is used to launch Shark on the master.
 export SCALA_VERSION=2.9.2
+SHARK_VERSION=0.3
 
 # Figure out where the framework is installed
 FWDIR="$(cd `dirname $0`; pwd)"
@@ -77,8 +78,9 @@ done
 SPARK_CLASSPATH+=:$HIVE_CONF_DIR
 
 # Build up classpath
-if [ -f "$SHARK_HOME/target/scala-$SCALA_VERSION/shark_$SCALA_VERSION-0.2.jar" ] ; then
-  SPARK_CLASSPATH+=":$SHARK_HOME/target/scala-$SCALA_VERSION/shark_$SCALA_VERSION-0.2.jar"
+SHARK_JAR="$SHARK_HOME/target/scala-$SCALA_VERSION/shark_$SCALA_VERSION-$SHARK_VERSION.jar"
+if [ -f "$SHARK_JAR" ] ; then
+  SPARK_CLASSPATH+=":$SHARK_JAR"
 else
   SPARK_CLASSPATH+=":$SHARK_HOME/target/scala-$SCALA_VERSION/classes"
 fi
