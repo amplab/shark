@@ -33,7 +33,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectIns
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.io.Writable
 
-import shark.{SharkConfVars, SharkEnv}
+import shark.{SharkConfVars, SharkEnv, Utils}
 import shark.execution.serialization.{XmlSerializer, JavaSerializer}
 import shark.memstore2.{CacheType, TablePartition, TablePartitionStats}
 import shark.tachyon.TachyonException
@@ -290,13 +290,9 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     }
 
     // If none of the s3 credentials are set in Hive conf, try use the environmental
-    // variables AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.
-    if (!s3varsSet && System.getenv("AWS_ACCESS_KEY_ID") != null &&
-      System.getenv("AWS_SECRET_ACCESS_KEY") != null) {
-      conf.set("fs.s3n.awsAccessKeyId", System.getenv("AWS_ACCESS_KEY_ID"))
-      conf.set("fs.s3.awsAccessKeyId", System.getenv("AWS_ACCESS_KEY_ID"))
-      conf.set("fs.s3n.awsSecretAccessKey", System.getenv("AWS_SECRET_ACCESS_KEY"))
-      conf.set("fs.s3.awsSecretAccessKey", System.getenv("AWS_SECRET_ACCESS_KEY"))
+    // variables for credentials.
+    if (!s3varsSet) {
+      Utils.setAwsCredentials(conf)
     }
 
     // Choose the minimum number of splits. If mapred.map.tasks is set, use that unless

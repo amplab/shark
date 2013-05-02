@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,6 +18,10 @@
 package shark
 
 import java.util.Locale
+import java.util.{Map => JMap}
+
+import org.apache.hadoop.conf.Configuration
+
 
 object Utils {
 
@@ -44,6 +48,19 @@ object Utils {
       }
     }
     "%.1f %s".formatLocal(Locale.US, value, unit)
+  }
+
+  /**
+   * Set the AWS (e.g. EC2/S3) credentials from environmental variables
+   * AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.
+   */
+  def setAwsCredentials(conf: Configuration, envs: JMap[String, String] = System.getenv()) {
+    if (envs.get("AWS_ACCESS_KEY_ID") != null && envs.get("AWS_SECRET_ACCESS_KEY") != null) {
+      conf.set("fs.s3n.awsAccessKeyId", envs.get("AWS_ACCESS_KEY_ID"))
+      conf.set("fs.s3.awsAccessKeyId", envs.get("AWS_ACCESS_KEY_ID"))
+      conf.set("fs.s3n.awsSecretAccessKey", envs.get("AWS_SECRET_ACCESS_KEY"))
+      conf.set("fs.s3.awsSecretAccessKey", envs.get("AWS_SECRET_ACCESS_KEY"))
+    }
   }
 
 }
