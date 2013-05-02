@@ -214,6 +214,11 @@
       <version>${hive.version}</version>
       <optional>true</optional>
     </dependency>
+    <dependency>
+      <groupId>org.tachyonproject</groupId>
+      <artifactId>tachyon</artifactId>
+      <version>0.2.1-SNAPSHOT</version>
+    </dependency>
 
     <!-- Testing -->
     <dependency>
@@ -398,6 +403,7 @@
             <configuration>
               <sources>
                 <source>src/main/scala</source>
+                <source>src/tachyon_enabled/scala</source>
               </sources>
             </configuration>
           </execution>
@@ -622,7 +628,7 @@
       <properties>
         <classifier>hadoop1</classifier>
         <hadoop.major.version>1</hadoop.major.version>
-        <hadoop.version>0.20.205.0</hadoop.version>
+        <hadoop.version>1.0.4</hadoop.version>
       </properties>
       <dependencies>
         <!-- Hadoop -->
