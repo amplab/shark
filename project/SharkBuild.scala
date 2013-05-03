@@ -41,7 +41,7 @@ object SharkBuild extends Build {
 
     name := "shark",
     organization := "edu.berkeley.cs.amplab",
-    version := "0.3",
+    version := "0.7",
     scalaVersion := "2.9.3",
     scalacOptions := Seq("-deprecation", "-unchecked", "-optimize"),
     parallelExecution in Test := false,
