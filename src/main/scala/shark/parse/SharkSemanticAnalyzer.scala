@@ -171,26 +171,34 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     val terminalOpSeq = {
       if (qb.getParseInfo.isInsertToTable && !qb.isCTAS) {
         hiveSinkOps.map { hiveSinkOp =>
-          val destTableName = hiveSinkOp.asInstanceOf[HiveFileSinkOperator].getConf().
-            getTableInfo().getTableName().split('.')(1)
-          SharkEnv.memoryMetadataManager.get(destTableName) match {
-            case Some(rdd) => {
-              if (hiveSinkOps.size == 1) {
-                // If useUnionRDD is false, the sink op is for INSERT OVERWRITE.
-                val useUnionRDD = qb.getParseInfo.isInsertIntoTable(destTableName)
-                OperatorFactory.createSharkMemoryStoreOutputPlan(
-                  hiveSinkOp,
-                  destTableName,
-                  rdd.getStorageLevel,
-                  _resSchema.size,                // numColumns
-                  cacheMode == CacheType.tachyon, // use tachyon
-                  useUnionRDD)
-              } else {
-                throw new SemanticException(
-                  "Shark does not support updating cached table(s) with multiple INSERTs")
+          val tableName = hiveSinkOp.asInstanceOf[HiveFileSinkOperator].getConf().getTableInfo()
+            .getTableName()
+
+          if (tableName == null || tableName == "") {
+            // If table name is empty, it is an INSERT (OVERWRITE) DIRECTORY.
+            OperatorFactory.createSharkFileOutputPlan(hiveSinkOp)
+          } else {
+            // Otherwise, check if we are inserting into a table that was cached.
+            val cachedTableName = tableName.split('.')(1) // Ignore the database name
+            SharkEnv.memoryMetadataManager.get(cachedTableName) match {
+              case Some(rdd) => {
+                if (hiveSinkOps.size == 1) {
+                  // If useUnionRDD is false, the sink op is for INSERT OVERWRITE.
+                  val useUnionRDD = qb.getParseInfo.isInsertIntoTable(cachedTableName)
+                  OperatorFactory.createSharkMemoryStoreOutputPlan(
+                    hiveSinkOp,
+                    cachedTableName,
+                    rdd.getStorageLevel,
+                    _resSchema.size,                // numColumns
+                    cacheMode == CacheType.tachyon, // use tachyon
+                    useUnionRDD)
+                } else {
+                  throw new SemanticException(
+                    "Shark does not support updating cached table(s) with multiple INSERTs")
+                }
               }
+              case None => OperatorFactory.createSharkFileOutputPlan(hiveSinkOp)
             }
-            case None => OperatorFactory.createSharkFileOutputPlan(hiveSinkOp)
           }
         }
       } else if (hiveSinkOps.size == 1) {
@@ -343,7 +351,7 @@ object SharkSemanticAnalyzer extends LogHelper {
   /**
    * The reflection object used to invoke convertRowSchemaToViewSchema.
    */
-  val convertRowSchemaToViewSchemaMethod = classOf[SemanticAnalyzer].getDeclaredMethod(
+  private val convertRowSchemaToViewSchemaMethod = classOf[SemanticAnalyzer].getDeclaredMethod(
     "convertRowSchemaToViewSchema", classOf[RowResolver])
   convertRowSchemaToViewSchemaMethod.setAccessible(true)
 
@@ -351,14 +359,14 @@ object SharkSemanticAnalyzer extends LogHelper {
    * The reflection object used to get a reference to SemanticAnalyzer.viewsExpanded,
    * so we can initialize it.
    */
-  val viewsExpandedField = classOf[SemanticAnalyzer].getDeclaredField("viewsExpanded")
+  private val viewsExpandedField = classOf[SemanticAnalyzer].getDeclaredField("viewsExpanded")
   viewsExpandedField.setAccessible(true)
 
   /**
    * Given a Hive top operator (e.g. TableScanOperator), find all the file sink
    * operators (aka file output operator).
    */
-  def findAllHiveFileSinkOperators(op: HiveOperator): Seq[HiveOperator] = {
+  private def findAllHiveFileSinkOperators(op: HiveOperator): Seq[HiveOperator] = {
     if (op.getChildOperators() == null || op.getChildOperators().size() == 0) {
       Seq[HiveOperator](op)
     } else {
@@ -373,7 +381,7 @@ object SharkSemanticAnalyzer extends LogHelper {
    * craft the struct object inspector (that has both KEY and VALUE) in Shark
    * ReduceSinkOperator.initializeDownStreamHiveOperators().
    */
-  def breakHivePlanByStages(terminalOps: Seq[TerminalOperator]) = {
+  private def breakHivePlanByStages(terminalOps: Seq[TerminalOperator]) = {
     val reduceSinks = new scala.collection.mutable.HashSet[ReduceSinkOperator]
     val queue = new scala.collection.mutable.Queue[Operator[_]]
     queue ++= terminalOps

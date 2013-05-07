@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,15 +22,30 @@ import scala.reflect.BeanProperty
 
 import org.apache.hadoop.hive.ql.exec.{LimitOperator => HiveLimitOperator}
 
+import shark.SharkEnv
+import spark.RDD
+
 
 class LimitOperator extends UnaryOperator[HiveLimitOperator] {
 
-  @BeanProperty var limit: Int = _
+  // Only works on the master program.
+  def limit = hiveOp.getConf().getLimit()
 
-  override def initializeOnMaster() {
-    limit = hiveOp.getConf().getLimit()
+  override def execute(): RDD[_] = {
+
+    val limitNum = hiveOp.getConf().getLimit()
+
+    if (limitNum > 0) {
+      // Take limit on each partition.
+      val inputRdd = executeParents().head._2
+      inputRdd.mapPartitions({ iter => iter.take(limitNum) }, preservesPartitioning = true)
+    } else {
+      new EmptyRDD(SharkEnv.sc)
+    }
   }
 
-  override def processPartition(split: Int, iter: Iterator[_]) = iter.take(limit)
+  override def processPartition(split: Int, iter: Iterator[_]) = {
+    throw new UnsupportedOperationException("LimitOperator.processPartition()")
+  }
 }
 

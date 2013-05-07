@@ -22,12 +22,16 @@ import AssemblyKeys._
 
 object SharkBuild extends Build {
 
+  // Shark version
+  val SHARK_VERSION = "0.8.0-SNAPSHOT"
+
+  val SPARK_VERSION = "0.8.0-SNAPSHOT"
+
+  val SCALA_VERSION = "2.9.3"
+
   // Hadoop version to build against. For example, "0.20.2", "0.20.205.0", or
   // "1.0.1" for Apache releases, or "0.20.2-cdh3u3" for Cloudera Hadoop.
   val HADOOP_VERSION = "1.0.4"
-
-  // Spark version to build against.
-  val SPARK_VERSION = "0.8.0-SNAPSHOT"
 
   // Whether to build Shark with Tachyon jar.
   val TACHYON_ENABLED = false
@@ -41,8 +45,8 @@ object SharkBuild extends Build {
 
     name := "shark",
     organization := "edu.berkeley.cs.amplab",
-    version := "0.2",
-    scalaVersion := "2.9.3",
+    version := SHARK_VERSION,
+    scalaVersion := SCALA_VERSION,
     scalacOptions := Seq("-deprecation", "-unchecked", "-optimize"),
     parallelExecution in Test := false,
 
@@ -52,8 +56,7 @@ object SharkBuild extends Build {
       "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
       "JBoss Repository" at "http://repository.jboss.org/nexus/content/repositories/releases/",
       "Spray Repository" at "http://repo.spray.cc/",
-      "Cloudera Repository" at "http://repository.cloudera.com/artifactory/cloudera-repos/",
-      "Local Maven Repository" at Path.userHome.asFile.toURI.toURL + "/.m2/repository"
+      "Cloudera Repository" at "http://repository.cloudera.com/artifactory/cloudera-repos/"
     ),
 
     testListeners <<= target.map(
@@ -88,7 +91,7 @@ object SharkBuild extends Build {
       "it.unimi.dsi" % "fastutil" % "6.4.2",
       "org.scalatest" %% "scalatest" % "1.9.1" % "test",
       "junit" % "junit" % "4.10" % "test") ++
-      (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.2.1-SNAPSHOT") else None).toSeq
+      (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.2.1") else None).toSeq
 
   ) ++ assemblySettings ++ Seq(test in assembly := {}) ++ Seq(getClassPathTask)
 

@@ -33,7 +33,7 @@ import tachyon.client.{RawTable, RawColumn, TachyonClient}
  */
 class TachyonUtilImpl(val master: String, val warehousePath: String) extends TachyonUtil {
 
-  val client = if (master != null) TachyonClient.getClient(master) else null
+  val client = if (master != null && master != "") TachyonClient.getClient(master) else null
 
   def getPath(tableName: String): String = warehousePath + "/" + tableName
 

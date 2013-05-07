@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -93,24 +93,26 @@ class SharkServerSuite extends FunSuite with BeforeAndAfterAll with ShouldMatche
     count should equal (4)
   }
 
-  test("Shark-64, keep cache table metadata across sessions") {
-    def executeCount(): Int = {
-      val stmt = createStatement
-      val rs = stmt.executeQuery("select count(*) from " + TABLE_CACHED + " where key = 406")
-      stmt.close()
-      rs.next
-      rs.getInt(1)
-    }
+  // This is commented out since cached table recovery will be deprecated. We plan to rely on
+  // Tachyon for recovery support.
+  // test("Shark-64, keep cache table metadata across sessions") {
+  //   def executeCount(): Int = {
+  //     val stmt = createStatement
+  //     val rs = stmt.executeQuery("select count(*) from " + TABLE_CACHED + " where key = 406")
+  //     stmt.close()
+  //     rs.next
+  //     rs.getInt(1)
+  //   }
 
-    stopServer()
-    launchServer()
-    executeCount() should equal (0)
+  //   stopServer()
+  //   launchServer()
+  //   executeCount() should equal (0)
 
-    // Stop and restart server, with explicit instruction to load RDDs
-    stopServer()
-    launchServer(Seq("-loadRdds"))
-    executeCount() should equal (4)
-  }
+  //   // Stop and restart server, with explicit instruction to load RDDs
+  //   stopServer()
+  //   launchServer(Seq("-loadRdds"))
+  //   executeCount() should equal (4)
+  // }
 
   test("Concurrent reads with state") {
     Class.forName(DRIVER_NAME)

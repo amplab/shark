@@ -70,7 +70,7 @@ class TachyonTableRDD(path: String, @transient sc: SparkContext)
       if (buf == null) {
         // TODO Log this. Reading data from remote is bad.
         buf = ByteBuffer.allocate(fp.length().toInt)
-        val is = fp.createInStream(OpType.READ_TRY_CACHE)
+        val is = fp.getInStream(OpType.READ_TRY_CACHE)
         is.read(buf.array)
         is.close()
         buf.limit(fp.length().toInt)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -43,6 +43,7 @@ class SharkContext(
   @transient val sparkEnv = SparkEnv.get
 
   @transient val hiveconf = new HiveConf(classOf[SessionState])
+  Utils.setAwsCredentials(hiveconf)
 
   //SessionState.initHiveLog4j()
   @transient val sessionState = new SessionState(hiveconf)
