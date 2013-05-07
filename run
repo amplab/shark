@@ -77,8 +77,8 @@ done
 SPARK_CLASSPATH+=:$HIVE_CONF_DIR
 
 # Build up classpath
-if [ -f "$SHARK_HOME/target/scala-$SCALA_VERSION/shark_$SCALA_VERSION-0.2.jar" ] ; then
-  SPARK_CLASSPATH+=":$SHARK_HOME/target/scala-$SCALA_VERSION/shark_$SCALA_VERSION-0.2.jar"
+if [ -f "$SHARK_HOME/target/scala-$SCALA_VERSION/shark_$SCALA_VERSION-0.3.jar" ] ; then
+  SPARK_CLASSPATH+=":$SHARK_HOME/target/scala-$SCALA_VERSION/shark_$SCALA_VERSION-0.3.jar"
 else
   SPARK_CLASSPATH+=":$SHARK_HOME/target/scala-$SCALA_VERSION/classes"
 fi
