@@ -17,7 +17,12 @@
 
 package shark
 
-import java.io.{File, FileNotFoundException, IOException, PrintStream, UnsupportedEncodingException}
+import java.io.BufferedReader
+import java.io.File
+import java.io.FileNotFoundException
+import java.io.IOException
+import java.io.PrintStream
+import java.io.UnsupportedEncodingException
 import java.net.URLClassLoader
 import java.util.ArrayList
 import jline.{History, ConsoleReader}
@@ -38,6 +43,7 @@ import org.apache.hadoop.hive.ql.parse.ParseDriver
 import org.apache.hadoop.hive.ql.processors.{CommandProcessor, CommandProcessorFactory}
 import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hadoop.hive.shims.ShimLoader
+import org.apache.hadoop.io.IOUtils
 
 import spark.SparkContext
 
@@ -332,5 +338,27 @@ class SharkCliDriver(loadRdds: Boolean = false) extends CliDriver with LogHelper
       }
     }
     ret
+  }
+
+  override def processFile(fileName: String): Int = {
+    if (Utils.isS3File(fileName)) {
+      // For S3 file, fetch it from S3 and pass it to Hive.
+      val conf = ss.getConf()
+      Utils.setAwsCredentials(conf)
+      var bufferReader: BufferedReader = null
+      var rc: Int = 0
+      try {
+        bufferReader = Utils.createReaderForS3(fileName, conf)
+        rc = processReader(bufferReader)
+        bufferReader.close()
+        bufferReader = null
+      } finally {
+        IOUtils.closeStream(bufferReader)
+      }
+      rc
+    } else {
+      // For non-S3 file, just use Hive's processFile.
+      super.processFile(fileName)
+    }
   }
 }
