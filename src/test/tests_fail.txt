@@ -1,9 +1,4 @@
 testCliDriver_archive
-testCliDriver_authorization_1
-testCliDriver_authorization_2
-testCliDriver_authorization_3
-testCliDriver_authorization_4
-testCliDriver_authorization_5
 testCliDriver_auto_join18_multi_distinct
 testCliDriver_auto_join21
 testCliDriver_auto_join25
@@ -31,7 +26,6 @@ testCliDriver_groupby8_noskew
 testCliDriver_groupby9
 testCliDriver_groupby_bigdata
 testCliDriver_input20
-testCliDriver_input33
 testCliDriver_input42
 testCliDriver_join18_multi_distinct
 testCliDriver_join21
