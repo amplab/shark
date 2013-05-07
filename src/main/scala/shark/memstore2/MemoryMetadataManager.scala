@@ -30,6 +30,8 @@ class MemoryMetadataManager {
   private val _keyToStats =
     new collection.mutable.HashMap[String, collection.Map[Int, TablePartitionStats]]
 
+  def contains(key: String) = _keyToRdd.contains(key)
+
   def put(key: String, rdd: RDD[_]) {
     _keyToRdd(key.toLowerCase) = rdd
   }
