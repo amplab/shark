@@ -37,8 +37,8 @@
     <test.jvm.args>-Xmx${test.mem} -Xms${test.mem} -XX:-UseSplitVerifier</test.jvm.args>
   </properties>
   <scm>
-    <connection>scm:git:git@github.com:clearstorydata/shark.git</connection>
-    <url>scm:git:git@github.com:clearstorydata/shark.git</url>
+    <connection>scm:git:git://github.com/clearstorydata/shark.git</connection>
+    <url>http://github.com/clearstorydata/shark/tree/master</url>
   </scm>
 
   <repositories>
