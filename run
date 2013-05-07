@@ -103,6 +103,8 @@ export CLASSPATH+=$SPARK_CLASSPATH # Needed for spark-shell
 
 export SPARK_JAVA_OPTS+=" $TEST_JAVA_OPTS"
 
+# supress the HADOOP_HOME warnings in 1.x.x
+export HADOOP_HOME_WARN_SUPPRESS=true
 
 if [ "x$SHARK_MASTER_MEM" == "x" ] ; then
   SHARK_MASTER_MEM="512m"
