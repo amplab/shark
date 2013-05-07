@@ -190,14 +190,12 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
 
   protected def aggregate(row: AnyRef, aggregations: Array[AggregationBuffer], isNewKey: Boolean) {
     var i = 0
-    if (aggregations.length > 0) {
-      while (i < aggregations.length) {
-        if (!aggregationIsDistinct(i) || isNewKey) {
-          val parameters = aggregationParameterFields(i).map(_.evaluate(row))
-          if (parameters.length > 0) aggregationEvals(i).aggregate(aggregations(i), parameters)
-        }
-        i += 1
+    while (i < aggregations.length) {
+      if (!aggregationIsDistinct(i) || isNewKey) {
+        val parameters = aggregationParameterFields(i).map(_.evaluate(row))
+        aggregationEvals(i).aggregate(aggregations(i), parameters)
       }
+      i += 1
     }
   }
 
