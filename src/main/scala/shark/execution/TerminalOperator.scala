@@ -36,7 +36,6 @@ import shark.execution.serialization.OperatorSerializationWrapper
 import shark.memstore._
 
 import spark.{GrowableAccumulableParam, RDD, TaskContext}
-import spark.EnhancedRDD._
 import spark.SparkContext._
 import spark.storage.StorageLevel
 
@@ -201,7 +200,7 @@ class CacheSinkOperator extends TerminalOperator {
     val op = OperatorSerializationWrapper(this)
 
     // Serialize the RDD on all partitions before putting it into the cache.
-    val rdd = inputRdd.mapPartitionsWithSplit { case(split, iter) =>
+    val rdd = inputRdd.mapPartitionsWithIndex { case(split, iter) =>
       op.initializeOnSlave()
 
       val serdeClass = op.localHiveOp.getConf.getTableInfo.getDeserializerClass

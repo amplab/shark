@@ -39,8 +39,7 @@ import shark.{SharkConfVars, SharkEnv}
 import shark.execution.serialization.XmlSerializer
 import shark.memstore.{TableStats, TableStorage}
 import spark.RDD
-import spark.EnhancedRDD._
-import spark.rdd.UnionRDD
+import spark.rdd.{PartitionPruningRDD, UnionRDD}
 
 
 class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopOperator {
@@ -130,8 +129,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         val filterOp = childOperators(0).asInstanceOf[FilterOperator]
         filterOp.initializeOnSlave()
 
-        // Do the pruning.
-        val prunedRdd = rdd.pruneSplits { split =>
+        def prunePartitionFunc(split: Int): Boolean = {
           if (printPruneDebug) {
             logInfo("\nSplit " + split + "\n" + splitToStats(split))
           }
@@ -141,9 +139,12 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
             MapSplitPruning.test(splitStats, filterOp.conditionEvaluator)
           else true
         }
+
+        // Do the pruning.
+        val prunedRdd = PartitionPruningRDD.create(rdd, prunePartitionFunc)
         val timeTaken = System.currentTimeMillis - startTime
         logInfo("Map pruning %d splits into %s splits took %d ms".format(
-            rdd.splits.size, prunedRdd.splits.size, timeTaken))
+            rdd.partitions.size, prunedRdd.partitions.size, timeTaken))
         prunedRdd
       } else {
         rdd
@@ -272,7 +273,12 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
       conf.set("fs.s3.awsSecretAccessKey", System.getenv("AWS_SECRET_ACCESS_KEY"))
     }
 
+    // Choose the minimum number of splits. If mapred.map.tasks is set, use that unless
+    // it is smaller than what Spark suggests.
+    val minSplits = math.max(localHconf.getInt("mapred.map.tasks", 1), SharkEnv.sc.defaultMinSplits)
+    val rdd = SharkEnv.sc.hadoopRDD(conf, ifc, classOf[Writable], classOf[Writable], minSplits)
+
     // Only take the value (skip the key) because Hive works only with values.
-    SharkEnv.sc.hadoopRDD(conf, ifc, classOf[Writable], classOf[Writable]).map(_._2)
+    rdd.map(_._2)
   }
 }
