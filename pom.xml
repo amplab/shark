@@ -45,7 +45,7 @@
     <shark.test.query.file>${project.basedir}/src/test/tests_stable.txt</shark.test.query.file>
   </properties>
   <scm>
-    <connection>scm:git:git://github.com/clearstorydata/shark.git</connection>
+    <connection>scm:git:git@github.com:clearstorydata/shark.git</connection>
     <url>http://github.com/clearstorydata/shark/tree/master</url>
   </scm>
 
