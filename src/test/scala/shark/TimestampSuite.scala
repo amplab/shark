@@ -14,28 +14,94 @@ class TimestampSuite extends FunSuite with SharkHiveTestUtil with BeforeAndAfter
     setHiveTestDir()
   }
 
-  test("CountGroupByOrderByTimestamp") {
-    SharkEnv.initWithSharkContext("CountGroupByOrderByTimestamp")
-    val tableName = "ts_test"
-    new File(getTestDir).mkdirs()
-    val testDataFile = new File(getTestDir, tableName + ".tsv")
+  def createTestTableData(tableName: String)(writeFile: (PrintWriter) => Unit): String = {
+    val testDir = getTestDir
+    new File(testDir).mkdirs()
+    val testDataFile = new File(testDir, tableName + ".tsv")
     val out = new PrintWriter(new BufferedOutputStream(new FileOutputStream(testDataFile)))
-    val tsStr = "2013-03-18 00:41:15"
-    out.println(tsStr)
-    out.close()
-
     try {
-      val sc = SharkEnv.sc.asInstanceOf[SharkContext]
+      writeFile(out)
+      testDataFile.getAbsolutePath
+    } finally {
+      out.close()
+    }
+  }
+
+  test("CountGroupByOrderByTimestamp") {
+
+    val tableName = "ts_test"
+    val tsStr = "2013-03-18 00:41:15"
+    val testDataPath = createTestTableData(tableName) { out =>
+      out.println(tsStr)
+    }
+
+    val sc = SharkEnv.sc.asInstanceOf[SharkContext]
+    try {
       assertEquals("", sc.sql("DROP TABLE IF EXISTS %s".format(tableName)).mkString("\n"))
       assertEquals("", sc.sql("CREATE TABLE %s (t TIMESTAMP)".format(tableName)).mkString("\n"))
       assertEquals("", sc.sql("LOAD DATA LOCAL INPATH '%s' OVERWRITE INTO TABLE %s".format(
-        testDataFile.getAbsolutePath, tableName)).mkString("\n"))
+        testDataPath, tableName)).mkString("\n"))
       assertEquals(tsStr, sc.sql("SELECT * FROM %s".format(tableName)).mkString("\n"))
       assertEquals(tsStr + "\t1",
         sc.sql("SELECT t, COUNT(1) FROM %s GROUP BY t ORDER BY t".format(tableName)).mkString("\n"))
     } finally {
-      SharkEnv.stop()
+      sc.stop()
     }
   }
+
+  private[this] def createTable(
+      tableName: String,
+      ddl: String,
+      additionalDDL: String*)(implicit sc: SharkContext) {
+    assertEquals("", sc.sql("CREATE TABLE " + tableName + " " + ddl).mkString("\n"))
+    additionalDDL.foreach { operation =>
+      assertEquals("", sc.sql(operation).mkString("\n"))
+    }
+  }
+
+  private[this] def dropTable(tableName: String)(implicit sc: SharkContext) {
+    assertEquals("", sc.sql("DROP TABLE IF EXISTS " + tableName).mkString("\n"))
+  }
+
+  private[this] def verifyRepetitionNumber(tableName: String, repetitions: Int)
+      (implicit sc: SharkContext) {
+    assertEquals("",
+      sc.sql("select * from (select c_date, count(*) as n from " + tableName +
+             " group by c_date) subquery where n != " + repetitions).mkString("\n"))
+  }
+
+  test("CTASTimestampLoad") {
+    SharkEnv.initWithSharkContext("CTASTimestampLoad")
+    implicit val sc = SharkEnv.sc.asInstanceOf[SharkContext]
+    try {
+      val tableName = "ts_repeated"
+
+      val repetitionNumber = 5
+      val baseYear = 2000
+      val numYears = 50
+      val dataPath = createTestTableData(tableName) { out =>
+        for (year <- baseYear until baseYear + numYears;
+             month <- 1 to 12;
+             day <- 1 to 28;
+             i <- 1 to repetitionNumber) {
+          out.println("%04d-%02d-%02d 00:00:00".format(year, month, day))
+        }
+      }
+      dropTable(tableName)
+      createTable(tableName,
+        "(c_date TIMESTAMP) ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' STORED AS TEXTFILE",
+        "LOAD DATA LOCAL INPATH '%s' OVERWRITE INTO TABLE %s".format(dataPath, tableName))
+
+      val ctasTableName = tableName + "_ctas"
+      dropTable(ctasTableName)
+      createTable(ctasTableName, "stored as rcfile as select * from " + tableName)
+
+      verifyRepetitionNumber(tableName, repetitionNumber)
+      verifyRepetitionNumber(ctasTableName, repetitionNumber)
+    } finally {
+      sc.stop()
+    }
+  }
+
 
 }
