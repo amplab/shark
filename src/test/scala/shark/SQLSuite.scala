@@ -59,7 +59,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   def expect(sql: String, expectedResults: Array[String]) {
     val results = sc.sql(sql).sortWith(_ < _)
     val expected = expectedResults.sortWith(_ < _)
-    assert(results.corresponds(expected)(_.equals(_)), "Expected: " + expected + "; got " + results)
+    assert(results.corresponds(expected)(_.equals(_)), "Expected: " + expected.mkString + "; got " + results.mkString)
   }
 
 }

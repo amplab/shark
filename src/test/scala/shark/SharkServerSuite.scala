@@ -14,7 +14,8 @@ import org.scalatest.FlatSpec
 import scala.collection.JavaConversions._
 import scala.concurrent.ops._
 
-class SharkServerSuite extends FunSuite with BeforeAndAfterAll  with BeforeAndAfterEach with ShouldMatchers {
+class SharkServerSuite extends FunSuite with BeforeAndAfterAll with ShouldMatchers
+  with CliTestToolkit {
 
   val WAREHOUSE_PATH = CliTestToolkit.getWarehousePath("server")
   val METASTORE_PATH = CliTestToolkit.getMetastorePath("server")
@@ -24,15 +25,7 @@ class SharkServerSuite extends FunSuite with BeforeAndAfterAll  with BeforeAndAf
   Class.forName(DRIVER_NAME)
 
   override def beforeAll() {
-
-    spawn {
-      SharkServer.main(Array("-hiveconf",
-          "javax.jdo.option.ConnectionURL=jdbc:derby:;databaseName=" +
-          METASTORE_PATH + ";create=true",
-          "-hiveconf",
-          "hive.metastore.warehouse.dir=" + WAREHOUSE_PATH))
-    }
-    while(!SharkServer.ready){}
+    launchServer()
     createTable
     createCachedTable
     val stmt = createStatement
@@ -48,17 +41,36 @@ class SharkServerSuite extends FunSuite with BeforeAndAfterAll  with BeforeAndAf
   }
 
   override def afterAll() {
-    dropTable
-    dropTable("foo_cached")
-    dropTable("clicks")
-    dropTable("users")
-    dropTable("test_bigint")
-    dropTable("test_bigint_cached")
-    dropTable("a")
-    dropTable("a_cached")
+    dropServerTable()
+    dropServerTable("foo_cached")
+    dropServerTable("clicks")
+    dropServerTable("users")
+    dropServerTable("test_bigint")
+    dropServerTable("test_bigint_cached")
+    dropServerTable("a")
+    dropServerTable("a_cached")
     dropCachedTable
-    SharkServer.stop
+    stopServer()
   }
+
+  private def launchServer(args: Seq[String] = Seq.empty) {
+    val defaultArgs = Seq("./bin/shark", "--service", "sharkserver",
+      "-hiveconf",
+      "javax.jdo.option.ConnectionURL=jdbc:derby:;databaseName=" + METASTORE_PATH + ";create=true",
+      "-hiveconf",
+      "hive.metastore.warehouse.dir=" + WAREHOUSE_PATH)
+    val pb = new ProcessBuilder(defaultArgs ++ args)
+    process = pb.start()
+    inputReader = new BufferedReader(new InputStreamReader(process.getInputStream))
+    errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream))
+    waitForOutput(inputReader, "Starting Shark server")
+  }
+
+  private def stopServer() {
+    process.destroy()
+    process.waitFor()
+  }
+
 
   test("Count Distinct ") {
     val stmt = createStatement
@@ -211,11 +223,11 @@ class SharkServerSuite extends FunSuite with BeforeAndAfterAll  with BeforeAndAf
     stmt.executeQuery("CREATE TABLE test_cached as select * from test")
   }
 
-  def dropTable(implicit table:String = TABLE) = {
+  def dropServerTable(table: String = TABLE) = {
     val stmt = createStatement
     val sql = "DROP TABLE " + table
     val rs = stmt.executeQuery(sql)
   }
 
-  def dropCachedTable = dropTable(TABLE + "_cached")
+  def dropCachedTable = dropServerTable(TABLE + "_cached")
 }
