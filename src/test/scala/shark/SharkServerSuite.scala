@@ -37,17 +37,14 @@ class SharkServerSuite extends FunSuite with BeforeAndAfterAll  with BeforeAndAf
     createCachedTable
     val stmt = createStatement
     val baseFilePath = System.getenv("HIVE_DEV_HOME")
-    val clicksPath = baseFilePath + "/data/files/clicks.txt"
     stmt.executeQuery("create table clicks(id int, click int) row format delimited fields terminated by '\t'")
-    stmt.executeQuery("load data local inpath '" + clicksPath + "' OVERWRITE INTO TABLE clicks")
+    stmt.executeQuery("load data local inpath '${env:HIVE_DEV_HOME}/data/files/clicks.txt' OVERWRITE INTO TABLE clicks")
     stmt.executeQuery("create table users(id int, name string) row format delimited fields terminated by '\t'")
-    val usersPath = baseFilePath + "/data/files/users.txt"
-    stmt.executeQuery("load data local inpath '" + usersPath + "' OVERWRITE INTO TABLE users")
+    stmt.executeQuery("load data local inpath '${env:HIVE_DEV_HOME}/data/files/users.txt' OVERWRITE INTO TABLE users")
     stmt.executeQuery("create table clicks_cached as select * from clicks")
     stmt.executeQuery("create table users_cached as select * from users")
     stmt.executeQuery("create table test_bigint (key bigint, val string)")
-    val kvPath = baseFilePath + "/data/files/kv1.txt"
-    stmt.executeQuery("load data local inpath '" + kvPath + "' OVERWRITE INTO TABLE test_bigint")
+    stmt.executeQuery("load data local inpath '${env:HIVE_DEV_HOME}/data/files/kv1.txt' OVERWRITE INTO TABLE test_bigint")
   }
 
   override def afterAll() {
@@ -154,7 +151,7 @@ class SharkServerSuite extends FunSuite with BeforeAndAfterAll  with BeforeAndAf
 
   test("mapside join") {
     val stmt = createStatement
-    val rs = stmt.executeQuery("select /*+ MapJoin(clicks) */ users.name, count(clicks.click) from clicks join users on (clicks.id = users.id) group by users.name having users.name='A'")
+    val rs = stmt.executeQuery("select users.name, count(clicks.click) from clicks join users on (clicks.id = users.id) group by users.name having users.name='A'")
     //check if this worked
     rs.next;
     stmt.close
@@ -166,7 +163,7 @@ class SharkServerSuite extends FunSuite with BeforeAndAfterAll  with BeforeAndAf
 
   test("mapside join2") {
     val stmt = createStatement
-    val rs = stmt.executeQuery("select /*+ MapJoin(clicks) */ count(*) from clicks join users on (clicks.id = users.id) ")
+    val rs = stmt.executeQuery("select count(*) from clicks join users on (clicks.id = users.id) ")
     //check if this worked
     rs.next;
     stmt.close
