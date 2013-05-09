@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,30 +18,23 @@
 package shark.execution
 
 import java.util.{ArrayList, HashMap => JHashMap, List => JList}
+
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
+
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, JoinUtil => HiveJoinUtil}
-import org.apache.hadoop.hive.ql.exec.HashTableSinkOperator.{HashTableSinkObjectCtx => MapJoinObjectCtx}
-import org.apache.hadoop.hive.ql.exec.MapJoinMetaData
 import org.apache.hadoop.hive.ql.exec.{MapJoinOperator => HiveMapJoinOperator}
-import org.apache.hadoop.hive.ql.exec.persistence.{AbstractMapJoinKey, MapJoinDoubleKeys}
-import org.apache.hadoop.hive.ql.exec.persistence.{MapJoinObjectKey, MapJoinSingleKey}
-import org.apache.hadoop.hive.ql.exec.persistence.{MapJoinRowContainer, MapJoinObjectValue}
 import org.apache.hadoop.hive.ql.plan.MapJoinDesc
 import org.apache.hadoop.hive.ql.plan.{PartitionDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption
-import org.apache.hadoop.hive.serde2.SerDe
 import org.apache.hadoop.io.BytesWritable
+
+import shark.SharkEnv
 import shark.SharkEnvSlave
-import shark.execution.serialization.{OperatorSerializationWrapper, JoinUtil, SerializableWritable}
+import shark.execution.serialization.{OperatorSerializationWrapper, SerializableWritable}
 import spark.RDD
 import spark.broadcast.Broadcast
-import scala.collection.immutable.HashMap
-import shark.SharkEnv
 
 
 /**
@@ -117,7 +110,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
       // contain lazy structs that cannot be properly collected directly.
       val posByte = pos.toByte
 
-     
+
       // Create a local reference for the serialized arrays, otherwise the
       // following mapParititons will fail because it tries to include the
       // outer closure, which references "this".
@@ -136,11 +129,11 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
       val wrappedRows: Array[(Seq[AnyRef], Seq[Array[AnyRef]])] = rddForHash.collect()
       val collectTime = System.currentTimeMillis() - startCollect
       logInfo("HashTable collect took " + collectTime + " ms")
-      
+
       // Build the hash table.
       val hash = wrappedRows.groupBy(x => x._1)
        .mapValues(v => v.flatMap(t => t._2))
-       
+
       val map = new JHashMap[Seq[AnyRef], Array[Array[AnyRef]]]()
       hash.foreach(x => map.put(x._1, x._2))
       (pos, map)
@@ -194,7 +187,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
    * Note that this is a specialized processPartition that accepts an extra
    * parameter for the hash tables (built from the small tables).
    */
-  def joinOnPartition[T](iter: Iterator[T], 
+  def joinOnPartition[T](iter: Iterator[T],
       hashtables: Map[Int, JHashMap[Seq[AnyRef], Array[Array[AnyRef]]]]): Iterator[_] = {
 
     val joinKeyEval = joinKeys.get(bigTableAlias.toByte)
@@ -219,7 +212,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
         noOuterJoin)
       val value = new Array[AnyRef](v.size)
       Range(0,v.size).foreach(i => value(i) = v(i).asInstanceOf[SerializableWritable[_]].value)
-      
+
       if (nullCheck && JoinUtil.joinKeyHasAnyNulls(key, nullSafes)) {
         val bufsNull = Array.fill[Seq[Array[Object]]](numTables)(Seq())
         bufsNull(bigTableAlias) = Seq(value)
@@ -233,8 +226,13 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
           } else {
             val smallTableValues = hashtables.getOrElse(i, null).getOrElse(key, null)
             bufs(i) =
-              if (smallTableValues == null) Seq[Array[AnyRef]]()
-              else smallTableValues.map(x => x.map(v => v.asInstanceOf[SerializableWritable[_]].value.asInstanceOf[AnyRef]))
+              if (smallTableValues == null) {
+                Seq.empty[Array[AnyRef]]
+              } else {
+                smallTableValues.map { x =>
+                  x.map(v => v.asInstanceOf[SerializableWritable[_]].value.asInstanceOf[AnyRef])
+                }
+              }
           }
           i += 1
         }
@@ -266,7 +264,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
         }
         tupleIndex += 1
       }
-      
+
       rowToReturn
     }
   }
@@ -274,6 +272,4 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
   override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
     throw new UnsupportedOperationException("MapJoinOperator.processPartition()")
   }
-  
-
 }

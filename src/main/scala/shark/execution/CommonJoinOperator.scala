@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,8 +24,9 @@ import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
 import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, JoinUtil}
+import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator
 import org.apache.hadoop.hive.ql.exec.{CommonJoinOperator => HiveCommonJoinOperator}
+import org.apache.hadoop.hive.ql.exec.{JoinUtil => HiveJoinUtil}
 import org.apache.hadoop.hive.ql.plan.{ExprNodeDesc, JoinCondDesc, JoinDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.Deserializer
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, PrimitiveObjectInspector}
@@ -77,18 +78,18 @@ abstract class CommonJoinOperator[JOINDESCTYPE <: JoinDesc, T <: HiveCommonJoinO
     noOuterJoin = conf.isNoOuterJoin
 
     joinVals = new JavaHashMap[java.lang.Byte, JavaList[ExprNodeEvaluator]]
-    JoinUtil.populateJoinKeyValue(
+    HiveJoinUtil.populateJoinKeyValue(
       joinVals, conf.getExprs(), order, CommonJoinOperator.NOTSKIPBIGTABLE)
 
     joinFilters = new JavaHashMap[java.lang.Byte, JavaList[ExprNodeEvaluator]]
-    JoinUtil.populateJoinKeyValue(
+    HiveJoinUtil.populateJoinKeyValue(
       joinFilters, conf.getFilters(), order, CommonJoinOperator.NOTSKIPBIGTABLE)
 
-    joinValuesObjectInspectors = JoinUtil.getObjectInspectorsFromEvaluators(
+    joinValuesObjectInspectors = HiveJoinUtil.getObjectInspectorsFromEvaluators(
       joinVals, objectInspectors.toArray, CommonJoinOperator.NOTSKIPBIGTABLE)
-    joinFilterObjectInspectors = JoinUtil.getObjectInspectorsFromEvaluators(
+    joinFilterObjectInspectors = HiveJoinUtil.getObjectInspectorsFromEvaluators(
       joinFilters, objectInspectors.toArray, CommonJoinOperator.NOTSKIPBIGTABLE)
-    joinValuesStandardObjectInspectors = JoinUtil.getStandardObjectInspectors(
+    joinValuesStandardObjectInspectors = HiveJoinUtil.getStandardObjectInspectors(
       joinValuesObjectInspectors, CommonJoinOperator.NOTSKIPBIGTABLE)
   }
 }
