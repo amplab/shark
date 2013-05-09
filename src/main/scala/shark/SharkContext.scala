@@ -28,7 +28,7 @@ import org.apache.hadoop.hive.ql.Driver
 import org.apache.hadoop.hive.ql.processors.{CommandProcessor, CommandProcessorFactory}
 import org.apache.hadoop.hive.ql.session.SessionState
 
-import shark.execution.TableRDD
+import shark.api.TableRDD
 import spark.{SparkContext, SparkEnv}
 
 
