@@ -27,7 +27,7 @@ import spark.scheduler.StatsReportListener
 /** A singleton object for the master program. The slaves should not access this. */
 object SharkEnv extends LogHelper {
 
-  def init() {
+  def init(): SparkContext = {
     if (sc == null) {
       sc = new SparkContext(
           if (System.getenv("MASTER") == null) "local" else System.getenv("MASTER"),
@@ -37,20 +37,23 @@ object SharkEnv extends LogHelper {
           executorEnvVars)
       sc.addSparkListener(new StatsReportListener())
     }
+    sc
   }
 
-  def initWithSharkContext(jobName: String) {
+  def initWithSharkContext(jobName: String, master: String = System.getenv("MASTER"))
+    : SharkContext = {
     if (sc != null) {
       sc.stop
     }
 
     sc = new SharkContext(
-        if (System.getenv("MASTER") == null) "local" else System.getenv("MASTER"),
+        if (master == null) "local" else master,
         jobName,
         System.getenv("SPARK_HOME"),
         Nil,
         executorEnvVars)
     sc.addSparkListener(new StatsReportListener())
+    sc.asInstanceOf[SharkContext]
   }
 
   logInfo("Initializing SharkEnv")
