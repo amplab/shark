@@ -43,6 +43,11 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.sql("LOAD DATA LOCAL INPATH '${hiveconf:shark.test.data.path}/kv1.txt' INTO TABLE test")
     sc.sql("CREATE TABLE test_cached AS SELECT * FROM test")
 
+    // test
+    sc.sql("CREATE TABLE test_null (key INT, val STRING)")
+    sc.sql("LOAD DATA LOCAL INPATH '${hiveconf:shark.test.data.path}/kv3.txt' INTO TABLE test_null")
+    sc.sql("CREATE TABLE test_null_cached AS SELECT * FROM test_null")
+
     // clicks
     sc.sql("""create table clicks (id int, click int)
       row format delimited fields terminated by '\t'""")
@@ -212,6 +217,11 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   // SharkContext APIs (e.g. sql2rdd, sql)
   //////////////////////////////////////////////////////////////////////////////
 
+  test("sql max number of rows returned") {
+    assert(sc.sql("select * from test").size === 500)
+    assert(sc.sql("select * from test", 100).size === 100)
+  }
+
   test("sql2rdd") {
     var rdd = sc.sql2rdd("select * from test")
     assert(rdd.count === 500)
@@ -221,6 +231,13 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     assert(collected(0) === 0)
     assert(collected(499) === 498)
     assert(collected.size === 500)
+  }
+
+  test("null values in sql2rdd") {
+    val nullsRdd = sc.sql2rdd("select * from test_null where key is null")
+    val nulls = nullsRdd.map(r => r.getInt(0)).collect()
+    assert(nulls(0) === null)
+    assert(nulls.size === 10)
   }
 
   test("sql exception") {

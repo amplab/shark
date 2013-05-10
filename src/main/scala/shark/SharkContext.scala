@@ -24,6 +24,7 @@ import scala.collection.Map
 import scala.collection.JavaConversions._
 
 import org.apache.hadoop.hive.conf.HiveConf
+import org.apache.hadoop.hive.common.LogUtils
 import org.apache.hadoop.hive.ql.Driver
 import org.apache.hadoop.hive.ql.processors.CommandProcessor
 import org.apache.hadoop.hive.ql.processors.CommandProcessorFactory
@@ -48,7 +49,7 @@ class SharkContext(
   @transient val hiveconf = new HiveConf(classOf[SessionState])
   Utils.setAwsCredentials(hiveconf)
 
-  //SessionState.initHiveLog4j()
+  LogUtils.initHiveLog4j()
   @transient val sessionState = new SessionState(hiveconf)
   sessionState.out = new PrintStream(System.out, true, "UTF-8")
   sessionState.err = new PrintStream(System.out, true, "UTF-8")
@@ -57,7 +58,7 @@ class SharkContext(
    * Execute the command and return the results as a sequence. Each element
    * in the sequence is one row.
    */
-  def sql(cmd: String): Seq[String] = {
+  def sql(cmd: String, maxRows: Int = 1000): Seq[String] = {
     SparkEnv.set(sparkEnv)
     val cmd_trimmed: String = cmd.trim()
     val tokens: Array[String] = cmd_trimmed.split("\\s+")
@@ -82,6 +83,7 @@ class SharkContext(
         driver.destroy()
         throw new QueryExecutionException(response.getErrorMessage)
       }
+      driver.setMaxRows(maxRows)
       driver.getResults(results)
       driver.destroy()
       results
@@ -109,9 +111,9 @@ class SharkContext(
   /**
    * Execute the command and print the results to console.
    */
-  def sql2console(cmd: String) {
+  def sql2console(cmd: String, maxRows: Int = 1000) {
     SparkEnv.set(sparkEnv)
-    val results = sql(cmd)
+    val results = sql(cmd, maxRows)
     results.foreach(println)
   }
 }
