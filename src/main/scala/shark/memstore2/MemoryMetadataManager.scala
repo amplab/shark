@@ -35,7 +35,7 @@ class MemoryMetadataManager {
   private val _keyToStats: ConcurrentMap[String, collection.Map[Int, TablePartitionStats]] =
     new ConcurrentHashMap[String, collection.Map[Int, TablePartitionStats]]
 
-  def contains(key: String) = _keyToRdd.contains(key)
+  def contains(key: String) = _keyToRdd.contains(key.toLowerCase)
 
   def put(key: String, rdd: RDD[_]) {
     _keyToRdd(key.toLowerCase) = rdd

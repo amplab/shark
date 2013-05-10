@@ -25,10 +25,13 @@ import scala.collection.JavaConversions._
 
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.Driver
-import org.apache.hadoop.hive.ql.processors.{CommandProcessor, CommandProcessorFactory}
+import org.apache.hadoop.hive.ql.processors.CommandProcessor
+import org.apache.hadoop.hive.ql.processors.CommandProcessorFactory
+import org.apache.hadoop.hive.ql.processors.CommandProcessorResponse
 import org.apache.hadoop.hive.ql.session.SessionState
 
 import shark.api.TableRDD
+import shark.api.QueryExecutionException
 import spark.{SparkContext, SparkEnv}
 
 
@@ -73,7 +76,12 @@ class SharkContext(
       driver.init()
 
       val results = new ArrayList[String]()
-      driver.run(cmd)
+      val response: CommandProcessorResponse = driver.run(cmd)
+      // Throw an exception if there is an error in query processing.
+      if (response.getResponseCode() != 0) {
+        driver.destroy()
+        throw new QueryExecutionException(response.getErrorMessage)
+      }
       driver.getResults(results)
       driver.destroy()
       results
