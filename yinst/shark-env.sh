@@ -23,7 +23,7 @@ export SPARK_MEM=$(miners_shark__SPARK_MEM)
 export SHARK_MASTER_MEM=$(miners_shark__SHARK_MASTER_MEM)
 
 # (Required) Point to your Scala installation.
-export SCALA_VERSION=2.9.2
+export SCALA_VERSION=2.9.3
 export SCALA_HOME=$(miners_shark__SCALA_HOME)
 
 export JAVA_HOME=/home/y/libexec64/jdk1.7.0/
