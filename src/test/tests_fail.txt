@@ -26,6 +26,8 @@ testCliDriver_groupby8_noskew
 testCliDriver_groupby9
 testCliDriver_groupby_bigdata
 testCliDriver_input20
+# failed because mapreduce.jobtracker.address is not "local"
+testCliDriver_input39
 testCliDriver_input42
 testCliDriver_join18_multi_distinct
 testCliDriver_join21
@@ -56,9 +58,13 @@ testCliDriver_pcr
 testCliDriver_query_result_fileformat
 testCliDriver_rand_partitionpruner2
 testCliDriver_rcfile_bigdata
+# irrelevant tests
+testCliDriver_repair
 testCliDriver_router_join_ppr
 testCliDriver_sample10
 testCliDriver_sample6
+# local hooks that we don't care about in Shark
+testCliDriver_sample_islocalmode_hook
 testCliDriver_select_transform_hint
 testCliDriver_skewjoin
 testCliDriver_smb_mapjoin9
@@ -72,6 +78,8 @@ testCliDriver_smb_mapjoin_7
 testCliDriver_source
 testCliDriver_stats10
 testCliDriver_stats11
+# udaf_context_ngrams is indeterministic
+testCliDriver_udaf_context_ngrams
 testCliDriver_union17
 testCliDriver_union22
 testCliDriver_uniquejoin
