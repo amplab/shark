@@ -34,7 +34,9 @@ import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hadoop.hive.serde2.{SerDe, SerDeUtils}
 import org.apache.hadoop.util.StringUtils
 
-import shark.execution.{SharkExplainTask, SharkExplainWork, SparkTask, SparkWork, TableRDD}
+import shark.api.TableRDD
+import shark.api.QueryExecutionException
+import shark.execution.{SharkExplainTask, SharkExplainWork, SparkTask, SparkWork}
 import shark.memstore2.ColumnarSerDe
 import shark.parse.{QueryContext, SharkSemanticAnalyzerFactory}
 
@@ -143,6 +145,10 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
   def tableRdd(cmd:String): TableRDD = {
     useTableRddSink = true
     val response = run(cmd)
+    // Throw an exception if there is an error in query processing.
+    if (response.getResponseCode() != 0) {
+      throw new QueryExecutionException(response.getErrorMessage)
+    }
     useTableRddSink = false
     plan.getRootTasks.get(0) match {
       case sparkTask: SparkTask => {

@@ -19,20 +19,15 @@ package shark
 
 import scala.collection.mutable.{HashMap, HashSet}
 
-import org.apache.hadoop.hive.ql.metadata.Hive
-import org.apache.hadoop.hive.conf.HiveConf
-
 import shark.memstore2.MemoryMetadataManager
 import shark.tachyon.TachyonUtilImpl
-
 import spark.SparkContext
-import spark.SparkEnv
-
+import spark.scheduler.StatsReportListener
 
 /** A singleton object for the master program. The slaves should not access this. */
 object SharkEnv extends LogHelper {
 
-  def init() {
+  def init(): SparkContext = {
     if (sc == null) {
       sc = new SparkContext(
           if (System.getenv("MASTER") == null) "local" else System.getenv("MASTER"),
@@ -40,20 +35,25 @@ object SharkEnv extends LogHelper {
           System.getenv("SPARK_HOME"),
           Nil,
           executorEnvVars)
+      sc.addSparkListener(new StatsReportListener())
     }
+    sc
   }
 
-  def initWithSharkContext(jobName: String) {
+  def initWithSharkContext(jobName: String, master: String = System.getenv("MASTER"))
+    : SharkContext = {
     if (sc != null) {
       sc.stop
     }
 
     sc = new SharkContext(
-        if (System.getenv("MASTER") == null) "local" else System.getenv("MASTER"),
+        if (master == null) "local" else master,
         jobName,
         System.getenv("SPARK_HOME"),
         Nil,
         executorEnvVars)
+    sc.addSparkListener(new StatsReportListener())
+    sc.asInstanceOf[SharkContext]
   }
 
   logInfo("Initializing SharkEnv")

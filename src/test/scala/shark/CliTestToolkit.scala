@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,6 +31,10 @@ object CliTestToolkit {
   def getMetastorePath(prefix: String): String = {
     System.getProperty("user.dir") + "/test_warehouses/" + prefix + "-metastore-" +
       (new SimpleDateFormat("yyyyMMdd-HHmmss")).format(new Date)
+  }
+
+  def dataFilePath: String = {
+    Option(System.getenv("SHARK_HOME")).getOrElse(System.getProperty("user.dir")) + "/data/files"
   }
 }
 
