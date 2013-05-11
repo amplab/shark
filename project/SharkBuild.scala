@@ -23,18 +23,18 @@ import AssemblyKeys._
 object SharkBuild extends Build {
 
   // Shark version
-  val SHARK_VERSION = "0.7.0"
+  val SHARK_VERSION = "0.7.1"
 
-  val SPARK_VERSION = "0.7.1-SNAPSHOT"
+  val SPARK_VERSION = "0.7.1-adp-SNAPSHOT"
 
   val SCALA_VERSION = "2.9.3"
 
   // Hadoop version to build against. For example, "0.20.2", "0.20.205.0", or
   // "1.0.1" for Apache releases, or "0.20.2-cdh3u3" for Cloudera Hadoop.
-  val HADOOP_VERSION = "1.0.4"
+  val HADOOP_VERSION = "0.20.205.0"
 
   // Whether to build Shark with Tachyon jar.
-  val TACHYON_ENABLED = true
+  val TACHYON_ENABLED = false
 
   lazy val root = Project(
     id = "root",
