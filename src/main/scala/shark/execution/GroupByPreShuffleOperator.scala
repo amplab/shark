@@ -19,10 +19,8 @@ package org.apache.hadoop.hive.ql.exec
 // Put this file in Hive's exec package to access package level visible fields and methods.
 
 import java.util.{ArrayList, HashMap => JHashMap}
-
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
-
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{GroupByOperator => HiveGroupByOperator}
 import org.apache.hadoop.hive.ql.plan.{AggregationDesc, ExprNodeDesc, ExprNodeColumnDesc, GroupByDesc}
@@ -31,12 +29,11 @@ import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator.AggregationBuf
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorFactory,
     ObjectInspectorUtils, StandardStructObjectInspector, StructObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption
-
 import shark.SharkEnvSlave
 import shark.execution.UnaryOperator
-
 import spark.RDD
 import spark.SparkContext._
+import shark.execution.cg.CGEvaluatorFactory
 
 
 /**
@@ -47,6 +44,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
   @BeanProperty var conf: GroupByDesc = _
   @BeanProperty var minReductionHashAggr: Float = _
   @BeanProperty var numRowsCompareHashAggr: Int = _
+  @BeanProperty var localHconf: HiveConf = _
 
   @transient var keyFactory: KeyWrapperFactory = _
   @transient var rowInspector: ObjectInspector = _
@@ -67,13 +65,14 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
     conf = hiveOp.getConf()
     minReductionHashAggr = hconf.get(HiveConf.ConfVars.HIVEMAPAGGRHASHMINREDUCTION.varname).toFloat
     numRowsCompareHashAggr = hconf.get(HiveConf.ConfVars.HIVEGROUPBYMAPINTERVAL.varname).toInt
+    localHconf = super.hconf
   }
 
   override def initializeOnSlave() {
     aggregationEvals = conf.getAggregators.map(_.getGenericUDAFEvaluator).toArray
     aggregationIsDistinct = conf.getAggregators.map(_.getDistinct).toArray
     rowInspector = objectInspector.asInstanceOf[StructObjectInspector]
-    keyFields = conf.getKeys().map(k => ExprNodeEvaluatorFactory.get(k)).toArray
+    keyFields = conf.getKeys().map(k => CGEvaluatorFactory.get(k, localHconf)).toArray
     val keyObjectInspectors: Array[ObjectInspector] = keyFields.map(k => k.initialize(rowInspector))
     val currentKeyObjectInspectors = SharkEnvSlave.objectInspectorLock.synchronized {
       keyObjectInspectors.map { k =>
@@ -83,7 +82,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
 
     aggregationParameterFields = conf.getAggregators.toArray.map { aggr =>
       aggr.asInstanceOf[AggregationDesc].getParameters.toArray.map { param =>
-        ExprNodeEvaluatorFactory.get(param.asInstanceOf[ExprNodeDesc])
+        CGEvaluatorFactory.get(param.asInstanceOf[ExprNodeDesc], localHconf)
       }
     }
     aggregationParameterObjectInspectors = aggregationParameterFields.map { aggr =>

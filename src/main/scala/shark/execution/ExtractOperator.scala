@@ -20,19 +20,17 @@ package shark.execution
 import scala.collection.Iterator
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
-
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.metadata.HiveException
-import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory}
+import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator
 import org.apache.hadoop.hive.ql.exec.{ExtractOperator => HiveExtractOperator}
 import org.apache.hadoop.hive.ql.plan.{ExtractDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.Deserializer
 import org.apache.hadoop.io.BytesWritable
-
 import shark.RDDUtils
-
 import spark.RDD
 import spark.SparkContext._
+import shark.execution.cg.CGEvaluatorFactory
 
 
 class ExtractOperator extends UnaryOperator[HiveExtractOperator]
@@ -52,7 +50,7 @@ with HiveTopOperator {
   }
 
   override def initializeOnSlave() {
-    eval = ExprNodeEvaluatorFactory.get(conf.getCol)
+    eval = CGEvaluatorFactory.get(conf.getCol, localHconf)
     eval.initialize(objectInspector)
     valueDeser = valueTableDesc.getDeserializerClass().newInstance()
     valueDeser.initialize(localHconf, valueTableDesc.getProperties())

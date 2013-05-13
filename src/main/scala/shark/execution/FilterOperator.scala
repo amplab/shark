@@ -19,12 +19,13 @@ package shark.execution
 
 import scala.collection.Iterator
 import scala.reflect.BeanProperty
-
-import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory}
+import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator
 import org.apache.hadoop.hive.ql.exec.{FilterOperator => HiveFilterOperator}
 import org.apache.hadoop.hive.ql.metadata.HiveException
 import org.apache.hadoop.hive.ql.plan.FilterDesc
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
+import shark.execution.cg.CGEvaluatorFactory
+import org.apache.hadoop.hive.conf.HiveConf
 
 
 class FilterOperator extends UnaryOperator[HiveFilterOperator] {
@@ -33,14 +34,16 @@ class FilterOperator extends UnaryOperator[HiveFilterOperator] {
   @transient var conditionInspector: PrimitiveObjectInspector = _
 
   @BeanProperty var conf: FilterDesc = _
+  @BeanProperty var localHconf: HiveConf = _
 
   override def initializeOnMaster() {
     conf = hiveOp.getConf()
+    localHconf = super.hconf
   }
 
   override def initializeOnSlave() {
     try {
-      conditionEvaluator = ExprNodeEvaluatorFactory.get(conf.getPredicate())
+      conditionEvaluator = CGEvaluatorFactory.get(conf.getPredicate(), localHconf)
 
       conditionInspector = conditionEvaluator.initialize(objectInspector)
         .asInstanceOf[PrimitiveObjectInspector]

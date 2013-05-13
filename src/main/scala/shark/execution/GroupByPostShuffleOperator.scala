@@ -42,6 +42,7 @@ import spark.{Aggregator, HashPartitioner, RDD}
 import spark.rdd.ShuffledRDD
 import spark.SparkContext._
 
+import shark.execution.cg.CGEvaluatorFactory
 
 // The final phase of group by.
 // TODO(rxin): For multiple distinct aggregations, use sort-based shuffle.
@@ -65,6 +66,7 @@ with HiveTopOperator {
     super.initializeOnMaster()
     keyTableDesc = keyValueTableDescs.values.head._1
     valueTableDesc = keyValueTableDescs.values.head._2
+    localHconf = super.hconf
   }
 
   override def initializeOnSlave() {
@@ -115,11 +117,11 @@ with HiveTopOperator {
           if (keysfs.size() > 0) {
             val sf = keysfs.get(keysfs.size() - 1)
             if (sf.getFieldObjectInspector().getCategory().equals(ObjectInspector.Category.UNION)) {
-              unionExprEval = ExprNodeEvaluatorFactory.get(
+              unionExprEval = CGEvaluatorFactory.get(
                 new ExprNodeColumnDesc(
                   TypeInfoUtils.getTypeInfoFromObjectInspector(sf.getFieldObjectInspector),
                   keyField.getFieldName + "." + sf.getFieldName, null, false
-                )
+                ), localHconf
               )
               unionExprEval.initialize(rowInspector)
             }
