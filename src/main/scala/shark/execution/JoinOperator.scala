@@ -27,6 +27,7 @@ import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{JoinOperator => HiveJoinOperator}
 import org.apache.hadoop.hive.ql.plan.{JoinDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.{Deserializer, Serializer, SerDeUtils}
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils
 import org.apache.hadoop.hive.serde2.objectinspector.StandardStructObjectInspector
 import org.apache.hadoop.io.BytesWritable
 
@@ -166,7 +167,10 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
           tmp(1) = tagToValueSer.get(index).deserialize(bytes)
           val joinVal = joinVals.get(index.toByte)
           while (i < joinVal.size) {
-            outputRow(i + offsets(index)) = joinVal(i).evaluate(tmp)
+            val joinValObjectInspectors = joinValuesObjectInspectors.get(index.toByte)
+            outputRow(i + offsets(index)) = ObjectInspectorUtils.copyToStandardObject(
+              joinVal(i).evaluate(tmp), joinValObjectInspectors(i),
+              ObjectInspectorUtils.ObjectInspectorCopyOption.WRITABLE)
             i += 1
           }
         }
