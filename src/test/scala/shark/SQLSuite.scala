@@ -25,41 +25,53 @@ import shark.api.QueryExecutionException
 
 class SQLSuite extends FunSuite with BeforeAndAfterAll {
 
-  val WAREHOUSE_PATH = CliTestToolkit.getWarehousePath("sql")
-  val METASTORE_PATH = CliTestToolkit.getMetastorePath("sql")
+  val WAREHOUSE_PATH = TestUtils.getWarehousePath()
+  val METASTORE_PATH = TestUtils.getMetastorePath()
   val MASTER = "local"
 
   var sc: SharkContext = _
 
   override def beforeAll() {
     sc = SharkEnv.initWithSharkContext("shark-sql-suite-testing", MASTER);
-    sc.sql("set javax.jdo.option.ConnectionURL=jdbc:derby:;databaseName=" +
-      METASTORE_PATH + ";create=true")
-    sc.sql("set hive.metastore.warehouse.dir=" + WAREHOUSE_PATH)
-    sc.sql("set shark.test.data.path=" + CliTestToolkit.dataFilePath)
+
+    if (TestUtils.testAndSet()) {
+      sc.sql("set javax.jdo.option.ConnectionURL=jdbc:derby:;databaseName=" +
+        METASTORE_PATH + ";create=true")
+      sc.sql("set hive.metastore.warehouse.dir=" + WAREHOUSE_PATH)
+    }
+
+    sc.sql("set shark.test.data.path=" + TestUtils.dataFilePath)
 
     // test
+    sc.sql("drop table if exists test")
     sc.sql("CREATE TABLE test (key INT, val STRING)")
     sc.sql("LOAD DATA LOCAL INPATH '${hiveconf:shark.test.data.path}/kv1.txt' INTO TABLE test")
+    sc.sql("drop table if exists test_cached")
     sc.sql("CREATE TABLE test_cached AS SELECT * FROM test")
 
     // test
+    sc.sql("drop table if exists test_null")
     sc.sql("CREATE TABLE test_null (key INT, val STRING)")
     sc.sql("LOAD DATA LOCAL INPATH '${hiveconf:shark.test.data.path}/kv3.txt' INTO TABLE test_null")
+    sc.sql("drop table if exists test_null_cached")
     sc.sql("CREATE TABLE test_null_cached AS SELECT * FROM test_null")
 
     // clicks
+    sc.sql("drop table if exists clicks")
     sc.sql("""create table clicks (id int, click int)
       row format delimited fields terminated by '\t'""")
     sc.sql("""load data local inpath '${hiveconf:shark.test.data.path}/clicks.txt'
       OVERWRITE INTO TABLE clicks""")
+    sc.sql("drop table if exists clicks_cached")
     sc.sql("create table clicks_cached as select * from clicks")
 
     // users
+    sc.sql("drop table if exists users")
     sc.sql("""create table users (id int, name string)
       row format delimited fields terminated by '\t'""")
     sc.sql("""load data local inpath '${hiveconf:shark.test.data.path}/users.txt'
       OVERWRITE INTO TABLE users""")
+    sc.sql("drop table if exists users_cached")
     sc.sql("create table users_cached as select * from users")
   }
 
@@ -100,9 +112,11 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   test("count bigint") {
+    sc.sql("drop table if exists test_bigint")
     sc.sql("create table test_bigint (key bigint, val string)")
     sc.sql("""load data local inpath '${hiveconf:shark.test.data.path}/kv1.txt'
       OVERWRITE INTO TABLE test_bigint""")
+    sc.sql("drop table if exists test_bigint_cached")
     sc.sql("create table test_bigint_cached as select * from test_bigint")
     expect("select val, count(*) from test_bigint_cached where key=484 group by val", "val_484\t1")
   }
@@ -144,6 +158,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   // cache DDL
   //////////////////////////////////////////////////////////////////////////////
   test("insert into cached tables") {
+    sc.sql("drop table if exists test1_cached")
     sc.sql("create table test1_cached as select * from test")
     expect("select count(*) from test1_cached", "500")
     sc.sql("insert into table test1_cached select * from test where key > -1 limit 499")
@@ -151,6 +166,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   test("insert overwrite") {
+    sc.sql("drop table if exists test2_cached")
     sc.sql("create table test2_cached as select * from test")
     expect("select count(*) from test2_cached", "500")
     sc.sql("insert overwrite table test2_cached select * from test where key > -1 limit 499")
@@ -158,6 +174,8 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   test("error when attempting to update cached table(s) using command with multiple INSERTs") {
+    sc.sql("drop table if exists multi_insert_test")
+    sc.sql("drop table if exists multi_insert_test_cached")
     sc.sql("create table multi_insert_test as select * from test")
     sc.sql("create table multi_insert_test_cached as select * from test")
     intercept[QueryExecutionException] {
@@ -177,6 +195,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   // }
 
   test("create cached table with table properties") {
+    sc.sql("drop table if exists ctas_tbl_props")
     sc.sql("""create table ctas_tbl_props TBLPROPERTIES ('shark.cache'='true') as
       select * from test""")
     assert(SharkEnv.memoryMetadataManager.contains("ctas_tbl_props"))
@@ -184,6 +203,8 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   test("cached tables with complex types") {
+    sc.sql("drop table if exists test_complex_types")
+    sc.sql("drop table if exists test_complex_types_cached")
     sc.sql("""CREATE TABLE test_complex_types (
       a STRING, b ARRAY<STRING>, c ARRAY<MAP<STRING,STRING>>, d MAP<STRING,ARRAY<STRING>>)""")
     sc.sql("""load data local inpath '${hiveconf:shark.test.data.path}/create_nested_type.txt'
@@ -201,6 +222,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
 
   test("disable caching by default") {
     sc.sql("set shark.cache.flag.checkTableName=false")
+    sc.sql("drop table if exists should_not_be_cached")
     sc.sql("create table should_not_be_cached as select * from test")
     expect("select key from should_not_be_cached where key = 407", "407")
     assert(!SharkEnv.memoryMetadataManager.contains("should_not_be_cached"))
@@ -208,6 +230,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   test("cached table name should be case-insensitive") {
+    sc.sql("drop table if exists sharkTest5Cached")
     sc.sql("""create table sharkTest5Cached TBLPROPERTIES ("shark.cache" = "true") as
       select * from test""")
     expect("select val from sharktest5Cached where key = 407", "val_407")

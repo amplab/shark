@@ -37,28 +37,35 @@ import java.util.List;
 // see http://stackoverflow.com/questions/758570/.
 public class JavaAPISuite implements Serializable {
 
-    private static final String WAREHOUSE_PATH = CliTestToolkit$.MODULE$.getWarehousePath("JavaAPISuite");
-    private static final String METASTORE_PATH = CliTestToolkit$.MODULE$.getMetastorePath("JavaAPISuite");
+    private static final String WAREHOUSE_PATH = TestUtils$.MODULE$.getWarehousePath();
+    private static final String METASTORE_PATH = TestUtils$.MODULE$.getMetastorePath();
 
     private static transient JavaSharkContext sc;
 
     @BeforeClass
     public static void oneTimeSetUp() {
+        // Intentionally leaving this here since SBT doesn't seem to display junit tests well ...
+        System.out.println("running JavaAPISuite ================================================");
+
         sc = SharkEnv.initWithJavaSharkContext("JavaAPISuite", "local");
-        sc.sql("set javax.jdo.option.ConnectionURL=jdbc:derby:;databaseName=" +
-                METASTORE_PATH + ";create=true");
-        sc.sql("set hive.metastore.warehouse.dir=" + WAREHOUSE_PATH);
-        sc.sql("set shark.test.data.path=" + CliTestToolkit$.MODULE$.dataFilePath());
+
+        if (TestUtils$.MODULE$.testAndSet()) {
+            sc.sql("set javax.jdo.option.ConnectionURL=jdbc:derby:;databaseName=" +
+                    METASTORE_PATH + ";create=true");
+            sc.sql("set hive.metastore.warehouse.dir=" + WAREHOUSE_PATH);
+        }
+
+        sc.sql("set shark.test.data.path=" + TestUtils$.MODULE$.dataFilePath());
 
         // test
+        sc.sql("drop table if exists test");
         sc.sql("CREATE TABLE test (key INT, val STRING)");
         sc.sql("LOAD DATA LOCAL INPATH '${hiveconf:shark.test.data.path}/kv1.txt' INTO TABLE test");
-        sc.sql("CREATE TABLE test_cached AS SELECT * FROM test");
 
         // users
+        sc.sql("drop table if exists users");
         sc.sql("create table users (id int, name string) row format delimited fields terminated by '\t'");
         sc.sql("load data local inpath '${hiveconf:shark.test.data.path}/users.txt' OVERWRITE INTO TABLE users");
-        sc.sql("create table users_cached as select * from users");
     }
 
     @AfterClass

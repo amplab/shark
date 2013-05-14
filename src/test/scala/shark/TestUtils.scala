@@ -19,26 +19,60 @@ package shark
 
 import java.io.{BufferedReader, InputStreamReader, PrintWriter}
 import java.text.SimpleDateFormat
-import java.util.Date
+import java.util.{Date, HashMap => JHashMap}
 
-object CliTestToolkit {
+import org.apache.hadoop.hive.common.LogUtils
+import org.apache.hadoop.hive.common.LogUtils.LogInitializationException
+
+
+object TestUtils {
+
+  val timestamp = new SimpleDateFormat("yyyyMMdd-HHmmss")
 
   def getWarehousePath(prefix: String): String = {
     System.getProperty("user.dir") + "/test_warehouses/" + prefix + "-warehouse-" +
-      (new SimpleDateFormat("yyyyMMdd-HHmmss")).format(new Date)
+      timestamp.format(new Date)
   }
 
   def getMetastorePath(prefix: String): String = {
     System.getProperty("user.dir") + "/test_warehouses/" + prefix + "-metastore-" +
-      (new SimpleDateFormat("yyyyMMdd-HHmmss")).format(new Date)
+      timestamp.format(new Date)
   }
+
+  def testAndSet(prefix: String): Boolean = synchronized {
+    if (testAndTestMap.get(prefix) == null) {
+      testAndTestMap.put(prefix, new Object)
+      true
+    } else {
+      false
+    }
+  }
+
+  // Don't use default arguments in the above functions because otherwise the JavaAPISuite
+  // can't call those functions with default arguments.
+  def getWarehousePath(): String = getWarehousePath("sql")
+  def getMetastorePath(): String = getMetastorePath("sql")
+  def testAndSet(): Boolean = testAndSet("sql")
+
+  private val testAndTestMap = new JHashMap[String, Object]
 
   def dataFilePath: String = {
     Option(System.getenv("SHARK_HOME")).getOrElse(System.getProperty("user.dir")) + "/data/files"
   }
+
+  // Dummy function for initialize the log4j properties.
+  def init() { }
+
+  // initialize log4j
+  try {
+    LogUtils.initHiveLog4j()
+  } catch {
+    case e: LogInitializationException => // Ignore the error.
+  }
 }
 
-trait CliTestToolkit {
+
+trait TestUtils {
 
   var process : Process = null
   var outputWriter : PrintWriter = null
