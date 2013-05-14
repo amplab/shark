@@ -90,7 +90,8 @@ object SharkBuild extends Build {
       "org.apache.hadoop" % "hadoop-core" % HADOOP_VERSION,
       "it.unimi.dsi" % "fastutil" % "6.4.2",
       "org.scalatest" %% "scalatest" % "1.9.1" % "test",
-      "junit" % "junit" % "4.10" % "test") ++
+      "junit" % "junit" % "4.10" % "test",
+      "com.novocode" % "junit-interface" % "0.8" % "test") ++
       (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.2.1") else None).toSeq
 
   ) ++ assemblySettings ++ Seq(test in assembly := {}) ++ Seq(getClassPathTask)
