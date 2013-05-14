@@ -88,6 +88,8 @@ object SharkBuild extends Build {
       "org.spark-project" %% "spark-repl" % SPARK_VERSION,
       "com.google.guava" % "guava" % "14.0.1",
       "org.apache.hadoop" % "hadoop-core" % HADOOP_VERSION,
+      // See https://code.google.com/p/guava-libraries/issues/detail?id=1095
+      "com.google.code.findbugs" % "jsr305" % "1.3.+",
       "it.unimi.dsi" % "fastutil" % "6.4.2",
       "org.scalatest" %% "scalatest" % "1.9.1" % "test",
       "junit" % "junit" % "4.10" % "test",
