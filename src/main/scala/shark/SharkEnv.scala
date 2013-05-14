@@ -19,6 +19,7 @@ package shark
 
 import scala.collection.mutable.{HashMap, HashSet}
 
+import shark.api.JavaSharkContext
 import shark.memstore2.MemoryMetadataManager
 import shark.tachyon.TachyonUtilImpl
 import spark.SparkContext
@@ -54,6 +55,27 @@ object SharkEnv extends LogHelper {
         executorEnvVars)
     sc.addSparkListener(new StatsReportListener())
     sc.asInstanceOf[SharkContext]
+  }
+
+  def initWithSharkContext(newSc: SharkContext): SharkContext = {
+    if (sc != null) {
+      sc.stop
+    }
+
+    sc = newSc
+    sc.asInstanceOf[SharkContext]
+  }
+
+  def initWithJavaSharkContext(jobName: String): JavaSharkContext = {
+    new JavaSharkContext(initWithSharkContext(jobName))
+  }
+
+  def initWithJavaSharkContext(jobName: String, master: String): JavaSharkContext = {
+    new JavaSharkContext(initWithSharkContext(jobName, master))
+  }
+
+  def initWithJavaSharkContext(newSc: JavaSharkContext): JavaSharkContext = {
+    new JavaSharkContext(initWithSharkContext(newSc.sharkCtx))
   }
 
   logInfo("Initializing SharkEnv")

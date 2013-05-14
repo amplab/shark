@@ -40,6 +40,7 @@ import shark.tachyon.TachyonException
 
 import spark.RDD
 import spark.rdd.{PartitionPruningRDD, UnionRDD}
+import org.apache.hadoop.hive.ql.io.HiveInputFormat
 
 
 class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopOperator {
@@ -275,6 +276,11 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     if (tableDesc != null) {
       Utilities.copyTableJobPropertiesToConf(tableDesc, conf)
     }
+    new HiveInputFormat() {
+      def doPushFilters() {
+        pushFilters(conf, hiveOp)
+      }
+    }.doPushFilters()
     FileInputFormat.setInputPaths(conf, path)
     val bufferSize = System.getProperty("spark.buffer.size", "65536")
     conf.set("io.file.buffer.size", bufferSize)
