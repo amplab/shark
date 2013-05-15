@@ -13,8 +13,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+addSbtPlugin("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "2.2.0")
 
-resolvers += Resolver.url("sbt-plugin-releases",
-          new URL("http://scalasbt.artifactoryonline.com/scalasbt/sbt-plugin-releases/"))(Resolver.ivyStylePatterns)
+addSbtPlugin("com.github.mpeltonen" % "sbt-idea" % "1.4.0")
 
-
+resolvers += Resolver.url(
+  "sbt-plugin-releases",
+  new URL("http://scalasbt.artifactoryonline.com/scalasbt/sbt-plugin-releases/"))(Resolver.ivyStylePatterns)
