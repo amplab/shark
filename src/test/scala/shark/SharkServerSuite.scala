@@ -14,11 +14,10 @@ import org.scalatest.matchers.ShouldMatchers
 /**
  * Test for the Shark server.
  */
-class SharkServerSuite extends FunSuite with BeforeAndAfterAll with ShouldMatchers
-  with CliTestToolkit {
+class SharkServerSuite extends FunSuite with BeforeAndAfterAll with ShouldMatchers with TestUtils {
 
-  val WAREHOUSE_PATH = CliTestToolkit.getWarehousePath("server")
-  val METASTORE_PATH = CliTestToolkit.getMetastorePath("server")
+  val WAREHOUSE_PATH = TestUtils.getWarehousePath("server")
+  val METASTORE_PATH = TestUtils.getMetastorePath("server")
   val DRIVER_NAME  = "org.apache.hadoop.hive.jdbc.HiveDriver"
   val TABLE = "test"
 
@@ -51,7 +50,7 @@ class SharkServerSuite extends FunSuite with BeforeAndAfterAll with ShouldMatche
 
   test("test query execution against a shark server") {
 
-    val dataFilePath = CliTestToolkit.dataFilePath + "/kv1.txt"
+    val dataFilePath = TestUtils.dataFilePath + "/kv1.txt"
     val stmt = createStatement()
     stmt.executeQuery("DROP TABLE IF EXISTS test")
     stmt.executeQuery("DROP TABLE IF EXISTS test_cached")

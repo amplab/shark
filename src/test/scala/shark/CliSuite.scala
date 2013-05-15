@@ -24,10 +24,10 @@ import org.scalatest.{BeforeAndAfterAll, FunSuite}
 /**
  * Test the Shark CLI.
  */
-class CliSuite extends FunSuite with BeforeAndAfterAll with CliTestToolkit {
+class CliSuite extends FunSuite with BeforeAndAfterAll with TestUtils {
 
-  val WAREHOUSE_PATH = CliTestToolkit.getWarehousePath("cli")
-  val METASTORE_PATH = CliTestToolkit.getMetastorePath("cli")
+  val WAREHOUSE_PATH = TestUtils.getWarehousePath("cli")
+  val METASTORE_PATH = TestUtils.getMetastorePath("cli")
 
   override def beforeAll() {
     val pb = new ProcessBuilder(
@@ -50,7 +50,7 @@ class CliSuite extends FunSuite with BeforeAndAfterAll with CliTestToolkit {
   }
 
   test("simple select") {
-    val dataFilePath = CliTestToolkit.dataFilePath + "/kv1.txt"
+    val dataFilePath = TestUtils.dataFilePath + "/kv1.txt"
     executeQuery("create table shark_test1(key int, val string);")
     executeQuery("load data local inpath '" + dataFilePath+ "' overwrite into table shark_test1;")
     executeQuery("""create table shark_test1_cached TBLPROPERTIES ("shark.cache" = "true") as
