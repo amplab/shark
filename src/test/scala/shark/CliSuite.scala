@@ -57,11 +57,6 @@ class CliSuite extends FunSuite with BeforeAndAfterAll with TestUtils {
       select * from shark_test1;""")
     val out = executeQuery("select * from shark_test1_cached where key = 407;")
     assert(out.contains("val_407"))
-    assert(isCachedTable("shark_test1_cached"))
   }
 
-  def isCachedTable(tableName: String) : Boolean = {
-    val dir = new File(WAREHOUSE_PATH + "/" + tableName.toLowerCase)
-    dir.isDirectory && dir.listFiles.isEmpty
-  }
 }
