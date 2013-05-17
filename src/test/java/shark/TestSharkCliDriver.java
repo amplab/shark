@@ -14,6 +14,7 @@ import java.util.regex.Pattern;
 import junit.framework.Test;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
+import org.junit.Ignore;
 
 import org.apache.hadoop.hive.cli.TestCliDriver;
 import org.apache.hadoop.hive.ql.QTestUtil;
@@ -22,9 +23,10 @@ import org.apache.hadoop.hive.ql.QTestUtil;
  * The test driver. It overloads Hive's TestCliDriver to use SharkQTestUtil.
  * There is also a feature to selectively run tests, i.e. only tests whose
  * names match the regular expression pattern defined in environmental variable
- * TEST are invoked.
+ * TEST are invoked. Note that this test is ignored so we don't run it in our
+ * normal unit tests. This should only be launched with the explicit test script.
  */
-public class TestSharkCliDriver extends TestCliDriver {
+@Ignore public class TestSharkCliDriver extends TestCliDriver {
 
   static {
     // Replace qt in Hive's TestCliDriver with SharkQTestUtil.

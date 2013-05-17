@@ -8,6 +8,10 @@ Z is yahoo-specific versioning.
 
 Release Notes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Version 0.2.1.1
+	Yinst dependency on miners_scala changed to 2.9.2 and miners_hive changed to 0.9.0.3
+Version 0.2.1.0
+	Packaged as a stable version with classpath changes to run script.
 Version 0.2.0.6
 	Do not use the type checker with StackMapTable attribute by setting JAVA_OPTS -XX:-UseSplitVerifier
 Version 0.2.0.5
