@@ -47,6 +47,12 @@ class MemoryMetadataManager {
     _keyToStats.put(key.toLowerCase, stats)
   }
 
+  def remove(key: String): Option[RDD[_]] = {
+    val rdd = _keyToRdd.remove(key)
+    _keyToStats.remove(key)
+    rdd
+  }
+
   def getStats(key: String): Option[collection.Map[Int, TablePartitionStats]] = {
     _keyToStats.get(key.toLowerCase)
   }
