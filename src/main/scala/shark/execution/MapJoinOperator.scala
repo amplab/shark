@@ -31,7 +31,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.io.BytesWritable
 
 import shark.SharkEnv
-import shark.SharkEnvSlave
 import shark.execution.serialization.{OperatorSerializationWrapper, SerializableWritable}
 import spark.RDD
 import spark.broadcast.Broadcast
