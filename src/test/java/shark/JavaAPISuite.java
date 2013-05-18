@@ -71,6 +71,7 @@ public class JavaAPISuite implements Serializable {
     @AfterClass
     public static void oneTimeTearDown() {
         sc.stop();
+        System.clearProperty("spark.driver.port");
     }
 
     @Test
