@@ -7,6 +7,8 @@ import shark.LogHelper
 import org.apache.hadoop.hive.ql.parse.HiveParser
 import shark.SharkEnv
 import org.apache.hadoop.hive.ql.parse.BaseSemanticAnalyzer
+import spark.rdd.UnionRDD
+import spark.RDD
 
 class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf) with LogHelper {
 
@@ -14,13 +16,23 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
     super.analyzeInternal(node)
     //handle drop table query
     if (node.getToken().getType() == HiveParser.TOK_DROPTABLE) {
-      SharkEnv.removeRDD(getTableName(node))
-    } else if(node.getToken().getType() == HiveParser.TOK_ALTERTABLE_DROPPARTS) {
-      
+      val rdd = SharkEnv.removeRDD(getTableName(node))
+      removeRDDRecursive(rdd)
     }
   }
-  
+
   private def getTableName(node: ASTNode): String = {
     BaseSemanticAnalyzer.getUnescapedName(node.getChild(0).asInstanceOf[ASTNode])
+  }
+  
+  private def removeRDDRecursive(rdd: Option[RDD[_]]):Unit = {
+    rdd match {
+      case Some(u: UnionRDD[_]) => {
+        u.unpersist
+        u.rdds.foreach(r => removeRDDRecursive(Some(r)))
+      }
+      case None => Unit
+      case Some(x) => x.unpersist
+    }
   }
 }

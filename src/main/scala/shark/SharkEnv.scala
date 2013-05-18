@@ -107,13 +107,15 @@ object SharkEnv extends LogHelper {
   val addedFiles = HashSet[String]()
   val addedJars = HashSet[String]()
 
-  def removeRDD(key: String) = {
-      memoryMetadataManager.remove(key) match {
-        case Some(rdd: RDD[_]) => {
-          rdd.unpersist
-        }
-        case None => Unit
+  def removeRDD(key: String): Option[RDD[_]] = {
+    val v = memoryMetadataManager.remove(key)
+    v match {
+      case Some(rdd: RDD[_]) => {
+        rdd.unpersist
       }
+      case None => Unit
+    }
+    v
   }
   
   /** Cleans up and shuts down the Shark environments. */
