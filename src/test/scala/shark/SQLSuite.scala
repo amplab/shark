@@ -73,6 +73,14 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       OVERWRITE INTO TABLE users""")
     sc.sql("drop table if exists users_cached")
     sc.sql("create table users_cached as select * from users")
+
+    // test1
+    sc.sql("drop table if exists test1")
+    sc.sql("""CREATE TABLE test1 (id INT, test1val ARRAY<INT>)
+      row format delimited fields terminated by '\t'""")
+    sc.sql("LOAD DATA LOCAL INPATH '${hiveconf:shark.test.data.path}/test1.txt' INTO TABLE test1")
+    sc.sql("drop table if exists test1_cached")
+    sc.sql("CREATE TABLE test1_cached AS SELECT * FROM test1")
   }
 
   override def afterAll() {
@@ -150,6 +158,14 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   test("column pruning aggregate function") {
     expect("select val, sum(key) from test_cached group by val order by val desc limit 1",
       "val_98\t196")
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // join
+  //////////////////////////////////////////////////////////////////////////////
+  test("join ouput rows of stand objects") {
+    expect("select test1val from users join test1 on users.id=test1.id and users.id=1",
+      "[0,1,2]")    
   }
 
   //////////////////////////////////////////////////////////////////////////////
