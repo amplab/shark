@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,6 +26,8 @@ import spark.SparkContext._
 
 class SortSuite extends FunSuite {
 
+  TestUtils.init()
+
   test("order by limit") {
     val sc = new SparkContext("local", "test")
     val data = Array((new ReduceKey(Array[Byte](4)), "val_4"),
@@ -40,5 +42,6 @@ class SortSuite extends FunSuite {
       assert(output == expected.take(math.min(k, 4)))
     }
     sc.stop()
+    System.clearProperty("spark.driver.port")
   }
 }

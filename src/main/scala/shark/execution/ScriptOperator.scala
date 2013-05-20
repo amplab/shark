@@ -36,6 +36,8 @@ import org.apache.hadoop.io.{BytesWritable, Writable}
 import shark.execution.serialization.OperatorSerializationWrapper
 
 import spark.{OneToOneDependency, RDD, SparkEnv}
+// Note that SparkFiles class is written in Java in Spark.
+import spark.SparkFiles
 
 
 /**
@@ -72,9 +74,17 @@ class ScriptOperator extends UnaryOperator[HiveScriptOperator] {
       // Serialize the data so it is recognizable by the script.
       val iter = op.serializeForScript(part)
 
+      // Rebuild the command to specify paths on each node.
+      // For example, if the command is "python test.py data.dat", the following can turn
+      // it into "python /path/to/workdir/test.py /path/to/workdir/data.dat".
       val workingDir = System.getProperty("user.dir")
       val newCmd = command.map { arg =>
-        if (new File(workingDir + "/" + arg).exists()) "./" + arg else arg
+        val uploadedFile = SparkFiles.get(arg)
+        if (new File(uploadedFile).exists()) {
+          uploadedFile
+        } else {
+          arg
+        }
       }
       val pb = new ProcessBuilder(newCmd.toSeq)
       pb.directory(new File(workingDir))

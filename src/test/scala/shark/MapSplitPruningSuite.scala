@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,13 +17,25 @@
 
 package shark
 
+import java.sql.Timestamp
+
+import org.apache.hadoop.hive.ql.exec.MapSplitPruning
 import org.apache.hadoop.hive.ql.exec.MapSplitPruning._
 import org.apache.hadoop.io.Text
+
 import org.scalatest.FunSuite
+
+import shark.memstore2.TablePartitionStats
+
 
 class MapSplitPruningSuite extends FunSuite {
 
   def T(str: String): Text = new Text(str)
+
+  test("test empty partition") {
+    val s = new TablePartitionStats(Array(), 0)
+    assert(!MapSplitPruning.test(s, null))
+  }
 
   test("test different data types") {
     assert(testEqual(1, 2, true))
@@ -53,6 +65,12 @@ class MapSplitPruningSuite extends FunSuite {
     assert(testEqual(false, false, true) == false)
     assert(testEqual(false, false, true) == false)
 
+    assert(testEqual(new Timestamp(100), new Timestamp(200), new Timestamp(100)) == true)
+    assert(testEqual(new Timestamp(100), new Timestamp(200), new Timestamp(101)) == true)
+    assert(testEqual(new Timestamp(100), new Timestamp(200), new Timestamp(200)) == true)
+    assert(testEqual(new Timestamp(100), new Timestamp(200), new Timestamp(99)) == false)
+    assert(testEqual(new Timestamp(100), new Timestamp(200), new Timestamp(201)) == false)
+
     assert(testEqual(T("1"), T("3"), T("2")) == true)
     assert(testEqual(T("1"), T("3"), T("1")) == true)
     assert(testEqual(T("1"), T("1"), T("1")) == true)
@@ -77,6 +95,12 @@ class MapSplitPruningSuite extends FunSuite {
     assert(testGreaterThan(1.0, 20.0, 0) == true)
     assert(testGreaterThan(1.0, 20.0, 20) == false)
     assert(testGreaterThan(1.0, 20.0, 21) == false)
+
+    assert(testGreaterThan(new Timestamp(100), new Timestamp(200), new Timestamp(100)) == true)
+    assert(testGreaterThan(new Timestamp(100), new Timestamp(200), new Timestamp(101)) == true)
+    assert(testGreaterThan(new Timestamp(100), new Timestamp(200), new Timestamp(200)) == false)
+    assert(testGreaterThan(new Timestamp(100), new Timestamp(200), new Timestamp(99)) == true)
+    assert(testGreaterThan(new Timestamp(100), new Timestamp(200), new Timestamp(201)) == false)
 
     assert(testGreaterThan(T("1"), T("3"), T("2")) == true)
     assert(testGreaterThan(T("1"), T("3"), T("1")) == true)
@@ -103,6 +127,17 @@ class MapSplitPruningSuite extends FunSuite {
     assert(testEqualOrGreaterThan(1.0, 20.0, 20) == true)
     assert(testEqualOrGreaterThan(1.0, 20.0, 21) == false)
 
+    assert(testEqualOrGreaterThan(
+        new Timestamp(100), new Timestamp(200), new Timestamp(100)) == true)
+    assert(testEqualOrGreaterThan(
+        new Timestamp(100), new Timestamp(200), new Timestamp(101)) == true)
+    assert(testEqualOrGreaterThan(
+        new Timestamp(100), new Timestamp(200), new Timestamp(200)) == true)
+    assert(testEqualOrGreaterThan(
+        new Timestamp(100), new Timestamp(200), new Timestamp(99)) == true)
+    assert(testEqualOrGreaterThan(
+        new Timestamp(100), new Timestamp(200), new Timestamp(201)) == false)
+
     assert(testEqualOrGreaterThan(T("1"), T("3"), T("2")) == true)
     assert(testEqualOrGreaterThan(T("1"), T("3"), T("1")) == true)
     assert(testEqualOrGreaterThan(T("1"), T("1"), T("1")) == true)
@@ -128,6 +163,12 @@ class MapSplitPruningSuite extends FunSuite {
     assert(testLessThan(1.0, 20.0, 20) == true)
     assert(testLessThan(1.0, 20.0, 21) == true)
 
+    assert(testLessThan(new Timestamp(100), new Timestamp(200), new Timestamp(100)) == false)
+    assert(testLessThan(new Timestamp(100), new Timestamp(200), new Timestamp(101)) == true)
+    assert(testLessThan(new Timestamp(100), new Timestamp(200), new Timestamp(200)) == true)
+    assert(testLessThan(new Timestamp(100), new Timestamp(200), new Timestamp(99)) == false)
+    assert(testLessThan(new Timestamp(100), new Timestamp(200), new Timestamp(201)) == true)
+
     assert(testLessThan(T("1"), T("3"), T("2")) == true)
     assert(testLessThan(T("1"), T("3"), T("1")) == false)
     assert(testLessThan(T("1"), T("1"), T("1")) == false)
@@ -152,6 +193,12 @@ class MapSplitPruningSuite extends FunSuite {
     assert(testEqualOrLessThan(1.0, 20.0, 0) == false)
     assert(testEqualOrLessThan(1.0, 20.0, 20) == true)
     assert(testEqualOrLessThan(1.0, 20.0, 21) == true)
+
+    assert(testEqualOrLessThan(new Timestamp(100), new Timestamp(200), new Timestamp(100)) == true)
+    assert(testEqualOrLessThan(new Timestamp(100), new Timestamp(200), new Timestamp(101)) == true)
+    assert(testEqualOrLessThan(new Timestamp(100), new Timestamp(200), new Timestamp(200)) == true)
+    assert(testEqualOrLessThan(new Timestamp(100), new Timestamp(200), new Timestamp(99)) == false)
+    assert(testEqualOrLessThan(new Timestamp(100), new Timestamp(200), new Timestamp(201)) == true)
 
     assert(testEqualOrLessThan(T("1"), T("3"), T("2")) == true)
     assert(testEqualOrLessThan(T("1"), T("3"), T("1")) == true)
@@ -183,6 +230,13 @@ class MapSplitPruningSuite extends FunSuite {
     assert(testNotEqual(false, false, false) == false)
     assert(testNotEqual(false, false, true) == true)
     assert(testNotEqual(false, false, true) == true)
+
+    assert(testNotEqual(new Timestamp(100), new Timestamp(200), new Timestamp(100)) == true)
+    assert(testNotEqual(new Timestamp(100), new Timestamp(200), new Timestamp(101)) == true)
+    assert(testNotEqual(new Timestamp(100), new Timestamp(200), new Timestamp(200)) == true)
+    assert(testNotEqual(new Timestamp(100), new Timestamp(200), new Timestamp(99)) == true)
+    assert(testNotEqual(new Timestamp(100), new Timestamp(200), new Timestamp(201)) == true)
+    assert(testNotEqual(new Timestamp(100), new Timestamp(100), new Timestamp(100)) == false)
 
     assert(testNotEqual(T("1"), T("3"), T("2")) == true)
     assert(testNotEqual(T("1"), T("3"), T("1")) == true)

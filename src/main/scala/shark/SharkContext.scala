@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,11 +24,16 @@ import scala.collection.Map
 import scala.collection.JavaConversions._
 
 import org.apache.hadoop.hive.conf.HiveConf
+import org.apache.hadoop.hive.common.LogUtils
+import org.apache.hadoop.hive.common.LogUtils.LogInitializationException
 import org.apache.hadoop.hive.ql.Driver
-import org.apache.hadoop.hive.ql.processors.{CommandProcessor, CommandProcessorFactory}
+import org.apache.hadoop.hive.ql.processors.CommandProcessor
+import org.apache.hadoop.hive.ql.processors.CommandProcessorFactory
+import org.apache.hadoop.hive.ql.processors.CommandProcessorResponse
 import org.apache.hadoop.hive.ql.session.SessionState
 
-import shark.execution.TableRDD
+import shark.api.TableRDD
+import shark.api.QueryExecutionException
 import spark.{SparkContext, SparkEnv}
 
 
@@ -43,8 +48,14 @@ class SharkContext(
   @transient val sparkEnv = SparkEnv.get
 
   @transient val hiveconf = new HiveConf(classOf[SessionState])
+  Utils.setAwsCredentials(hiveconf)
 
-  //SessionState.initHiveLog4j()
+  try {
+    LogUtils.initHiveLog4j()
+  } catch {
+    case e: LogInitializationException => // Ignore the error.
+  }
+
   @transient val sessionState = new SessionState(hiveconf)
   sessionState.out = new PrintStream(System.out, true, "UTF-8")
   sessionState.err = new PrintStream(System.out, true, "UTF-8")
@@ -53,7 +64,7 @@ class SharkContext(
    * Execute the command and return the results as a sequence. Each element
    * in the sequence is one row.
    */
-  def sql(cmd: String): Seq[String] = {
+  def sql(cmd: String, maxRows: Int = 1000): Seq[String] = {
     SparkEnv.set(sparkEnv)
     val cmd_trimmed: String = cmd.trim()
     val tokens: Array[String] = cmd_trimmed.split("\\s+")
@@ -72,7 +83,13 @@ class SharkContext(
       driver.init()
 
       val results = new ArrayList[String]()
-      driver.run(cmd)
+      val response: CommandProcessorResponse = driver.run(cmd)
+      // Throw an exception if there is an error in query processing.
+      if (response.getResponseCode() != 0) {
+        driver.destroy()
+        throw new QueryExecutionException(response.getErrorMessage)
+      }
+      driver.setMaxRows(maxRows)
       driver.getResults(results)
       driver.destroy()
       results
@@ -100,9 +117,9 @@ class SharkContext(
   /**
    * Execute the command and print the results to console.
    */
-  def sql2console(cmd: String) {
+  def sql2console(cmd: String, maxRows: Int = 1000) {
     SparkEnv.set(sparkEnv)
-    val results = sql(cmd)
+    val results = sql(cmd, maxRows)
     results.foreach(println)
   }
 }

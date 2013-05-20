@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +18,8 @@
 package shark.parse
 
 import java.lang.reflect.Method
-import java.util.{ArrayList, List => JavaList}
+import java.util.ArrayList
+import java.util.{List => JavaList}
 
 import scala.collection.JavaConversions._
 
@@ -27,19 +28,18 @@ import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.{FieldSchema, MetaException}
 import org.apache.hadoop.hive.metastore.Warehouse
 import org.apache.hadoop.hive.ql.exec.{DDLTask, FetchTask, MoveTask, TaskFactory}
+import org.apache.hadoop.hive.ql.exec.{FileSinkOperator => HiveFileSinkOperator}
 import org.apache.hadoop.hive.ql.metadata.HiveException
 import org.apache.hadoop.hive.ql.optimizer.Optimizer
 import org.apache.hadoop.hive.ql.parse._
 import org.apache.hadoop.hive.ql.plan._
 import org.apache.hadoop.hive.ql.session.SessionState
 
-import shark.{LogHelper, SharkConfVars, Utils}
+import shark.{CachedTableRecovery, LogHelper, SharkConfVars, SharkEnv, Utils}
 import shark.execution.{HiveOperator, Operator, OperatorFactory, ReduceSinkOperator, SparkWork,
   TerminalOperator}
-import shark.memstore.ColumnarSerDe
-import shark.CachedTableRecovery
+import shark.memstore2.{CacheType, ColumnarSerDe, MemoryMetadataManager}
 
-import shark.SharkConfVars
 import spark.storage.StorageLevel
 
 
@@ -76,7 +76,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
 
     //TODO: can probably reuse Hive code for this
     // analyze create table command
-    var shouldCache = false
+    var cacheMode = CacheType.none
     var isCTAS = false
     var shouldReset = false
 
@@ -99,13 +99,20 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       if (!isCTAS || td == null) {
         return
       } else {
-        shouldCache = td.getTblProps().getOrElse("shark.cache", "false").toBoolean ||
-          (SharkConfVars.getBoolVar(conf, SharkConfVars.CHECK_TABLENAME_FLAG) &&
-          td.getTableName.endsWith("_cached"))
+        val checkTableName = SharkConfVars.getBoolVar(conf, SharkConfVars.CHECK_TABLENAME_FLAG)
+        val cacheType = CacheType.fromString(td.getTblProps().get("shark.cache"))
+        if (cacheType == CacheType.heap ||
+          (td.getTableName.endsWith("_cached") && checkTableName)) {
+          cacheMode = CacheType.heap
+          td.getTblProps().put("shark.cache", cacheMode.toString)
+        } else if (cacheType == CacheType.tachyon ||
+          (td.getTableName.endsWith("_tachyon") && checkTableName)) {
+          cacheMode = CacheType.tachyon
+          td.getTblProps().put("shark.cache", cacheMode.toString)
+        }
 
-        if (shouldCache && (td.getSerName == null || !td.getSerName.startsWith("shark.memstore"))) {
-          // By default use the Basic columnar ser de.
-          td.setSerName(classOf[ColumnarSerDe.Basic].getName)
+        if (CacheType.shouldCache(cacheMode)) {
+          td.setSerName(classOf[ColumnarSerDe].getName)
         }
 
         qb.setTableDesc(td)
@@ -160,48 +167,74 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     val hiveSinkOps = SharkSemanticAnalyzer.findAllHiveFileSinkOperators(
       pCtx.getTopOps().values().head)
 
-    if (hiveSinkOps.size == 1) {
-      // For a single output, we have the option of choosing the output
-      // destination (e.g. CTAS with table property "shark.cache" = "true").
-      val terminalOp = {
-        if (isCTAS && qb.getTableDesc != null && shouldCache) {
-          val storageLevel = qb.getTableDesc.getTblProps.getOrElse("shark.cache.storageLevel",
-            SharkConfVars.getVar(conf, SharkConfVars.STORAGE_LEVEL)).toUpperCase match {
-              case "NONE" => StorageLevel.NONE
-              case "DISK_ONLY" => StorageLevel.DISK_ONLY
-              case "DISK_ONLY2" => StorageLevel.DISK_ONLY_2
-              case "MEMORY_ONLY" => StorageLevel.MEMORY_ONLY
-              case "MEMORY_ONLY_2" => StorageLevel.MEMORY_ONLY_2
-              case "MEMORY_ONLY_SER" => StorageLevel.MEMORY_ONLY_SER
-              case "MEMORY_ONLY_SER2" => StorageLevel.MEMORY_ONLY_SER_2
-              case "MEMORY_AND_DISK" => StorageLevel.MEMORY_AND_DISK
-              case "MEMORY_AND_DISK_2" => StorageLevel.MEMORY_AND_DISK_2
-              case "MEMORY_AND_DISK_SER" => StorageLevel.MEMORY_AND_DISK_SER
-              case "MEMORY_AND_DISK_SER_2" => StorageLevel.MEMORY_AND_DISK_SER_2
+    // TODO: clean the following code. It's too messy to understand...
+    val terminalOpSeq = {
+      if (qb.getParseInfo.isInsertToTable && !qb.isCTAS) {
+        hiveSinkOps.map { hiveSinkOp =>
+          val tableName = hiveSinkOp.asInstanceOf[HiveFileSinkOperator].getConf().getTableInfo()
+            .getTableName()
+
+          if (tableName == null || tableName == "") {
+            // If table name is empty, it is an INSERT (OVERWRITE) DIRECTORY.
+            OperatorFactory.createSharkFileOutputPlan(hiveSinkOp)
+          } else {
+            // Otherwise, check if we are inserting into a table that was cached.
+            val cachedTableName = tableName.split('.')(1) // Ignore the database name
+            SharkEnv.memoryMetadataManager.get(cachedTableName) match {
+              case Some(rdd) => {
+                if (hiveSinkOps.size == 1) {
+                  // If useUnionRDD is false, the sink op is for INSERT OVERWRITE.
+                  val useUnionRDD = qb.getParseInfo.isInsertIntoTable(cachedTableName)
+                  OperatorFactory.createSharkMemoryStoreOutputPlan(
+                    hiveSinkOp,
+                    cachedTableName,
+                    rdd.getStorageLevel,
+                    _resSchema.size,                // numColumns
+                    cacheMode == CacheType.tachyon, // use tachyon
+                    useUnionRDD)
+                } else {
+                  throw new SemanticException(
+                    "Shark does not support updating cached table(s) with multiple INSERTs")
+                }
+              }
+              case None => OperatorFactory.createSharkFileOutputPlan(hiveSinkOp)
             }
-          qb.getTableDesc().getTblProps().put(CachedTableRecovery.QUERY_STRING, ctx.getCmd())
-          OperatorFactory.createSharkCacheOutputPlan(
-            hiveSinkOps.head, qb.getTableDesc.getTableName, storageLevel)
-        } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink) {
-          OperatorFactory.createSharkRddOutputPlan(hiveSinkOps.head)
-        } else {
-          OperatorFactory.createSharkFileOutputPlan(hiveSinkOps.head)
+          }
         }
+      } else if (hiveSinkOps.size == 1) {
+        // For a single output, we have the option of choosing the output
+        // destination (e.g. CTAS with table property "shark.cache" = "true").
+        Seq {
+          if (qb.isCTAS && qb.getTableDesc != null && CacheType.shouldCache(cacheMode)) {
+            val storageLevel = MemoryMetadataManager.getStorageLevelFromString(
+              qb.getTableDesc().getTblProps.get("shark.cache.storageLevel"))
+            qb.getTableDesc().getTblProps().put(CachedTableRecovery.QUERY_STRING, ctx.getCmd())
+            OperatorFactory.createSharkMemoryStoreOutputPlan(
+              hiveSinkOps.head,
+              qb.getTableDesc.getTableName,
+              storageLevel,
+              _resSchema.size,                // numColumns
+              cacheMode == CacheType.tachyon, // use tachyon
+              false)
+          } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink) {
+            OperatorFactory.createSharkRddOutputPlan(hiveSinkOps.head)
+          } else {
+            OperatorFactory.createSharkFileOutputPlan(hiveSinkOps.head)
+          }
+        }
+
+        // A hack for the query plan dashboard to get the query plan. This was
+        // done for SIGMOD demo. Turn it off by default.
+        //shark.dashboard.QueryPlanDashboardHandler.terminalOperator = terminalOp
+
+      } else {
+        // For non-INSERT commands, if there are multiple file outputs, we always use file outputs.
+        hiveSinkOps.map(OperatorFactory.createSharkFileOutputPlan(_))
       }
-
-      SharkSemanticAnalyzer.breakHivePlanByStages(Seq(terminalOp))
-      genMapRedTasks(qb, pctx, Seq(terminalOp))
-
-      // A hack for the query plan dashboard to get the query plan. This was
-      // done for SIGMOD demo. Turn it off by default.
-      //shark.dashboard.QueryPlanDashboardHandler.terminalOperator = terminalOp
-
-    } else {
-      // If there are multiple file outputs, we always use file outputs.
-      val terminalOps = hiveSinkOps.map(OperatorFactory.createSharkFileOutputPlan(_))
-      SharkSemanticAnalyzer.breakHivePlanByStages(terminalOps)
-      genMapRedTasks(qb, pctx, terminalOps)
     }
+
+    SharkSemanticAnalyzer.breakHivePlanByStages(terminalOpSeq)
+    genMapRedTasks(qb, pctx, terminalOpSeq)
 
     logInfo("Completed plan generation")
   }
@@ -318,7 +351,7 @@ object SharkSemanticAnalyzer extends LogHelper {
   /**
    * The reflection object used to invoke convertRowSchemaToViewSchema.
    */
-  val convertRowSchemaToViewSchemaMethod = classOf[SemanticAnalyzer].getDeclaredMethod(
+  private val convertRowSchemaToViewSchemaMethod = classOf[SemanticAnalyzer].getDeclaredMethod(
     "convertRowSchemaToViewSchema", classOf[RowResolver])
   convertRowSchemaToViewSchemaMethod.setAccessible(true)
 
@@ -326,14 +359,14 @@ object SharkSemanticAnalyzer extends LogHelper {
    * The reflection object used to get a reference to SemanticAnalyzer.viewsExpanded,
    * so we can initialize it.
    */
-  val viewsExpandedField = classOf[SemanticAnalyzer].getDeclaredField("viewsExpanded")
+  private val viewsExpandedField = classOf[SemanticAnalyzer].getDeclaredField("viewsExpanded")
   viewsExpandedField.setAccessible(true)
 
   /**
    * Given a Hive top operator (e.g. TableScanOperator), find all the file sink
    * operators (aka file output operator).
    */
-  def findAllHiveFileSinkOperators(op: HiveOperator): Seq[HiveOperator] = {
+  private def findAllHiveFileSinkOperators(op: HiveOperator): Seq[HiveOperator] = {
     if (op.getChildOperators() == null || op.getChildOperators().size() == 0) {
       Seq[HiveOperator](op)
     } else {
@@ -348,7 +381,7 @@ object SharkSemanticAnalyzer extends LogHelper {
    * craft the struct object inspector (that has both KEY and VALUE) in Shark
    * ReduceSinkOperator.initializeDownStreamHiveOperators().
    */
-  def breakHivePlanByStages(terminalOps: Seq[TerminalOperator]) = {
+  private def breakHivePlanByStages(terminalOps: Seq[TerminalOperator]) = {
     val reduceSinks = new scala.collection.mutable.HashSet[ReduceSinkOperator]
     val queue = new scala.collection.mutable.Queue[Operator[_]]
     queue ++= terminalOps
