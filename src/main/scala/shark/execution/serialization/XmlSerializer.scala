@@ -69,14 +69,11 @@ object XmlSerializer {
         new ByteArrayInputStream(bytes.slice(1, bytes.size))
       }
 
-    // Occasionally an object inspector is created from the decoding.
-    // Need to put a lock on the process.
-    val ret = SharkEnvSlave.objectInspectorLock.synchronized {
-      val d: XMLDecoder = new XMLDecoder(decodedStream, null, null, cl)
-      val ret = d.readObject()
-      d.close()
-      ret
-    }
+    // 
+    // no lock needed because of the hive bug fix for concurrent
+    val d: XMLDecoder = new XMLDecoder(decodedStream, null, null, cl)
+    val ret = d.readObject()
+    d.close()
     ret.asInstanceOf[T]
   }
 }
