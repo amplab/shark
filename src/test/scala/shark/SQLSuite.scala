@@ -77,6 +77,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
 
   override def afterAll() {
     sc.stop()
+    System.clearProperty("spark.driver.port")
   }
 
   private def expect(sql: String, expectedResults: Array[String]) {
