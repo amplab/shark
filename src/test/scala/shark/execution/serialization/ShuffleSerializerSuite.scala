@@ -28,7 +28,7 @@ import org.scalatest.matchers.ShouldMatchers
 import shark.execution.ReduceKey
 
 
-class SerializationSuite extends FunSuite with ShouldMatchers {
+class ShuffleSerializerSuite extends FunSuite with ShouldMatchers {
   test("Encoding and decoding variable ints") {
     val check = List[Int](0, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000)
 
@@ -90,7 +90,7 @@ class SerializationSuite extends FunSuite with ShouldMatchers {
       }
 
     val bos = new ByteArrayOutputStream()
-    val cBos = new LZFOutputStream(bos)
+    val cBos = new LZFOutputStream(bos).setFinishBlockOnFlush(true)
     val ser = new ShuffleSerializer()
     val serStream = ser.newInstance().serializeStream(cBos)
     initialItems.map(serStream.writeObject(_))
