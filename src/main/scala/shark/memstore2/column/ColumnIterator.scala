@@ -109,6 +109,9 @@ object ColumnIterator {
   val BINARY = 12
   _iteratorFactory(BINARY) = createFactory(classOf[BinaryColumnIterator.Default])
 
+  val DICT_INT = 13
+  _iteratorFactory(DICT_INT) = createFactoryWithEWAH(classOf[DictionaryEncodedIntColumnIterator.Default])
+
   // Helper methods so we don't need to write the whole thing up there.
   def createFactory[T <: ColumnIterator](c: Class[T]) = {
     ColumnIteratorFactory.create(c)

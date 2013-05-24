@@ -25,11 +25,18 @@ import it.unimi.dsi.fastutil.ints.IntArrayList
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.IntObjectInspector
 
+import collection.mutable.{Set, HashSet}
 
-class IntColumnBuilder extends ColumnBuilder[Int] {
+import shark.LogHelper
+
+class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
 
   private var _stats: ColumnStats.IntColumnStats = null
   private var _arr: IntArrayList = null
+  private val MAX_UNIQUE_VALUES = 256 // 2 ** 8 - storable in 8 bits or 1 Byte
+  private var _uniques: collection.mutable.Set[Int] = new HashSet()
+  private var COMPRESSED = false
+  def isCompressed = COMPRESSED
 
   override def initialize(initialSize: Int) {
     _arr = new IntArrayList(initialSize)
@@ -49,6 +56,7 @@ class IntColumnBuilder extends ColumnBuilder[Int] {
   override def append(v: Int) {
     _arr.add(v)
     _stats.append(v)
+    _uniques += v
   }
 
   override def appendNull() {
@@ -60,20 +68,49 @@ class IntColumnBuilder extends ColumnBuilder[Int] {
   override def stats = _stats
 
   override def build: ByteBuffer = {
-    val buf = ByteBuffer.allocate(
-      _arr.size * 4 + ColumnIterator.COLUMN_TYPE_LENGTH + sizeOfNullBitmap)
-    buf.order(ByteOrder.nativeOrder())
-    buf.putLong(ColumnIterator.INT)
+    val minbufsize = _arr.size * 4 + ColumnIterator.COLUMN_TYPE_LENGTH + sizeOfNullBitmap
+    // println("IntColumnBuilder " + _uniques.size + " unique values")
+    if (_uniques.size >= MAX_UNIQUE_VALUES) {
+      COMPRESSED = false
+      val buf = ByteBuffer.allocate(minbufsize)
 
-    writeNullBitmap(buf)
+      buf.order(ByteOrder.nativeOrder())
+      buf.putLong(ColumnIterator.INT)
 
-    var i = 0
-    while (i < _arr.size) {
-      buf.putInt(_arr.get(i))
-      i += 1
+      writeNullBitmap(buf)
+
+      var i = 0
+      while (i < _arr.size) {
+        buf.putInt(_arr.get(i))
+        i += 1
+      }
+      buf.rewind()
+      buf
     }
-    buf.rewind()
-    buf
+    else {
+      COMPRESSED = true
+      val dict = new Dictionary(_uniques.toList)
+
+      val buf = ByteBuffer.allocate(minbufsize + 
+        8*dict.sizeinbits)
+
+      buf.order(ByteOrder.nativeOrder())
+      buf.putLong(ColumnIterator.DICT_INT)
+
+      writeNullBitmap(buf)
+
+      DictionarySerializer.writeToBuffer(buf, dict)
+
+      var i = 0
+      while (i < _arr.size) {
+        buf.put(dict.getByte(_arr.get(i)))
+        i += 1
+      }
+      logInfo("Compression ratio is " + 
+        (_arr.size.toFloat*4/(_arr.size + dict.sizeinbits/8)) +
+        " : 1")
+      buf.rewind()
+      buf
+    }
   }
 }
-
