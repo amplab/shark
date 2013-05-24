@@ -18,6 +18,8 @@
 package shark.memstore2
 
 import java.sql.Timestamp
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 import org.apache.hadoop.hive.serde2.io.ByteWritable
 import org.apache.hadoop.hive.serde2.io.DoubleWritable
@@ -32,6 +34,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive._
 import org.apache.hadoop.io._
 
 import org.scalatest.FunSuite
+import collection.mutable.{Set, HashSet}
 
 import shark.memstore2.buffer.ByteBufferReader
 import shark.memstore2.column._
@@ -54,6 +57,7 @@ class ColumnIteratorSuite extends FunSuite {
 
     val factory = ColumnIterator.getFactory(columnType)
     assert(factory.createIterator(bufreader).getClass === classOf[VoidColumnIterator.Default])
+
 
     val iter = new VoidColumnIterator.Default(ByteBufferReader.createUnsafeReader(buf))
     iter.next()
@@ -124,13 +128,37 @@ class ColumnIteratorSuite extends FunSuite {
     assert(builder.stats.max === 2.toShort)
   }
 
+  test("dictionary encoding Int") {
+    val l = List[Int](1,22,30,4)
+    val d = new Dictionary(l)
+
+    assert(d.get(0) == 1)
+
+    val buf = ByteBuffer.allocate(2048)
+    buf.order(ByteOrder.nativeOrder())
+    buf.putInt(5);
+    buf.rewind
+    assert(5 == buf.getInt())
+    buf.rewind
+
+    DictionarySerializer.writeToBuffer(buf, d)
+    buf.rewind
+
+    val bbr = ByteBufferReader.createUnsafeReader(buf)
+
+    val newd = DictionarySerializer.readFromBuffer(bbr)
+
+    assert(d.get(0) == newd.get(0))
+    assert(d.get(3) == newd.get(3))
+  }
+
   test("int column") {
     val builder = new IntColumnBuilder
     testColumn(
       Array[java.lang.Integer](0, 1, 2, 5, 134, -12, 1, 0, 99, 1),
       builder,
       PrimitiveObjectInspectorFactory.writableIntObjectInspector,
-      classOf[IntColumnIterator.Default])
+      classOf[DictionaryEncodedIntColumnIterator.Default])
     assert(builder.stats.min === -12)
     assert(builder.stats.max === 134)
 
@@ -138,10 +166,53 @@ class ColumnIteratorSuite extends FunSuite {
       Array[java.lang.Integer](null, 1, 2, 5, 134, -12, null, 0, 99, 1),
       builder,
       PrimitiveObjectInspectorFactory.writableIntObjectInspector,
-      classOf[IntColumnIterator.Default],
+      classOf[DictionaryEncodedIntColumnIterator.Default],
       true)
     assert(builder.stats.min === -12)
     assert(builder.stats.max === 134)
+
+
+    val repeats = List.fill(20000)(2) 
+    val seqWithRepeats = List.concat(repeats, Range(-100, 100, 1))
+    val seqWRJava : Seq[java.lang.Integer] = for {
+      i <- seqWithRepeats
+    } yield new java.lang.Integer(i)
+
+    testColumn(
+      seqWRJava,
+      builder,
+      PrimitiveObjectInspectorFactory.writableIntObjectInspector,
+      classOf[DictionaryEncodedIntColumnIterator.Default])
+
+
+    // too many unique values (>256) - compression should be turned off
+    val list = Range(-300, 300, 1)
+    val seqJava : Seq[java.lang.Integer] = for {
+      i <- list
+    } yield new java.lang.Integer(i)
+
+    testColumn(
+      seqJava,
+      builder,
+      PrimitiveObjectInspectorFactory.writableIntObjectInspector,
+      classOf[IntColumnIterator.Default])
+    assert(builder.stats.min === -300)
+    assert(builder.stats.max === 299)
+
+ 
+    val nulls = List.fill(100)(null) 
+    val seqWithNull = List.concat(nulls, seqJava)
+    assert(seqWithNull.size == 700)
+
+    testColumn(
+      seqJava,
+      builder,
+      PrimitiveObjectInspectorFactory.writableIntObjectInspector,
+      classOf[IntColumnIterator.Default])
+    assert(builder.stats.min === -300)
+    assert(builder.stats.max === 299)
+
+
   }
 
   test("long column") {
@@ -285,7 +356,7 @@ class ColumnIteratorSuite extends FunSuite {
   }
 
   def testColumn[T, U <: ColumnIterator](
-    testData: Array[_ <: Object],
+    testData: Seq[_ <: Object],
     builder: ColumnBuilder[T],
     writableOi: AbstractPrimitiveWritableObjectInspector,
     iteratorClass: Class[U],
