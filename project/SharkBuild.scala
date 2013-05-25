@@ -17,8 +17,7 @@
 
 import sbt._
 import Keys._
-import sbtassembly.Plugin._
-import AssemblyKeys._
+
 
 object SharkBuild extends Build {
 
@@ -59,6 +58,10 @@ object SharkBuild extends Build {
       "Cloudera Repository" at "http://repository.cloudera.com/artifactory/cloudera-repos/"
     ),
 
+    fork := true,
+    javaOptions in test += "-XX:MaxPermSize=512m",
+    javaOptions in test += "-Xmx2g",
+
     testListeners <<= target.map(
       t => Seq(new eu.henkelmann.sbt.JUnitXmlTestsListener(t.getAbsolutePath))),
 
@@ -96,11 +99,5 @@ object SharkBuild extends Build {
       "com.novocode" % "junit-interface" % "0.8" % "test") ++
       (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.2.1") else None).toSeq
 
-  ) ++ assemblySettings ++ Seq(test in assembly := {}) ++ Seq(getClassPathTask)
-
-  // A sbt task to print out the classpath.
-  val getClasspath = TaskKey[Unit]("getclasspath")
-  val getClassPathTask = getClasspath <<= (target, fullClasspath in Runtime) map {
-    (target, cp) => println(cp.map(_.data).mkString(":"))
-  }
+  )
 }

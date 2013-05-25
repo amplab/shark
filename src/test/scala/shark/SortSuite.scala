@@ -53,5 +53,7 @@ class SortSuite extends FunSuite {
     } finally {
       sc.stop()
     }
+    sc.stop()
+    System.clearProperty("spark.driver.port")
   }
 }

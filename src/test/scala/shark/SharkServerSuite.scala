@@ -20,6 +20,9 @@ class SharkServerSuite extends FunSuite with BeforeAndAfterAll with ShouldMatche
   val METASTORE_PATH = TestUtils.getMetastorePath("server")
   val DRIVER_NAME  = "org.apache.hadoop.hive.jdbc.HiveDriver"
   val TABLE = "test"
+  // use a different port, than the hive standard 10000,
+  // for tests to avoid issues with the port being taken on some machines
+  val PORT = "9011"
 
   Class.forName(DRIVER_NAME)
 
@@ -32,10 +35,15 @@ class SharkServerSuite extends FunSuite with BeforeAndAfterAll with ShouldMatche
     // hard to clean up Hive resources entirely, so we just start a new process and kill
     // that process for cleanup.
     val defaultArgs = Seq("./bin/shark", "--service", "sharkserver",
-      "-hiveconf",
-      "javax.jdo.option.ConnectionURL=jdbc:derby:;databaseName=" + METASTORE_PATH + ";create=true",
-      "-hiveconf",
-      "hive.metastore.warehouse.dir=" + WAREHOUSE_PATH)
+      "--verbose",
+      "-p",
+      PORT,
+      "--hiveconf",
+      "hive.root.logger=INFO,console",
+      "--hiveconf",
+      "\"javax.jdo.option.ConnectionURL=jdbc:derby:;databaseName=" + METASTORE_PATH + ";create=true\"",
+      "--hiveconf",
+      "\"hive.metastore.warehouse.dir=" + WAREHOUSE_PATH + "\"")
     val pb = new ProcessBuilder(defaultArgs ++ args)
     process = pb.start()
     inputReader = new BufferedReader(new InputStreamReader(process.getInputStream))
@@ -70,7 +78,7 @@ class SharkServerSuite extends FunSuite with BeforeAndAfterAll with ShouldMatche
   }
 
   def getConnection(): Connection = {
-    DriverManager.getConnection("jdbc:hive://localhost:10000/default", "", "")
+    DriverManager.getConnection("jdbc:hive://localhost:" + PORT + "/default", "", "")
   }
 
   def createStatement(): Statement = getConnection().createStatement()
