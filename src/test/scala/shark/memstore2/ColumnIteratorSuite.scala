@@ -185,7 +185,7 @@ class ColumnIteratorSuite extends FunSuite {
       classOf[DictionaryEncodedIntColumnIterator.Default])
 
 
-    // too many unique values (>256) - compression should be turned off
+    // too many unique values (>256) - compression should not turn on
     val list = Range(-300, 300, 1)
     val seqJava : Seq[java.lang.Integer] = for {
       i <- list
@@ -200,7 +200,7 @@ class ColumnIteratorSuite extends FunSuite {
     assert(builder.stats.max === 299)
 
  
-    val nulls = List.fill(100)(null) 
+    val nulls = List.fill(100)(null)
     val seqWithNull = List.concat(nulls, seqJava)
     assert(seqWithNull.size == 700)
 
