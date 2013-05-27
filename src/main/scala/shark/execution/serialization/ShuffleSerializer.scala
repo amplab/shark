@@ -21,7 +21,6 @@ import java.io.{InputStream, OutputStream}
 import java.nio.ByteBuffer
 
 import org.apache.hadoop.io.BytesWritable
-
 import shark.execution.ReduceKey
 import spark.serializer.{DeserializationStream, Serializer, SerializerInstance, SerializationStream}
 
@@ -29,7 +28,6 @@ import spark.serializer.{DeserializationStream, Serializer, SerializerInstance, 
 class ShuffleSerializer extends Serializer {
   override def newInstance(): SerializerInstance = new ShuffleSerializerInstance
 }
-
 
 class ShuffleSerializerInstance extends SerializerInstance {
 
@@ -63,9 +61,13 @@ class ShuffleSerializationStream(stream: OutputStream) extends SerializationStre
     this
   }
 
-  override def flush(): Unit = stream.flush()
+  override def flush() {
+    stream.flush()
+  }
 
-  override def close(): Unit = {}
+  override def close() {
+    stream.close()
+  }
 
   def writeUnsignedVarInt(value: Int) {
     var v = value
@@ -80,10 +82,6 @@ class ShuffleSerializationStream(stream: OutputStream) extends SerializationStre
 
 class ShuffleDeserializationStream(stream: InputStream) extends DeserializationStream {
 
-  //val keyBytes = new BytesWritable
-  //val reduceKey = new ReduceKey(keyBytes)
-  //val valueBytes = new BytesWritable
-
   override def readObject[T](): T = {
     val keyLen = readUnsignedVarInt()
     if (keyLen < 0) {
@@ -91,13 +89,22 @@ class ShuffleDeserializationStream(stream: InputStream) extends DeserializationS
     }
     val valueLen = readUnsignedVarInt()
     val keyBytes = new BytesWritable(new Array[Byte](keyLen))
-    stream.read(keyBytes.getBytes(), 0, keyLen)
+    readFully(stream, keyBytes.getBytes, keyLen)
     val valueBytes = new BytesWritable(new Array[Byte](valueLen))
-    stream.read(valueBytes.getBytes(), 0, valueLen)
+    readFully(stream, valueBytes.getBytes, valueLen)
     (new ReduceKey(keyBytes), valueBytes).asInstanceOf[T]
   }
 
-  override def close() { }
+  def readFully(stream: InputStream, bytes: Array[Byte], length: Int) {
+    var read = 0
+    while (read < length) {
+      read += stream.read(bytes, read, length - read)
+    }
+  }
+
+  override def close() {
+    stream.close()
+  }
 
   def readUnsignedVarInt(): Int = {
     var value: Int = 0
