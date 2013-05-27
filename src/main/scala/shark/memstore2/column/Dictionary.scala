@@ -32,7 +32,6 @@ import shark.memstore2.buffer.Unsafe
  */
 
 class Dictionary(uniqueInts: List[Int]){
-  // require(uniqueInts.size != 0 && uniqueInts.size < 256)
 
   // return the Int associated with Byte
   def get(b:Byte) = {

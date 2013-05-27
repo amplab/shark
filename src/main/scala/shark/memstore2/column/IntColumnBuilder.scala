@@ -68,11 +68,12 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
   override def stats = _stats
 
   override def build: ByteBuffer = {
-    val minbufsize = _arr.size * 4 + ColumnIterator.COLUMN_TYPE_LENGTH + sizeOfNullBitmap
-    // println("IntColumnBuilder " + _uniques.size + " unique values")
+    logDebug("IntColumnBuilder " + _uniques.size + " unique values")
     if (_uniques.size >= MAX_UNIQUE_VALUES) {
       COMPRESSED = false
+      val minbufsize = (_arr.size*4) + ColumnIterator.COLUMN_TYPE_LENGTH + sizeOfNullBitmap
       val buf = ByteBuffer.allocate(minbufsize)
+      logInfo("Allocated ByteBuffer of size " + minbufsize)
 
       buf.order(ByteOrder.nativeOrder())
       buf.putLong(ColumnIterator.INT)
@@ -90,9 +91,11 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
     else {
       COMPRESSED = true
       val dict = new Dictionary(_uniques.toList)
+      val minbufsize = (_arr.size*1) + ColumnIterator.COLUMN_TYPE_LENGTH +
+        sizeOfNullBitmap + (dict.sizeinbits/8)
 
-      val buf = ByteBuffer.allocate(minbufsize + 
-        8*dict.sizeinbits)
+      val buf = ByteBuffer.allocate(minbufsize)
+      logInfo("Allocated ByteBuffer of size " + minbufsize)
 
       buf.order(ByteOrder.nativeOrder())
       buf.putLong(ColumnIterator.DICT_INT)
@@ -107,7 +110,7 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
         i += 1
       }
       logInfo("Compression ratio is " + 
-        (_arr.size.toFloat*4/(_arr.size + dict.sizeinbits/8)) +
+        (_arr.size.toFloat*4/(minbufsize)) +
         " : 1")
       buf.rewind()
       buf
