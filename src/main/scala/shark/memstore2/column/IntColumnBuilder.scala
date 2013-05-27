@@ -35,8 +35,10 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
   private var _arr: IntArrayList = null
   private val MAX_UNIQUE_VALUES = 256 // 2 ** 8 - storable in 8 bits or 1 Byte
   private var _uniques: collection.mutable.Set[Int] = new HashSet()
-  private var COMPRESSED = false
-  def isCompressed = COMPRESSED
+  // compressionPossible is true by default but becomes false after there are
+  // more than MAX_UNIQUE_VALUES.
+  private var compressionPossible = true
+  def isCompressed = compressionPossible
 
   override def initialize(initialSize: Int) {
     _arr = new IntArrayList(initialSize)
@@ -56,7 +58,13 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
   override def append(v: Int) {
     _arr.add(v)
     _stats.append(v)
-    _uniques += v
+    // compressionPossible is used to short-cicrcuit adding elements to _uniques
+    // if there are too many elements
+    if (compressionPossible) {
+      _uniques += v
+      if (_uniques.size >= MAX_UNIQUE_VALUES) 
+        compressionPossible = false
+    }
   }
 
   override def appendNull() {
@@ -69,8 +77,7 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
 
   override def build: ByteBuffer = {
     logDebug("IntColumnBuilder " + _uniques.size + " unique values")
-    if (_uniques.size >= MAX_UNIQUE_VALUES) {
-      COMPRESSED = false
+    if (!compressionPossible) {
       val minbufsize = (_arr.size*4) + ColumnIterator.COLUMN_TYPE_LENGTH + sizeOfNullBitmap
       val buf = ByteBuffer.allocate(minbufsize)
       logInfo("Allocated ByteBuffer of size " + minbufsize)
@@ -88,8 +95,7 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
       buf.rewind()
       buf
     }
-    else {
-      COMPRESSED = true
+    else { // compressionPossible = true
       val dict = new Dictionary(_uniques.toList)
       val minbufsize = (_arr.size*1) + ColumnIterator.COLUMN_TYPE_LENGTH +
         sizeOfNullBitmap + (dict.sizeinbits/8)

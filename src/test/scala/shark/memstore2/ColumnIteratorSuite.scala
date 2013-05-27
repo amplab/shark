@@ -170,6 +170,7 @@ class ColumnIteratorSuite extends FunSuite {
       true)
     assert(builder.stats.min === -12)
     assert(builder.stats.max === 134)
+    assert(builder.isCompressed == true)
 
 
     val repeats = List.fill(20000)(2) 
@@ -183,7 +184,9 @@ class ColumnIteratorSuite extends FunSuite {
       builder,
       PrimitiveObjectInspectorFactory.writableIntObjectInspector,
       classOf[DictionaryEncodedIntColumnIterator.Default])
-
+    assert(builder.stats.min === -100)
+    assert(builder.stats.max === 99)
+    assert(builder.isCompressed == true)
 
     // too many unique values (>256) - compression should not turn on
     val list = Range(-300, 300, 1)
@@ -198,7 +201,7 @@ class ColumnIteratorSuite extends FunSuite {
       classOf[IntColumnIterator.Default])
     assert(builder.stats.min === -300)
     assert(builder.stats.max === 299)
-
+    assert(builder.isCompressed == false)
  
     val nulls = List.fill(100)(null)
     val seqWithNull = List.concat(nulls, seqJava)
@@ -211,7 +214,7 @@ class ColumnIteratorSuite extends FunSuite {
       classOf[IntColumnIterator.Default])
     assert(builder.stats.min === -300)
     assert(builder.stats.max === 299)
-
+    assert(builder.isCompressed == false)
 
   }
 
