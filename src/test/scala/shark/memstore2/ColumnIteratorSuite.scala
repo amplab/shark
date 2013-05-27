@@ -161,6 +161,7 @@ class ColumnIteratorSuite extends FunSuite {
       classOf[DictionaryEncodedIntColumnIterator.Default])
     assert(builder.stats.min === -12)
     assert(builder.stats.max === 134)
+    assert(builder.isCompressed == true)
 
     testColumn(
       Array[java.lang.Integer](null, 1, 2, 5, 134, -12, null, 0, 99, 1),
