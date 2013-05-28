@@ -21,13 +21,35 @@ import java.io.{InputStream, OutputStream}
 import java.nio.ByteBuffer
 
 import org.apache.hadoop.io.BytesWritable
-import shark.execution.ReduceKey
+import shark.execution.{ReduceKey, ReduceKeyReduceSide}
 import spark.serializer.{DeserializationStream, Serializer, SerializerInstance, SerializationStream}
 
 
+/**
+ * A serializer for Shark/Hive-specific serialization used in Spark shuffle. Since this is only
+ * used in shuffle operations, only serializeStream and deserializeStream are implemented.
+ *
+ * The serialization process is very simple:
+ * - Shark operators use Hive serializers to serialize the data structures into byte arrays
+ *   (wrapped in BytesWritable object).
+ * - Shark operators wrap each key (BytesWritable) in a ReduceKeyMapSide object. The values remain
+ *   unchanged as BytesWritable.
+ * - ShuffleSerializationStream simply flushes the underlying byte arrays for key/value into the
+ *   serialization stream. The length is prepended before the byte array so the deserializer knows
+ *   how many bytes to read.
+ *
+ * The deserialization process simply reverses the above, with a few caveats:
+ * - The data type for the keys becomes ReduceKeyReduceSide, wrapping around a byte array (rather
+ *   than a BytesWritable).
+ * - The data type for the values becomes a byte array, rather than a BytesWritable.
+ * The reason is that during aggregations and joins (post shuffle), the key-value pairs are inserted
+ * into a hash table. We want to reduce the size of the hash table. Having the BytesWritable wrapper
+ * would increase the size of the hash table by another 16 bytes per key-value pair.
+ */
 class ShuffleSerializer extends Serializer {
   override def newInstance(): SerializerInstance = new ShuffleSerializerInstance
 }
+
 
 class ShuffleSerializerInstance extends SerializerInstance {
 
@@ -51,13 +73,12 @@ class ShuffleSerializerInstance extends SerializerInstance {
 class ShuffleSerializationStream(stream: OutputStream) extends SerializationStream {
 
   override def writeObject[T](t: T): SerializationStream = {
-    val pair = t.asInstanceOf[(ReduceKey, BytesWritable)]
-    val keyLen = pair._1.getLength()
-    val valueLen = pair._2.getLength()
-    writeUnsignedVarInt(keyLen)
-    writeUnsignedVarInt(valueLen)
-    stream.write(pair._1.getBytes(), 0, keyLen)
-    stream.write(pair._2.getBytes(), 0, valueLen)
+    // On the write-side, the ReduceKey should be of type ReduceKeyMapSide.
+    val (key, value) = t.asInstanceOf[(ReduceKey, BytesWritable)]
+    writeUnsignedVarInt(key.length)
+    writeUnsignedVarInt(value.getLength)
+    stream.write(key.byteArray, 0, key.length)
+    stream.write(value.getBytes(), 0, value.getLength)
     this
   }
 
@@ -83,16 +104,17 @@ class ShuffleSerializationStream(stream: OutputStream) extends SerializationStre
 class ShuffleDeserializationStream(stream: InputStream) extends DeserializationStream {
 
   override def readObject[T](): T = {
+    // Return type is (ReduceKeyReduceSide, Array[Byte])
     val keyLen = readUnsignedVarInt()
     if (keyLen < 0) {
       throw new java.io.EOFException
     }
     val valueLen = readUnsignedVarInt()
-    val keyBytes = new BytesWritable(new Array[Byte](keyLen))
-    readFully(stream, keyBytes.getBytes, keyLen)
-    val valueBytes = new BytesWritable(new Array[Byte](valueLen))
-    readFully(stream, valueBytes.getBytes, valueLen)
-    (new ReduceKey(keyBytes), valueBytes).asInstanceOf[T]
+    val keyByteArray = new Array[Byte](keyLen)
+    readFully(stream, keyByteArray, keyLen)
+    val valueByteArray = new Array[Byte](valueLen)
+    readFully(stream, valueByteArray, valueLen)
+    (new ReduceKeyReduceSide(keyByteArray), valueByteArray).asInstanceOf[T]
   }
 
   def readFully(stream: InputStream, bytes: Array[Byte], length: Int) {

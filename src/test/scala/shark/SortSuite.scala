@@ -17,16 +17,12 @@
 
 package shark
 
-import org.apache.hadoop.hive.ql.plan.JoinCondDesc
 import org.apache.hadoop.io.BytesWritable
 
-import org.scalatest.{BeforeAndAfter, FunSuite}
+import org.scalatest.FunSuite
 
-import shark.execution.RDDUtils
-import shark.execution.ReduceKey
-
+import shark.execution.{ReduceKey, ReduceKeyMapSide, ReduceKeyReduceSide, RDDUtils}
 import spark.{RDD, SparkContext}
-import spark.SparkContext._
 
 
 class SortSuite extends FunSuite {
@@ -39,13 +35,14 @@ class SortSuite extends FunSuite {
       sc = new SparkContext("local", "test")
       val data = Array((4, 14), (1, 11), (7, 17), (0, 10))
       val expected = data.sortWith(_._1 < _._1).toSeq
-      val rdd = sc.parallelize(data, 50).map { x =>
-        (new ReduceKey(new BytesWritable(Array[Byte](x._1.toByte))),
+      val rdd: RDD[(ReduceKey, BytesWritable)] = sc.parallelize(data, 50).map { x =>
+        (new ReduceKeyMapSide(new BytesWritable(Array[Byte](x._1.toByte))),
           new BytesWritable(Array[Byte](x._2.toByte)))
       }
       for (k <- 0 to 5) {
-        val output = RDDUtils.topK(rdd, k).map { case(k, v) =>
-          (k.getBytes().head.toInt, v.getBytes.head.toInt)
+        val sortedRdd = RDDUtils.topK(rdd, k).asInstanceOf[RDD[(ReduceKeyReduceSide, Array[Byte])]]
+        val output = sortedRdd.map { case(k, v) =>
+          (k.byteArray(0).toInt, v(0).toInt)
         }.collect().toSeq
         assert(output.size === math.min(k, 4))
         assert(output === expected.take(math.min(k, 4)))

@@ -17,11 +17,9 @@
 
 package shark.execution
 
-import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
 import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.hadoop.hive.ql.metadata.HiveException
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory}
 import org.apache.hadoop.hive.ql.exec.{ExtractOperator => HiveExtractOperator}
 import org.apache.hadoop.hive.ql.plan.{ExtractDesc, TableDesc}
@@ -29,7 +27,6 @@ import org.apache.hadoop.hive.serde2.Deserializer
 import org.apache.hadoop.io.BytesWritable
 
 import spark.RDD
-import spark.SparkContext._
 
 
 class ExtractOperator extends UnaryOperator[HiveExtractOperator] with HiveTopOperator {
@@ -82,16 +79,17 @@ class ExtractOperator extends UnaryOperator[HiveExtractOperator] with HiveTopOpe
     if (hasOrder && limit >= 0) {
       if (consolidate) {
         // Example: SELECT * FROM table ORDER BY col LIMIT 10;
-        // Need to make a copy of each row. Otherwise, the rows are reused so topK won't work...
-        val clonedRdd = rdd.asInstanceOf[RDD[(ReduceKey, BytesWritable)]].map { case(k, v) =>
-          val value = new BytesWritable // BytesWritable doesn't have a copy constructor.
-          value.set(v)
-          (new ReduceKey(k), value)
-        }
+        // Need to make a copy of each row. Otherwise, the rows are reused so topK won't work.
+        val clonedRdd: RDD[(ReduceKey, BytesWritable)] =
+          rdd.asInstanceOf[RDD[(ReduceKeyMapSide, BytesWritable)]].map { case(k, v) =>
+            val value = new BytesWritable
+            value.set(v.getBytes, 0, v.getLength)
+            (k.createDeepCopy(), value)
+          }
         RDDUtils.topK(clonedRdd, limit)
       } else {
         val distributedRdd = RDDUtils.repartition(rdd.asInstanceOf[RDD[(ReduceKey, Any)]],
-          ReduceKeyPartitioner(rdd.partitions.size))
+          new ReduceKeyPartitioner(rdd.partitions.length))
         // Don't need to make a copy of each row because after a shuffle (repartition),
         // rows are not reused.
         RDDUtils.partitionTopK(distributedRdd, limit)
@@ -104,14 +102,17 @@ class ExtractOperator extends UnaryOperator[HiveExtractOperator] with HiveTopOpe
         }
       } else {
         val clusteredRdd = RDDUtils.repartition(rdd.asInstanceOf[RDD[(ReduceKey, Any)]],
-          ReduceKeyPartitioner(rdd.partitions.size))
-        clusteredRdd.mapPartitions { partition => partition.toSeq.sortWith(_._1 < _._1).iterator }
+          new ReduceKeyPartitioner(rdd.partitions.length))
+        clusteredRdd.mapPartitions { partition =>
+          partition.toSeq.sortWith((x, y) => x._1.compareTo(y._1) < 0).iterator
+        }
       }
     } else { // i.e. !hasOrder
       // Example for consolidate = true:
       //   SELECT count(*) FROM (SELECT * FROM table LIMIT 10) tbl;
-      val numParts = if (consolidate) 1 else rdd.partitions.size
-      RDDUtils.repartition(rdd.asInstanceOf[RDD[(ReduceKey, Any)]], ReduceKeyPartitioner(numParts))
+      val numParts = if (consolidate) 1 else rdd.partitions.length
+      RDDUtils.repartition(rdd.asInstanceOf[RDD[(ReduceKey, Any)]],
+        new ReduceKeyPartitioner(numParts))
     }
   }
 
