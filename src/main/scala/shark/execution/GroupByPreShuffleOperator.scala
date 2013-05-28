@@ -18,7 +18,7 @@
 package org.apache.hadoop.hive.ql.exec
 // Put this file in Hive's exec package to access package level visible fields and methods.
 
-import java.util.{ArrayList, HashMap => JHashMap}
+import java.util.{ArrayList => JArrayList, HashMap => JHashMap}
 
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
@@ -29,14 +29,11 @@ import org.apache.hadoop.hive.ql.plan.{AggregationDesc, ExprNodeDesc, ExprNodeCo
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator.AggregationBuffer
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorFactory,
-    ObjectInspectorUtils, StandardStructObjectInspector, StructObjectInspector}
+    ObjectInspectorUtils, StructObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption
 
 import shark.SharkEnvSlave
 import shark.execution.UnaryOperator
-
-import spark.RDD
-import spark.SparkContext._
 
 
 /**
@@ -90,14 +87,14 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
       aggr.map { param => param.initialize(rowInspector) }
     }
 
-    val aggObjInspectors = aggregationEvals.zipWithIndex.map { pair =>
+    aggregationEvals.zipWithIndex.map { pair =>
       pair._1.init(conf.getAggregators.get(pair._2).getMode,
         aggregationParameterObjectInspectors(pair._2))
     }
 
     val keyFieldNames = conf.getOutputColumnNames.slice(0, keyFields.length)
     val totalFields = keyFields.length + aggregationEvals.length
-    val keyois = new ArrayList[ObjectInspector](totalFields)
+    val keyois = new JArrayList[ObjectInspector](totalFields)
     keyObjectInspectors.foreach(keyois.add(_))
 
     keyObjectInspector = SharkEnvSlave.objectInspectorLock.synchronized {

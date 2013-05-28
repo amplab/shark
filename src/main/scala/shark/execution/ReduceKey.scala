@@ -18,9 +18,8 @@
 package shark.execution
 
 import java.io.{Externalizable, ObjectOutput, ObjectInput}
-import java.util.Arrays
 
-import scala.collection.mutable.StringBuilder
+import com.google.common.primitives.UnsignedBytes
 
 import org.apache.hadoop.io.{BytesWritable, WritableComparator}
 
@@ -37,45 +36,102 @@ import spark.HashPartitioner
  * order sort, Spark's range partitioner uses a collect operation to find the ranges.
  * The collect serializes the ReduceKey objects and send them back to the master.
  */
-class ReduceKey(var bytes: BytesWritable) extends Externalizable with Ordered[ReduceKey] {
+sealed trait ReduceKey extends Comparable[ReduceKey] {
+
+  def length: Int
+
+  def byteArray: Array[Byte]
+
+  override def hashCode: Int
+
+  override def toString: String
+
+  override def equals(other: Any): Boolean
+
+  override def compareTo(that: ReduceKey): Int
+}
+
+
+class ReduceKeyMapSide(var bytesWritable: BytesWritable) extends ReduceKey
+  with Externalizable {
 
   // A default no-arg constructor for Java serializer to use.
   def this() = this(new BytesWritable)
 
-  // A copy constructor
-  def this(other: ReduceKey) = {
-    this(new BytesWritable())
-    this.bytes.set(other.bytes)
-  }
-
   /** Used by ReduceKeyPartitioner to determine the hash partition. */
   @transient var partitionCode = 0
 
-  def getLength(): Int = bytes.getLength()
+  def createDeepCopy(): ReduceKeyMapSide = {
+    val writable = new BytesWritable
+    writable.set(bytesWritable.getBytes, 0, bytesWritable.getLength)
+    val copy = new ReduceKeyMapSide(writable)
+    copy.partitionCode = partitionCode
+    copy
+  }
 
-  def getBytes(): Array[Byte] = bytes.getBytes()
+  override def length: Int = bytesWritable.getLength()
+
+  override def byteArray: Array[Byte] = bytesWritable.getBytes()
 
   override def equals(other: Any): Boolean  = {
     other match {
-      case other: ReduceKey => bytes.equals(other.bytes)
+      case other: ReduceKey => {
+        if (length != other.length) {
+          false
+        } else {
+          WritableComparator.compareBytes(byteArray, 0, length, other.byteArray, 0, other.length) == 0
+        }
+      }
       case _ => false
     }
   }
 
-  override def compare(that: ReduceKey): Int = this.bytes.compareTo(that.bytes)
+  override def compareTo(that: ReduceKey): Int = {
+    bytesWritable.compareTo(that.asInstanceOf[ReduceKeyMapSide].bytesWritable)
+  }
 
-  override def hashCode() = bytes.hashCode()
+  override def hashCode = bytesWritable.hashCode()
 
-  override def toString() = bytes.toString()
+  override def toString = bytesWritable.toString()
 
   override def writeExternal(out: ObjectOutput) {
-    bytes.write(out)
+    bytesWritable.write(out)
   }
 
   override def readExternal(in: ObjectInput) {
-    bytes = new BytesWritable
-    bytes.readFields(in)
+    bytesWritable = new BytesWritable
+    bytesWritable.readFields(in)
   }
+}
+
+
+class ReduceKeyReduceSide(private val _byteArray: Array[Byte]) extends ReduceKey {
+
+  def this() = this(null)
+
+  override def byteArray: Array[Byte] = _byteArray
+
+  override def length: Int = byteArray.length
+
+  override def equals(other: Any): Boolean = {
+    // We expect this is only used in a hash table comparing to the same types.
+    // So we force a type cast.
+    val that = other.asInstanceOf[ReduceKeyReduceSide]
+    (this.byteArray.length == that.byteArray.length && this.compareTo(that) == 0)
+  }
+
+  override def compareTo(that: ReduceKey): Int = {
+    ReduceKeyReduceSide.comparator.compare(this.byteArray, that.byteArray)
+  }
+
+  override def hashCode = WritableComparator.hashBytes(_byteArray, _byteArray.length)
+
+  override def toString = new BytesWritable(byteArray).toString
+}
+
+
+object ReduceKeyReduceSide {
+  val comparator = UnsignedBytes.lexicographicalComparator()
 }
 
 
@@ -83,19 +139,18 @@ class ReduceKey(var bytes: BytesWritable) extends Externalizable with Ordered[Re
  * A special Spark partitioner that allows hash partitioning of data based on
  * the partitionCode field in ReduceKey.
  */
-case class ReduceKeyPartitioner(partitions: Int) extends HashPartitioner(partitions) {
+class ReduceKeyPartitioner(partitions: Int) extends HashPartitioner(partitions) {
 
   override def getPartition(key: Any): Int = {
     key match {
-      case k: ReduceKey => {
+      case k: ReduceKeyMapSide => {
         val mod = k.partitionCode % partitions
         if (mod < 0) mod + partitions else mod  // Guard against negative hash codes.
       }
       case other => {
-        throw new Exception("ReduceKeyPartitioner expects object of class ReduceKey, but got " +
-          other.getClass.getName)
+        throw new Exception("ReduceKeyPartitioner expects object of class ReduceKeyMapSide, " +
+          "but got " + other.getClass.getName)
       }
     }
   }
-
 }

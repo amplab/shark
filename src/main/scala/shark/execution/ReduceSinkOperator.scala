@@ -27,7 +27,7 @@ import scala.reflect.BeanProperty
 import org.apache.hadoop.hive.ql.exec.{ReduceSinkOperator => HiveReduceSinkOperator}
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory}
 import org.apache.hadoop.hive.ql.metadata.HiveException
-import org.apache.hadoop.hive.ql.plan.{ReduceSinkDesc, TableDesc}
+import org.apache.hadoop.hive.ql.plan.{ReduceSinkDesc}
 import org.apache.hadoop.hive.serde2.{Deserializer, SerDe}
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorFactory,
   ObjectInspectorUtils}
@@ -168,7 +168,7 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
     // Buffer for key, value evaluation to avoid frequent object allocation.
     val evaluatedKey = new Array[Object](keyEval.length)
     val evaluatedValue = new Array[Object](valueEval.length)
-    val reduceKey = new ReduceKey
+    val reduceKey = new ReduceKeyMapSide
 
     // A random number generator, used to distribute keys evenly if there is
     // no partition columns specified. Use a constant seed to make the code
@@ -181,13 +181,13 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
       // Determine the partition code (Hive calls it keyHashCode), used for
       // DISTRIBUTED BY / CLUSTER BY.
       var partitionCode = 0
-      if (partitionEval.size == 0) {
+      if (partitionEval.length == 0) {
         // If there is no partition columns, we randomly distribute the data
         partitionCode = rand.nextInt()
       } else {
         // With partition columns, determine a partitionCode to distribute.
         var i = 0
-        while (i < partitionEval.size) {
+        while (i < partitionEval.length) {
           val o = partitionEval(i).evaluate(row)
           partitionCode = partitionCode * 31 +
             ObjectInspectorUtils.hashCode(o, partitionObjInspectors(i))
@@ -212,7 +212,7 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
       val key = keySer.serialize(evaluatedKey, keyObjInspector).asInstanceOf[BytesWritable]
       val value = valueSer.serialize(evaluatedValue, valObjInspector).asInstanceOf[BytesWritable]
 
-      reduceKey.bytes = key
+      reduceKey.bytesWritable = key
       reduceKey.partitionCode = partitionCode
       (reduceKey, value)
     }

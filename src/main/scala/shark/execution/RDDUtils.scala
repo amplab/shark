@@ -17,14 +17,12 @@
 
 package shark.execution
 
-import scala.collection.mutable.{ArrayBuffer, Buffer}
-import scala.collection.JavaConverters._
+import scala.collection.JavaConversions
 
 import com.google.common.collect.{Ordering => GOrdering}
 
 import shark.SharkEnv
 import spark.{HashPartitioner, Partitioner, RangePartitioner, RDD}
-import spark.SparkContext._
 import spark.rdd.ShuffledRDD
 
 
@@ -47,19 +45,19 @@ object RDDUtils {
    * Sort the RDD by key. This is similar to Spark's sortByKey, except that we use
    * the Shark shuffle serializer.
    */
-  def sortByKey[K <% Ordered[K]: ClassManifest, V: ClassManifest](rdd: RDD[(K, V)]): RDD[(K, V)] = {
-    val part = new RangePartitioner(rdd.partitions.size, rdd)
+  def sortByKey[K <: Comparable[K]: ClassManifest, V: ClassManifest](rdd: RDD[(K, V)]): RDD[(K, V)] = {
+    val part = new RangePartitioner(rdd.partitions.length, rdd)
     val shuffled = new ShuffledRDD[K, V](rdd, part, SharkEnv.shuffleSerializerName)
     shuffled.mapPartitions(iter => {
       val buf = iter.toArray
-      buf.sortWith((x, y) => x._1 < y._1).iterator
+      buf.sortWith((x, y) => x._1.compareTo(y._1) < 0).iterator
     }, true)
   }
 
   /**
    * Return an RDD containing the top K (K smallest key) from the given RDD.
    */
-  def topK[K <% Ordered[K]: ClassManifest, V: ClassManifest](rdd: RDD[(K, V)], k: Int)
+  def topK[K <: Comparable[K]: ClassManifest, V: ClassManifest](rdd: RDD[(K, V)], k: Int)
     : RDD[(K, V)] = {
     // First take top K on each partition.
     val partialSortedRdd = partitionTopK(rdd, k)
@@ -70,7 +68,7 @@ object RDDUtils {
   /**
    * Take top K on each partition and return a new RDD.
    */
-  def partitionTopK[K <% Ordered[K]: ClassManifest, V: ClassManifest](
+  def partitionTopK[K <: Comparable[K]: ClassManifest, V: ClassManifest](
     rdd: RDD[(K, V)], k: Int): RDD[(K, V)] = {
     rdd.mapPartitions(iter => topK(iter, k))
   }
@@ -78,12 +76,17 @@ object RDDUtils {
   /**
    * Return top K elements out of an iterator.
    */
-  private def topK[K <% Ordered[K]: ClassManifest, V: ClassManifest](
+  private def topK[K <: Comparable[K]: ClassManifest, V: ClassManifest](
     it: Iterator[(K, V)], k: Int): Iterator[(K, V)]  = {
-    val ordering = new GOrdering[(K,V)]() {
-      override def compare(l: (K, V), r: (K, V)) = (l._1).compare(r._1)
+    val ordering = new GOrdering[(K,V)] {
+      override def compare(l: (K, V), r: (K, V)) = {
+        (l._1).compareTo(r._1)
+      }
     }
-    ordering.leastOf(it.asJava, k).iterator.asScala
+    // Guava only takes Java iterators. Convert the iterator into Java iterator and then
+    // convert it back to Scala.
+    JavaConversions.asScalaIterator(
+      ordering.leastOf(JavaConversions.asJavaIterator(it), k).iterator)
   }
 
 }

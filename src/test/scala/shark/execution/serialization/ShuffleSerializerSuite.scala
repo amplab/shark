@@ -25,7 +25,7 @@ import org.apache.hadoop.io.BytesWritable
 import org.scalatest.FunSuite
 import org.scalatest.matchers.ShouldMatchers
 
-import shark.execution.ReduceKey
+import shark.execution.{ReduceKey, ReduceKeyMapSide, ReduceKeyReduceSide}
 
 
 class ShuffleSerializerSuite extends FunSuite with ShouldMatchers {
@@ -34,16 +34,20 @@ class ShuffleSerializerSuite extends FunSuite with ShouldMatchers {
 
     val bos = new ByteArrayOutputStream()
     val ser = new ShuffleSerializer()
-    val serOutStream = ser.newInstance().serializeStream(bos).asInstanceOf[ShuffleSerializationStream]
+    val serOutStream = {
+      ser.newInstance().serializeStream(bos).asInstanceOf[ShuffleSerializationStream]
+    }
     for (i <- check) {
       serOutStream.writeUnsignedVarInt(i)
     }
     serOutStream.close();
 
     val bis = new ByteArrayInputStream(bos.toByteArray)
-    val serInStream = ser.newInstance().deserializeStream(bis).asInstanceOf[ShuffleDeserializationStream]
+    val serInStream = {
+      ser.newInstance().deserializeStream(bis).asInstanceOf[ShuffleDeserializationStream]
+    }
     for (in <- check) {
-      val out: Int = serInStream.readUnsignedVarInt();
+      val out: Int = serInStream.readUnsignedVarInt()
       assert(out == in, "Encoded: " + in + " did not match decoded: " + out)
     }
   }
@@ -53,14 +57,13 @@ class ShuffleSerializerSuite extends FunSuite with ShouldMatchers {
     val KEY_SIZE = 1000
     val VALUE_SIZE = 1000
 
-    val initialItems =
-      (1 to NUM_ITEMS).map {x =>
-        val rkBytes = (1 to KEY_SIZE).map(_.toByte).toArray
-        val valueBytes = (1 to VALUE_SIZE).map(_.toByte).toArray
-        val rk = new ReduceKey(new BytesWritable(rkBytes))
-        val value = new BytesWritable(valueBytes)
-        (rk, value)
-      }
+    val initialItems: Array[(ReduceKey, BytesWritable)] = Array.fill(NUM_ITEMS) {
+      val rkBytes = (1 to KEY_SIZE).map(_.toByte).toArray
+      val valueBytes = (1 to VALUE_SIZE).map(_.toByte).toArray
+      val rk = new ReduceKeyMapSide(new BytesWritable(rkBytes))
+      val value = new BytesWritable(valueBytes)
+      (rk, value)
+    }
 
     val bos = new ByteArrayOutputStream()
     val ser = new ShuffleSerializer()
@@ -69,9 +72,10 @@ class ShuffleSerializerSuite extends FunSuite with ShouldMatchers {
     val bis = new ByteArrayInputStream(bos.toByteArray)
     val serInStream = ser.newInstance().deserializeStream(bis)
 
-    initialItems.map{ x =>
-      val output: (ReduceKey, BytesWritable) = serInStream.readObject()
-      output should equal (x)
+    initialItems.foreach { expected: (ReduceKey, BytesWritable) =>
+      val output: (ReduceKey, Array[Byte]) = serInStream.readObject()
+      (expected._1) should equal (output._1)
+      (expected._2.getBytes) should equal (output._2)
     }
   }
 
@@ -80,14 +84,13 @@ class ShuffleSerializerSuite extends FunSuite with ShouldMatchers {
     val KEY_SIZE = 1000
     val VALUE_SIZE = 1000
 
-    val initialItems =
-      (1 to NUM_ITEMS).map {x =>
-        val rkBytes = (1 to KEY_SIZE).map(_.toByte).toArray
-        val valueBytes = (1 to VALUE_SIZE).map(_.toByte).toArray
-        val rk = new ReduceKey(new BytesWritable(rkBytes))
-        val value = new BytesWritable(valueBytes)
-        (rk, value)
-      }
+    val initialItems = Array.fill(NUM_ITEMS) {
+      val rkBytes = (1 to KEY_SIZE).map(_.toByte).toArray
+      val valueBytes = (1 to VALUE_SIZE).map(_.toByte).toArray
+      val rk = new ReduceKeyMapSide(new BytesWritable(rkBytes))
+      val value = new BytesWritable(valueBytes)
+      (rk, value)
+    }
 
     val bos = new ByteArrayOutputStream()
     val cBos = new LZFOutputStream(bos).setFinishBlockOnFlush(true)
@@ -100,9 +103,10 @@ class ShuffleSerializerSuite extends FunSuite with ShouldMatchers {
     val cBis = new LZFInputStream(bis)
     val serInStream = ser.newInstance().deserializeStream(cBis)
 
-    initialItems.map{ x =>
-      val output: (ReduceKey, BytesWritable) = serInStream.readObject()
-      output should equal (x)
+    initialItems.foreach { expected: (ReduceKey, BytesWritable) =>
+      val output: (ReduceKey, Array[Byte]) = serInStream.readObject()
+      (expected._1) should equal (output._1)
+      (expected._2.getBytes) should equal (output._2)
     }
   }
 }

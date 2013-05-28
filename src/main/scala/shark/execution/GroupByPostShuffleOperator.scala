@@ -18,17 +18,14 @@
 package org.apache.hadoop.hive.ql.exec
 // Put this file in Hive's exec package to access package level visible fields and methods.
 
-import java.util.ArrayList
-import java.util.{HashMap => JHashMap, HashSet => JHashSet, Set => JSet}
+import java.util.{ArrayList => JArrayList, HashMap => JHashMap, HashSet => JHashSet, Set => JSet}
 
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
 import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.hadoop.hive.ql.exec.{GroupByOperator => HiveGroupByOperator}
 import org.apache.hadoop.hive.ql.plan.{ExprNodeColumnDesc, TableDesc}
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator.AggregationBuffer
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorUtils,
   StandardStructObjectInspector, StructObjectInspector, UnionObject}
@@ -38,10 +35,8 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils
 import org.apache.hadoop.io.BytesWritable
 
 import shark.SharkEnv
-import shark.execution.{HiveTopOperator, ReduceKey}
-import spark.{Aggregator, HashPartitioner, RDD}
-import spark.rdd.ShuffledRDD
-import spark.SparkContext._
+import shark.execution.{HiveTopOperator, ReduceKeyReduceSide}
+import spark.{HashPartitioner, PairRDDFunctions, RDD}
 
 
 // The final phase of group by.
@@ -56,9 +51,9 @@ with HiveTopOperator {
   @transient var valueSer: Deserializer = _
   @transient val distinctKeyAggrs = new JHashMap[Int, JSet[java.lang.Integer]]()
   @transient val nonDistinctKeyAggrs = new JHashMap[Int, JSet[java.lang.Integer]]()
-  @transient val nonDistinctAggrs = new ArrayList[Int]()
-  @transient val distinctKeyWrapperFactories = new JHashMap[Int, ArrayList[KeyWrapperFactory]]()
-  @transient val distinctHashSets = new JHashMap[Int, ArrayList[JHashSet[KeyWrapper]]]()
+  @transient val nonDistinctAggrs = new JArrayList[Int]()
+  @transient val distinctKeyWrapperFactories = new JHashMap[Int, JArrayList[KeyWrapperFactory]]()
+  @transient val distinctHashSets = new JHashMap[Int, JArrayList[JHashSet[KeyWrapper]]]()
 
   @transient var unionExprEvaluator: ExprNodeEvaluator = _
 
@@ -93,8 +88,8 @@ with HiveTopOperator {
         ObjectInspectorUtils.getStandardObjectInspector(k, ObjectInspectorCopyOption.WRITABLE)
       }}.toArray
 
-      val keys = new ArrayList[KeyWrapperFactory]()
-      val hashSets = new ArrayList[JHashSet[KeyWrapper]]()
+      val keys = new JArrayList[KeyWrapperFactory]()
+      val hashSets = new JArrayList[JHashSet[KeyWrapper]]()
       for(i <- 0 until evals.size) {
         keys.add(new KeyWrapperFactory(evals(i), ois(i), writableOis(i)))
         hashSets.add(new JHashSet[KeyWrapper])
@@ -192,7 +187,7 @@ with HiveTopOperator {
     //rdd.asInstanceOf[RDD[(Any, Any)]].groupByKey(numReduceTasks)
 
     // TODO(rxin): Rewrite aggregation logic to integrate it with mergeValue.
-    rdd.asInstanceOf[RDD[(Any, Any)]].combineByKey(
+    new PairRDDFunctions(rdd.asInstanceOf[RDD[(Any, Any)]]).combineByKey(
       GroupByAggregator.createCombiner _,
       GroupByAggregator.mergeValue _,
       null,
@@ -204,6 +199,8 @@ with HiveTopOperator {
   override def processPartition(split: Int, iter: Iterator[_]) = {
     // TODO: we should support outputs besides BytesWritable in case a different
     // SerDe is used for intermediate data.
+
+    // TODO: use MutableBytesWritable to avoid the array copy.
     val bytes = new BytesWritable()
     logInfo("Running Post Shuffle Group-By")
     val outputCache = new Array[Object](keyFields.length + aggregationEvals.length)
@@ -215,21 +212,21 @@ with HiveTopOperator {
     val keys = keyFactory.getKeyWrapper()
     val aggrs = newAggregations()
 
-    val newIter = iter.map { case (key: ReduceKey, values: Seq[_]) =>
-      //bytes.set(key.bytes)
-      val deserializedKey = deserializeKey(key.bytes)
+    val newIter = iter.map { case (key: ReduceKeyReduceSide, values: Seq[_]) =>
+      bytes.set(key.byteArray, 0, key.length)
+      val deserializedKey = deserializeKey(bytes)
       reusedRow(0) = deserializedKey
       resetAggregations(aggrs)
       values.foreach {
-        case v: BytesWritable => {
-          //bytes.set(v)
-          reusedRow(1) = deserializeValue(v)
+        case v: Array[Byte] => {
+          bytes.set(v, 0, v.length)
+          reusedRow(1) = deserializeValue(bytes)
           aggregate(reusedRow, aggrs, false)
         }
         case (key: Array[Byte], value: Array[Byte]) => {
-          bytes.set(key)
+          bytes.set(key, 0, key.length)
           val deserializedUnionKey = deserializeKey(bytes)
-          bytes.set(value)
+          bytes.set(value, 0, value.length)
           val deserializedValue = deserializeValue(bytes)
           val row = Array(deserializedUnionKey, deserializedValue)
           keys.getNewKey(row, rowInspector)
@@ -260,8 +257,7 @@ with HiveTopOperator {
               val key: KeyWrapper = factories.get(i).getKeyWrapper()
               key.getNewKey(row, rowInspector)
               key.setHashKey()
-              var seen = hashes(i).contains(key)
-              if (!seen) {
+              if (!hashes(i).contains(key)) {
                 aggregationEvals(aggrIndex).aggregate(aggrs(aggrIndex), key.getKeyArray)
                 hashes(i).add(key.copyKey())
               }
@@ -275,7 +271,7 @@ with HiveTopOperator {
 
       // Copy output keys and values to our reused output cache
       var i = 0
-      var numKeys = keyFields.length
+      val numKeys = keyFields.length
       while (i < numKeys) {
         outputCache(i) = keyFields(i).evaluate(reusedRow)
         i += 1
@@ -287,7 +283,7 @@ with HiveTopOperator {
       outputCache
     }
 
-    if (!newIter.hasNext && keyFields.size == 0) {
+    if (!newIter.hasNext && keyFields.length == 0) {
       Iterator(createEmptyRow()) // We return null if there are no rows
     } else {
       newIter
@@ -296,14 +292,16 @@ with HiveTopOperator {
 
   private def createEmptyRow(): Array[Object] = {
     val aggrs = newAggregations()
-    val output = new Array[Object](aggrs.size)
-    for (i <- 0 until aggrs.size) {
+    val output = new Array[Object](aggrs.length)
+    var i = 0
+    while (i < aggrs.length) {
       var emptyObj: Array[Object] = null
       if (aggregationParameterFields(i).length > 0) {
         emptyObj = aggregationParameterFields.map { field => null }.toArray
       }
       aggregationEvals(i).aggregate(aggrs(i), emptyObj)
       output(i) = aggregationEvals(i).evaluate(aggrs(i))
+      i += 1
     }
     output
   }
