@@ -34,15 +34,17 @@ import shark.memstore2.buffer.Unsafe
 class Dictionary(uniqueInts: List[Int]){
 
   // return the Int associated with Byte
-  def get(b:Byte) = {
+  def get(b:Byte): Int = {
     // Convert byte to index
     // -128, 128 ===> 0, 256
     var idx: Int = b
-    if(b < 0)
+    if(b < 0) {
       idx = b + 256
+    }
 
-    if (idx < 0 || size <= idx)
+    if (idx < 0 || size <= idx) {
       throw new IndexOutOfBoundsException("Index " + idx)
+    }
 
     uniqueInts(idx)
   }
