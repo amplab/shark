@@ -32,7 +32,7 @@ import shark.LogHelper
 class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
 
   private var _stats: ColumnStats.IntColumnStats = null
-  private var _arr: IntArrayList = null
+  private var _nonNulls: IntArrayList = null
   private val MAX_UNIQUE_VALUES = 256 // 2 ** 8 - storable in 8 bits or 1 Byte
   private var _uniques: collection.mutable.Set[Int] = new HashSet()
   // compressionPossible is true by default but becomes false after there are
@@ -41,7 +41,7 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
   def isCompressed = compressionPossible
 
   override def initialize(initialSize: Int) {
-    _arr = new IntArrayList(initialSize)
+    _nonNulls = new IntArrayList(initialSize)
     _stats = new ColumnStats.IntColumnStats
     super.initialize(initialSize)
   }
@@ -56,9 +56,9 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
   }
 
   override def append(v: Int) {
-    _arr.add(v)
+    _nonNulls.add(v)
     _stats.append(v)
-    // compressionPossible is used to short-cicrcuit adding elements to _uniques
+    // compressionPossible is used to short-circuit adding elements to _uniques
     // if there are too many elements
     if (compressionPossible) {
       _uniques += v
@@ -68,8 +68,7 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
   }
 
   override def appendNull() {
-    _nullBitmap.set(_arr.size)
-    _arr.add(0)
+    _nullBitmap.set(_nonNulls.size + _stats.nullCount)
     _stats.appendNull()
   }
 
@@ -78,9 +77,14 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
   override def build: ByteBuffer = {
     logDebug("IntColumnBuilder " + _uniques.size + " unique values")
     if (!compressionPossible) {
-      val minbufsize = (_arr.size*4) + ColumnIterator.COLUMN_TYPE_LENGTH + sizeOfNullBitmap
+      val minbufsize = (_nonNulls.size*4) + ColumnIterator.COLUMN_TYPE_LENGTH + sizeOfNullBitmap
       val buf = ByteBuffer.allocate(minbufsize)
+      logDebug("sizeOfNullBitmap " + sizeOfNullBitmap +
+        " ColumnIterator.COLUMN_TYPE_LENGTH " +
+        ColumnIterator.COLUMN_TYPE_LENGTH +
+        " _nonNulls.size*4 " + _nonNulls.size*4)
       logInfo("Allocated ByteBuffer of size " + minbufsize)
+
 
       buf.order(ByteOrder.nativeOrder())
       buf.putLong(ColumnIterator.INT)
@@ -88,8 +92,8 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
       writeNullBitmap(buf)
 
       var i = 0
-      while (i < _arr.size) {
-        buf.putInt(_arr.get(i))
+      while (i < _nonNulls.size) {
+        buf.putInt(_nonNulls.get(i))
         i += 1
       }
       buf.rewind()
@@ -97,11 +101,17 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
     }
     else { // compressionPossible = true
       val dict = new Dictionary(_uniques.toList)
-      val minbufsize = (_arr.size*1) + ColumnIterator.COLUMN_TYPE_LENGTH +
+      val minbufsize = (_nonNulls.size*1) + ColumnIterator.COLUMN_TYPE_LENGTH +
         sizeOfNullBitmap + (dict.sizeinbits/8)
 
+      logDebug(" dict.sizeinbits/8 " + (dict.sizeinbits/8) +
+        " sizeOfNullBitmap " + sizeOfNullBitmap +
+        " ColumnIterator.COLUMN_TYPE_LENGTH " +
+        ColumnIterator.COLUMN_TYPE_LENGTH +
+        " _nonNulls.size*1 " + _nonNulls.size*1)
+
       val buf = ByteBuffer.allocate(minbufsize)
-      logInfo("Allocated ByteBuffer of size " + minbufsize)
+      logInfo("Allocated ByteBuffer (compressed) of size " + minbufsize)
 
       buf.order(ByteOrder.nativeOrder())
       buf.putLong(ColumnIterator.DICT_INT)
@@ -111,12 +121,12 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
       DictionarySerializer.writeToBuffer(buf, dict)
 
       var i = 0
-      while (i < _arr.size) {
-        buf.put(dict.getByte(_arr.get(i)))
+      while (i < _nonNulls.size) {
+        buf.put(dict.getByte(_nonNulls.get(i)))
         i += 1
       }
       logInfo("Compression ratio is " + 
-        (_arr.size.toFloat*4/(minbufsize)) +
+        (_nonNulls.size.toFloat*4/(minbufsize)) +
         " : 1")
       buf.rewind()
       buf
