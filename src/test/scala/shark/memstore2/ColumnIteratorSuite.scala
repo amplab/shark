@@ -151,10 +151,11 @@ class ColumnIteratorSuite extends FunSuite {
     assert(d.get(0) == newd.get(0))
     assert(d.get(3) == newd.get(3))
   }
-
+ 
   test("int column") {
     val builder = new IntColumnBuilder
-    testColumn(
+ 
+   testColumn(
       Array[java.lang.Integer](0, 1, 2, 5, 134, -12, 1, 0, 99, 1),
       builder,
       PrimitiveObjectInspectorFactory.writableIntObjectInspector,
@@ -162,9 +163,10 @@ class ColumnIteratorSuite extends FunSuite {
     assert(builder.stats.min === -12)
     assert(builder.stats.max === 134)
     assert(builder.isCompressed == true)
-
+ 
     testColumn(
-      Array[java.lang.Integer](null, 1, 2, 5, 134, -12, null, 0, 99, 1),
+      Array[java.lang.Integer]
+        (null, 1, 2, null, 5, 134, -12, null, 0, 99, null, null, null, 1),
       builder,
       PrimitiveObjectInspectorFactory.writableIntObjectInspector,
       classOf[DictionaryEncodedIntColumnIterator.Default],
@@ -184,7 +186,8 @@ class ColumnIteratorSuite extends FunSuite {
       seqWRJava,
       builder,
       PrimitiveObjectInspectorFactory.writableIntObjectInspector,
-      classOf[DictionaryEncodedIntColumnIterator.Default])
+      classOf[DictionaryEncodedIntColumnIterator.Default],
+      false)
     assert(builder.stats.min === -100)
     assert(builder.stats.max === 99)
     assert(builder.isCompressed == true)
@@ -199,20 +202,24 @@ class ColumnIteratorSuite extends FunSuite {
       seqJava,
       builder,
       PrimitiveObjectInspectorFactory.writableIntObjectInspector,
-      classOf[IntColumnIterator.Default])
+      classOf[IntColumnIterator.Default],
+      false)
     assert(builder.stats.min === -300)
     assert(builder.stats.max === 299)
     assert(builder.isCompressed == false)
- 
-    val nulls = List.fill(100)(null)
+
+
+    val nulls = List.fill(10000)(null)
     val seqWithNull = List.concat(nulls, seqJava)
-    assert(seqWithNull.size == 700)
+    assert(seqWithNull.size == 10600)
 
     testColumn(
       seqJava,
       builder,
       PrimitiveObjectInspectorFactory.writableIntObjectInspector,
-      classOf[IntColumnIterator.Default])
+      classOf[IntColumnIterator.Default],
+      false) // TODO - should be EWAH nullable - but cannot get types right for
+             // test to pass
     assert(builder.stats.min === -300)
     assert(builder.stats.max === 299)
     assert(builder.isCompressed == false)
@@ -351,7 +358,7 @@ class ColumnIteratorSuite extends FunSuite {
       false,
       compareBinary)
     assert(builder.stats == null)
-
+ 
     def compareBinary(x: Object, y: Object): Boolean = {
       val xdata = x.asInstanceOf[ByteArrayRef].getData
       val ydata = y.asInstanceOf[LazyBinary].getWritableObject().getBytes()

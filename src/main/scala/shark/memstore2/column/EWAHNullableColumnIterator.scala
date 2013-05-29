@@ -31,10 +31,18 @@ class EWAHNullableColumnIterator[T <: ColumnIterator](
     baseIterCls: Class[T], bytes: ByteBufferReader)
   extends ColumnIterator {
 
-  val _nullBitmap: EWAHCompressedBitmap = EWAHCompressedBitmapSerializer.readFromBuffer(bytes)
+  val _nullBitmap: EWAHCompressedBitmap =
+  EWAHCompressedBitmapSerializer.readFromBuffer(bytes)
+
+  /*
+   *  The location of the null bits is returned, in increasing order through
+   *  _nullsIter
+   */
   val _nullsIter: IntIterator = _nullBitmap.intIterator
+
   var _pos = -1
   var _nextNullPosition = -1
+  private var currentNull = false
 
   val baseIter: T = {
     val ctor = baseIterCls.getConstructor(classOf[ByteBufferReader])
@@ -42,14 +50,26 @@ class EWAHNullableColumnIterator[T <: ColumnIterator](
   }
 
   override def next() {
+    if (_pos >= _nextNullPosition || _pos == -1) {
+      if (_nullsIter.hasNext) {
+        _nextNullPosition = _nullsIter.next
+      } 
+    }
+
+    // println("EWAH Nullable next() called")
+
     _pos += 1
-    baseIter.next()
+    // println(" _nextNullPosition " + _nextNullPosition + " ][ _pos " + _pos)
+
+    if(_pos == _nextNullPosition)
+      null
+    else
+      baseIter.next()
   }
 
+  // Semantics are to not change state - read-only
   override def current: Object = {
-    while (_nextNullPosition < _pos && _nullsIter.hasNext) _nextNullPosition = _nullsIter.next
     if (_nextNullPosition == _pos) {
-      _nextNullPosition = if (_nullsIter.hasNext) _nullsIter.next else Int.MaxValue
       null
     } else {
       baseIter.current

@@ -18,7 +18,7 @@
 package shark.memstore2.column
 
 import shark.memstore2.buffer.ByteBufferReader
-
+import shark.LogHelper
 
 /**
  * Factory class used to create column iterators for a given data type.
@@ -31,7 +31,7 @@ trait ColumnIteratorFactory {
 }
 
 
-object ColumnIteratorFactory {
+object ColumnIteratorFactory extends LogHelper{
 
   /**
    * Create a factory for the given column iterator.
@@ -53,6 +53,7 @@ object ColumnIteratorFactory {
       override def createIterator(buf: ByteBufferReader): ColumnIterator = {
         val nullable = buf.getLong() == 1L
         if (nullable) {
+          logDebug("baseIterClass " + baseIterClass + " created with EWAH")
           new EWAHNullableColumnIterator[T](baseIterClass, buf)
         } else {
           val ctor = baseIterClass.getConstructor(classOf[ByteBufferReader])

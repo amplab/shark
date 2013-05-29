@@ -18,7 +18,7 @@
 package shark.memstore2.column
 
 import shark.memstore2.buffer.ByteBufferReader
-
+import shark.LogHelper
 
 /**
  * Iterator interface for a column. The iterator should be initialized by a byte
@@ -28,6 +28,8 @@ abstract class ColumnIterator {
 
   def next()
 
+  // Should be implemented as a read-only operation by the ColumnIterator
+  // Can be called any number of times
   def current: Object
 }
 
@@ -35,7 +37,7 @@ abstract class ColumnIterator {
 /**
  * A mapping from an integer column type to the respective ColumnIterator class.
  */
-object ColumnIterator {
+object ColumnIterator extends LogHelper {
 
   // TODO: Implement Decimal data type.
 
