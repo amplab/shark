@@ -49,11 +49,9 @@ public class JavaAPISuite implements Serializable {
 
         sc = SharkEnv.initWithJavaSharkContext("JavaAPISuite", "local");
 
-        if (TestUtils$.MODULE$.testAndSet()) {
-            sc.sql("set javax.jdo.option.ConnectionURL=jdbc:derby:;databaseName=" +
+        sc.sql("set javax.jdo.option.ConnectionURL=jdbc:derby:;databaseName=" +
                     METASTORE_PATH + ";create=true");
-            sc.sql("set hive.metastore.warehouse.dir=" + WAREHOUSE_PATH);
-        }
+        sc.sql("set hive.metastore.warehouse.dir=" + WAREHOUSE_PATH);
 
         sc.sql("set shark.test.data.path=" + TestUtils$.MODULE$.dataFilePath());
 

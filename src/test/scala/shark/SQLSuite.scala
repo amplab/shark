@@ -34,11 +34,9 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   override def beforeAll() {
     sc = SharkEnv.initWithSharkContext("shark-sql-suite-testing", MASTER);
 
-    if (TestUtils.testAndSet()) {
-      sc.sql("set javax.jdo.option.ConnectionURL=jdbc:derby:;databaseName=" +
+    sc.sql("set javax.jdo.option.ConnectionURL=jdbc:derby:;databaseName=" +
         METASTORE_PATH + ";create=true")
-      sc.sql("set hive.metastore.warehouse.dir=" + WAREHOUSE_PATH)
-    }
+    sc.sql("set hive.metastore.warehouse.dir=" + WAREHOUSE_PATH)
 
     sc.sql("set shark.test.data.path=" + TestUtils.dataFilePath)
 
