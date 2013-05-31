@@ -19,13 +19,11 @@ package shark.execution
 
 import java.util.ArrayList
 import java.util.Random
-
 import scala.collection.Iterator
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
-
 import org.apache.hadoop.hive.ql.exec.{ReduceSinkOperator => HiveReduceSinkOperator}
-import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory}
+import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator
 import org.apache.hadoop.hive.ql.metadata.HiveException
 import org.apache.hadoop.hive.ql.plan.{ReduceSinkDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.{Deserializer, SerDe}
@@ -33,9 +31,9 @@ import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectIns
   ObjectInspectorUtils}
 import org.apache.hadoop.hive.serde2.objectinspector.StandardUnionObjectInspector.StandardUnion
 import org.apache.hadoop.io.{BytesWritable, Text}
-
 import shark.SharkEnvSlave
-
+import shark.execution.cg.CGEvaluatorFactory
+import org.apache.hadoop.hive.conf.HiveConf
 
 /**
  * Converts a collection of rows into key, value pairs. This is the
@@ -44,6 +42,7 @@ import shark.SharkEnvSlave
 class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
 
   @BeanProperty var conf: ReduceSinkDesc = _
+  @BeanProperty var localHconf: HiveConf = _
 
   // The evaluator for key columns. Key columns decide the sort/hash order on
   // the reducer side. Key columns are passed to the reducer in the "key".
@@ -68,6 +67,7 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
 
   override def initializeOnMaster() {
     conf = hiveOp.getConf()
+    localHconf = super.hconf
   }
 
   override def initializeOnSlave() {
@@ -122,11 +122,11 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
    * both the master and the slave.
    */
   private def initializeOisAndSers(conf: ReduceSinkDesc, rowInspector: ObjectInspector) {
-    keyEval = conf.getKeyCols.map(ExprNodeEvaluatorFactory.get(_)).toArray
+    keyEval = conf.getKeyCols.map(CGEvaluatorFactory.get(_, localHconf)).toArray
     val numDistributionKeys = conf.getNumDistributionKeys()
     val distinctColIndices = conf.getDistinctColumnIndices()
     val numDistinctExprs = distinctColIndices.size()
-    valueEval = conf.getValueCols.map(ExprNodeEvaluatorFactory.get(_)).toArray
+    valueEval = conf.getValueCols.map(CGEvaluatorFactory.get(_, localHconf)).toArray
 
     // Initialize serde for key columns.
     val keyTableDesc = conf.getKeySerializeInfo()
@@ -157,7 +157,7 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
     }
 
     // Initialize evaluator and object inspector for partition columns.
-    partitionEval = conf.getPartitionCols.map(ExprNodeEvaluatorFactory.get(_)).toArray
+    partitionEval = conf.getPartitionCols.map(CGEvaluatorFactory.get(_, localHconf)).toArray
     partitionObjInspectors = partitionEval.map(_.initialize(rowInspector)).toArray
   }
 
