@@ -33,7 +33,7 @@ import org.apache.hadoop.io.BytesWritable
 import shark.SharkEnv
 import shark.SharkEnvSlave
 import shark.execution.serialization.{OperatorSerializationWrapper, SerializableWritable}
-import spark.RDD
+import spark.{RDD, SparkEnv}
 import spark.broadcast.Broadcast
 
 
@@ -126,7 +126,15 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
 
       // Collect the RDD and build a hash table.
       val startCollect = System.currentTimeMillis()
-      val wrappedRows: Array[(Seq[AnyRef], Seq[Array[AnyRef]])] = rddForHash.collect()
+      val wrappedRows = rddForHash.partitions.flatMap { part => 
+        val iter = SparkEnv.get.blockManager.get("rdd_%s_%s".format(rddForHash.id, part.index))
+        val partRows = new ArrayBuffer[(Seq[AnyRef], Seq[Array[AnyRef]])]
+        iter.foreach(_.foreach { row =>
+          partRows += row.asInstanceOf[(Seq[AnyRef], Seq[Array[AnyRef]])]
+        })
+        partRows
+      }
+      logInfo("wrappedRows size:" + wrappedRows.size)
       val collectTime = System.currentTimeMillis() - startCollect
       logInfo("HashTable collect took " + collectTime + " ms")
 
