@@ -126,6 +126,10 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
 
       // Collect the RDD and build a hash table.
       val startCollect = System.currentTimeMillis()
+      if (rddForHash.getStorageLevel == StorageLevel.NONE) {
+        rddForHash.persist()
+      }
+      rddForHash.foreach(_ => Unit)
       val wrappedRows = rddForHash.partitions.flatMap { part => 
         val iter = SparkEnv.get.blockManager.get("rdd_%s_%s".format(rddForHash.id, part.index))
         val partRows = new ArrayBuffer[(Seq[AnyRef], Seq[Array[AnyRef]])]
