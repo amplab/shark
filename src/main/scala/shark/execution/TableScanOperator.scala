@@ -40,6 +40,7 @@ import spark.rdd.{PartitionPruningRDD, UnionRDD}
 import org.apache.hadoop.hive.ql.io.HiveInputFormat
 import shark.execution.optimization.ColumnPruner
 import shark.execution.optimization.ColumnPruner
+import shark.memstore2.TablePartitionIterator
 
 
 class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopOperator {
@@ -176,11 +177,13 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         rdd
       }
 
-    val cp = new ColumnPruner(this, table)
+    val columnsUsed = new ColumnPruner(this, table).getColumnsUsed;
     prunedRdd.mapPartitions { iter =>
       if (iter.hasNext) {
         val tablePartition = iter.next.asInstanceOf[TablePartition]
-        cp.prune(tablePartition.iterator)
+        val tblPartitionIter = tablePartition.iterator.asInstanceOf[TablePartitionIterator]
+        new TablePartitionIterator(tblPartitionIter.numRows, tblPartitionIter.columnIterators, columnsUsed)
+        //tablePartition.iterator
       } else {
         Iterator()
       }
