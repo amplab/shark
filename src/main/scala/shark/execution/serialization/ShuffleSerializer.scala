@@ -112,9 +112,15 @@ class ShuffleDeserializationStream(stream: InputStream) extends DeserializationS
     val valueLen = readUnsignedVarInt()
     val keyByteArray = new Array[Byte](keyLen)
     readFully(stream, keyByteArray, keyLen)
-    val valueByteArray = new Array[Byte](valueLen)
-    readFully(stream, valueByteArray, valueLen)
-    (new ReduceKeyReduceSide(keyByteArray), valueByteArray).asInstanceOf[T]
+    val reduceKey = new ReduceKeyReduceSide(keyByteArray)
+
+    if (valueLen > 0) {
+      val valueByteArray = new Array[Byte](valueLen)
+      readFully(stream, valueByteArray, valueLen)
+      (reduceKey, valueByteArray).asInstanceOf[T]
+    } else {
+      (reduceKey, ShuffleDeserializationStream.EMPTY_BYTES).asInstanceOf[T]
+    }
   }
 
   def readFully(stream: InputStream, bytes: Array[Byte], length: Int) {
@@ -134,7 +140,7 @@ class ShuffleDeserializationStream(stream: InputStream) extends DeserializationS
     def readOrThrow(): Int = {
       val in = stream.read()
       if (in < 0) throw new java.io.EOFException
-      return in & 0xFF
+      in & 0xFF
     }
     var b: Int = readOrThrow()
     while ((b & 0x80) != 0) {
@@ -145,4 +151,9 @@ class ShuffleDeserializationStream(stream: InputStream) extends DeserializationS
     }
     value | (b << i)
   }
+}
+
+
+object ShuffleDeserializationStream {
+  val EMPTY_BYTES = Array.empty[Byte]
 }
