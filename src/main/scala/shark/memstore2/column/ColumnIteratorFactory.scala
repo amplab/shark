@@ -62,4 +62,48 @@ object ColumnIteratorFactory extends LogHelper{
       }
     }
   }
+
+
+  /**
+   * Create a factory for a column iterator wrapped by Run Length encoding 
+   */
+  def createWithRLE[T <: ColumnIterator](baseIterClass: Class[T]): ColumnIteratorFactory = {
+    new ColumnIteratorFactory {
+      override def createIterator(buf: ByteBufferReader): ColumnIterator = {
+          logDebug("baseIterClass " + baseIterClass + " created with RLE")
+          new RLEColumnIterator[T](baseIterClass, buf)
+      }
+    }
+  }
+
+
+  /**
+   * Create a factory for a column iterator wrapped by LZF compression
+   */
+  def createWithLZF[T <: ColumnIterator](baseIterClass: Class[T]): ColumnIteratorFactory = {
+    new ColumnIteratorFactory {
+      override def createIterator(buf: ByteBufferReader): ColumnIterator = {
+          logInfo("baseIterClass " + baseIterClass + " created with LZF")
+          new LZFColumnIterator[T](baseIterClass, buf)
+      }
+    }
+  }
+ 
+/*
+  def createWithEWAHDecorator(c: ColumnIterator) = {
+    new ColumnIteratorFactory {
+      override def createIterator(buf: ByteBufferReader): ColumnIterator = {
+        val nullable = buf.getLong() == 1L
+        if (nullable) {
+          logDebug(
+            " created with EWAHDecorator")
+// troubles mixing mixins and reflection in scala
+          new (classOf[c].getInstance(buf) with EWAHNullableColumnIteratorDecorator)
+        } else {
+          c
+        }
+      }
+    }
+  }
+*/
 }

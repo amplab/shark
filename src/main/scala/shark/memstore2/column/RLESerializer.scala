@@ -17,19 +17,15 @@
 
 package shark.memstore2.column
 
+import scala.collection.mutable._
+import scala.annotation.tailrec
 import shark.memstore2.buffer.ByteBufferReader
 
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-import scala.collection.mutable.ListBuffer
-
 import it.unimi.dsi.fastutil.bytes.ByteArrayList
 import it.unimi.dsi.fastutil.ints.IntArrayList
-
-import scala.collection.mutable._
-
-import scala.annotation.tailrec
 
 
 /* Decorator attempt with abstract override - incomplete - nandu

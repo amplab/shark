@@ -29,7 +29,7 @@ import org.apache.hadoop.io.Text
  * Column level statistics, including range (min, max).
  */
 sealed trait ColumnStats[@specialized(Boolean, Byte, Short, Int, Long, Float, Double) T]
-  extends Serializable {
+    extends Serializable {
 
   var _nullCount = 0
 
@@ -172,11 +172,33 @@ object ColumnStats {
     protected var _max: Text = null
     protected var _min: Text = null
 
+    protected var _prev: Text = null
+    var transitions: Int = 0
+    // protected var transitions_ = transitions // setter protected
+
     override def append(v: Text) {
       // Need to make a copy of Text since Text is not immutable and we reuse
       // the same Text object in serializer to mitigate frequent GC.
       if (_max == null || v.compareTo(_max) > 0) _max = new Text(v)
       if (_min == null || v.compareTo(_min) < 0) _min = new Text(v)
+
+      if (transitions == 0) { transitions = 1 }
+      else if (_prev == null || v.compareTo(_prev) != 0) { transitions += 1 }
+      else {}
+
+      if (v == null) { 
+        _prev = null
+      } else {
+        _prev = new Text(v)
+      }
+    }
+
+    override def appendNull() {
+      super.appendNull
+      if (transitions == 0) { transitions = 1 }
+      else if (null != _prev) { transitions += 1 }
+      else {}
+      _prev = null
     }
 
     override def readExternal(in: ObjectInput) {

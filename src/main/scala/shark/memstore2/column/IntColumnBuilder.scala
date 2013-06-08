@@ -37,8 +37,7 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
   private var _uniques: collection.mutable.Set[Int] = new HashSet()
   // compressionPossible is true by default but becomes false after there are
   // more than MAX_UNIQUE_VALUES.
-  private var compressionPossible = true
-  def isCompressed = compressionPossible
+  var compressionPossible = true
 
   override def initialize(initialSize: Int) {
     _nonNulls = new IntArrayList(initialSize)
@@ -98,16 +97,18 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
       }
       buf.rewind()
       buf
-    }
-    else { // compressionPossible = true
-      val dict = new Dictionary(_uniques.toList)
+    } else { // compressionPossible = true
+      val dict = new IntDictionary
+      logInfo("#uniques " + _uniques.size) 
+      dict.initialize(_uniques.toList)
       val minbufsize = (_nonNulls.size*1) + ColumnIterator.COLUMN_TYPE_LENGTH +
-        sizeOfNullBitmap + (dict.sizeinbits/8)
+        sizeOfNullBitmap + (dict.sizeInBits/8)
 
-      logDebug(" dict.sizeinbits/8 " + (dict.sizeinbits/8) +
-        " sizeOfNullBitmap " + sizeOfNullBitmap +
+      logInfo(
         " ColumnIterator.COLUMN_TYPE_LENGTH " +
         ColumnIterator.COLUMN_TYPE_LENGTH +
+        " sizeOfNullBitmap " + sizeOfNullBitmap +
+        " dict.sizeinbits/8 " + (dict.sizeInBits/8) +
         " _nonNulls.size*1 " + _nonNulls.size*1)
 
       val buf = ByteBuffer.allocate(minbufsize)
