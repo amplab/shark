@@ -18,7 +18,9 @@
 package shark.memstore2.column
 
 import java.nio.ByteBuffer
-import scala.collection.mutable.ListBuffer
+import scala.collection.mutable.{ListBuffer}
+import org.apache.hadoop.io.Text
+import org.apache.hadoop.io.IntWritable
 
 import shark.memstore2.buffer.ByteBufferReader
 import shark.memstore2.buffer.Unsafe
@@ -31,10 +33,26 @@ import shark.memstore2.buffer.Unsafe
  * 
  */
 
-class Dictionary(uniqueInts: List[Int]){
+trait Dictionary[@specialized(Int) T]{
+  var uniques: Array[T]
+  def initialize(u: List[T]): Unit
+  def get(b: Byte): T
+  def getWritable(b: Byte): Object
+  def getByte(t: T): Byte
+  def sizeInBits: Int
+  def size: Int = uniques.size
+}
+
+
+class IntDictionary extends Dictionary[Int]{
+  var uniques = new Array[Int](0)
+  override def initialize(u: List[Int]) = {
+    uniques = new Array[Int](u.size)
+    u.copyToArray(uniques)
+  }
 
   // return the Int associated with Byte
-  def get(b:Byte): Int = {
+  override def get(b:Byte): Int = {
     // Convert byte to index
     // -128, 128 ===> 0, 256
     var idx: Int = b
@@ -43,56 +61,65 @@ class Dictionary(uniqueInts: List[Int]){
     }
 
     if (idx < 0 || size <= idx) {
-      throw new IndexOutOfBoundsException("Index " + idx)
+      throw new IndexOutOfBoundsException("Index " + idx + " Size " + size)
     }
 
-    uniqueInts(idx)
+    uniques(idx)
+  }
+
+  override def getWritable(b: Byte): Object = {
+    new IntWritable(get(b))
   }
 
   // return the Byte representation for Int value
-  def getByte(i: Int): Byte = 
-    uniqueInts.indexOf(i).toByte
+  override def getByte(i: Int): Byte = 
+    uniques.indexOf(i).toByte
 
-  def sizeinbits = {
-    val ret = 32 * (1 + uniqueInts.size) 
+  override def sizeInBits = {
+    val ret = 32 * (1 + uniques.size) 
     // println("Need " + ret + " Bytes to store dictionary in memory")
     ret
   }
-
-  def size = uniqueInts.size
 }
+
+// class StringDictionary extends Dictionary[Text]{
+
+// }
 
 
 object DictionarySerializer{
 
   // Append the serialized bytes of the Dictionary into the ByteBuffer.
-  def writeToBuffer(buf: ByteBuffer, bitmap: Dictionary) {
+  def writeToBuffer(buf: ByteBuffer, bitmap: IntDictionary) {
     // compression size in Bytes
     // compression dict Bytes
-    buf.putInt(bitmap.sizeinbits/8)
+    buf.putInt(bitmap.sizeInBits/8)
     var pos: Int = 0
     while (pos < bitmap.size) {
-      // println("pos was " + pos)
+      // println("writetobuffer: pos was " + pos + " sizeInBits/8 " + bitmap.sizeInBits/8)
       buf.putInt(bitmap.get(pos.toByte))
       pos += 1
     }
+    // println("buf pos was " + buf.position)
     buf
   }
 
-  // Create an Dictionary from the byte buffer.
-  def readFromBuffer(bufReader: ByteBufferReader): Dictionary = {
+  // Create a Dictionary from the byte buffer.
+  def readFromBuffer(bufReader: ByteBufferReader): Dictionary[Int] = {
 
     val bufferLengthInBytes = bufReader.getInt()
     
     val uniqueCount = (bufferLengthInBytes - 4)/4 // 4 Bytes used to store length
-    var uniqueInts = new ListBuffer[Int]()
+    var uniques = new ListBuffer[Int]()
     var i = 0
     while (i < uniqueCount) {
-      uniqueInts += bufReader.getInt()
+      uniques += bufReader.getInt()
       i += 1
     }
-
-    val bitmap = new Dictionary(uniqueInts.toList)
-    bitmap
+ 
+    val dict = new IntDictionary
+    // println("bufferLengthInBytes " + bufferLengthInBytes + " readFromBuffer: uniques.size " + uniques.size)
+    dict.initialize(uniques.toList)
+    dict
   }
 }
