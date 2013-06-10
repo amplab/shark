@@ -28,13 +28,6 @@
 
     <ql.build.path>${hive.dev.home}/build/ql</ql.build.path>
 
-    <deb.pkg.name>shark-${classifier}</deb.pkg.name>
-    <deb.install.path>/usr/share/shark-${classifier}</deb.install.path>
-    <deb.user>root</deb.user>
-    <deb.hive.dependency>${hive.version}</deb.hive.dependency>
-
-    <ql.build.path>${hive.dev.home}/build/ql</ql.build.path>
-
     <!-- Default location, override on the command line if different -->
     <hive.dev.home>${basedir}/../hive</hive.dev.home>
     <hive.build.dir>${hive.dev.home}/build</hive.build.dir>
