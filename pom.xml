@@ -38,6 +38,7 @@
   </properties>
   <scm>
     <connection>scm:git:git://github.com/clearstorydata/shark.git</connection>
+    <developerConnection>scm:git:git@github.com:clearstorydata/shark.git</developerConnection>
     <url>http://github.com/clearstorydata/shark/tree/master</url>
   </scm>
 
