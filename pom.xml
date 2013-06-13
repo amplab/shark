@@ -210,7 +210,7 @@
     <dependency>
       <groupId>org.tachyonproject</groupId>
       <artifactId>tachyon</artifactId>
-      <version>0.2.2-csd-1</version>
+      <version>0.2.2-csd-1.1</version>
     </dependency>
 
     <!-- Testing -->
