@@ -29,13 +29,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector
 import org.apache.hadoop.io.Text
 
-import collection.mutable._
-import collection.mutable.ListBuffer
-
-class StringColumnBuilder extends ColumnBuilder[Text]{
-  // logger problems - rmeove before commit
-  private def logInfo(msg: String) = { println("INFO " + msg) }
-  private def logDebug(msg: String) = { println("DEBUG " + msg) }
+class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper {
 
   private var _stats: ColumnStats.StringColumnStats = null
   private var _uniques: collection.mutable.Set[Text] = new HashSet()
@@ -158,7 +152,6 @@ class StringColumnBuilder extends ColumnBuilder[Text]{
         buf
       }
       case "RLE" => {
-        // var strings = new ListBuffer[Text]()
         var totalStringLengthInBuffer = 0
 
         var i = 0
@@ -183,12 +176,12 @@ class StringColumnBuilder extends ColumnBuilder[Text]{
         
         // streaming construction
         val rleStrings = rleSs.getCoded
-
+        val vals = rleStrings map (_._2)
+        val runs = new IntArrayList(vals.size)
         totalStringLengthInBuffer = 0
-        var runs = new ArrayBuffer[Int]()
-        rleStrings.foreach { x =>
-          val (run, value) = x
-          runs += run
+        rleStrings.foreach { x => 
+          runs.add(x._1)
+          val value = x._2
           totalStringLengthInBuffer += 4 // int to mark length
           if(value != null)
             totalStringLengthInBuffer += value.getLength()
@@ -206,11 +199,11 @@ class StringColumnBuilder extends ColumnBuilder[Text]{
 
         logInfo("Allocated ByteBuffer of scheme " + scheme + " size " + minbufsize)
         logDebug("size of runs " + runs.size)
-        RLESerializer.writeToBuffer(buf, runs.toList)
+        RLESerializer.writeToBuffer(buf, runs)
         populateStringsInBuffer(rleStrings, buf)
       }
       case _ => throw new IllegalArgumentException(
-        "scheme muse be one of auto, none, RLE, LZF")
+        "scheme must be one of auto, none, RLE, LZF")
     } // match
   }
 
