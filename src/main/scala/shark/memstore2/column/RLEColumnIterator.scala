@@ -31,22 +31,35 @@ import shark.LogHelper
   * 
   */
 
-class RLEColumnIterator[T <: ColumnIterator](baseIterCls: Class[T], bytes: ByteBufferReader)
-    extends ColumnIterator{
-  private var lengths: IntArrayList = RLESerializer.readFromBuffer(bytes)
+class RLEColumnIterator[T <: ColumnIterator](
+  baseIterCls: Class[T])
+    extends ColumnIterator {
 
   private var extPos = -1
   private var currentRunPos = -1
   private var intPos = -1
-
   private def length = lengths.get(intPos)
 
-  val baseIter: T = {
-     val ctor = baseIterCls.getConstructor(classOf[ByteBufferReader])
-     ctor.newInstance(bytes).asInstanceOf[T]
+  private var lengths: IntArrayList = null
+  var baseIter: T = _
+
+  // allows delayed construction - required while composing iterators - see factory
+  def initialize(bytes: ByteBufferReader) {
+    lengths = RLESerializer.readFromBuffer(bytes)
+    baseIter = {
+      val ctor = baseIterCls.getConstructor(classOf[ByteBufferReader])
+      ctor.newInstance(bytes).asInstanceOf[T]
+    }
+  }
+
+  // auxiliary constructor
+  def this(baseIterCls: Class[T], bytes: ByteBufferReader) = {
+    this(baseIterCls)
+    initialize(bytes)
   }
 
   override def next() {
+    require(lengths != null)
     // first call
     if (currentRunPos == -1) {
       intPos = 0;

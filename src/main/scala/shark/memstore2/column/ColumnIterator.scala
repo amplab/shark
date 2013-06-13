@@ -123,6 +123,9 @@ object ColumnIterator extends LogHelper {
   val LZF_STRING = 16
   _iteratorFactory(LZF_STRING) = createFactoryWithLZF(classOf[StringColumnIterator.Default])
 
+  val RLE_INT = 17
+  _iteratorFactory(RLE_INT) = ColumnIteratorFactory.createIntWithEwahRLE
+
   // Helper methods so we don't need to write the whole thing up there.
   def createFactory[T <: ColumnIterator](c: Class[T]) = {
     ColumnIteratorFactory.create(c)

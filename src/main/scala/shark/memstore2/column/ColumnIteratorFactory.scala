@@ -76,6 +76,27 @@ object ColumnIteratorFactory extends LogHelper{
     }
   }
 
+  /**
+   * Create a factory for an int column iterator wrapped by RLE first and then EWAH
+   */
+  def createIntWithEwahRLE: ColumnIteratorFactory = {
+    new ColumnIteratorFactory {
+      override def createIterator(buf: ByteBufferReader): ColumnIterator = {
+
+        logInfo("IntColumnIterator " + " created with RLE & EWAH")
+        val nullable = (buf.getLong() == 1L)
+        if (nullable) {
+          // funky 3 layer construction required because bytebuffer advances automatically
+          val iter = new RLEColumnIterator(classOf[IntColumnIterator.Default])
+          val ret = new EWAHNullableColumnIterator(iter, buf)
+          iter.initialize(buf)
+          ret
+        } else {
+          new RLEColumnIterator(classOf[IntColumnIterator.Default], buf)
+        }
+      }
+    }
+  }
 
   /**
    * Create a factory for a column iterator wrapped by LZF compression
@@ -84,7 +105,8 @@ object ColumnIteratorFactory extends LogHelper{
     new ColumnIteratorFactory {
       override def createIterator(buf: ByteBufferReader): ColumnIterator = {
           logInfo("baseIterClass " + baseIterClass + " created with LZF")
-          new LZFColumnIterator[T](baseIterClass, buf)
+          new LZFBlockColumnIterator[T](baseIterClass, buf)
+//        new LZFColumnIterator[T](baseIterClass, buf)
       }
     }
   }
