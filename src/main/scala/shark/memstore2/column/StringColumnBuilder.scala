@@ -23,6 +23,7 @@ import java.nio.ByteOrder
 
 import it.unimi.dsi.fastutil.bytes.ByteArrayList
 import it.unimi.dsi.fastutil.ints.IntArrayList
+import com.ning.compress.lzf.LZFEncoder
 
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector
@@ -77,15 +78,13 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper {
 
   def pickCompressionScheme: String = {
     // Initial RLE choice logic - use RLE if the
-    // selectivity is > 20% &&
-    // ratio of transitions > 30% &&
-    // #uniques is under 10000 (avoid stack overflows)
+    // selectivity is < 20% &&
+    // ratio of transitions < 30% 
     val selectivity = (_uniques.size).toDouble / _lengthArr.size
     val transitionsRatio = (_stats.transitions).toDouble / _lengthArr.size
     val rleUsed = 
       ((selectivity < 0.2) &&
-        (transitionsRatio < 0.3) &&
-        (_uniques.size < 10000))
+        (transitionsRatio < 0.3))
     logInfo("uniques=" + _uniques.size + " selectivity=" + selectivity + 
       " transitionsRatio=" + transitionsRatio + 
       " transitions=" + _stats.transitions +
@@ -98,7 +97,7 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper {
 
   override def build: ByteBuffer = {
 
-    var scheme = System.getenv("TEST_SHARK_COLUMN_COMPRESSION_SCHEME")
+    var scheme = System.getenv("TEST_SHARK_STRING_COLUMN_COMPRESSION_SCHEME")
     if(scheme == null || scheme == "auto") scheme = pickCompressionScheme
     // choices are none, auto, RLE, LZF
 
@@ -111,29 +110,22 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper {
         buf.order(ByteOrder.nativeOrder())
         buf.putLong(ColumnIterator.STRING)
 
-        populateStringsInBuffer(_arr, _lengthArr, buf)
+        val (popBytes, pop) = populateStringsInBuffer(_arr, _lengthArr, buf)
+        pop
       }
       case "LZF" => {
 
-        // on waking up - craft a byte array and send it for LZF compr
-        val tempBufSize = _lengthArr.size * 4 + _arr.size
-        val tempBuf = ByteBuffer.allocate(tempBufSize)
-        logInfo("Allocated tempBuf of size " + tempBufSize)
-        tempBuf.order(ByteOrder.nativeOrder())
-        populateStringsInBuffer(_arr, _lengthArr, tempBuf)
-        tempBuf.rewind
-        val arr: Array[Byte] = tempBuf.array()
+        val (tempBufSize, compressed) = encodeAsBlocks(_arr, _lengthArr)
 
-        val compressed = LZFSerializer.encode(arr)
-
-        var minbufsize = 4 + compressed.size +
+        var minbufsize = 8 + compressed.size +
         ColumnIterator.COLUMN_TYPE_LENGTH
         val buf = ByteBuffer.allocate(minbufsize)
         logInfo("Allocated ByteBuffer of scheme " + scheme + " size " + minbufsize)
         buf.order(ByteOrder.nativeOrder())
         buf.putLong(ColumnIterator.LZF_STRING)
 
-        LZFSerializer.writeToBuffer(buf, compressed)
+        LZFSerializer.writeToBuffer(buf, tempBufSize, compressed)
+
         buf.rewind
         buf
       }
@@ -184,8 +176,8 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper {
         buf.order(ByteOrder.nativeOrder())
         buf.putLong(ColumnIterator.RLE_STRING)
 
-        logInfo("Allocated ByteBuffer (RLE) of size " + minbufsize)
-        logInfo("size of runs " + runs.size)
+        logInfo("Allocated ByteBuffer of scheme " + scheme + " size " + minbufsize)
+        logDebug("size of runs " + runs.size)
         RLESerializer.writeToBuffer(buf, runs.toList)
         populateStringsInBuffer(rleStrings, buf)
       }
@@ -194,13 +186,66 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper {
     } // match
   }
 
-  protected def populateStringsInBuffer(_arr:ByteArrayList,
-    _lengthArr:IntArrayList, buf:ByteBuffer): ByteBuffer = {
+
+  // encode into blocks of fixed number of elements
+  // return uncompressed size and buffer with compressed data
+  def encodeAsBlocks(
+    _arr:ByteArrayList,
+    _lengthArr:IntArrayList): (Int, Array[Byte]) = {
+
+    val tempBufSize = 3*(_lengthArr.size * 4 + _arr.size)
+    val tempBuf = ByteBuffer.allocate(tempBufSize)
+    logInfo("Allocated tempBuf of size " + tempBufSize)
+    tempBuf.order(ByteOrder.nativeOrder())
+
+
+    var stringsSoFar = 0
+    var outSoFar: Int = 0
+    var tempSoFar: Int = 0
+    var out = new Array[Byte](math.max(tempBufSize, 2*LZFSerializer.BLOCK_SIZE)) // extra just in case nothing compresses
+    var len = LZFSerializer.BLOCK_SIZE
+    if(_lengthArr.size < LZFSerializer.BLOCK_SIZE) len = _lengthArr.size
+
+
+    while(stringsSoFar < _lengthArr.size) {
+      var (tempBytes, pop) =  populateStringsInBuffer(_arr, _lengthArr, tempBuf, stringsSoFar, len)
+      tempBuf.rewind
+
+      val b: Array[Byte] = tempBuf.array()
+      logDebug("_lengthArr.size, tempSoFar, tempBytes, stringsSoFar, outSoFar")
+      logDebug(List(_lengthArr.size, 0, tempBytes, stringsSoFar, outSoFar).toString)
+      outSoFar = LZFEncoder.appendEncoded(b, 0, tempBytes, out, outSoFar)
+      tempSoFar += tempBytes
+      stringsSoFar += LZFSerializer.BLOCK_SIZE
+      if(_lengthArr.size - stringsSoFar <= LZFSerializer.BLOCK_SIZE) 
+        len = _lengthArr.size - stringsSoFar
+    }
+
+    val encodedArr = new Array[Byte](outSoFar)
+    Array.copy(out, 0, encodedArr, 0, outSoFar)
+    (tempSoFar, encodedArr)
+  }
+
+  // used to populate subset of strings in _arr and _lengthArr
+  // mainly used to encode blocks of strings instead of all strings
+  protected def populateStringsInBuffer(
+    _arr:ByteArrayList,
+    _lengthArr:IntArrayList, 
+    buf:ByteBuffer,
+    offset: Int = 0,
+    numStrings: Int = _lengthArr.size): (Int, ByteBuffer) = {
+
+    var runningOffset = 0
+    var j = 0
+    while (j < offset) {
+      runningOffset += _lengthArr.get(j)
+      j += 1
+    }
+    val initialArrOffset = runningOffset
 
     var i = 0
-    var runningOffset = 0
-    while (i < _lengthArr.size) {
-      val len = _lengthArr.get(i)
+    while (i < numStrings) {
+      val len = _lengthArr.get(i+offset)
       buf.putInt(len)
 
       if (NULL_VALUE != len) {
@@ -211,8 +256,9 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper {
       i += 1
     }
 
+    val bytesWrittenInBuffer = (runningOffset - initialArrOffset) + (4*numStrings)
     buf.rewind
-    buf
+    (bytesWrittenInBuffer, buf)
   }
 
   // for encoded pairs of (length, value)

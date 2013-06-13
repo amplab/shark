@@ -28,26 +28,34 @@ import shark.memstore2.buffer.ByteBufferReader
  * A wrapper around non-null ColumnIterator so it can handle null values.
  */
 class EWAHNullableColumnIterator[T <: ColumnIterator](
-    baseIterCls: Class[T], bytes: ByteBufferReader)
+    bIter: T, bytes: ByteBufferReader)
   extends ColumnIterator {
 
   val _nullBitmap: EWAHCompressedBitmap =
   EWAHCompressedBitmapSerializer.readFromBuffer(bytes)
 
-  /*
-   *  The location of the null bits is returned, in increasing order through
-   *  _nullsIter
-   */
+  
+  // The location of the null bits is returned, in increasing order through
+  // _nullsIter
   val _nullsIter: IntIterator = _nullBitmap.intIterator
 
   var _pos = -1
   var _nextNullPosition = -1
   private var currentNull = false
 
-  val baseIter: T = {
-    val ctor = baseIterCls.getConstructor(classOf[ByteBufferReader])
-    ctor.newInstance(bytes).asInstanceOf[T]
-  }
+  // Construction using a reference instead of classname - used to compose with
+  // other encodings like RLE
+  val baseIter: T = bIter
+
+  // auxiliary constructor for most construction
+  def this(baseIterCls: Class[T], bytes: ByteBufferReader) = 
+    this(
+      {
+        val ctor = baseIterCls.getConstructor(classOf[ByteBufferReader])
+        ctor.newInstance(bytes).asInstanceOf[T]
+      },
+      bytes)
+
 
   override def next() {
     if (_pos >= _nextNullPosition || _pos == -1) {
@@ -55,8 +63,6 @@ class EWAHNullableColumnIterator[T <: ColumnIterator](
         _nextNullPosition = _nullsIter.next
       } 
     }
-
-    // println("EWAH Nullable next() called")
 
     _pos += 1
     // println(" _nextNullPosition " + _nextNullPosition + " ][ _pos " + _pos)

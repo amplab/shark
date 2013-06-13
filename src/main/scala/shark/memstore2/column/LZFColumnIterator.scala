@@ -23,7 +23,8 @@ import java.nio.ByteBuffer
 
 
 /**
- * A wrapper that uses LZ compression
+ * A wrapper that uses LZ compression. Decompresses in one shot requiring a lot
+ * of memory to store the uncompressed data.
  */
 
 
@@ -32,7 +33,7 @@ class LZFColumnIterator[T <: ColumnIterator](
     extends ColumnIterator {
 
   var initialized = false
-  val compressedArr = LZFSerializer.readFromBuffer(bytes)
+  val (num, compressedArr) = LZFSerializer.readFromBuffer(bytes)
   val uncompressedArr = LZFSerializer.decode(compressedArr)
   val uncompressedBytes = ByteBuffer.wrap(uncompressedArr)
   val baseIter: T = {

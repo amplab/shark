@@ -23,7 +23,7 @@ import java.io.Externalizable
 import java.sql.Timestamp
 
 import org.apache.hadoop.io.Text
-
+import collection.mutable.{Set, HashSet}
 
 /**
  * Column level statistics, including range (min, max).
@@ -82,7 +82,7 @@ object ColumnStats {
 
   object IntColumnStats {
     private val UNINITIALIZED = 0  // Haven't seen the first value yet.
-    private val INITIALIAZED = 1   // Seen first, and processing second value.
+    private val INITIALIZED = 1   // Seen first, and processing second value.
     private val ASCENDING = 2
     private val DESCENDING = 3
     private val UNORDERED = 4
@@ -97,6 +97,11 @@ object ColumnStats {
     private var _lastValue = 0
     private var _maxDelta = 0
 
+    var uniques: collection.mutable.Set[Int] = new HashSet()
+    protected var uniques_ = uniques // setter protected
+    var transitions: Int = 0
+    protected var transitions_ = transitions // setter protected
+
     def isAscending = _orderedState != DESCENDING && _orderedState != UNORDERED
     def isDescending = _orderedState != ASCENDING && _orderedState != UNORDERED
     def isOrdered = isAscending || isDescending
@@ -105,26 +110,35 @@ object ColumnStats {
     override def append(v: Int) {
       if (v > _max) _max = v
       if (v < _min) _min = v
+      uniques += v
 
       if (_orderedState == UNINITIALIZED) {
         // First value.
-        _orderedState = INITIALIAZED
+        _orderedState = INITIALIZED
         _lastValue = v
-      } else if (_orderedState == INITIALIAZED) {
+        transitions = 1
+      } else if (_orderedState == INITIALIZED) {
         // Second value.
         _orderedState = if (v >= _lastValue) ASCENDING else DESCENDING
         _maxDelta = math.abs(v - _lastValue)
+        if(_maxDelta != 0) transitions += 1
         _lastValue = v
       } else if (_orderedState == ASCENDING) {
-        if (v < _lastValue) _orderedState = UNORDERED
-        else {
+        if (v < _lastValue) {
+          _orderedState = UNORDERED
+          transitions += 1
+        } else {
           if (v - _lastValue > _maxDelta) _maxDelta = v - _lastValue
+          if(_maxDelta != 0) transitions += 1
           _lastValue = v
         }
       } else if (_orderedState == DESCENDING) {
-        if (v > _lastValue) _orderedState = UNORDERED
-        else {
+        if (v > _lastValue) {
+          _orderedState = UNORDERED
+          transitions += 1
+        } else {
           if (_lastValue - v > _maxDelta) _maxDelta = _lastValue - v
+          if(_maxDelta != 0) transitions += 1
           _lastValue = v
         }
       }
@@ -174,7 +188,7 @@ object ColumnStats {
 
     protected var _prev: Text = null
     var transitions: Int = 0
-    // protected var transitions_ = transitions // setter protected
+    protected var transitions_ = transitions // setter protected
 
     override def append(v: Text) {
       // Need to make a copy of Text since Text is not immutable and we reuse

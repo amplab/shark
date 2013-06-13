@@ -27,27 +27,25 @@ import com.ning.compress.lzf.LZFDecoder
 import com.ning.compress.lzf.LZFInputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.io.InputStream
 
-
-// class LZFBlockSerializer{
-
-// LZF chunk length is 64K - so to get one least one chunk in the decode always
-// try to decode more than that.
-
-//   def decodeStream(
-
-// }
 
 object LZFSerializer{
+  val MIN_CHUNK_BYTES = 230 // a safe set of bytes to account for stuff added on
+                            // by LZF even if there is nothing to compress
+  val BLOCK_SIZE = 65536
 
-  def encode(b: Array[Byte]) = LZFEncoder.encode(b)
-  def decode(b: Array[Byte]) = LZFDecoder.decode(b)
+
+  def encode(b: Array[Byte]): Array[Byte] = LZFEncoder.encode(b)
+  def decode(b: Array[Byte]): Array[Byte] = LZFDecoder.decode(b)
+
 
   // Also advances the buffer to the point after the uncompressedBytes have been written
-  def writeToBuffer(buf: ByteBuffer, compressedBytes: Array[Byte]) {
+  def writeToBuffer(buf: ByteBuffer, numUncompressedBytes: Int, compressedBytes: Array[Byte]) {
+    buf.putInt(numUncompressedBytes)
     val len = compressedBytes.size
-    val iter = compressedBytes.iterator
     buf.putInt(len)
+    val iter = compressedBytes.iterator
     while (iter.hasNext) {
       buf.put(iter.next)
     }
@@ -55,7 +53,8 @@ object LZFSerializer{
   }
 
   // Also advances the buffer to the point after the uncompressedBytes have been read
-  def readFromBuffer(buf: ByteBufferReader): Array[Byte] = {
+  def readFromBuffer(buf: ByteBufferReader): (Int, Array[Byte]) = {
+    val numUncompressedBytes = buf.getInt()
     val num = buf.getInt()
     var compressedBytes = new Array[Byte](num)
 
@@ -64,7 +63,8 @@ object LZFSerializer{
       compressedBytes(i) = (buf.getByte())
       i += 1
     }
-    compressedBytes
+    (numUncompressedBytes, compressedBytes)
   }
+
 
 }

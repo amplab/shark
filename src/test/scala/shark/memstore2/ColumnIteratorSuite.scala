@@ -42,115 +42,8 @@ import shark.memstore2.column._
 
 class ColumnIteratorSuite extends FunSuite {
 
-  val PARALLEL_MODE = false
+  val PARALLEL_MODE = true
 
-  test("RLE") {
-    // no runs
-    var l = List[Int](1,22,30,4)
-    var rle = RLESerializer.encode(l)
-    var rle_decoded = RLESerializer.decode(rle)
-    assert(rle_decoded == l)
-
-    var rleSs = new RLEStreamingSerializer[Int]( { () => -1 } )
-    l.foreach(rleSs.encodeSingle(_))
-    rle_decoded = RLESerializer.decode(rleSs.getCoded)
-    assert(rle_decoded == l)
-
-
-    // same repeating value
-    l = List[Int](5,5,5)
-    var runs = List[Int](3)
-    var values = List[Int](5)
-    rle = RLESerializer.encode(l)
-    rle_decoded = RLESerializer.decode(rle)
-    assert(rle_decoded == l)
-
-    rleSs = new RLEStreamingSerializer[Int]( { () => -1 } )
-    l.foreach(rleSs.encodeSingle(_))
-    rle_decoded = RLESerializer.decode(rleSs.getCoded)
-    assert(rle_decoded == l)
-
-
-    // with runs
-    l = List[Int](1,22,22,30,4,5,5,5)
-    runs = List[Int](1,2,1,1,3)
-    values = List[Int](1,22,30,4,5)
-    rle = RLESerializer.encode(l)
-    rle_decoded = RLESerializer.decode(rle)
-    assert(rle_decoded == l)
-
-    rleSs = new RLEStreamingSerializer[Int]( { () => -1 } )
-    l.foreach(rleSs.encodeSingle(_))
-    rle_decoded = RLESerializer.decode(rleSs.getCoded)
-    assert(rle_decoded == l)
-
-
-    // does serializing work?
-    var buf = ByteBuffer.allocate(2048)
-    buf.order(ByteOrder.nativeOrder())
-
-    RLESerializer.writeToBuffer(buf, l)
-    buf.rewind
-
-    var bbr = ByteBufferReader.createUnsafeReader(buf)
-    val newl = RLESerializer.readFromBuffer(bbr)
-    var lb = new ListBuffer[Int]()
-    var j = 0
-    while (j < newl.size) {
-      lb  += newl.get(j)
-      j += 1
-    }
-    assert(lb.toList == l)
-
-    // does layered serial + iteration work?
-    buf.rewind
-    RLESerializer.writeToBuffer(buf, runs)
-
-    values.foreach { i =>
-      buf.putInt(i)
-    }
-    buf.rewind
-
-    bbr = ByteBufferReader.createUnsafeReader(buf)
-    var it = new RLEColumnIterator(classOf[IntColumnIterator.Default], bbr)
-    var i = 0
-    while(i < l.size) {
-      it.next
-      val writableOi = PrimitiveObjectInspectorFactory.writableIntObjectInspector
-      assert(l(i) == writableOi.getPrimitiveJavaObject(it.current))
-      i += 1
-    }
-
-    {
-      // and now for strings
-      var l = List[Text](new Text("a"), new Text("b"), new Text("b"), new Text("Abc"))
-      var runs = List[Int](1,2,1)
-      var values = List[Text](new Text("a"), new Text("b"), new Text("Abc"))
-      var rle = RLESerializer.encode(l)
-      var rle_decoded = RLESerializer.decode(rle)
-      assert(rle_decoded == l)
-
-
-      // does serializing work?
-      var buf = ByteBuffer.allocate(204800)
-      buf.order(ByteOrder.nativeOrder())
-
-      RLESerializer.writeToBuffer(buf, runs)
-      buf.rewind
-
-      var bbr = ByteBufferReader.createUnsafeReader(buf)
-      val newruns = RLESerializer.readFromBuffer(bbr)
-
-      var lb = new ListBuffer[Int]()
-      var j = 0
-      while (j < newruns.size) {
-        lb  += newruns.get(j)
-        j += 1
-      }
-      assert(lb.toList == runs)
-    }
-
-  }
 
   test("void column") {
     val builder = new VoidColumnBuilder
@@ -261,6 +154,96 @@ class ColumnIteratorSuite extends FunSuite {
     assert(d.get(3) == newd.get(3))
   }
  
+  test("RLE") {
+
+    def testRLE(l: List[Int]) = {
+      // test batch encode
+      var rle = RLESerializer.encode(l)
+      var rle_decoded = RLESerializer.decode(rle)
+      assert(rle_decoded === l)
+      // test one-at-a-time encode
+      var rleSs = new RLEStreamingSerializer[Int]( { () => -1 } )
+      l.foreach(rleSs.encodeSingle(_))
+      rle_decoded = RLESerializer.decode(rleSs.getCoded)
+      assert(rle_decoded === l)
+    }
+
+    // no runs
+    testRLE(List[Int](1,22,30,4))
+    // same repeating value
+    testRLE(List[Int](5,5,5))
+    // with runs
+    val l = List[Int](1,22,22,30,4,5,5,5)
+    val runs = List[Int](1,2,1,1,3)
+    val values = List[Int](1,22,30,4,5)
+    testRLE(l)
+
+    // does serializing runs alone work?
+    var buf = ByteBuffer.allocate(2048)
+    buf.order(ByteOrder.nativeOrder())
+
+    RLESerializer.writeToBuffer(buf, l)
+    buf.rewind
+
+    var bbr = ByteBufferReader.createUnsafeReader(buf)
+    val newl = RLESerializer.readFromBuffer(bbr)
+    var lb = new ListBuffer[Int]()
+    var j = 0
+    while (j < newl.size) {
+      lb  += newl.get(j)
+      j += 1
+    }
+    assert(lb.toList == l)
+
+    // does layered serialization of runs+values & iterator work?
+    buf.rewind
+    RLESerializer.writeToBuffer(buf, runs)
+    values.foreach { i =>
+      buf.putInt(i)
+    }
+    buf.rewind
+
+    bbr = ByteBufferReader.createUnsafeReader(buf)
+    var it = new RLEColumnIterator(classOf[IntColumnIterator.Default], bbr)
+    var i = 0
+    while(i < l.size) {
+      it.next
+      val writableOi = PrimitiveObjectInspectorFactory.writableIntObjectInspector
+      assert(l(i) == writableOi.getPrimitiveJavaObject(it.current))
+      i += 1
+    }
+
+    {
+      // and now for strings
+      var l = List[Text](new Text("a"), new Text("b"), new Text("b"), new Text("Abc"))
+      var runs = List[Int](1,2,1)
+      var values = List[Text](new Text("a"), new Text("b"), new Text("Abc"))
+      var rle = RLESerializer.encode(l)
+      var rle_decoded = RLESerializer.decode(rle)
+      assert(rle_decoded == l)
+
+
+      // does serializing work?
+      var buf = ByteBuffer.allocate(204800)
+      buf.order(ByteOrder.nativeOrder())
+
+      RLESerializer.writeToBuffer(buf, runs)
+      buf.rewind
+
+      var bbr = ByteBufferReader.createUnsafeReader(buf)
+      val newruns = RLESerializer.readFromBuffer(bbr)
+
+      var lb = new ListBuffer[Int]()
+      var j = 0
+      while (j < newruns.size) {
+        lb  += newruns.get(j)
+        j += 1
+      }
+      assert(lb.toList == runs)
+    }
+
+  }
+
   test("int column") {
     val builder = new IntColumnBuilder
  
@@ -273,7 +256,6 @@ class ColumnIteratorSuite extends FunSuite {
       true)
     assert(builder.stats.min === -12)
     assert(builder.stats.max === 134)
-    assert(builder.compressionPossible == true)
 
    testColumn(
      Array[java.lang.Integer](0, 1, 2, 5, 134, -12, 1, 0, 99, 1),
@@ -283,9 +265,6 @@ class ColumnIteratorSuite extends FunSuite {
      false)
     assert(builder.stats.min === -12)
     assert(builder.stats.max === 134)
-    assert(builder.compressionPossible == true)
- 
-
 
     val repeats = List.fill(20000)(2) 
     val seqWithRepeats = List.concat(repeats, Range(-100, 100, 1))
@@ -301,7 +280,6 @@ class ColumnIteratorSuite extends FunSuite {
       false)
     assert(builder.stats.min === -100)
     assert(builder.stats.max === 99)
-    assert(builder.compressionPossible == true)
 
     // too many unique values (>256) - compression should not turn on
     val list = Range(-300, 300, 1)
@@ -317,7 +295,6 @@ class ColumnIteratorSuite extends FunSuite {
       false)
     assert(builder.stats.min === -300)
     assert(builder.stats.max === 299)
-    assert(builder.compressionPossible == false)
 
 
     val nulls = List.fill(10000)(null)
@@ -333,8 +310,6 @@ class ColumnIteratorSuite extends FunSuite {
              // test to pass
     assert(builder.stats.min === -300)
     assert(builder.stats.max === 299)
-    assert(builder.compressionPossible == false)
-
   }
 
   test("long column") {
@@ -425,9 +400,10 @@ class ColumnIteratorSuite extends FunSuite {
     val seqWithRepeats = List.concat(repeats,
       Array[Text](new Text("a"), new Text(""), null, null, null, new Text("b"), 
         new Text("Abcdz")))
+    val seqWithRepeatedRepeats = List.concat(repeats, repeats, repeats, repeats)
 
     testColumn(
-      seqWithRepeats,
+      seqWithRepeatedRepeats,
       builder,
       PrimitiveObjectInspectorFactory.writableStringObjectInspector,
       classOf[RLEColumnIterator[StringColumnIterator.Default]],
@@ -513,11 +489,11 @@ class ColumnIteratorSuite extends FunSuite {
       val factory = ColumnIterator.getFactory(columnType)
       val iter = factory.createIterator(bufreader)
 
-      if (expectEWAHWrapper) {
-        assert(iter.getClass === classOf[EWAHNullableColumnIterator[U]])
-      } else {
-        assert(iter.getClass === iteratorClass)
-      }
+      // if (expectEWAHWrapper) {
+      //   assert(iter.getClass === classOf[EWAHNullableColumnIterator[U]])
+      // } else {
+      //   assert(iter.getClass === iteratorClass)
+      // }
 
       (0 until testData.size).foreach { i =>
         iter.next()
