@@ -119,8 +119,10 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
           i += 1
         }
 
-        val runs = rleSs.getCoded map (_._1)
-        val vals = rleSs.getCoded map (_._2)
+        val rleStrings = rleSs.getCoded
+        val vals = rleStrings map (_._2)
+        val runs = new IntArrayList(vals.size)
+        rleStrings.foreach ( x => runs.add(x._1) )
 
         val minbufsize = 
           4 + //#runs
@@ -185,7 +187,7 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
         buf
       }
       case _ => throw new IllegalArgumentException(
-        "scheme muse be one of auto, none, RLE, dict")
+        "scheme must be one of auto, none, RLE, dict")
     } // match
 
   }

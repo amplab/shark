@@ -23,8 +23,6 @@ import shark.memstore2.buffer.ByteBufferReader
 
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-
-import it.unimi.dsi.fastutil.bytes.ByteArrayList
 import it.unimi.dsi.fastutil.ints.IntArrayList
 
 
@@ -55,7 +53,7 @@ trait RLEncoding[T] extends ColumnBuilder[T]{
 */
 
 class RLEStreamingSerializer[A](val fac: () => A){
-  var coded = collection.mutable.ListBuffer.empty[(Int,A)]
+  var coded = collection.mutable.ArrayBuffer.empty[(Int,A)]
   private var coded_ = coded
 
   // TODO consider a encodeFinished() call and make this a read-only method
@@ -140,21 +138,8 @@ object RLESerializer{
   def decode[A](ls: List[(Int, A)]): List[A] =
     ls flatMap { e => List.fill(e._1)(e._2) }
 
+
   // Prefix the run lengths into the buffer
-  // Also advances the buffer to the point after the lengths have been written
-  def writeToBuffer(buf: ByteBuffer, lengths: List[Int]) {
-    buf.order(ByteOrder.nativeOrder())
-    val len = lengths.size
-    val iter = lengths.iterator
-    buf.putInt(len)
-    while (iter.hasNext) {
-      buf.putInt(iter.next)
-    }
-    buf
-  }
-
-
-  // Version with IntArrayList java implementation instead of scala Lists
   // Also advances the buffer to the point after the lengths have been written
   def writeToBuffer(buf: ByteBuffer, lengths: IntArrayList) {
     buf.order(ByteOrder.nativeOrder())
@@ -168,21 +153,7 @@ object RLESerializer{
   }
 
 
-  // Create a List[Ints] representing the lengths from the byte buffer.
-  // Also advances the buffer to the point after the lengths have been read
-  // def readFromBuffer(buf: ByteBufferReader): List[Int] = {
-  //   val numLengths = buf.getInt()
-  //   var lengths = ListBuffer[Int]()
-  //   var i = 0
-  //   while (i < numLengths) {
-  //     lengths += buf.getInt()
-  //     i += 1
-  //   }
-  //   lengths.toList
-  // }
-
-
-  // Create a List[Ints] representing the lengths from the byte buffer.
+  // Create a IntArrayList representing the run lengths from the byte buffer.
   // Also advances the buffer to the point after the lengths have been read
   def readFromBuffer(buf: ByteBufferReader): IntArrayList = {
     val numLengths = buf.getInt()

@@ -17,6 +17,7 @@
 
 package shark.memstore2
 
+import it.unimi.dsi.fastutil.ints.IntArrayList
 import java.sql.Timestamp
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -168,6 +169,12 @@ class ColumnIteratorSuite extends FunSuite {
       assert(rle_decoded === l)
     }
 
+    def convertList(l: List[Int]): IntArrayList = {
+      var ret = new IntArrayList(l.size)
+      l.foreach { x => ret.add(x) }
+      ret
+    }
+
     // no runs
     testRLE(List[Int](1,22,30,4))
     // same repeating value
@@ -182,7 +189,7 @@ class ColumnIteratorSuite extends FunSuite {
     var buf = ByteBuffer.allocate(2048)
     buf.order(ByteOrder.nativeOrder())
 
-    RLESerializer.writeToBuffer(buf, l)
+    RLESerializer.writeToBuffer(buf, convertList(l))
     buf.rewind
 
     var bbr = ByteBufferReader.createUnsafeReader(buf)
@@ -197,7 +204,7 @@ class ColumnIteratorSuite extends FunSuite {
 
     // does layered serialization of runs+values & iterator work?
     buf.rewind
-    RLESerializer.writeToBuffer(buf, runs)
+    RLESerializer.writeToBuffer(buf, convertList(runs))
     values.foreach { i =>
       buf.putInt(i)
     }
@@ -227,7 +234,7 @@ class ColumnIteratorSuite extends FunSuite {
       var buf = ByteBuffer.allocate(204800)
       buf.order(ByteOrder.nativeOrder())
 
-      RLESerializer.writeToBuffer(buf, runs)
+      RLESerializer.writeToBuffer(buf, convertList(runs))
       buf.rewind
 
       var bbr = ByteBufferReader.createUnsafeReader(buf)

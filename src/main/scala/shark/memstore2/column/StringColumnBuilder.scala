@@ -18,6 +18,7 @@
 package shark.memstore2.column
 
 import shark.{LogHelper, SharkConfVars}
+import collection.mutable.{Set, HashSet}
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -28,9 +29,6 @@ import com.ning.compress.lzf.LZFEncoder
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector
 import org.apache.hadoop.io.Text
-
-import collection.mutable._
-import collection.mutable.ListBuffer
 
 class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper {
 
@@ -130,7 +128,6 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper {
         buf
       }
       case "RLE" => {
-        // var strings = new ListBuffer[Text]()
         var totalStringLengthInBuffer = 0
 
         var i = 0
@@ -155,12 +152,12 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper {
         
         // streaming construction
         val rleStrings = rleSs.getCoded
-
+        val vals = rleStrings map (_._2)
+        val runs = new IntArrayList(vals.size)
         totalStringLengthInBuffer = 0
-        var runs = new ArrayBuffer[Int]()
-        rleStrings.foreach { x =>
-          val (run, value) = x
-          runs += run
+        rleStrings.foreach { x => 
+          runs.add(x._1)
+          val value = x._2
           totalStringLengthInBuffer += 4 // int to mark length
           if(value != null)
             totalStringLengthInBuffer += value.getLength()
@@ -178,11 +175,11 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper {
 
         logInfo("Allocated ByteBuffer of scheme " + scheme + " size " + minbufsize)
         logDebug("size of runs " + runs.size)
-        RLESerializer.writeToBuffer(buf, runs.toList)
+        RLESerializer.writeToBuffer(buf, runs)
         populateStringsInBuffer(rleStrings, buf)
       }
       case _ => throw new IllegalArgumentException(
-        "scheme muse be one of auto, none, RLE, LZF")
+        "scheme must be one of auto, none, RLE, LZF")
     } // match
   }
 
