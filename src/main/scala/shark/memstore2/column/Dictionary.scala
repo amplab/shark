@@ -25,14 +25,11 @@ import org.apache.hadoop.io.IntWritable
 import shark.memstore2.buffer.ByteBufferReader
 import shark.memstore2.buffer.Unsafe
 
-/* 
- * Provide a simple serializer to store dictionaries for compression.
- * These dictionaries will be serialized in the ByteBuffer so that they can go
- * between the column builder and column iterator.
- * 
+/** Provide a simple serializer to store dictionaries for compression.  These
+ * dictionaries will be serialized in the ByteBuffer so that they can go between
+ * the column builder and column iterator.
  * 
  */
-
 trait Dictionary[@specialized(Int) T]{
   var uniques: Array[T]
   def initialize(u: List[T]): Unit
@@ -44,6 +41,9 @@ trait Dictionary[@specialized(Int) T]{
 }
 
 
+/** Int implementation. Saves space by using 1 byte per Int
+  * instead of 4.
+  */
 class IntDictionary extends Dictionary[Int]{
   var uniques = new Array[Int](0)
   override def initialize(u: List[Int]) = {
@@ -86,7 +86,8 @@ class IntDictionary extends Dictionary[Int]{
 
 // }
 
-
+/** Helper to share code betwen the Iterator and various Builders.
+  */
 object DictionarySerializer{
 
   // Append the serialized bytes of the Dictionary into the ByteBuffer.

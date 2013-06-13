@@ -27,6 +27,9 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.IntObjectInspecto
 
 import collection.mutable.{Set, HashSet}
 
+
+/** Build a column of Int values into a ByteBuffer in memory.
+  */
 class IntColumnBuilder extends ColumnBuilder[Int]{
 
   // logger problems - rmeove before commit
@@ -94,6 +97,9 @@ class IntColumnBuilder extends ColumnBuilder[Int]{
 
   var scheme = "auto"
 
+  /** After all values have been appended, build() is called to write all the
+    * values into a ByteBuffer.
+    */
   override def build: ByteBuffer = {
 
     scheme = System.getenv("TEST_SHARK_INT_COLUMN_COMPRESSION_SCHEME")
