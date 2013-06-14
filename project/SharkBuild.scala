@@ -22,9 +22,9 @@ import Keys._
 object SharkBuild extends Build {
 
   // Shark version
-  val SHARK_VERSION = "0.7.0"
+  val SHARK_VERSION = "0.8.0-SNAPSHOT"
 
-  val SPARK_VERSION = "0.7.1-SNAPSHOT"
+  val SPARK_VERSION = "0.8.0-SNAPSHOT"
 
   val SCALA_VERSION = "2.9.3"
 
