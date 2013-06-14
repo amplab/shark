@@ -101,6 +101,7 @@ class TablePartition(private var _numRows: Long, private var _columns: Array[Byt
         out.writeInt(byteArray.length)
         out.write(byteArray, 0, byteArray.length)
       } else {
+        out.writeInt(buf.remaining())
         while (buf.hasRemaining()) {
           out.write(buf.get())
         }
