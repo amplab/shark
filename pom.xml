@@ -15,11 +15,11 @@
     <maven.compiler.target>1.7</maven.compiler.target>
     <encoding>UTF-8</encoding>
     <scala.version>2.9.3</scala.version>
-    <hive.version>0.9.0-csd-13</hive.version>
-    <spark.version>0.8.0-candidate-csd-5</spark.version>
+    <hive.version>0.9.0-csd-14</hive.version>
+    <spark.version>0.8.0-candidate-csd-6</spark.version>
     <cdh.version>4.1.2</cdh.version>
     <java.version>1.5</java.version>
-    <hbase.version>0.94.5-csd-26</hbase.version>
+    <hbase.version>0.94.5-csd-28</hbase.version>
 
     <deb.pkg.name>shark-${classifier}</deb.pkg.name>
     <deb.install.path>/usr/share/shark-${classifier}</deb.install.path>
@@ -210,7 +210,7 @@
     <dependency>
       <groupId>org.tachyonproject</groupId>
       <artifactId>tachyon</artifactId>
-      <version>0.2.2-csd-1.1</version>
+      <version>0.2.1-csd-2</version>
     </dependency>
 
     <!-- Testing -->
