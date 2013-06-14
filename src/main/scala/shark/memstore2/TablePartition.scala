@@ -17,6 +17,7 @@
 
 package shark.memstore2
 
+import java.io.{Externalizable, ObjectInput, ObjectOutput}
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -29,23 +30,33 @@ import shark.memstore2.column.ColumnIterator
  * simply contains a list of columns and their meta data. It should be built
  * using a TablePartitionBuilder.
  */
-class TablePartition(val numRows: Long, val columns: Array[ByteBuffer]) {
+class TablePartition(private var _numRows: Long, private var _columns: Array[ByteBuffer])
+  extends Externalizable {
+
+  // Empty constructor for Externalizable
+  def this() {
+    this(0, null)
+  }
 
   def this(columns: Array[ByteBuffer]) {
     this(columns(0).getLong(), columns.tail)
   }
 
+  def numRows: Long = _numRows
+
+  def columns: Array[ByteBuffer] = _columns
+
   def toTachyon: Array[ByteBuffer] = {
-    val buffers = new Array[ByteBuffer](1 + columns.size)
+    val buffers = new Array[ByteBuffer](1 + _columns.size)
     buffers(0) = metadata
-    System.arraycopy(columns, 0, buffers, 1, columns.size)
+    System.arraycopy(_columns, 0, buffers, 1, _columns.size)
     buffers
   }
 
   def metadata: ByteBuffer = {
     val buffer = ByteBuffer.allocate(8)
     buffer.order(ByteOrder.nativeOrder())
-    buffer.putLong(numRows)
+    buffer.putLong(_numRows)
     buffer.rewind()
     buffer
   }
@@ -56,13 +67,44 @@ class TablePartition(val numRows: Long, val columns: Array[ByteBuffer]) {
    * Return an iterator for the partition.
    */
   def iterator: TablePartitionIterator = {
-    val columnIterators: Array[ColumnIterator] = columns.map { case buffer: ByteBuffer =>
+    val columnIterators: Array[ColumnIterator] = _columns.map { case buffer: ByteBuffer =>
       val bufReader = ByteBufferReader.createUnsafeReader(buffer)
       val columnType = bufReader.getLong()
       val factory = ColumnIterator.getFactory(columnType)
       val iter = factory.createIterator(bufReader)
       iter
     }
-    new TablePartitionIterator(numRows, columnIterators)
+    new TablePartitionIterator(_numRows, columnIterators)
+  }
+
+  override def readExternal(in: ObjectInput) {
+    _numRows = in.readLong()
+    val numColumns = in.readInt()
+    _columns = Array.fill[ByteBuffer](numColumns) {
+      val columnLen = in.readInt()
+      val buf = ByteBuffer.allocate(columnLen)
+      in.readFully(buf.array(), 0, columnLen)
+      buf
+    }
+  }
+
+  override def writeExternal(out: ObjectOutput) {
+    out.writeLong(numRows)
+    out.writeInt(columns.length)
+    for (column <- columns) {
+      val buf = column.duplicate()
+      buf.rewind()
+      // If the ByteBuffer is backed by a byte array, just write the byte array out.
+      // Otherwise, write each byte one by one.
+      if (buf.hasArray()) {
+        val byteArray = buf.array()
+        out.writeInt(byteArray.length)
+        out.write(byteArray, 0, byteArray.length)
+      } else {
+        while (buf.hasRemaining()) {
+          out.write(buf.get())
+        }
+      }
+    }
   }
 }
