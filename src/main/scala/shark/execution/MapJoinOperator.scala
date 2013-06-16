@@ -33,9 +33,9 @@ import org.apache.hadoop.io.BytesWritable
 import shark.SharkEnv
 import shark.SharkEnvSlave
 import shark.execution.serialization.{OperatorSerializationWrapper, SerializableWritable}
-import spark.RDD
+import spark.{RDD, SparkEnv}
 import spark.broadcast.Broadcast
-
+import spark.storage.StorageLevel
 
 /**
  * A join operator optimized for joining a large table with a number of small
@@ -126,7 +126,22 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
 
       // Collect the RDD and build a hash table.
       val startCollect = System.currentTimeMillis()
-      val wrappedRows: Array[(Seq[AnyRef], Seq[Array[AnyRef]])] = rddForHash.collect()
+      val storageLevel = rddForHash.getStorageLevel
+      if(storageLevel == StorageLevel.NONE)
+        rddForHash.persist(StorageLevel.MEMORY_AND_DISK)
+      rddForHash.foreach(_ => Unit)
+      val wrappedRows = rddForHash.partitions.flatMap { part => 
+        val blockId = "rdd_%s_%s".format(rddForHash.id, part.index)
+        val iter = SparkEnv.get.blockManager.get(blockId)
+        val partRows = new ArrayBuffer[(Seq[AnyRef], Seq[Array[AnyRef]])]
+        iter.foreach(_.foreach { row =>
+          partRows += row.asInstanceOf[(Seq[AnyRef], Seq[Array[AnyRef]])]
+        })
+        partRows
+      }
+      if(storageLevel == StorageLevel.NONE)
+        rddForHash.unpersist 
+      logInfo("wrappedRows size:" + wrappedRows.size)
       val collectTime = System.currentTimeMillis() - startCollect
       logInfo("HashTable collect took " + collectTime + " ms")
 
