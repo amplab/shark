@@ -116,8 +116,17 @@ class ReduceKeyReduceSide(private val _byteArray: Array[Byte]) extends ReduceKey
   override def equals(other: Any): Boolean = {
     // We expect this is only used in a hash table comparing to the same types.
     // So we force a type cast.
-    val that = other.asInstanceOf[ReduceKeyReduceSide]
-    (this.byteArray.length == that.byteArray.length && this.compareTo(that) == 0)
+    other match {
+      case other: ReduceKeyMapSide =>
+        if (length != other.length) {
+          false
+        } else {
+          WritableComparator.compareBytes(byteArray, 0, length, other.byteArray, 0, other.length) == 0
+        }
+      case other: ReduceKeyReduceSide =>
+        (this.byteArray.length == other.byteArray.length && this.compareTo(other) == 0)
+      case _ => false
+    }
   }
 
   override def compareTo(that: ReduceKey): Int = {

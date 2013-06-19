@@ -191,7 +191,9 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                     rdd.getStorageLevel,
                     _resSchema.size,                // numColumns
                     cacheMode == CacheType.tachyon, // use tachyon
-                    useUnionRDD)
+                    useUnionRDD,
+                    "",
+                    "")
                 } else {
                   throw new SemanticException(
                     "Shark does not support updating cached table(s) with multiple INSERTs")
@@ -209,13 +211,17 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
             val storageLevel = MemoryMetadataManager.getStorageLevelFromString(
               qb.getTableDesc().getTblProps.get("shark.cache.storageLevel"))
             qb.getTableDesc().getTblProps().put(CachedTableRecovery.QUERY_STRING, ctx.getCmd())
+            val coPartitionTableName = qb.getTableDesc().getTblProps().getOrElse("shark.copartition.table", "")
+            val partitionCol = qb.getTableDesc().getTblProps().getOrElse("shark.partition.col", "")
             OperatorFactory.createSharkMemoryStoreOutputPlan(
               hiveSinkOps.head,
               qb.getTableDesc.getTableName,
               storageLevel,
               _resSchema.size,                // numColumns
               cacheMode == CacheType.tachyon, // use tachyon
-              false)
+              false,
+              coPartitionTableName,
+              partitionCol)
           } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink) {
             OperatorFactory.createSharkRddOutputPlan(hiveSinkOps.head)
           } else {

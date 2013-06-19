@@ -41,7 +41,11 @@ class MemoryMetadataManager {
     _keyToRdd(key.toLowerCase) = rdd
   }
 
-  def get(key: String): Option[RDD[_]] = _keyToRdd.get(key.toLowerCase)
+  def get(key: String): Option[RDD[_]] = 
+    if(null == key) 
+      None 
+    else
+      _keyToRdd.get(key.toLowerCase)
 
   def putStats(key: String, stats: collection.Map[Int, TablePartitionStats]) {
     _keyToStats.put(key.toLowerCase, stats)

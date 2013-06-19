@@ -18,7 +18,7 @@
 package shark.execution
 
 import java.util.{ArrayList, List => JList, Random}
-
+import scala.collection.mutable.ArrayBuffer
 import scala.collection.Iterator
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
@@ -26,15 +26,15 @@ import scala.reflect.BeanProperty
 import org.apache.hadoop.hive.ql.exec.{ReduceSinkOperator => HiveReduceSinkOperator}
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory}
 import org.apache.hadoop.hive.ql.metadata.HiveException
-import org.apache.hadoop.hive.ql.plan.ReduceSinkDesc
+import org.apache.hadoop.hive.ql.plan.{ExprNodeColumnDesc, ExprNodeGenericFuncDesc, ReduceSinkDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.SerDe
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorFactory,
-  ObjectInspectorUtils}
+  ObjectInspectorUtils, StructObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.StandardUnionObjectInspector.StandardUnion
 import org.apache.hadoop.io.BytesWritable
-
+import shark.CoPartitioner
 import shark.SharkEnvSlave
-
+import spark.RDD
 
 /**
  * Converts a collection of rows into key, value pairs. This is the
@@ -62,6 +62,9 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
   @transient var keyObjInspector: ObjectInspector = _
   @transient var valObjInspector: ObjectInspector = _
   @transient var partitionObjInspectors: Array[ObjectInspector] = _
+  var keepPartitioning = false
+  
+  override def preservesPartitioning = keepPartitioning
 
   override def getTag() = conf.getTag()
 
@@ -71,6 +74,57 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
 
   override def initializeOnSlave() {
     initializeOisAndSers(conf, objectInspector)
+  }
+
+  def getKeyColsInfo = {  
+    val keyColsName = new ArrayBuffer[String]
+    conf.getKeyCols.foreach { expr =>
+      expr match{
+        case columnDesc: ExprNodeColumnDesc =>
+          keyColsName += columnDesc.getColumn
+        case genericFuncDesc: ExprNodeGenericFuncDesc =>
+          genericFuncDesc.getChildren.foreach { child =>
+            child match {
+              case columnDesc: ExprNodeColumnDesc =>
+                keyColsName += columnDesc.getColumn
+              case _ =>
+            }
+          }
+        case _ =>
+      }
+    }
+    keyColsName
+  }
+  
+  def getKeyColInternalName = {
+    val keyColsName = getKeyColsInfo
+    val tableColsNameToIndex = objectInspector.asInstanceOf[StructObjectInspector].
+          getAllStructFieldRefs.zipWithIndex.map { case (field, index) =>
+          (field.getFieldName() -> index)
+        }.toMap
+    keyColsName.map { keyCol =>
+      val regex = "_col([0-9])*".r
+      keyCol match {
+        case regex(pos) => keyCol
+        case _ =>
+          tableColsNameToIndex.get(keyCol) match {
+            case Some(pos) => "_col" + pos
+            case None => logError("Column not found in table:" + keyCol)
+            keyCol
+          }
+      }
+    }
+  }
+  
+  override def preprocessRdd(rdd: RDD[_]) = {
+    rdd.partitioner.foreach { part => part match {
+        case copart: CoPartitioner => 
+          val keySet = getKeyColInternalName.toSet
+          keepPartitioning = copart.getPartCols.forall(keySet.contains(_))
+        case _ => keepPartitioning = false
+      }
+    }
+    rdd
   }
 
   override def processPartition(split: Int, iter: Iterator[_]) = {
@@ -209,9 +263,13 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
       val key = keySer.serialize(evaluatedKey, keyObjInspector).asInstanceOf[BytesWritable]
       val value = valueSer.serialize(evaluatedValue, valObjInspector).asInstanceOf[BytesWritable]
 
+      val valArr = new Array[Byte](value.getLength)
+      Array.copy(value.getBytes, 0, valArr, 0, value.getLength)
+      val valueCopy = new BytesWritable(valArr)
+ 
       reduceKey.bytesWritable = key
       reduceKey.partitionCode = partitionCode
-      (reduceKey, value)
+      (reduceKey.createDeepCopy, valueCopy)
     }
   }
 

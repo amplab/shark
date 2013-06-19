@@ -33,6 +33,7 @@ class FilterOperator extends UnaryOperator[HiveFilterOperator] {
   @transient var conditionInspector: PrimitiveObjectInspector = _
 
   @BeanProperty var conf: FilterDesc = _
+  override def preservesPartitioning = true
 
   override def initializeOnMaster() {
     conf = hiveOp.getConf()

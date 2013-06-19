@@ -25,7 +25,8 @@ import java.util.{List => JList}
 import scala.collection.JavaConversions._
 
 import org.apache.hadoop.hive.serde2.objectinspector.{StructField, StructObjectInspector}
-
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
+import org.apache.hadoop.io.BytesWritable
 
 /**
  * Used to serialize a row of data. It needs to be initialized with an object inspector
@@ -53,3 +54,15 @@ class HiveStructSerializer(val rowObjectInspector: StructObjectInspector) {
   private val outputByteBuffer = new OutputByteBuffer
   private val fields: JList[_ <: StructField] = rowObjectInspector.getAllStructFieldRefs
 }
+
+class BinarySortableSerializer {
+  private val outputByteBuffer = new OutputByteBuffer
+  def serialize(o: Object, oi: ObjectInspector, invert: Boolean = false) = {
+    outputByteBuffer.reset()
+    BinarySortableSerDe.serialize(outputByteBuffer, o, oi, invert)
+    val bytes = new Array[Byte](outputByteBuffer.length)
+    System.arraycopy(outputByteBuffer.getData(), 0, bytes, 0, outputByteBuffer.length)
+    new BytesWritable(bytes)
+  }
+}
+

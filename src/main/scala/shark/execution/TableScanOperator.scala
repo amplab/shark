@@ -177,14 +177,14 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         rdd
       }
 
-    prunedRdd.mapPartitions { iter =>
+    prunedRdd.mapPartitions ({ iter =>
       if (iter.hasNext) {
         val tablePartition = iter.next.asInstanceOf[TablePartition]
         tablePartition.iterator
       } else {
         Iterator()
       }
-    }
+    }, true)
   }
 
   /**
