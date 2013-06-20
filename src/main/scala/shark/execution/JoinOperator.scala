@@ -113,15 +113,13 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
     val rddsInJoinOrder = order.map { inputIndex =>
       rddsJavaMap.get(inputIndex.byteValue.toInt).asInstanceOf[RDD[(ReduceKey, Any)]]
     }
-    var part: Partitioner = null
+    var partNum: Int = numReduceTasks
     if (rddsCorpartitioned(rdds.map(_._2.asInstanceOf[RDD[(_,_)]]))) {
-      part = rdds(0)._2.asInstanceOf[RDD[(_, _)]].partitioner.get
-    } else {
-      part = new HashPartitioner(numReduceTasks)
-    }
+      partNum = rdds(0)._2.asInstanceOf[RDD[(_, _)]].partitioner.get.numPartitions
+    } 
 
     val cogrouped = new CoGroupedRDD[ReduceKey](
-      rddsInJoinOrder.toSeq.asInstanceOf[Seq[RDD[(_, _)]]], part)
+      rddsInJoinOrder.toSeq.asInstanceOf[Seq[RDD[(_, _)]]], new HashPartitioner(partNum))
 
     val op = OperatorSerializationWrapper(this)
 
