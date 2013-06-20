@@ -27,9 +27,11 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.IntObjectInspecto
 
 import collection.mutable.{Set, HashSet}
 
-import shark.LogHelper
+class IntColumnBuilder extends ColumnBuilder[Int]{
 
-class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
+  // logger problems - rmeove before commit
+  private def logInfo(msg: String) = { println("INFO " + msg) }
+  private def logDebug(msg: String) = { println("DEBUG " + msg) }
 
   private var _stats: ColumnStats.IntColumnStats = new ColumnStats.IntColumnStats
   private var _nonNulls: IntArrayList = null
@@ -82,9 +84,11 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
   }
 
 
+  var scheme = "auto"
+
   override def build: ByteBuffer = {
 
-    var scheme = System.getenv("TEST_SHARK_INT_COLUMN_COMPRESSION_SCHEME")
+    scheme = System.getenv("TEST_SHARK_INT_COLUMN_COMPRESSION_SCHEME")
     if(scheme == null || scheme == "auto") scheme = pickCompressionScheme
     // choices are none, auto, RLE, dict
 

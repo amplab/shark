@@ -20,8 +20,6 @@ package shark.memstore2.column
 import shark.memstore2.buffer.ByteBufferReader
 import it.unimi.dsi.fastutil.ints.IntArrayList
 
-import shark.LogHelper
-
 /**
   * A wrapper around any ColumnIterator so it can be Run Length Encoded
   * 

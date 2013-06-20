@@ -22,7 +22,6 @@ import shark.api.JavaSharkContext
 import shark.memstore2.MemoryMetadataManager
 import shark.tachyon.TachyonUtilImpl
 import spark.SparkContext
-import spark.scheduler.StatsReportListener
 import spark.RDD
 
 /** A singleton object for the master program. The slaves should not access this. */
@@ -36,7 +35,6 @@ object SharkEnv extends LogHelper {
           System.getenv("SPARK_HOME"),
           Nil,
           executorEnvVars)
-      sc.addSparkListener(new StatsReportListener())
     }
     sc
   }
@@ -53,7 +51,6 @@ object SharkEnv extends LogHelper {
         System.getenv("SPARK_HOME"),
         Nil,
         executorEnvVars)
-    sc.addSparkListener(new StatsReportListener())
     sc.asInstanceOf[SharkContext]
   }
 
@@ -80,8 +77,9 @@ object SharkEnv extends LogHelper {
 
   logInfo("Initializing SharkEnv")
 
-  System.setProperty("spark.serializer", classOf[spark.KryoSerializer].getName)
-  System.setProperty("spark.kryo.registrator", classOf[KryoRegistrator].getName)
+  // System.setProperty("spark.serializer", classOf[spark.KryoSerializer].getName)
+  System.setProperty("spark.serializer", classOf[spark.JavaSerializer].getName)
+  // System.setProperty("spark.kryo.registrator", classOf[KryoRegistrator].getName)
 
   val executorEnvVars = new HashMap[String, String]
   executorEnvVars.put("SCALA_HOME", getEnv("SCALA_HOME"))

@@ -24,9 +24,9 @@ object SharkBuild extends Build {
   // Shark version
   val SHARK_VERSION = "0.7.1"
 
-  val SPARK_VERSION = "0.7.1-adp-SNAPSHOT"
+  val SPARK_VERSION = "0.7.0-adp-SNAPSHOT"
 
-  val SCALA_VERSION = "2.9.3"
+  val SCALA_VERSION = "2.9.2"
 
   // Hadoop version to build against. For example, "0.20.2", "0.20.205.0", or
   // "1.0.1" for Apache releases, or "0.20.2-cdh3u3" for Cloudera Hadoop.
@@ -39,6 +39,7 @@ object SharkBuild extends Build {
     id = "root",
     base = file("."),
     settings = coreSettings)
+    .settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)
 
   def coreSettings = Defaults.defaultSettings ++ Seq(
 
@@ -59,8 +60,8 @@ object SharkBuild extends Build {
     ),
 
     fork := true,
-    javaOptions in test += "-XX:MaxPermSize=512m",
-    javaOptions in test += "-Xmx2g",
+    javaOptions += "-XX:MaxPermSize=512m",
+    javaOptions += "-Xmx12g",
 
     testListeners <<= target.map(
       t => Seq(new eu.henkelmann.sbt.JUnitXmlTestsListener(t.getAbsolutePath))),
@@ -92,6 +93,7 @@ object SharkBuild extends Build {
       "org.spark-project" %% "spark-repl" % SPARK_VERSION,
       "com.google.guava" % "guava" % "11.0.1",
       "com.ning" % "compress-lzf" % "0.9.7",
+      "com.google.caliper" % "caliper" % "1.0-beta-1" % "test",
       "it.unimi.dsi" % "fastutil" % "6.4.2",
       "org.scalatest" %% "scalatest" % "1.9.1" % "test",
       "junit" % "junit" % "4.10" % "test",
