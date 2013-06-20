@@ -16,23 +16,12 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
     super.analyzeInternal(node)
     //handle drop table query
     if (node.getToken().getType() == HiveParser.TOK_DROPTABLE) {
-      val rdd = SharkEnv.removeRDD(getTableName(node))
-      removeRDDRecursive(rdd)
+      SharkEnv.removeRDD(getTableName(node))
     }
   }
 
   private def getTableName(node: ASTNode): String = {
     BaseSemanticAnalyzer.getUnescapedName(node.getChild(0).asInstanceOf[ASTNode])
   }
-  
-  private def removeRDDRecursive(rdd: Option[RDD[_]]):Unit = {
-    rdd match {
-      case Some(u: UnionRDD[_]) => {
-        u.unpersist
-        u.rdds.foreach(r => removeRDDRecursive(Some(r)))
-      }
-      case None => Unit
-      case Some(x) => x.unpersist
-    }
-  }
+
 }
