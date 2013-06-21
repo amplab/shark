@@ -20,6 +20,7 @@
     <cdh.version>4.1.2</cdh.version>
     <java.version>1.5</java.version>
     <hbase.version>0.94.5-csd-28</hbase.version>
+    <jline.version>0.9.94</jline.version>
 
     <deb.pkg.name>shark-${classifier}</deb.pkg.name>
     <deb.install.path>/usr/share/shark-${classifier}</deb.install.path>
@@ -212,6 +213,11 @@
       <artifactId>tachyon</artifactId>
       <version>0.2.1-csd-2</version>
     </dependency>
+    <dependency>
+      <groupId>jline</groupId>
+      <artifactId>jline</artifactId>
+      <version>${jline.version}</version>
+    </dependency>
 
     <!-- Testing -->
     <dependency>
@@ -365,6 +371,7 @@
             <HIVE_VERSION>${hive.version}</HIVE_VERSION>
             <SHARK_LAUNCH_WITH_JAVA>1</SHARK_LAUNCH_WITH_JAVA>
             <TEST_JAVA_OPTS>-XX:-UseSplitVerifier</TEST_JAVA_OPTS>
+            <SCALA_HOME>${project.build.directory}/scala-home</SCALA_HOME>
           </environmentVariables>
         </configuration>
         <executions>
@@ -529,6 +536,46 @@
                 </requireProperty>
               </rules>
               <fail>true</fail>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <executions>
+          <!-- Install Scala jars into a directory that will be passed to tests as SCALA_HOME -->
+          <execution>
+            <id>copy</id>
+            <phase>test-compile</phase>
+            <goals>
+              <goal>copy</goal>
+            </goals>
+            <configuration>
+              <artifactItems>
+                <artifactItem>
+                  <groupId>org.scala-lang</groupId>
+                  <artifactId>scala-library</artifactId>
+                  <version>${scala.version}</version>
+                  <type>jar</type>
+                </artifactItem>
+                <artifactItem>
+                  <groupId>org.scala-lang</groupId>
+                  <artifactId>scala-compiler</artifactId>
+                  <version>${scala.version}</version>
+                  <type>jar</type>
+                </artifactItem>
+                <artifactItem>
+                  <groupId>jline</groupId>
+                  <artifactId>jline</artifactId>
+                  <version>${jline.version}</version>
+                  <type>jar</type>
+                </artifactItem>
+              </artifactItems>
+              <outputDirectory>${project.build.directory}/scala-home/lib</outputDirectory>
+              <overWriteReleases>true</overWriteReleases>
+              <overWriteSnapshots>true</overWriteSnapshots>
+              <stripVersion>true</stripVersion>
             </configuration>
           </execution>
         </executions>
