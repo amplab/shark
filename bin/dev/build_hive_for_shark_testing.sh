@@ -44,7 +44,7 @@ if [ ! -d "$shark_dir" ]; then
 fi
 
 if [ ! -f "${shark_dir}/pom.xml" ] || \
-   ! grep "<name>shark</name>" "${shark_dir}/pom.xml" >/dev/null; then
+   ! grep -q "<name>shark</name>" "${shark_dir}/pom.xml"; then
   echo "${shark_dir}/pom.xml either does not exist or does not refer to the Shark project" >&2
   exit 1
 fi
@@ -107,6 +107,7 @@ git log -n 10
 hive_version_base=$( awk -F= '/^version=/ {print $NF}' <build.properties )
 if [ -z "${hive_version_base}" ]; then
   echo "Failed to determine Hive version configured in build.properties" >&2
+  exit 1
 fi
 
 hive_version_extension=$( c=$(git rev-parse HEAD); echo ${c:0:10} )
