@@ -373,6 +373,9 @@
             <TEST_JAVA_OPTS>-XX:-UseSplitVerifier</TEST_JAVA_OPTS>
             <SCALA_HOME>${project.build.directory}/scala-home</SCALA_HOME>
           </environmentVariables>
+          <systemProperties>
+            <hive.test.dir>${hive.build.dir}</hive.test.dir>
+          </systemProperties>
         </configuration>
         <executions>
           <execution>
