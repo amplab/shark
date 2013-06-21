@@ -28,12 +28,16 @@ import org.apache.hadoop.io.BytesWritable
 
 import spark.RDD
 
+import shark.SharkConfVars
+import shark.execution.cg.CGEvaluatorFactory
+
 
 class ExtractOperator extends UnaryOperator[HiveExtractOperator] with HiveTopOperator {
 
   @BeanProperty var conf: ExtractDesc = _
   @BeanProperty var valueTableDesc: TableDesc = _
   @BeanProperty var localHconf: HiveConf = _
+  @BeanProperty var useCG = true
 
   @transient var eval: ExprNodeEvaluator = _
   @transient var valueDeser: Deserializer = _
@@ -42,10 +46,11 @@ class ExtractOperator extends UnaryOperator[HiveExtractOperator] with HiveTopOpe
     conf = hiveOp.getConf()
     localHconf = super.hconf
     valueTableDesc = keyValueTableDescs.values.head._2
+    useCG = SharkConfVars.getBoolVar(super.hconf, SharkConfVars.EXPR_CG)
   }
 
   override def initializeOnSlave() {
-    eval = ExprNodeEvaluatorFactory.get(conf.getCol)
+    eval = CGEvaluatorFactory.get(conf.getCol, useCG)
     eval.initialize(objectInspector)
     valueDeser = valueTableDesc.getDeserializerClass().newInstance()
     valueDeser.initialize(localHconf, valueTableDesc.getProperties())

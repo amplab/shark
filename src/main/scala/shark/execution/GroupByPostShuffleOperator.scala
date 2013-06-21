@@ -37,6 +37,7 @@ import org.apache.hadoop.io.BytesWritable
 import shark.SharkEnv
 import shark.execution._
 import shark.execution.serialization.OperatorSerializationWrapper
+import shark.execution.cg.CGEvaluatorFactory
 
 import spark.{Aggregator, HashPartitioner, RDD}
 import spark.rdd.ShuffledRDD
@@ -123,11 +124,11 @@ class GroupByPostShuffleOperator extends GroupByPreShuffleOperator with HiveTopO
           if (keysfs.size() > 0) {
             val sf = keysfs.get(keysfs.size() - 1)
             if (sf.getFieldObjectInspector().getCategory().equals(ObjectInspector.Category.UNION)) {
-              unionExprEval = ExprNodeEvaluatorFactory.get(
+              unionExprEval = CGEvaluatorFactory.get(
                 new ExprNodeColumnDesc(
                   TypeInfoUtils.getTypeInfoFromObjectInspector(sf.getFieldObjectInspector),
                   keyField.getFieldName + "." + sf.getFieldName, null, false
-                )
+                ), useCG
               )
               unionExprEval.initialize(rowInspector)
             }
