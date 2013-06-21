@@ -34,6 +34,9 @@
     <hive.build.dir>${hive.dev.home}/build</hive.build.dir>
     <hive.dist.dir>${hive.build.dir}/dist</hive.dist.dir>
 
+    <!-- The directory where the test hive-site.xml file is stored -->
+    <test.hive.site.dir>${project.basedir}/src/test/conf</test.hive.site.dir>
+
     <shark.test.dir>${project.build.directory}/testing</shark.test.dir>
 
     <test.mem>1024m</test.mem>
@@ -351,7 +354,7 @@
           </systemPropertyVariables>
           <workingDirectory>${hive.build.dir}</workingDirectory>
           <additionalClasspathElements>
-            <additionalClasspathElement>${basedir}/src/test/conf</additionalClasspathElement>
+            <additionalClasspathElement>${test.hive.site.dir}</additionalClasspathElement>
           </additionalClasspathElements>
           <argLine>${test.jvm.args}</argLine>
           <!-- This is necessary so we can run Scala tests even if there are failures here. -->
@@ -368,6 +371,7 @@
           <junitxml>.</junitxml>
           <filereports>WDF TestSuite.txt</filereports>
           <argLine>${test.jvm.args}</argLine>
+          <runpath>${test.hive.site.dir}</runpath>
           <environmentVariables>
             <HIVE_HOME>${hive.dist.dir}</HIVE_HOME>
             <HIVE_DEV_HOME>${hive.dev.home}</HIVE_DEV_HOME>
