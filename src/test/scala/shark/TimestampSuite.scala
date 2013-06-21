@@ -36,7 +36,7 @@ class TimestampSuite extends FunSuite with SharkHiveTestUtil with BeforeAndAfter
   }
 
   // Temporarily disabled: breaks SQLSuite
-  ignore test("CountGroupByOrderByTimestamp") {
+  ignore("CountGroupByOrderByTimestamp") {
 
     val tableName = "ts_test"
     val tsStr = "2013-03-18 00:41:15"
@@ -74,7 +74,7 @@ class TimestampSuite extends FunSuite with SharkHiveTestUtil with BeforeAndAfter
   }
 
   // Temporarily disabled: breaks SQLSuite
-  ignore test("CTASTimestampLoad") {
+  ignore("CTASTimestampLoad") {
     val tableName = "ts_repeated"
 
     val repetitionNumber = 5
