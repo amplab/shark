@@ -20,6 +20,7 @@
     <cdh.version>4.1.2</cdh.version>
     <java.version>1.5</java.version>
     <hbase.version>0.94.5-csd-28</hbase.version>
+    <jline.version>0.9.94</jline.version>
 
     <deb.pkg.name>shark-${classifier}</deb.pkg.name>
     <deb.install.path>/usr/share/shark-${classifier}</deb.install.path>
@@ -32,6 +33,11 @@
     <hive.dev.home>${basedir}/../hive</hive.dev.home>
     <hive.build.dir>${hive.dev.home}/build</hive.build.dir>
     <hive.dist.dir>${hive.build.dir}/dist</hive.dist.dir>
+
+    <!-- The directory where the test hive-site.xml file is stored -->
+    <test.hive.site.dir>${project.basedir}/src/test/conf</test.hive.site.dir>
+
+    <shark.test.dir>${project.build.directory}/testing</shark.test.dir>
 
     <test.mem>1024m</test.mem>
     <test.jvm.args>-Xmx${test.mem} -Xms${test.mem} -XX:-UseSplitVerifier</test.jvm.args>
@@ -212,6 +218,11 @@
       <artifactId>tachyon</artifactId>
       <version>0.2.1-csd-2</version>
     </dependency>
+    <dependency>
+      <groupId>jline</groupId>
+      <artifactId>jline</artifactId>
+      <version>${jline.version}</version>
+    </dependency>
 
     <!-- Testing -->
     <dependency>
@@ -255,7 +266,7 @@
       <plugin>
         <groupId>net.alchim31.maven</groupId>
         <artifactId>scala-maven-plugin</artifactId>
-        <version>3.1.0</version>
+        <version>3.1.5</version>
         <executions>
           <execution>
             <id>scala-compile-first</id>
@@ -339,10 +350,11 @@
             <test.warehouse.dir>${ql.build.path}/test/data/warehouse</test.warehouse.dir>
             <derby.version>10.4.2.0</derby.version>
             <hive.test.dir>${hive.build.dir}</hive.test.dir>
+            <shark.test.dir>${shark.test.dir}</shark.test.dir>
           </systemPropertyVariables>
           <workingDirectory>${hive.build.dir}</workingDirectory>
           <additionalClasspathElements>
-            <additionalClasspathElement>${basedir}/src/test/conf</additionalClasspathElement>
+            <additionalClasspathElement>${test.hive.site.dir}</additionalClasspathElement>
           </additionalClasspathElements>
           <argLine>${test.jvm.args}</argLine>
           <!-- This is necessary so we can run Scala tests even if there are failures here. -->
@@ -359,13 +371,20 @@
           <junitxml>.</junitxml>
           <filereports>WDF TestSuite.txt</filereports>
           <argLine>${test.jvm.args}</argLine>
+          <runpath>${test.hive.site.dir}</runpath>
           <environmentVariables>
             <HIVE_HOME>${hive.dist.dir}</HIVE_HOME>
             <HIVE_DEV_HOME>${hive.dev.home}</HIVE_DEV_HOME>
             <HIVE_VERSION>${hive.version}</HIVE_VERSION>
             <SHARK_LAUNCH_WITH_JAVA>1</SHARK_LAUNCH_WITH_JAVA>
             <TEST_JAVA_OPTS>-XX:-UseSplitVerifier</TEST_JAVA_OPTS>
+            <SCALA_HOME>${project.build.directory}/scala-home</SCALA_HOME>
           </environmentVariables>
+          <systemProperties>
+            <shark.test.dir>${shark.test.dir}</shark.test.dir>
+            <hive.test.dir>${hive.build.dir}</hive.test.dir>
+          </systemProperties>
+          <forkMode>once</forkMode>
         </configuration>
         <executions>
           <execution>
@@ -529,6 +548,46 @@
                 </requireProperty>
               </rules>
               <fail>true</fail>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <executions>
+          <!-- Install Scala jars into a directory that will be passed to tests as SCALA_HOME -->
+          <execution>
+            <id>copy</id>
+            <phase>test-compile</phase>
+            <goals>
+              <goal>copy</goal>
+            </goals>
+            <configuration>
+              <artifactItems>
+                <artifactItem>
+                  <groupId>org.scala-lang</groupId>
+                  <artifactId>scala-library</artifactId>
+                  <version>${scala.version}</version>
+                  <type>jar</type>
+                </artifactItem>
+                <artifactItem>
+                  <groupId>org.scala-lang</groupId>
+                  <artifactId>scala-compiler</artifactId>
+                  <version>${scala.version}</version>
+                  <type>jar</type>
+                </artifactItem>
+                <artifactItem>
+                  <groupId>jline</groupId>
+                  <artifactId>jline</artifactId>
+                  <version>${jline.version}</version>
+                  <type>jar</type>
+                </artifactItem>
+              </artifactItems>
+              <outputDirectory>${project.build.directory}/scala-home/lib</outputDirectory>
+              <overWriteReleases>true</overWriteReleases>
+              <overWriteSnapshots>true</overWriteSnapshots>
+              <stripVersion>true</stripVersion>
             </configuration>
           </execution>
         </executions>
