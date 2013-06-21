@@ -34,6 +34,8 @@
     <hive.build.dir>${hive.dev.home}/build</hive.build.dir>
     <hive.dist.dir>${hive.build.dir}/dist</hive.dist.dir>
 
+    <shark.test.dir>${project.build.directory}/testing</shark.test.dir>
+
     <test.mem>1024m</test.mem>
     <test.jvm.args>-Xmx${test.mem} -Xms${test.mem} -XX:-UseSplitVerifier</test.jvm.args>
   </properties>
@@ -345,6 +347,7 @@
             <test.warehouse.dir>${ql.build.path}/test/data/warehouse</test.warehouse.dir>
             <derby.version>10.4.2.0</derby.version>
             <hive.test.dir>${hive.build.dir}</hive.test.dir>
+            <shark.test.dir>${shark.test.dir}</shark.test.dir>
           </systemPropertyVariables>
           <workingDirectory>${hive.build.dir}</workingDirectory>
           <additionalClasspathElements>
@@ -374,7 +377,7 @@
             <SCALA_HOME>${project.build.directory}/scala-home</SCALA_HOME>
           </environmentVariables>
           <systemProperties>
-            <hive.test.dir>${hive.build.dir}</hive.test.dir>
+            <shark.test.dir>${shark.test.dir}</shark.test.dir>
           </systemProperties>
         </configuration>
         <executions>
