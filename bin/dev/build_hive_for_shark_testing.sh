@@ -31,6 +31,8 @@ EOT
   exit 1
 }
 
+original_dir=$PWD
+
 if [ $# -eq 0 ]; then
   print_help
 fi
@@ -134,6 +136,7 @@ ant -Dversion="${hive_version}" \
 set +x
 
 if [ -n "$env_file" ]; then
+  cd "${original_dir}"
   echo "hive_version=${hive_version}" >"${env_file}"
   echo "hive_dev_home=${hive_dir}" >>"${env_file}"
   echo
