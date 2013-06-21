@@ -101,9 +101,7 @@ git fetch origin +refs/pull/*:refs/remotes/origin/pr/*
 git checkout "${hive_branch}"
 set +x
 
-set -x
 echo "Recent commits in Hive:"
-set +x
 git log -n 10 
 
 hive_version_base=$( awk -F= '/^version=/ {print $NF}' <build.properties )
