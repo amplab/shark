@@ -1,0 +1,325 @@
+/*
+ * Copyright (C) 2012 The Regents of The University California.
+ * All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package shark.execution.cg.udf
+
+import java.lang.reflect.Type
+import java.lang.reflect.Field
+
+import scala.collection.mutable.LinkedHashSet
+import scala.collection.JavaConversions.collectionAsScalaIterable
+
+import org.apache.hadoop.hive.ql.exec.FunctionRegistry
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
+import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
+import org.apache.hadoop.hive.serde2.`lazy`.objectinspector.primitive.LazyPrimitiveObjectInspectorFactory
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFBridge
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFUtils.ConversionHelper
+import org.apache.hadoop.hive.ql.plan.ExprNodeDesc
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorConverters
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory.ObjectInspectorOptions
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorConverters.Converter
+import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo
+
+import shark.execution.cg.node.GenericFunNode
+import shark.execution.cg.node.ExprNode
+import shark.execution.cg.EvaluationType
+import shark.execution.cg.ExprCodeGen
+import shark.execution.cg.ValueType
+import shark.execution.cg.CGAssertRuntimeException
+import shark.execution.cg.node.ConverterNode
+
+
+abstract class UDFCodeGen(val node: GenericFunNode)
+  extends ExprCodeGen(node.getContext()) {
+
+  private lazy val codeUDFCall = cgUDFCall()
+  private var arguments:Array[_<:ExprNode[ExprNodeDesc]] = node.children
+  private var constantNullCheck = ()=> 
+    (for (ele <- this.arguments.zipWithIndex) 
+      yield (this.requireNullValueCheck(ele._2) && ele._1.constantNull())).
+    foldLeft(codeUDFCall == null)(_ || _)
+
+  // null value indicator, which may not necessary for some case(EvaluationType.GET)
+  private lazy val nullIndicator = getContext().createNullIndicatorVariableName()
+  private lazy val variableName = getContext().createValueVariableName(
+      ValueType.TYPE_VALUE, 
+      resultVariableType(), 
+      evaluationType() != EvaluationType.GET, // create instance?
+      evaluationType() != EvaluationType.GET, // is final?
+      false,
+      null)
+  
+  /**
+   * helper function to add the evaluating code into StringBuffer
+   * 
+   */
+  private def addEvaluateCode(content: StringBuffer, node: ExprCodeGen) {
+    var evaluate = node.cgEvaluate()
+    if (evaluate != null) {
+      content.append(evaluate + "\n")
+    }
+  }
+    
+  private def addCodeSnippet(content: StringBuffer, expr: String) {
+    if (null != expr) {
+      content.append(expr + ";\n")
+    }
+  }  
+  /**
+   * to mark the current UDF as null value
+   */
+  protected def markAsConstantNull(result: Boolean = true) {
+    constantNullCheck = ()=>result
+  }
+  
+  override def nullValueIndicatorVariableName() = nullIndicator
+
+  /**
+   * Generate the code for value check/evaluating in eager / deferred;
+   * @param args arguments of current UDF (/generic UDF)
+   * @param parameterIdx
+   * @param udfCall
+   */
+  protected def cgInners(args: Array[_<:ExprCodeGen]) = {
+    var content = new StringBuffer
+    var isConstantNull = this.constantNull()
+    if (isConstantNull) {
+      addCodeSnippet(content, invalidValueExpr())
+    } else {
+      addCodeSnippet(content, initValueExpr())
+    }
+
+    // get the udf call string
+    var udfCall = if (codeUDFCall != null) codeUDFCall() else ""
+    
+    if (FunctionRegistry.isStateful(node.genericUDF)) {
+      // we have to evaluate every children node (typical stateful UDF: row_sequence())
+      cgInnersEager(content, args, udfCall)
+    } else {
+      args.foreach(node=>if (node.isStateful()) addEvaluateCode(content, node))
+      if (!isConstantNull) {
+        cgInnersDeferred(content, args, 0, udfCall, false)
+      }
+    }
+
+    content.toString()
+  }
+
+  /**
+   * return if the Nth parameters requires the null value check
+   * all of the existed UDF functions will not require the null
+   * value check for the parameter, as they will handle that internally.
+   *
+   * But that's not true for the re-implemented UDF function.
+   *
+   * The function should be consistent of return value with 1 or more invokes.
+   * @param parameterIndex
+   * @return true for require the parameter null value check, otherwise false;
+   */
+  protected def requireNullValueCheck(parameterIndex: Int) = false
+
+  /**
+   * Gen code for evaluating the UDF value, by checking the validity of its children nodes 1 by 1,
+   * and the it will return the value immediately if child node(parameter) is:
+   * 1) with null value, but current UDF requires the parameter non-null
+   *    e.g. in expr "a + b", if "a" is null, then the expr value is null without considering 
+   *       the value of "b"
+   * 2) the value is sufficient for evaluating, without considering the next parameter(s)
+   *    e.g. in expr "a or b", if "a" is true, then the expr value is true, without considering
+   *       the value of "b"
+   * Both of cases will optimize the performance of expr evaluating
+   */
+  protected def cgInnersDeferred(
+    content: StringBuffer,
+    args: Array[_<:ExprCodeGen],
+    parameterIdx: Int,
+    udfCall: String,
+    partialEvaluate: Boolean) {
+    if (parameterIdx == args.length) {
+      content.append(udfCall + "\n")
+      return
+    }
+
+    addEvaluateCode(content, args(parameterIdx))
+    var checkValid: String = null
+
+    // Case 1) if
+    if (requireNullValueCheck(parameterIdx)) {
+      checkValid = args(parameterIdx).cgValidateCheck()
+      if (null != checkValid) {
+        content.append("if(" + checkValid + ") {\n")
+      }
+    }
+
+    var checkEvaluate = partialEvaluateCheck(args, parameterIdx)
+    var resultEvaluate = partialEvaluateResult(args, parameterIdx)
+
+    // to determine if possible to get the expr value
+    var bePartialEvaluate = ((checkEvaluate != null) && (resultEvaluate != null))
+    
+    // Case 2) if
+    if (bePartialEvaluate) {
+      content.append("if (" + checkEvaluate + ") { \n")
+      content.append(resultEvaluate + ";\n")
+      content.append("} else {\n")
+    }
+
+    // Case 2) else
+    // iterate to the next arguments nodes (parameters)
+    cgInnersDeferred(content, args, parameterIdx + 1, udfCall, bePartialEvaluate)
+
+    if (bePartialEvaluate) {
+      content.append("}\n")
+    }
+
+    // Case 1) else
+    if (requireNullValueCheck(parameterIdx) && null != checkValid) {
+      var expr = invalidValueExpr()
+      content.append("} else {\n")
+      if (null != expr) {
+        content.append(expr + ";\n")
+      }
+      content.append("}\n")
+    }
+
+    if (partialEvaluate) {
+      // since the "else" branch may not be executed, then
+      // we need to re-generate the evaluating code again for the
+      // impacted[current] node in the future;
+      args(parameterIdx).notifyEvaluatingCodeGenNeed()
+    }
+  }
+
+  /**
+   * the function is used for the partial evaluating, like in "or" / "and" etc. 
+   * which is to optimize the performance
+   * @param content
+   * @param args
+   * @param parameterIdx
+   */
+  protected def partialEvaluateCheck(
+    args: Array[_<:ExprCodeGen], 
+    currentParamIdx: Int): String = null
+
+  protected def partialEvaluateResult(
+    args: Array[_<:ExprCodeGen], 
+    currentParamIdx: Int): String = null
+
+  /**
+   * Evaluate each children nodes, for evaluating its sub expr eagerly.
+   */
+  protected def cgInnersEager(
+    content: StringBuffer, 
+    args: Array[_<:ExprCodeGen], 
+    udfCall: String) {
+    // evaluate all of its children nodes, be sure the stateful UDF in children nodes has been
+    // evaluated
+    for (i <- 0 until args.length) {
+      var evaluate = args(i).cgEvaluate()
+      if (evaluate != null) {
+        content.append(evaluate + "\n")
+      }
+    }
+
+    // still could evaluate the expr, before the final call of current UDF, 
+    // the children node may be also invalid, and it's not expected,
+    // then invalid the value of current expr as well.
+    var checkValidExprs: Array[String] = new Array[String](args.length)
+    for (i <- 0 until args.length) {
+      checkValidExprs(i) = null
+
+      if (requireNullValueCheck(i)) {
+        checkValidExprs(i) = args(i).cgValidateCheck()
+        if (checkValidExprs(i) != null)
+          content.append("if(" + checkValidExprs(i) + ") {\n")
+      }
+    }
+
+    content.append(udfCall + "\n")
+
+    for (i <- 0 until args.length) {
+      if (requireNullValueCheck(i) && null != checkValidExprs(i)) {
+        var expr = invalidValueExpr()
+        content.append("} else {\n")
+        if (null != expr) {
+          content.append(expr + ";\n")
+        }
+        content.append("}\n")
+      }
+    }
+  }
+
+  /**
+   * code snippet of the UDF implementation, the sub class has to override this function 
+   */
+  protected def cgUDFCall(): ()=>String
+
+  override def evaluationType() = EvaluationType.SET
+  override def initValueExpr() = nullValueIndicatorVariableName() + "=true"
+  override def invalidValueExpr() = nullValueIndicatorVariableName() + "=false"
+
+  /**
+   *if exist the UDF parameter, which requires the null value check, and it's constant null, 
+   *that means the value of UDF is also null 
+   */
+  final override def constantNull() = constantNullCheck()
+    
+  // combine the code snippet of inside the method of "init(ObjectInspector oi)", the code snippet
+  // sequence should be well cared
+  override def codeInit() = arguments.foldLeft(LinkedHashSet[String]())(_ | _.codeInit())
+  
+  final override def fold(rowInspector: ObjectInspector): Boolean = {
+    setOutputInspector(node.getOutputInspector())
+    
+    arguments = prepare(rowInspector, arguments)
+    if (arguments == null) {
+      false
+    } else {
+      codeWritableNameSnippet = ()=>variableName
+      if(arguments.length != 0) {
+        arguments.foldLeft(true)(_&&_.fold(rowInspector))
+      } else {
+        true
+      }
+    }
+  }
+  
+  /**
+   * Sub class should decide to make the arguments as ConvertNode(different types of) if necessary
+   * @return null for the UDF CodeGen may not able to handle the of its arguments, otherwise
+   *              the wrapped (as ConvertNode) arguments. 
+   */
+  protected def prepare(
+      rowInspector: ObjectInspector, 
+      children: Array[_<:ExprNode[ExprNodeDesc]]): 
+    Array[_<:ExprNode[ExprNodeDesc]]
+  
+  override def notifyEvaluatingCodeGenNeed() {
+    super.notifyEvaluatingCodeGenNeed()
+    for (child <- arguments) child.notifyEvaluatingCodeGenNeed()
+  }
+
+  override def cgEvaluate() = cgInners(this.arguments)
+}

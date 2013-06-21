@@ -19,11 +19,11 @@ package shark.execution
 
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
-
-import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory}
+import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator
 import org.apache.hadoop.hive.ql.exec.{SelectOperator => HiveSelectOperator}
 import org.apache.hadoop.hive.ql.plan.SelectDesc
-
+import shark.execution.cg.CGEvaluatorFactory
+import shark.SharkConfVars
 
 /**
  * An operator that does projection, i.e. selecting certain columns and
@@ -31,17 +31,18 @@ import org.apache.hadoop.hive.ql.plan.SelectDesc
  */
 class SelectOperator extends UnaryOperator[HiveSelectOperator] {
 
+  @BeanProperty var useCG = true
   @BeanProperty var conf: SelectDesc = _
-
   @transient var evals: Array[ExprNodeEvaluator] = _
 
   override def initializeOnMaster() {
     conf = hiveOp.getConf()
+    useCG = SharkConfVars.getBoolVar(super.hconf, SharkConfVars.EXPR_CG)
   }
 
   override def initializeOnSlave() {
     if (!conf.isSelStarNoCompute) {
-      evals = conf.getColList().map(ExprNodeEvaluatorFactory.get(_)).toArray
+      evals = conf.getColList().map(CGEvaluatorFactory.get(_, useCG)).toArray
       evals.foreach(_.initialize(objectInspector))
     }
   }
