@@ -333,7 +333,7 @@
           <environmentVariables>
             <HIVE_HOME>${hive.dist.dir}</HIVE_HOME>
             <HIVE_DEV_HOME>${hive.dev.home}</HIVE_DEV_HOME>
-            <TEST_FILE>${project.basedir}/src/test/tests_pass.txt</TEST_FILE>
+            <TEST_FILE>${project.basedir}/src/test/tests_stable.txt</TEST_FILE>
           </environmentVariables>
           <systemPropertyVariables>
             <user.dir>${hive.build.dir}</user.dir>
