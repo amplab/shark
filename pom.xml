@@ -384,6 +384,7 @@
             <shark.test.dir>${shark.test.dir}</shark.test.dir>
             <hive.test.dir>${hive.build.dir}</hive.test.dir>
           </systemProperties>
+          <forkMode>once</forkMode>
         </configuration>
         <executions>
           <execution>
