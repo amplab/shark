@@ -25,7 +25,7 @@ import scala.reflect.BeanProperty
 import org.apache.hadoop.io.{BytesWritable, Writable}
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 import org.apache.hadoop.hive.serde2.binarysortable.{BinarySortableSerDe, OutputByteBuffer, 
-  BinarySortableSerializer}
+  HiveStructPartialSerializer}
 
 import shark.{CoPartitioner, SharkConfVars, SharkEnv, SharkEnvSlave, Utils}
 import shark.execution.serialization.{OperatorSerializationWrapper, JavaSerializer}
@@ -95,20 +95,19 @@ class MemoryStoreSinkOperator extends TerminalOperator {
               (new CoPartitioner(partNum), null)
           }
         }
-        partitioner.asInstanceOf[CoPartitioner].addPartitionCols(partitionCol)
+        val partCols = partitionCol.split("\\,").map(_.trim())
+        partCols.foreach(partitioner.addPartitionCol(_))
         val kvRdd = inputRdd.mapPartitions { rowIter => 
           op.initializeOnSlave()
-          val sois = op.objectInspector.asInstanceOf[StructObjectInspector]
-          val structField = sois.getStructFieldRef(op.partitionCol)
           val serde = new BinarySortableSerDe()
-          val bserializer = new BinarySortableSerializer
           shark.SharkEnvSlave.objectInspectorLock.synchronized {
             serde.initialize(op.hconf, op.localHiveOp.getConf.getTableInfo.getProperties)
           }
+          val sois = op.objectInspector.asInstanceOf[StructObjectInspector]
+          val fields = partCols.map(sois.getStructFieldRef(_))
+          val bserializer = new HiveStructPartialSerializer(sois, fields)
           rowIter.map { row =>
-            val k = sois.getStructFieldData(row, structField)
-            val keysois = structField.getFieldObjectInspector
-            val key = bserializer.serialize(k, keysois)
+            val key = bserializer.serialize(row.asInstanceOf[AnyRef])
             val value = serde.serialize(row, op.objectInspector).asInstanceOf[BytesWritable]
             val valueArr = new Array[Byte](value.getLength)
             Array.copy(value.getBytes, 0, valueArr, 0, valueArr.getLength)

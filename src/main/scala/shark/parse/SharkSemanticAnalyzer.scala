@@ -211,8 +211,10 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
             val storageLevel = MemoryMetadataManager.getStorageLevelFromString(
               qb.getTableDesc().getTblProps.get("shark.cache.storageLevel"))
             qb.getTableDesc().getTblProps().put(CachedTableRecovery.QUERY_STRING, ctx.getCmd())
-            val coPartitionTableName = qb.getTableDesc().getTblProps().getOrElse("shark.copartition.table", "")
-            val partitionCol = qb.getTableDesc().getTblProps().getOrElse("shark.partition.col", "")
+            val coPartitionTableName = qb.getTableDesc().getTblProps().getOrElse(
+                                       "shark.copartition.table", "").trim
+            val partitionCol = qb.getTableDesc().getTblProps().getOrElse(
+                                       "shark.partition.col", "").trim
             OperatorFactory.createSharkMemoryStoreOutputPlan(
               hiveSinkOps.head,
               qb.getTableDesc.getTableName,

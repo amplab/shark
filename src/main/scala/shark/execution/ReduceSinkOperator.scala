@@ -76,33 +76,33 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
     initializeOisAndSers(conf, objectInspector)
   }
 
-  def getKeyColsInfo = {  
-    val keyColsName = new ArrayBuffer[String]
-    conf.getKeyCols.foreach { expr =>
+  def getPartColName = {  
+    val partColsName = new ArrayBuffer[String]
+    conf.getPartitionCols.foreach { expr =>
       expr match{
         case columnDesc: ExprNodeColumnDesc =>
-          keyColsName += columnDesc.getColumn
+          partColsName += columnDesc.getColumn
         case genericFuncDesc: ExprNodeGenericFuncDesc =>
           genericFuncDesc.getChildren.foreach { child =>
             child match {
               case columnDesc: ExprNodeColumnDesc =>
-                keyColsName += columnDesc.getColumn
+                partColsName += columnDesc.getColumn
               case _ =>
             }
           }
         case _ =>
       }
     }
-    keyColsName
+    partColsName
   }
   
-  def getKeyColInternalName = {
-    val keyColsName = getKeyColsInfo
+  def getPartColInternalName = {
+    val partColsName = getPartColName
     val tableColsNameToIndex = objectInspector.asInstanceOf[StructObjectInspector].
           getAllStructFieldRefs.zipWithIndex.map { case (field, index) =>
           (field.getFieldName() -> index)
         }.toMap
-    keyColsName.map { keyCol =>
+    partColsName.map { keyCol =>
       val regex = "_col([0-9])*".r
       keyCol match {
         case regex(pos) => keyCol
@@ -117,11 +117,15 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
   }
   
   override def preprocessRdd(rdd: RDD[_]) = {
+    val partColInternalName = getPartColInternalName
     rdd.partitioner.foreach { part => part match {
         case copart: CoPartitioner => 
-          val keySet = getKeyColInternalName.toSet
-          keepPartitioning = copart.getPartCols.forall(keySet.contains(_))
-        case _ => keepPartitioning = false
+          val partCols = copart.getPartCols
+          val keySet = partColInternalName.toSet
+          if(partColInternalName.size == partCols.size){
+            keepPartitioning = partCols.forall(keySet.contains(_))
+          }
+        case _ =>
       }
     }
     rdd
