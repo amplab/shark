@@ -353,6 +353,7 @@
             <derby.version>10.4.2.0</derby.version>
             <hive.test.dir>${hive.build.dir}</hive.test.dir>
             <shark.test.dir>${shark.test.dir}</shark.test.dir>
+            <user.timezone>PST</user.timezone>
           </systemPropertyVariables>
           <workingDirectory>${hive.build.dir}</workingDirectory>
           <additionalClasspathElements>
@@ -385,6 +386,7 @@
           <systemProperties>
             <shark.test.dir>${shark.test.dir}</shark.test.dir>
             <hive.test.dir>${hive.build.dir}</hive.test.dir>
+            <user.timezone>UTC</user.timezone>
           </systemProperties>
           <forkMode>once</forkMode>
         </configuration>
