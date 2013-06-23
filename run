@@ -88,6 +88,7 @@ else
   else
     echo "Cannot find either compiled classes or compiled jar package for Shark."
     echo "Have you compiled Shark yet?"
+    echo "Looking in $SPARK_CLASSPATH and $SHARK_JAR and $SHARK_CLASSES"
     exit 1
   fi
 fi
@@ -155,4 +156,5 @@ if [ "x$RUNNER" == "x" ] ; then
   fi
 fi
 
+echo "$RUNNER $EXTRA_ARGS $@"
 exec $RUNNER $EXTRA_ARGS "$@"

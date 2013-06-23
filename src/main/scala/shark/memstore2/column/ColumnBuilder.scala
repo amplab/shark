@@ -39,9 +39,21 @@ trait ColumnBuilder[@specialized(Boolean, Byte, Short, Int, Long, Float, Double)
 
   def build: ByteBuffer
 
+  private def initializeImpl() {
+    _nullBitmap = new EWAHCompressedBitmap
+  }
+
   // Subclasses should call super.initialize to initialize the null bitmap.
   def initialize(initialSize: Int) {
-    _nullBitmap = new EWAHCompressedBitmap
+    initializeImpl
+  }
+
+  // scala does not allow mixing overridden functions and default values easily
+  // Subclasses should call super.initialize to initialize the null bitmap.
+  def initialize(initialSize: Int,
+                 columnarComprString: String,
+                 columnarComprInt: String) {
+    initializeImpl
   }
 
   protected var _nullBitmap: EWAHCompressedBitmap = null

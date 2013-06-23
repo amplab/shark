@@ -43,6 +43,8 @@ class ColumnarSerDe extends SerDe with LogHelper {
   var tablePartitionBuilder: TablePartitionBuilder = _
   var serDeParams: SerDeParameters = _
   var initialColumnSize: Int = _
+  var columnarComprString: String = _
+  var columnarComprInt: String = _
   val serializeStream = new ByteStream.Output
 
   override def initialize(conf: Configuration, tbl: Properties) {
@@ -55,6 +57,14 @@ class ColumnarSerDe extends SerDe with LogHelper {
     // it initializes by passing a 'null' argument for 'conf'.
     if (conf != null) {
       initialColumnSize = SharkConfVars.getIntVar(conf, SharkConfVars.COLUMN_INITIALSIZE)
+      columnarComprString = SharkConfVars.getVar(conf, SharkConfVars.COLUMNAR_COMPR_STRING)
+      // println("From ColumnarSerde " + columnarComprString)
+      // val columnarComprString2 = conf.get(SharkConfVars.COLUMNAR_COMPR_STRING.varname,
+      //   conf.get("shark.columnar.compr.string", "none"))
+      // println("From ColumnarSerde2 " + columnarComprString2)
+      // val columnarComprString3 = SharkConfVars.COLUMNAR_COMPR_STRING
+      // println("From ColumnarSerde3 " + columnarComprString3)
+      columnarComprInt = SharkConfVars.getVar(conf, SharkConfVars.COLUMNAR_COMPR_INT)
 
       if (initialColumnSize == - 1) {
         // Approximate the size of a partition by using the HDFS "dfs.block.size" config.
@@ -69,6 +79,7 @@ class ColumnarSerDe extends SerDe with LogHelper {
         // partition_size / (num_columns * avg_field_size).
         val rowSize = ColumnarSerDe.getFieldSize(objectInspector).toLong
         initialColumnSize = (partitionSize / rowSize).toInt
+
 
         logInfo("Estimated size of each row is: " + rowSize)
       }
@@ -89,7 +100,8 @@ class ColumnarSerDe extends SerDe with LogHelper {
 
   override def serialize(obj: Object, objInspector: ObjectInspector): Writable = {
     if (tablePartitionBuilder == null) {
-      tablePartitionBuilder = new TablePartitionBuilder(objectInspector, initialColumnSize)
+      tablePartitionBuilder = new TablePartitionBuilder(objectInspector,
+        initialColumnSize, columnarComprString, columnarComprInt)
     }
 
     tablePartitionBuilder.incrementRowCount()

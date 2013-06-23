@@ -40,6 +40,8 @@ import spark.storage.StorageLevel
 class MemoryStoreSinkOperator extends TerminalOperator {
 
   @BeanProperty var initialColumnSize: Int = _
+  @BeanProperty var columnarComprString: String = _
+  @BeanProperty var columnarComprInt: String = _
   @BeanProperty var storageLevel: StorageLevel = _
   @BeanProperty var tableName: String = _
   @transient var useTachyon: Boolean = _
@@ -49,11 +51,15 @@ class MemoryStoreSinkOperator extends TerminalOperator {
   override def initializeOnMaster() {
     super.initializeOnMaster()
     initialColumnSize = SharkConfVars.getIntVar(localHconf, SharkConfVars.COLUMN_INITIALSIZE)
+    columnarComprString = SharkConfVars.getVar(localHconf, SharkConfVars.COLUMNAR_COMPR_STRING)
+    columnarComprInt = SharkConfVars.getVar(localHconf, SharkConfVars.COLUMNAR_COMPR_INT)
   }
 
   override def initializeOnSlave() {
     super.initializeOnSlave()
     localHconf.setInt(SharkConfVars.COLUMN_INITIALSIZE.varname, initialColumnSize)
+    localHconf.set(SharkConfVars.COLUMNAR_COMPR_STRING.varname, columnarComprString)
+    localHconf.set(SharkConfVars.COLUMNAR_COMPR_INT.varname, columnarComprInt)
   }
 
   override def execute(): RDD[_] = {
@@ -112,6 +118,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       rdd.foreach(_ => Unit)
     } else {
       // Put the table in Spark block manager.
+      op.logInfo(columnarComprString + " columnarComprString")
       op.logInfo("Putting %sRDD for %s in Spark block manager, %s %s %s %s".format(
         if (useUnionRDD) "Union" else "",
         tableName,

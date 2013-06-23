@@ -30,8 +30,6 @@ import com.ning.compress.lzf.LZFOutputStream
 import com.ning.compress.lzf.LZFEncoder
 import com.ning.compress.lzf.LZFDecoder
 
-import shark.LogHelper
-
 /**
  * A wrapper that uses LZ compression. Decompresses in blocks (or chunks) so
  * that large amounts of scratch space will not required for large columns. LZF

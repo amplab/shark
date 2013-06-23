@@ -140,6 +140,16 @@ run() {
   set -- "${residual_args[@]}"
   argumentCount=$#
 
+
+  echo "$java_cmd" \
+    ${SBT_OPTS:-$default_sbt_opts} \
+    $(get_mem_opts $sbt_mem) \
+    ${java_opts} \
+    ${java_args[@]} \
+    -jar "$sbt_jar" \
+    "${sbt_commands[@]}" \
+    "${residual_args[@]}"
+
   # run sbt
   execRunner "$java_cmd" \
     ${SBT_OPTS:-$default_sbt_opts} \
