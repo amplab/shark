@@ -84,7 +84,6 @@ class RLEColumnIterator[T <: ColumnIterator](
       intPos += 1
       baseIter.next()
       // logDebug(" pos " + extPos + " value " + current)
-
     }
   }
 

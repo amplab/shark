@@ -38,8 +38,16 @@ class IntColumnBuilder extends ColumnBuilder[Int]{
   private val MAX_UNIQUE_VALUES = 256 // 2 ** 8 - storable in 8 bits or 1 Byte
 
   override def initialize(initialSize: Int) {
+    initialize(initialSize, "auto", "auto")
+  }
+
+  override def initialize(initialSize: Int,
+    columnarComprString: String,
+    columnarComprInt: String) {
+
     _nonNulls = new IntArrayList(initialSize)
     _stats = new ColumnStats.IntColumnStats
+    scheme = columnarComprInt
     super.initialize(initialSize)
   }
 

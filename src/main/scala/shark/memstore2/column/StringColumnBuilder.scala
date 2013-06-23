@@ -47,10 +47,18 @@ class StringColumnBuilder extends ColumnBuilder[Text]{
   private var rleSs = new RLEStreamingSerializer[Text]( { () => null })
 
   override def initialize(initialSize: Int) {
+    initialize(initialSize, "auto", "auto")
+  }
+
+  override def initialize(initialSize: Int,
+                          columnarComprString: String,
+                          columnarComprInt: String) {
     _arr = new ByteArrayList(initialSize * ColumnIterator.STRING_SIZE)
     _lengthArr = new IntArrayList(initialSize)
     _stats = new ColumnStats.StringColumnStats
     logInfo("initialized a StringColumnStats ")
+    // override from TBLPROPERTIES
+    scheme = columnarComprString
     super.initialize(initialSize)
   }
 
@@ -96,15 +104,18 @@ class StringColumnBuilder extends ColumnBuilder[Text]{
 
   override def build: ByteBuffer = {
 
-    // highest priority override
-    if(System.getenv("TEST_SHARK_STRING_COLUMN_COMPRESSION_SCHEME") != null)
-      scheme = System.getenv("TEST_SHARK_STRING_COLUMN_COMPRESSION_SCHEME")
+    // highest priority override is if someone (like a test) calls the getter
+    //.scheme()
+    // TESTING
+    // scheme = "NONE"
+
+    // next priority override - from TBL PROPERTIES
+    // if(System.getenv("TEST_SHARK_STRING_COLUMN_COMPRESSION_SCHEME") != null)
+    //   scheme = System.getenv("TEST_SHARK_STRING_COLUMN_COMPRESSION_SCHEME")
     // choices are none, auto, RLE, LZF
 
-    // next override is if someone calls the getter .scheme()
-
     // otherwise pick auto scheme 
-    if(scheme == null || scheme == "auto") scheme = pickCompressionScheme
+    if(scheme == null || scheme.toUpperCase == "AUTO") scheme = pickCompressionScheme
 
     val selectivity = (_uniques.size).toDouble / _lengthArr.size
     val transitionsRatio = (_stats.transitions).toDouble / _lengthArr.size

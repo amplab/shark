@@ -35,7 +35,8 @@ import shark.memstore2.column.ColumnBuilder
  * Used to build a TablePartition. This is used in the serializer to convert a
  * partition of data into columnar format and to generate a TablePartition.
  */
-class TablePartitionBuilder(oi: StructObjectInspector, initialColumnSize: Int)
+class TablePartitionBuilder(oi: StructObjectInspector, initialColumnSize: Int,
+                            columnarComprString: String, columnarComprInt: String)
   extends Writable {
 
   var numRows: Long = 0
@@ -43,6 +44,8 @@ class TablePartitionBuilder(oi: StructObjectInspector, initialColumnSize: Int)
 
   val columnBuilders = Array.tabulate[ColumnBuilder[_]](fields.size) { i =>
     val columnBuilder = ColumnBuilder.create(fields.get(i).getFieldObjectInspector)
+    // columnBuilder.initialize(initialColumnSize, columnarComprString,
+    //columnarComprInt)
     columnBuilder.initialize(initialColumnSize)
     columnBuilder
   }
