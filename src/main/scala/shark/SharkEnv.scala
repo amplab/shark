@@ -80,6 +80,8 @@ object SharkEnv extends LogHelper {
 
   logInfo("Initializing SharkEnv")
 
+  System.setProperty("spark.kryo.registrator", classOf[KryoRegistrator].getName)
+
   val executorEnvVars = new HashMap[String, String]
   executorEnvVars.put("SCALA_HOME", getEnv("SCALA_HOME"))
   executorEnvVars.put("SPARK_MEM", getEnv("SPARK_MEM"))
