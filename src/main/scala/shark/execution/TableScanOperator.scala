@@ -177,7 +177,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         rdd
       }
 
-    val columnsUsed = new ColumnPruner(this, table).getColumnsUsed;
+    val columnsUsed = new ColumnPruner(this, table).getColumnsUsed
     prunedRdd.mapPartitions { iter =>
       if (iter.hasNext) {
         val tablePartition = iter.next.asInstanceOf[TablePartition]
