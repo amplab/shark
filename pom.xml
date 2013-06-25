@@ -42,7 +42,7 @@
     <test.mem>1024m</test.mem>
     <test.jvm.args>-Xmx${test.mem} -Xms${test.mem} -XX:-UseSplitVerifier</test.jvm.args>
 
-    <shark.test.query.file>${project.basedir}/src/test/stable_tests.txt</shark.test.query.file>
+    <shark.test.query.file>${project.basedir}/src/test/tests_stable.txt</shark.test.query.file>
   </properties>
   <scm>
     <connection>scm:git:git@github.com:clearstorydata/shark.git</connection>
