@@ -18,7 +18,6 @@
 package shark.memstore2.column
 
 import shark.memstore2.buffer.ByteBufferReader
-import shark.LogHelper
 
 /**
  * Factory class used to create column iterators for a given data type.
@@ -31,7 +30,11 @@ trait ColumnIteratorFactory {
 }
 
 
-object ColumnIteratorFactory extends LogHelper{
+object ColumnIteratorFactory{
+
+  // logger problems - rmeove before commit
+  private def logInfo(msg: String) = { println("INFO " + msg) }
+  private def logDebug(msg: String) = { println("DEBUG " + msg) }
 
   /**
    * Create a factory for the given column iterator.

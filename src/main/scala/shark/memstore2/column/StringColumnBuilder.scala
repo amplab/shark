@@ -17,7 +17,7 @@
 
 package shark.memstore2.column
 
-import shark.{LogHelper, SharkConfVars}
+import shark.{SharkConfVars}
 import collection.mutable.{Set, HashSet}
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -30,7 +30,10 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector
 import org.apache.hadoop.io.Text
 
-class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper {
+class StringColumnBuilder extends ColumnBuilder[Text]{
+  // logger problems - rmeove before commit
+  private def logInfo(msg: String) = { println("INFO " + msg) }
+  private def logDebug(msg: String) = { println("DEBUG " + msg) }
 
   private var _stats: ColumnStats.StringColumnStats = null
   private var _uniques: collection.mutable.Set[Text] = new HashSet()
@@ -44,10 +47,18 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper {
   private var rleSs = new RLEStreamingSerializer[Text]( { () => null })
 
   override def initialize(initialSize: Int) {
+    initialize(initialSize, "auto", "auto")
+  }
+
+  override def initialize(initialSize: Int,
+                          columnarComprString: String,
+                          columnarComprInt: String) {
     _arr = new ByteArrayList(initialSize * ColumnIterator.STRING_SIZE)
     _lengthArr = new IntArrayList(initialSize)
     _stats = new ColumnStats.StringColumnStats
     logInfo("initialized a StringColumnStats ")
+    // override from TBLPROPERTIES
+    scheme = columnarComprString
     super.initialize(initialSize)
   }
 
@@ -80,24 +91,41 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper {
     // ratio of transitions < 30% 
     val selectivity = (_uniques.size).toDouble / _lengthArr.size
     val transitionsRatio = (_stats.transitions).toDouble / _lengthArr.size
+  
     val rleUsed = 
       ((selectivity < 0.2) &&
         (transitionsRatio < 0.3))
-    logInfo("uniques=" + _uniques.size + " selectivity=" + selectivity + 
-      " transitionsRatio=" + transitionsRatio + 
-      " transitions=" + _stats.transitions +
-      " #values=" + _lengthArr.size)
 
     if(rleUsed) "RLE"
     else "none"
   }
 
+  var scheme = "auto"
 
   override def build: ByteBuffer = {
 
-    var scheme = System.getenv("TEST_SHARK_STRING_COLUMN_COMPRESSION_SCHEME")
-    if(scheme == null || scheme == "auto") scheme = pickCompressionScheme
+    // highest priority override is if someone (like a test) calls the getter
+    //.scheme()
+    // TESTING
+    // scheme = "NONE"
+
+    // next priority override - from TBL PROPERTIES
+    // if(System.getenv("TEST_SHARK_STRING_COLUMN_COMPRESSION_SCHEME") != null)
+    //   scheme = System.getenv("TEST_SHARK_STRING_COLUMN_COMPRESSION_SCHEME")
     // choices are none, auto, RLE, LZF
+
+    // otherwise pick auto scheme 
+    if(scheme == null || scheme.toUpperCase == "AUTO") scheme = pickCompressionScheme
+
+    val selectivity = (_uniques.size).toDouble / _lengthArr.size
+    val transitionsRatio = (_stats.transitions).toDouble / _lengthArr.size
+  
+    logInfo("uniques=" + _uniques.size + " selectivity=" + selectivity +
+      " transitionsRatio=" + transitionsRatio + 
+      " transitions=" + _stats.transitions +
+      " #values=" + _lengthArr.size)
+
+
 
     scheme.toUpperCase match {
       case "NONE" => {
@@ -199,6 +227,7 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper {
     var stringsSoFar = 0
     var outSoFar: Int = 0
     var tempSoFar: Int = 0
+    logInfo("going to ask for bytes " + (math.max(tempBufSize, 2*LZFSerializer.BLOCK_SIZE)))
     var out = new Array[Byte](math.max(tempBufSize, 2*LZFSerializer.BLOCK_SIZE)) // extra just in case nothing compresses
     var len = LZFSerializer.BLOCK_SIZE
     if(_lengthArr.size < LZFSerializer.BLOCK_SIZE) len = _lengthArr.size

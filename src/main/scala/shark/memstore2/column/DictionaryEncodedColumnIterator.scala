@@ -21,8 +21,6 @@ import shark.memstore2.buffer.ByteBufferReader
 import org.apache.hadoop.io
 
 
-import shark.LogHelper
-
 /**
   * A wrapper around any ColumnIterator so it can be Dictionary Encoded
   * 
