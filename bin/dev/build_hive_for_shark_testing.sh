@@ -97,6 +97,7 @@ fi
 set -x
 cd "${hive_dir}"
 # Fetch with this refspec to be able to test pull requests
+git fetch origin
 git fetch origin +refs/pull/*:refs/remotes/origin/pr/*
 git checkout "${hive_branch}"
 set +x
