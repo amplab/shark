@@ -24,9 +24,10 @@ import javaewah.IntIterator
 import shark.memstore2.buffer.ByteBufferReader
 
 
-/**
- * A wrapper around non-null ColumnIterator so it can handle null values.
- */
+/** Wrapper around Concrete ColumnIterators so they can handle null values.
+  * The Null Bit Vector is maintained in the first part of the Buffer.
+  * Can be composed with other wrappers like the [[shark.memstore2.column.RLEColumnIterator]]
+  */
 class EWAHNullableColumnIterator[T <: ColumnIterator](
     bIter: T, bytes: ByteBufferReader)
   extends ColumnIterator {

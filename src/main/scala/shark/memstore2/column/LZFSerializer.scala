@@ -30,6 +30,9 @@ import java.nio.ByteOrder
 import java.io.InputStream
 
 
+/** Helper object to implement LZF compression across both the
+  * LZFColumnIterator and various Builders.
+  */
 object LZFSerializer{
   val MIN_CHUNK_BYTES = 230 // a safe set of bytes to account for stuff added on
                             // by LZF even if there is nothing to compress

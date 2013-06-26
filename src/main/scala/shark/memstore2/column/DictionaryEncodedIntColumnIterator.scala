@@ -23,6 +23,9 @@ import shark.memstore2.buffer.ByteBufferReader
 import shark.memstore2.column
 
 
+/** An iterator for Ints that are Dict encoded. Bytes storing the dictionary
+  * come first in the buffer.
+  */
 object DictionaryEncodedIntColumnIterator{
 
   sealed class Default(private val _bytesReader: ByteBufferReader) extends ColumnIterator {

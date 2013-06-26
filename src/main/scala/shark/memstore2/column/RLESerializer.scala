@@ -52,6 +52,10 @@ trait RLEncoding[T] extends ColumnBuilder[T]{
 }
 */
 
+/** Helper class to implement Run Length Encoding across both the
+  * RLEColumnIterator and various Builders. This one builds runs at item at a
+  * time.
+  */
 class RLEStreamingSerializer[A](val fac: () => A){
   var coded = collection.mutable.ArrayBuffer.empty[(Int,A)]
   private var coded_ = coded
@@ -98,6 +102,9 @@ class RLEStreamingSerializer[A](val fac: () => A){
 
 }
 
+/** Helper object to implement Run Length Encoding across both the
+  * RLEColumnIterator and various Builders.
+  */
 object RLESerializer{
 
 // http://aperiodic.net/phil/scala/s-99/p13.scala

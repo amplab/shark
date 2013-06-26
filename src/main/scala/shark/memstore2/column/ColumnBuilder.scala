@@ -27,6 +27,31 @@ import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
 
 
+/** Builder interface for a column. Each column type (PrimitiveCategory) would
+ * be expected to implement its own builder. Each builder takes an array of
+ * these items and puts them into a [[java.nio.ByteBuffer]].
+ *
+ * Adding a new compression/encoding scheme to the code requires several
+ * things. First among them is an addition to the list of iterators in
+ * [[shark.memstore2.column.ColumnIterator]] .* Then the concrete builder
+ * implementation for each data type is required to add support for this
+ * compression/encoding in the manner it deems best.  Not all concrete
+ * ColumnBuilders support all encoding schemes. See
+ * [[shark.memstore2.buffer.IntColumnBuilder]] and
+ * [[shark.memstore2.buffer.StringColumnBuilder]]
+ * 
+ * The ColumnBuilders do not compose like the ColumnIterators. To know what
+ * compositions are possible at any time look at
+ * [[shark.memstore2.column.ColumnIterator]].
+ * 
+ * The changes required for the LZF encoding's Builder/Iterator might be the
+ * easiest to look to get a feel for what is required -
+ * [[shark.memstore2.buffer.LZFColumnIterator]]. See SHA 225f4d90d8721a9d9e8f
+ * 
+ * The base class [[shark.memstore2.buffer.ColumnBuilder]] is the write side of
+ * this equation. For the read side see [[shark.memstore2.buffer.ColumnIterator]].
+ * 
+ */
 trait ColumnBuilder[@specialized(Boolean, Byte, Short, Int, Long, Float, Double) T] {
 
   def append(o: Object, oi: ObjectInspector)
@@ -43,13 +68,16 @@ trait ColumnBuilder[@specialized(Boolean, Byte, Short, Int, Long, Float, Double)
     _nullBitmap = new EWAHCompressedBitmap
   }
 
-  // Subclasses should call super.initialize to initialize the null bitmap.
+  /** Subclasses should call super.initialize to initialize the null bitmap. 
+    */
   def initialize(initialSize: Int) {
     initializeImpl
   }
 
-  // scala does not allow mixing overridden functions and default values easily
-  // Subclasses should call super.initialize to initialize the null bitmap.
+  /** Subclasses should call super.initialize to initialize the null bitmap. 
+    * Uses this method because Scala does not allow mixing overridden functions
+    * and default values easily
+    */
   def initialize(initialSize: Int,
                  columnarComprString: String,
                  columnarComprInt: String) {

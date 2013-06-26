@@ -21,13 +21,12 @@ import shark.memstore2.buffer.ByteBufferReader
 import org.apache.hadoop.io
 
 
-/**
-  * A wrapper around any ColumnIterator so it can be Dictionary Encoded
+/** A wrapper around any ColumnIterator so it can be Dictionary Encoded
+  * Bytes storing the dictionary come first in the buffer.
   * 
-  *  Bytes storing the dictionary come first in the buffer.
-  * 
+  * Class not actually being used. Was an attempt to build a type-agnostic
+  * dictionary encoding rather than multiple type-specific ones.
   */
-
 class DictionaryEncodedColumnIterator[Iter <: ColumnIterator](baseIterCls: Class[Iter], _bytesReader: ByteBufferReader)
     extends ColumnIterator{
   private var currentByte: Byte = 0
