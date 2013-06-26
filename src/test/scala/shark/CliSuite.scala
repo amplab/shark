@@ -19,23 +19,26 @@ package shark
 
 import java.io.{BufferedReader, File, InputStreamReader, PrintWriter}
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
-
+import org.apache.commons.logging.LogFactory
 
 /**
  * Test the Shark CLI.
  */
 class CliSuite extends FunSuite with BeforeAndAfterAll with TestUtils {
 
+  private[this] val LOG = LogFactory.getLog("CliSuite")
+
   val WAREHOUSE_PATH = TestUtils.getWarehousePath("cli")
   val METASTORE_PATH = TestUtils.getMetastorePath("cli")
 
   override def beforeAll() {
-    val pb = new ProcessBuilder(
-      "./bin/shark",
+    val commandArgs = Array("./bin/shark",
       "-hiveconf",
       "javax.jdo.option.ConnectionURL=jdbc:derby:;databaseName=" + METASTORE_PATH + ";create=true",
       "-hiveconf",
       "hive.metastore.warehouse.dir=" + WAREHOUSE_PATH)
+    val pb = new ProcessBuilder(commandArgs: _*)
+    LOG.info("Launching Shark CLI: " + commandArgs.mkString(" "))
 
     process = pb.start()
     outputWriter = new PrintWriter(process.getOutputStream, true)

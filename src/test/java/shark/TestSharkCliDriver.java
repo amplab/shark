@@ -104,7 +104,7 @@ public class TestSharkCliDriver extends TestCliDriver {
 
       if (regexPattern != null) {
         Matcher m = regexPattern.matcher(test.getName());
-        if (m.find() || test.getName() == "testCliDriver_shutdown") {
+        if (m.find() || test.getName().equals("testCliDriver_shutdown")) {
           passRegex = true;
         }
       }
