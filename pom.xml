@@ -40,7 +40,7 @@
     <shark.test.dir>${project.build.directory}/testing</shark.test.dir>
 
     <test.mem>1024m</test.mem>
-    <test.jvm.args>-Xmx${test.mem} -Xms${test.mem} -XX:-UseSplitVerifier</test.jvm.args>
+    <test.jvm.args>-Xmx${test.mem} -Xms${test.mem} -XX:-UseSplitVerifier -XX:MaxPermSize=${test.mem}</test.jvm.args>
 
     <shark.test.query.file>${project.basedir}/src/test/tests_stable.txt</shark.test.query.file>
   </properties>
