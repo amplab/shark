@@ -192,8 +192,8 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
     var i = 0
     while (i < aggregations.length) {
       if (!aggregationIsDistinct(i) || isNewKey) {
-        aggregationEvals(i).aggregate(
-          aggregations(i), aggregationParameterFields(i).map(_.evaluate(row)))
+        val parameters = aggregationParameterFields(i).map(_.evaluate(row))
+        aggregationEvals(i).aggregate(aggregations(i), parameters)
       }
       i += 1
     }

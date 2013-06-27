@@ -25,22 +25,21 @@ import org.apache.hadoop.mapred.{FileInputFormat, InputFormat, JobConf}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_PARTITION_COLUMNS
 import org.apache.hadoop.hive.ql.exec.{TableScanOperator => HiveTableScanOperator}
-import org.apache.hadoop.hive.ql.exec.Utilities
-import org.apache.hadoop.hive.ql.metadata.Partition
-import org.apache.hadoop.hive.ql.metadata.Table
+import org.apache.hadoop.hive.ql.exec.{MapSplitPruning, Utilities}
+import org.apache.hadoop.hive.ql.metadata.{Partition, Table}
 import org.apache.hadoop.hive.ql.plan.{PlanUtils, PartitionDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorFactory,
   StructObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
-import org.apache.hadoop.hive.ql.exec.MapSplitPruning
 import org.apache.hadoop.io.Writable
 
-import shark.{SharkConfVars, SharkEnv}
-import shark.execution.serialization.XmlSerializer
-import shark.memstore.{TableStats, TableStorage}
+import shark.{SharkConfVars, SharkEnv, Utils}
+import shark.execution.serialization.{XmlSerializer, JavaSerializer}
+import shark.memstore2.{CacheType, TablePartition, TablePartitionStats}
+import shark.tachyon.TachyonException
+
 import spark.RDD
-import spark.EnhancedRDD._
-import spark.rdd.UnionRDD
+import spark.rdd.{PartitionPruningRDD, UnionRDD}
 import org.apache.hadoop.hive.ql.io.HiveInputFormat
 
 
@@ -61,7 +60,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
   override def initializeHiveTopOperator() {
 
     val rowObjectInspector = {
-      if (parts == null ) {
+      if (parts == null) {
         val serializer = tableDesc.getDeserializerClass().newInstance()
         serializer.initialize(hconf, tableDesc.getProperties)
         serializer.getObjectInspector()
@@ -100,27 +99,53 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
   override def execute(): RDD[_] = {
     assert(parentOperators.size == 0)
     val tableKey: String = tableDesc.getTableName.split('.')(1)
-    SharkEnv.cache.get(tableKey) match {
-      // The RDD already exists in cache manager. Try to load it from memory.
-      // In this case, skip the normal execution chain, i.e. skip
-      // preprocessRdd, processPartition, postprocessRdd, etc.
-      case Some(rdd) => loadRddFromCache(tableKey, rdd)
-      // The RDD is new, i.e. reading the table from disk.
-      case None => super.execute()
+
+    // There are three places we can load the table from.
+    // 1. Tachyon table
+    // 2. Spark heap (block manager)
+    // 3. Hive table on HDFS (or other Hadoop storage)
+
+    val cacheMode = CacheType.fromString(
+      tableDesc.getProperties().get("shark.cache").asInstanceOf[String])
+    if (cacheMode == CacheType.heap) {
+      // Table is in Spark heap (block manager).
+      val rdd = SharkEnv.memoryMetadataManager.get(tableKey).get
+      logInfo("Loading table " + tableKey + " from Spark block manager")
+      loadRddFromSpark(tableKey, rdd)
+    } else if (cacheMode == CacheType.tachyon) {
+      // Table is in Tachyon.
+      if (!SharkEnv.tachyonUtil.tableExists(tableKey)) {
+        throw new TachyonException("Table " + tableKey + " does not exist in Tachyon")
+      }
+      logInfo("Loading table " + tableKey + " from Tachyon")
+
+      var indexToStats: collection.Map[Int, TablePartitionStats] =
+        SharkEnv.memoryMetadataManager.getStats(tableKey).getOrElse(null)
+
+      if (indexToStats == null) {
+        val statsByteBuffer = SharkEnv.tachyonUtil.getTableMetadata(tableKey)
+        indexToStats = JavaSerializer.deserialize[collection.Map[Int, TablePartitionStats]](
+          statsByteBuffer.array())
+        SharkEnv.memoryMetadataManager.putStats(tableKey, indexToStats)
+      }
+      SharkEnv.tachyonUtil.createRDD(tableKey)
+    } else {
+      // Table is a Hive table on HDFS (or other Hadoop storage).
+      super.execute()
     }
   }
 
-  private def loadRddFromCache(tableKey: String, rdd: RDD[_]): RDD[_] = {
-    logInfo("Loading table from cache " + tableKey)
-
+  private def loadRddFromSpark(tableKey: String, rdd: RDD[_]): RDD[_] = {
     // Stats used for map pruning.
-    val splitToStats: collection.Map[Int, TableStats] = SharkEnv.cache.getStats(tableKey).get
+    val indexToStats: collection.Map[Int, TablePartitionStats] =
+      SharkEnv.memoryMetadataManager.getStats(tableKey).get
 
     // Run map pruning if the flag is set, there exists a filter predicate on
     // the input table and we have statistics on the table.
     val prunedRdd: RDD[_] =
       if (SharkConfVars.getBoolVar(localHconf, SharkConfVars.MAP_PRUNING) &&
-          childOperators(0).isInstanceOf[FilterOperator] && splitToStats.size > 0) {
+          childOperators(0).isInstanceOf[FilterOperator] &&
+          indexToStats.size == rdd.partitions.size) {
 
         val startTime = System.currentTimeMillis
         val printPruneDebug = SharkConfVars.getBoolVar(
@@ -131,20 +156,22 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         val filterOp = childOperators(0).asInstanceOf[FilterOperator]
         filterOp.initializeOnSlave()
 
-        // Do the pruning.
-        val prunedRdd = rdd.pruneSplits { split =>
+        def prunePartitionFunc(index: Int): Boolean = {
           if (printPruneDebug) {
-            logInfo("\nSplit " + split + "\n" + splitToStats(split))
+            logInfo("\nPartition " + index + "\n" + indexToStats(index))
           }
           // Only test for pruning if we have stats on the column.
-          val splitStats = splitToStats(split)
-          if (splitStats != null && splitStats.stats != null)
-            MapSplitPruning.test(splitStats, filterOp.conditionEvaluator)
+          val partitionStats = indexToStats(index)
+          if (partitionStats != null && partitionStats.stats != null)
+            MapSplitPruning.test(partitionStats, filterOp.conditionEvaluator)
           else true
         }
+
+        // Do the pruning.
+        val prunedRdd = PartitionPruningRDD.create(rdd, prunePartitionFunc)
         val timeTaken = System.currentTimeMillis - startTime
-        logInfo("Map pruning %d splits into %s splits took %d ms".format(
-            rdd.splits.size, prunedRdd.splits.size, timeTaken))
+        logInfo("Map pruning %d partitions into %s partitions took %d ms".format(
+            rdd.partitions.size, prunedRdd.partitions.size, timeTaken))
         prunedRdd
       } else {
         rdd
@@ -152,8 +179,8 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
 
     prunedRdd.mapPartitions { iter =>
       if (iter.hasNext) {
-        val tableStorage = iter.next.asInstanceOf[TableStorage]
-        tableStorage.iterator
+        val tablePartition = iter.next.asInstanceOf[TablePartition]
+        tablePartition.iterator
       } else {
         Iterator()
       }
@@ -176,7 +203,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     }
   }
 
-  override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
+  override def processPartition(index: Int, iter: Iterator[_]): Iterator[_] = {
     val deserializer = tableDesc.getDeserializerClass().newInstance()
     deserializer.initialize(localHconf, tableDesc.getProperties)
     iter.map { value =>
@@ -269,16 +296,17 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     }
 
     // If none of the s3 credentials are set in Hive conf, try use the environmental
-    // variables AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.
-    if (!s3varsSet && System.getenv("AWS_ACCESS_KEY_ID") != null &&
-      System.getenv("AWS_SECRET_ACCESS_KEY") != null) {
-      conf.set("fs.s3n.awsAccessKeyId", System.getenv("AWS_ACCESS_KEY_ID"))
-      conf.set("fs.s3.awsAccessKeyId", System.getenv("AWS_ACCESS_KEY_ID"))
-      conf.set("fs.s3n.awsSecretAccessKey", System.getenv("AWS_SECRET_ACCESS_KEY"))
-      conf.set("fs.s3.awsSecretAccessKey", System.getenv("AWS_SECRET_ACCESS_KEY"))
+    // variables for credentials.
+    if (!s3varsSet) {
+      Utils.setAwsCredentials(conf)
     }
 
+    // Choose the minimum number of splits. If mapred.map.tasks is set, use that unless
+    // it is smaller than what Spark suggests.
+    val minSplits = math.max(localHconf.getInt("mapred.map.tasks", 1), SharkEnv.sc.defaultMinSplits)
+    val rdd = SharkEnv.sc.hadoopRDD(conf, ifc, classOf[Writable], classOf[Writable], minSplits)
+
     // Only take the value (skip the key) because Hive works only with values.
-    SharkEnv.sc.hadoopRDD(conf, ifc, classOf[Writable], classOf[Writable]).map(_._2)
+    rdd.map(_._2)
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -210,7 +210,7 @@ object Operator extends LogHelper {
    */
   def executeProcessPartition(operator: Operator[_ <: HiveOperator], rdd: RDD[_]): RDD[_] = {
     val op = OperatorSerializationWrapper(operator)
-    rdd.mapPartitionsWithSplit { case(split, partition) =>
+    rdd.mapPartitionsWithIndex { case(split, partition) =>
       op.logDebug("Started executing mapPartitions for operator: " + op)
       op.logDebug("Input object inspectors: " + op.objectInspectors)
 

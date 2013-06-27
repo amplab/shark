@@ -57,6 +57,9 @@ public class SharkQTestUtil extends QTestUtil {
     HiveConf.setVar(conf, HiveConf.ConfVars.HIVE_AUTHENTICATOR_MANAGER,
       "org.apache.hadoop.hive.ql.security.DummyAuthenticator");
 
+    // Set the default min number of map tasks to 1 since that's what most Hive tests expects.
+    conf.setInt("mapred.map.tasks", 1);
+
     CliSessionState ss = new CliSessionState(conf);
     assert(ss != null);
     ss.in = System.in;

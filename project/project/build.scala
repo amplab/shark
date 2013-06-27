@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,6 @@ import sbt._
 
 object Plugins extends Build {
   lazy val root = Project("root", file(".")) dependsOn(
-    uri("git://github.com/sbt/sbt-assembly.git#071"),
     uri("git://github.com/ijuma/junit_xml_listener.git#fe434773255b451a38e8d889536ebc260f4225ce")
   )
 }

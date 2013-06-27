@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,17 +17,23 @@
 
 import sbt._
 import Keys._
-import sbtassembly.Plugin._
-import AssemblyKeys._
+
 
 object SharkBuild extends Build {
 
+  // Shark version
+  val SHARK_VERSION = "0.7.0"
+
+  val SPARK_VERSION = "0.7.1-SNAPSHOT"
+
+  val SCALA_VERSION = "2.9.3"
+
   // Hadoop version to build against. For example, "0.20.2", "0.20.205.0", or
   // "1.0.1" for Apache releases, or "0.20.2-cdh3u3" for Cloudera Hadoop.
-  val HADOOP_VERSION = "0.20.205.0"
+  val HADOOP_VERSION = "1.0.4"
 
-  // Spark version to build against.
-  val SPARK_VERSION = "0.7.0-SNAPSHOT"
+  // Whether to build Shark with Tachyon jar.
+  val TACHYON_ENABLED = true
 
   lazy val root = Project(
     id = "root",
@@ -38,8 +44,8 @@ object SharkBuild extends Build {
 
     name := "shark",
     organization := "edu.berkeley.cs.amplab",
-    version := "0.2",
-    scalaVersion := "2.9.2",
+    version := SHARK_VERSION,
+    scalaVersion := SCALA_VERSION,
     scalacOptions := Seq("-deprecation", "-unchecked", "-optimize"),
     parallelExecution in Test := false,
 
@@ -52,8 +58,20 @@ object SharkBuild extends Build {
       "Cloudera Repository" at "http://repository.cloudera.com/artifactory/cloudera-repos/"
     ),
 
+    fork := true,
+    javaOptions in test += "-XX:MaxPermSize=512m",
+    javaOptions in test += "-Xmx2g",
+
     testListeners <<= target.map(
       t => Seq(new eu.henkelmann.sbt.JUnitXmlTestsListener(t.getAbsolutePath))),
+
+    unmanagedSourceDirectories in Compile <+= baseDirectory { base =>
+      if (TACHYON_ENABLED) {
+        base / ("src/tachyon_enabled/scala")
+      } else {
+        base / ("src/tachyon_disabled/scala")
+      }
+    },
 
     unmanagedJars in Compile <++= baseDirectory map { base =>
       val hiveFile = file(System.getenv("HIVE_HOME")) / "lib"
@@ -62,6 +80,7 @@ object SharkBuild extends Build {
       // Hive uses an old version of guava that doesn't have what we want.
       customJars.classpath.filter(!_.toString.contains("guava"))
     },
+
     unmanagedJars in Test ++= Seq(
       file(System.getenv("HIVE_DEV_HOME")) / "build" / "ql" / "test" / "classes",
       file(System.getenv("HIVE_DEV_HOME")) / "build/ivy/lib/test/hadoop-test-0.20.2.jar"
@@ -72,17 +91,11 @@ object SharkBuild extends Build {
       "org.spark-project" %% "spark-repl" % SPARK_VERSION,
       "com.google.guava" % "guava" % "11.0.1",
       "org.apache.hadoop" % "hadoop-core" % HADOOP_VERSION,
-      "it.unimi.dsi" % "fastutil" % "6.4.2",
-      "org.scalatest" %% "scalatest" % "1.6.1" % "test",
-      "junit" % "junit" % "4.10" % "test")
+      "it.unimi.dsi" % "fastutil" % "6.4.4",
+      "org.scalatest" %% "scalatest" % "1.9.1" % "test",
+      "junit" % "junit" % "4.10" % "test",
+      "com.novocode" % "junit-interface" % "0.8" % "test") ++
+      (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.2.1") else None).toSeq
 
-  ) ++ assemblySettings ++ Seq(test in assembly := {}) ++ Seq(getClassPathTask)
-
-  // A sbt task to print out the classpath.
-  val getClasspath = TaskKey[Unit]("getclasspath")
-  val getClassPathTask = getClasspath <<= (target, fullClasspath in Runtime) map {
-    (target, cp) => println(cp.map(_.data).mkString(":"))
-  }
-
+  )
 }
-
