@@ -5,6 +5,14 @@ testCliDriver_alter3
 testCliDriver_alter4
 testCliDriver_alter_index
 testCliDriver_alter_partition_format_loc
+testCliDriver_alter_rename_partition_authorization
+testCliDriver_authorization_1
+testCliDriver_authorization_2
+testCliDriver_authorization_3
+testCliDriver_authorization_4
+testCliDriver_authorization_5
+testCliDriver_authorization_6
+testCliDriver_authorization_7
 testCliDriver_auto_join0
 testCliDriver_auto_join1
 testCliDriver_auto_join10
@@ -27,6 +35,7 @@ testCliDriver_auto_join5
 testCliDriver_auto_join6
 testCliDriver_auto_join8
 testCliDriver_auto_join9
+testCliDriver_binary_constant
 testCliDriver_binary_output_format
 testCliDriver_binarysortable_1
 testCliDriver_bucket1
@@ -113,11 +122,11 @@ testCliDriver_input3
 testCliDriver_input30
 testCliDriver_input31
 testCliDriver_input32
+testCliDriver_input33
 testCliDriver_input34
 testCliDriver_input35
 testCliDriver_input36
 testCliDriver_input38
-testCliDriver_input39
 testCliDriver_input4
 testCliDriver_input40
 testCliDriver_input43
@@ -288,7 +297,6 @@ testCliDriver_rcfile_union
 testCliDriver_regex_col
 testCliDriver_regexp_extract
 testCliDriver_rename_column
-testCliDriver_repair
 testCliDriver_sample1
 testCliDriver_sample2
 testCliDriver_sample3
@@ -549,7 +557,6 @@ testCliDriver_groupby_ppr_multi_distinct
 # hive expects implicitly sorted data
 testCliDriver_print_header
 testCliDriver_udaf_collect_set
-testCliDriver_udaf_context_ngrams
 testCliDriver_udaf_corr
 testCliDriver_udaf_covar_pop
 testCliDriver_udaf_covar_samp
@@ -725,7 +732,6 @@ testCliDriver_rcfile_merge4
 testCliDriver_rcfile_toleratecorruptions
 testCliDriver_reduce_deduplicate_exclude_gby
 
-testCliDriver_sample_islocalmode_hook
 testCliDriver_set_variable_sub
 testCliDriver_smb_mapjoin_10
 

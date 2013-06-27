@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -90,7 +90,8 @@ with HiveTopOperator {
             RDDUtils.sortLeastKByKey(rdd.asInstanceOf[RDD[(ReduceKey, Any)]], l)
           } else {
             // We always do a distribute by. I'm not sure if we need to if there are no distribution keys.
-            val distributedRdd = rdd.asInstanceOf[RDD[(ReduceKey, Any)]].partitionBy(new ReduceKeyPartitioner(rdd.splits.size))
+            val distributedRdd = rdd.asInstanceOf[RDD[(ReduceKey, Any)]].partitionBy(
+              new ReduceKeyPartitioner(rdd.partitions.size))
             logInfo("Performing Sort By Limit")
             RDDUtils.partialSortLeastKByKey(distributedRdd, l)
           }
@@ -102,7 +103,8 @@ with HiveTopOperator {
           } else {
             // We always do a distribute by. I'm not sure if we need to if there are no distribution keys.
             logInfo("Performing Distribute By Sort By")
-            val clusteredRdd = rdd.asInstanceOf[RDD[(ReduceKey, Any)]].partitionBy(new ReduceKeyPartitioner(rdd.splits.size))
+            val clusteredRdd = rdd.asInstanceOf[RDD[(ReduceKey, Any)]].partitionBy(
+              new ReduceKeyPartitioner(rdd.partitions.size))
             clusteredRdd.mapPartitions { partition => partition.toSeq.sortWith(_._1 < _._1).iterator }
             // Not sure if toSeq is better than toArray
           }
@@ -114,7 +116,8 @@ with HiveTopOperator {
         rdd.asInstanceOf[RDD[(ReduceKey, Any)]].partitionBy(new ReduceKeyPartitioner(1))
       } else {
         logInfo("Performing Distribute By")
-        rdd.asInstanceOf[RDD[(ReduceKey, Any)]].partitionBy(new ReduceKeyPartitioner(rdd.splits.size))
+        rdd.asInstanceOf[RDD[(ReduceKey, Any)]].partitionBy(
+          new ReduceKeyPartitioner(rdd.partitions.size))
       }
     }
   }

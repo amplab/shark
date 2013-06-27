@@ -8,7 +8,7 @@ trait SharkHiveTestUtil {
    * the directory automatically (e.g. when running in an IDE).
    */
   def getTestDir: String =
-    (scala.Option(System.getProperty("test.dir")) match {
+    (scala.Option(System.getProperty("shark.test.dir")) match {
       case None => {
         val classDir = getClass.getResource("").getPath
         var targetDir = new File(classDir)

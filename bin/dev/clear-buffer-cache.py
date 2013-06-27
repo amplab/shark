@@ -21,7 +21,7 @@ import os
 import thread
 import time
 
-machinesFile = "/root/ephemeral-hdfs/conf/slaves"
+machinesFile = "/root/spark-ec2/slaves"
 machs = open(machinesFile).readlines()
 machs = map(lambda s: s.strip(),machs)
 machCount = len(machs)

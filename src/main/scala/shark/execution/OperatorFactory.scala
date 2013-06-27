@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -42,28 +42,32 @@ object OperatorFactory extends LogHelper {
     _createOperatorTree(hiveTerminalOp).asInstanceOf[TerminalOperator]
   }
 
-  def createSharkCacheOutputPlan(
+  def createSharkMemoryStoreOutputPlan(
       hiveTerminalOp: HiveOperator,
       tableName: String,
-      storageLevel: StorageLevel): TerminalOperator = {
-    val terminalOp = _newOperatorInstance(
-      classOf[CacheSinkOperator], hiveTerminalOp).asInstanceOf[CacheSinkOperator]
-    terminalOp.tableName = tableName
-    terminalOp.storageLevel = storageLevel
-    _createAndSetParents(
-      terminalOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
+      storageLevel: StorageLevel,
+      numColumns: Int,
+      useTachyon: Boolean,
+      useUnionRDD: Boolean): TerminalOperator = {
+    val sinkOp = _newOperatorInstance(
+      classOf[MemoryStoreSinkOperator], hiveTerminalOp).asInstanceOf[MemoryStoreSinkOperator]
+    sinkOp.tableName = tableName
+    sinkOp.storageLevel = storageLevel
+    sinkOp.numColumns = numColumns
+    sinkOp.useTachyon = useTachyon
+    sinkOp.useUnionRDD = useUnionRDD
+    _createAndSetParents(sinkOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }
 
   def createSharkFileOutputPlan(hiveTerminalOp: HiveOperator): TerminalOperator = {
-    val terminalOp = _newOperatorInstance(classOf[FileSinkOperator], hiveTerminalOp)
+    val sinkOp = _newOperatorInstance(classOf[FileSinkOperator], hiveTerminalOp)
     _createAndSetParents(
-      terminalOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
+      sinkOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }
 
   def createSharkRddOutputPlan(hiveTerminalOp: HiveOperator): TerminalOperator = {
-    val terminalOp = _newOperatorInstance(classOf[TableRddSinkOperator], hiveTerminalOp)
-    _createAndSetParents(
-      terminalOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
+    val sinkOp = _newOperatorInstance(classOf[TableRddSinkOperator], hiveTerminalOp)
+    _createAndSetParents(sinkOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }
 
   /** Create a Shark operator given the Hive operator. */

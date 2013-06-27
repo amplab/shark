@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,8 +34,10 @@ import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hadoop.hive.serde2.{SerDe, SerDeUtils}
 import org.apache.hadoop.util.StringUtils
 
-import shark.execution.{SharkExplainTask, SharkExplainWork, SparkTask, SparkWork, TableRDD}
-import shark.memstore.ColumnarSerDe
+import shark.api.TableRDD
+import shark.api.QueryExecutionException
+import shark.execution.{SharkExplainTask, SharkExplainWork, SparkTask, SparkWork}
+import shark.memstore2.ColumnarSerDe
 import shark.parse.{QueryContext, SharkSemanticAnalyzerFactory}
 
 
@@ -57,9 +59,7 @@ object SharkDriver extends LogHelper {
     SerDeUtils.registerSerDe(serdeClass.getName, serdeClass)
   }
 
-  registerSerDe(classOf[ColumnarSerDe.Basic])
-  registerSerDe(classOf[ColumnarSerDe.WithStats])
-  registerSerDe(classOf[ColumnarSerDe.Compressed])
+  registerSerDe(classOf[ColumnarSerDe])
 
   // Task factory. Add Shark specific tasks.
   TaskFactory.taskvec.addAll(Seq(
@@ -145,6 +145,10 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
   def tableRdd(cmd:String): TableRDD = {
     useTableRddSink = true
     val response = run(cmd)
+    // Throw an exception if there is an error in query processing.
+    if (response.getResponseCode() != 0) {
+      throw new QueryExecutionException(response.getErrorMessage)
+    }
     useTableRddSink = false
     plan.getRootTasks.get(0) match {
       case sparkTask: SparkTask => {

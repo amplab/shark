@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # This file is used to launch Shark on the master.
-export SCALA_VERSION=2.9.2
+export SCALA_VERSION=2.9.3
+SHARK_VERSION=0.8.0-SNAPSHOT
 
 # Figure out where the framework is installed
 FWDIR="$(cd `dirname $0`; pwd)"
@@ -79,15 +80,33 @@ done
 
 SPARK_CLASSPATH+=:$HIVE_CONF_DIR
 
-if [ -d "$SHARK_HOME/target" ]; then
-  # Build up classpath in development mode
-  if [ -f "$SHARK_HOME/target/scala-$SCALA_VERSION/shark_$SCALA_VERSION-0.2.jar" ] ; then
-    SPARK_CLASSPATH+=":$SHARK_HOME/target/scala-$SCALA_VERSION/shark_$SCALA_VERSION-0.2.jar"
+# Build up Shark's jar or classes.
+if [[ ! "$SPARK_CLASSPATH" =~ (^|[:/])shark-[a-zA-Z0-9.-]+.jar($|:)  ]]; then
+SHARK_CLASSES="$SHARK_HOME/target/scala-$SCALA_VERSION/classes"
+SHARK_JAR="$SHARK_HOME/target/scala-$SCALA_VERSION/shark_$SCALA_VERSION-$SHARK_VERSION.jar"
+if [ -d "$SHARK_CLASSES/shark" ] ; then
+  SPARK_CLASSPATH+=":$SHARK_CLASSES"
+else
+  if [ -f "$SHARK_JAR" ] ; then
+    SPARK_CLASSPATH+=":$SHARK_JAR"
   else
-    SPARK_CLASSPATH+=":$SHARK_HOME/target/scala-$SCALA_VERSION/classes"
+    echo "Cannot find either compiled classes or compiled jar package for Shark."
+    echo "Have you compiled Shark yet?"
+    exit 1
   fi
+fi
 
-  SPARK_CLASSPATH+=":$SHARK_HOME/target/scala-$SCALA_VERSION/test-classes"
+SPARK_CLASSPATH+=":$SHARK_HOME/target/scala-$SCALA_VERSION/test-classes"
+
+
+SHARK_JAR="$SHARK_HOME/target/scala-$SCALA_VERSION/shark_$SCALA_VERSION-$SHARK_VERSION.jar"
+if [ -f "$SHARK_JAR" ] ; then
+  SPARK_CLASSPATH+=":$SHARK_JAR"
+else
+  SPARK_CLASSPATH+=":$SHARK_HOME/target/scala-$SCALA_VERSION/classes"
+fi
+
+SPARK_CLASSPATH+=":$SHARK_HOME/target/scala-$SCALA_VERSION/test-classes"
 fi
 
 # Use Hadoop configuration from $HADOOP_CONF_DIR or if it is not set from $HADOOP_HOME/conf.
@@ -111,6 +130,8 @@ export CLASSPATH+=$SPARK_CLASSPATH # Needed for spark-shell
 
 export SPARK_JAVA_OPTS+=" $TEST_JAVA_OPTS"
 
+# supress the HADOOP_HOME warnings in 1.x.x
+export HADOOP_HOME_WARN_SUPPRESS=true
 
 if [ "x$SHARK_MASTER_MEM" == "x" ] ; then
   SHARK_MASTER_MEM="512m"

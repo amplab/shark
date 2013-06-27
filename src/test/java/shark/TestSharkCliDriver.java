@@ -14,6 +14,7 @@ import java.util.regex.Pattern;
 import junit.framework.Test;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
+import org.junit.Ignore;
 
 import org.apache.hadoop.hive.cli.TestCliDriver;
 import org.apache.hadoop.hive.ql.QTestUtil;
@@ -103,7 +104,7 @@ public class TestSharkCliDriver extends TestCliDriver {
 
       if (regexPattern != null) {
         Matcher m = regexPattern.matcher(test.getName());
-        if (m.find() || test.getName() == "testCliDriver_shutdown") {
+        if (m.find() || test.getName().equals("testCliDriver_shutdown")) {
           passRegex = true;
         }
       }

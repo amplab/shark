@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,6 +32,7 @@ import org.apache.hadoop.hive.ql.session.SessionState
 
 import scala.collection.JavaConversions._
 
+import shark.api.TableRDD
 import shark.{LogHelper, SharkEnv}
 import spark.RDD
 
@@ -54,7 +55,7 @@ with java.io.Serializable with LogHelper {
 
   override def execute(driverContext: DriverContext): Int = {
     logInfo("Executing " + this.getClass.getName)
-    
+
     val ctx = driverContext.getCtx()
 
     // Adding files to the SparkContext
@@ -68,10 +69,10 @@ with java.io.Serializable with LogHelper {
 
     // Added required jars
     val jars = Utilities.getResourceFiles(conf, SessionState.ResourceType.JAR)
-    jars.split(",").filterNot(x => x.isEmpty || SharkEnv.addedJars.contains(x)).foreach { x => 
+    jars.split(",").filterNot(x => x.isEmpty || SharkEnv.addedJars.contains(x)).foreach { x =>
       logInfo("Adding jar "  + x )
       SharkEnv.addedJars.add(x)
-      SharkEnv.sc.addJar(x) 
+      SharkEnv.sc.addJar(x)
     }
 
     Operator.hconf = conf
@@ -140,7 +141,7 @@ with java.io.Serializable with LogHelper {
     // Run the initialization. This guarantees that upstream operators are
     // initialized before downstream ones.
     topOpList.reverse.foreach { topOp =>
-      topOp.initializeHiveTopOperator() 
+      topOp.initializeHiveTopOperator()
     }
   }
 
