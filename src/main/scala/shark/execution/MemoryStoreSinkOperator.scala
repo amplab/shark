@@ -18,6 +18,7 @@
 package shark.execution
 
 import java.nio.ByteBuffer
+import java.util.Properties
 
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.BeanProperty
@@ -40,10 +41,8 @@ import spark.storage.StorageLevel
 class MemoryStoreSinkOperator extends TerminalOperator {
 
   @BeanProperty var initialColumnSize: Int = _
-  @BeanProperty var columnarComprString: String = _
-  @BeanProperty var columnarComprInt: String = _
   @BeanProperty var storageLevel: StorageLevel = _
-  @BeanProperty var tableName: String = _
+  @BeanProperty var createTableProperties: Properties = new Properties
   @transient var useTachyon: Boolean = _
   @transient var useUnionRDD: Boolean = _
   @transient var numColumns: Int = _
@@ -51,15 +50,11 @@ class MemoryStoreSinkOperator extends TerminalOperator {
   override def initializeOnMaster() {
     super.initializeOnMaster()
     initialColumnSize = SharkConfVars.getIntVar(localHconf, SharkConfVars.COLUMN_INITIALSIZE)
-    columnarComprString = SharkConfVars.getVar(localHconf, SharkConfVars.COLUMNAR_COMPR_STRING)
-    columnarComprInt = SharkConfVars.getVar(localHconf, SharkConfVars.COLUMNAR_COMPR_INT)
   }
 
   override def initializeOnSlave() {
     super.initializeOnSlave()
     localHconf.setInt(SharkConfVars.COLUMN_INITIALSIZE.varname, initialColumnSize)
-    localHconf.set(SharkConfVars.COLUMNAR_COMPR_STRING.varname, columnarComprString)
-    localHconf.set(SharkConfVars.COLUMNAR_COMPR_INT.varname, columnarComprInt)
   }
 
   override def execute(): RDD[_] = {
@@ -67,6 +62,11 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
     val statsAcc = SharkEnv.sc.accumulableCollection(ArrayBuffer[(Int, TablePartitionStats)]())
     val op = OperatorSerializationWrapper(this)
+
+    val tableName = createTableProperties.getProperty("name")
+    if(tableName == null) {
+      throw new RuntimeException(" " + createTableProperties)
+    }
 
     val tachyonWriter: TachyonTableWriter =
       if (useTachyon) {
@@ -76,12 +76,24 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         null
       }
 
+    var tableProperties = op.localHiveOp.getConf.getTableInfo.getProperties()
+    if (createTableProperties.get(SharkConfVars.COLUMNAR_COMPR_STRING.varname) != null) {
+      tableProperties.setProperty(SharkConfVars.COLUMNAR_COMPR_STRING.varname,
+        createTableProperties.get(SharkConfVars.COLUMNAR_COMPR_STRING.varname).toString)
+    }
+    if (createTableProperties.get(SharkConfVars.COLUMNAR_COMPR_INT.varname) != null) {
+      tableProperties.setProperty(SharkConfVars.COLUMNAR_COMPR_INT.varname,
+        createTableProperties.get(SharkConfVars.COLUMNAR_COMPR_INT.varname).toString)
+    }
+    op.logInfo("Op Table Properties - " + tableProperties)
+
+
     // Put all rows of the table into a set of TablePartition's. Each partition contains
     // only one TablePartition object.
     var rdd: RDD[TablePartition] = inputRdd.mapPartitionsWithIndex { case(partitionIndex, iter) =>
       op.initializeOnSlave()
       val serde = new ColumnarSerDe
-      serde.initialize(op.hconf, op.localHiveOp.getConf.getTableInfo.getProperties())
+      serde.initialize(op.hconf, tableProperties)
 
       // Serialize each row into the builder object.
       // ColumnarSerDe will return a TablePartitionBuilder.
@@ -118,7 +130,6 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       rdd.foreach(_ => Unit)
     } else {
       // Put the table in Spark block manager.
-      op.logInfo(columnarComprString + " columnarComprString")
       op.logInfo("Putting %sRDD for %s in Spark block manager, %s %s %s %s".format(
         if (useUnionRDD) "Union" else "",
         tableName,

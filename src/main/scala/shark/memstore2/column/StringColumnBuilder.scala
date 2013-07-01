@@ -111,7 +111,6 @@ class StringColumnBuilder extends ColumnBuilder[Text]{
       " #values=" + _lengthArr.size)
 
 
-
     scheme.toUpperCase match {
       case "NONE" => {
         var minbufsize = _lengthArr.size * 4 + _arr.size +
