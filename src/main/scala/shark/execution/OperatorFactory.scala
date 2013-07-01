@@ -17,6 +17,7 @@
 
 package shark.execution
 
+import java.util.Properties
 import scala.collection.JavaConversions._
 
 import org.apache.hadoop.hive.ql.exec.{GroupByPostShuffleOperator, GroupByPreShuffleOperator}
@@ -44,14 +45,14 @@ object OperatorFactory extends LogHelper {
 
   def createSharkMemoryStoreOutputPlan(
       hiveTerminalOp: HiveOperator,
-      tableName: String,
+      tableProperties: Properties,
       storageLevel: StorageLevel,
       numColumns: Int,
       useTachyon: Boolean,
       useUnionRDD: Boolean): TerminalOperator = {
     val sinkOp = _newOperatorInstance(
       classOf[MemoryStoreSinkOperator], hiveTerminalOp).asInstanceOf[MemoryStoreSinkOperator]
-    sinkOp.tableName = tableName
+    sinkOp.createTableProperties.putAll(tableProperties)
     sinkOp.storageLevel = storageLevel
     sinkOp.numColumns = numColumns
     sinkOp.useTachyon = useTachyon

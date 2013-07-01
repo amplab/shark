@@ -20,15 +20,10 @@ package shark.memstore2
 import java.io.{DataInput, DataOutput}
 import java.nio.ByteBuffer
 import java.util.{List => JList}
-
+import org.apache.hadoop.hive.serde2.objectinspector.{StructField, StructObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
-import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
-import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
-import org.apache.hadoop.hive.serde2.objectinspector.StructField
-import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 import org.apache.hadoop.io.Writable
-
-import shark.memstore2.column.ColumnBuilder
+import shark.memstore2.column._
 
 
 /**
@@ -44,8 +39,13 @@ class TablePartitionBuilder(oi: StructObjectInspector, initialColumnSize: Int,
 
   val columnBuilders = Array.tabulate[ColumnBuilder[_]](fields.size) { i =>
     val columnBuilder = ColumnBuilder.create(fields.get(i).getFieldObjectInspector)
-    // columnBuilder.initialize(initialColumnSize, columnarComprString,
-    //columnarComprInt)
+
+    columnBuilder match {
+      case _:StringColumnBuilder => columnBuilder.scheme = columnarComprString
+      case _:IntColumnBuilder    => columnBuilder.scheme = columnarComprInt
+      case _ => // Do nothing - "Column type does not support compression - TablePartitionBuilder"
+    }
+
     columnBuilder.initialize(initialColumnSize)
     columnBuilder
   }

@@ -47,24 +47,33 @@ class ColumnarSerDe extends SerDe with LogHelper {
   var columnarComprInt: String = _
   val serializeStream = new ByteStream.Output
 
+
   override def initialize(conf: Configuration, tbl: Properties) {
     serDeParams = LazySimpleSerDe.initSerdeParams(conf, tbl, this.getClass.getName)
     // Create oi & writable.
     objectInspector = ColumnarStructObjectInspector(serDeParams)
 
+    if(tbl != null) {
+      if(tbl.get(SharkConfVars.COLUMNAR_COMPR_STRING.varname) != null) {
+        columnarComprString =
+          tbl.get(SharkConfVars.COLUMNAR_COMPR_STRING.varname).toString
+      }
+
+      if (tbl.get(SharkConfVars.COLUMNAR_COMPR_INT.varname) != null) {
+        columnarComprInt =
+          tbl.get(SharkConfVars.COLUMNAR_COMPR_INT.varname).toString
+      }
+
+      logDebug("columnarComprString configured as  " + columnarComprString)
+      logDebug("columnarComprInt configured as  " + columnarComprInt)
+    }
+
     // This null check is needed because Hive's SemanticAnalyzer.genFileSinkPlan() creates
     // an instance of the table's StructObjectInspector by creating an instance SerDe, which
     // it initializes by passing a 'null' argument for 'conf'.
     if (conf != null) {
-      initialColumnSize = SharkConfVars.getIntVar(conf, SharkConfVars.COLUMN_INITIALSIZE)
-      columnarComprString = SharkConfVars.getVar(conf, SharkConfVars.COLUMNAR_COMPR_STRING)
-      // println("From ColumnarSerde " + columnarComprString)
-      // val columnarComprString2 = conf.get(SharkConfVars.COLUMNAR_COMPR_STRING.varname,
-      //   conf.get("shark.columnar.compr.string", "none"))
-      // println("From ColumnarSerde2 " + columnarComprString2)
-      // val columnarComprString3 = SharkConfVars.COLUMNAR_COMPR_STRING
-      // println("From ColumnarSerde3 " + columnarComprString3)
-      columnarComprInt = SharkConfVars.getVar(conf, SharkConfVars.COLUMNAR_COMPR_INT)
+      initialColumnSize = SharkConfVars.getIntVar(conf,
+        SharkConfVars.COLUMN_INITIALSIZE)
 
       if (initialColumnSize == - 1) {
         // Approximate the size of a partition by using the HDFS "dfs.block.size" config.

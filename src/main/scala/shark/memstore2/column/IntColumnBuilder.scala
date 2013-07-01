@@ -26,31 +26,18 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.IntObjectInspector
 
 import collection.mutable.{Set, HashSet}
-
+import shark.LogHelper
 
 /** Build a column of Int values into a ByteBuffer in memory.
   */
-class IntColumnBuilder extends ColumnBuilder[Int]{
-
-  // logger problems - rmeove before commit
-  private def logInfo(msg: String) = { println("INFO " + msg) }
-  private def logDebug(msg: String) = { println("DEBUG " + msg) }
-
+class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
   private var _stats: ColumnStats.IntColumnStats = new ColumnStats.IntColumnStats
   private var _nonNulls: IntArrayList = null
   private val MAX_UNIQUE_VALUES = 256 // 2 ** 8 - storable in 8 bits or 1 Byte
 
   override def initialize(initialSize: Int) {
-    initialize(initialSize, "auto", "auto")
-  }
-
-  override def initialize(initialSize: Int,
-    columnarComprString: String,
-    columnarComprInt: String) {
-
     _nonNulls = new IntArrayList(initialSize)
     _stats = new ColumnStats.IntColumnStats
-    scheme = columnarComprInt
     super.initialize(initialSize)
   }
 
@@ -81,10 +68,6 @@ class IntColumnBuilder extends ColumnBuilder[Int]{
     // ratio of transitions < 50% (run+value is 2 ints instead of 1)
     val selectivity = (_stats.uniques.size).toDouble / _nonNulls.size
     val transitionsRatio = (_stats.transitions).toDouble / _nonNulls.size
-    logInfo("uniques=" + _stats.uniques.size + " selectivity=" + selectivity + 
-      " transitionsRatio=" + transitionsRatio + 
-      " transitions=" + _stats.transitions +
-      " #values=" + _nonNulls.size)
 
     if(selectivity < 0.2) {
       if (transitionsRatio < 0.5) return "RLE"
@@ -95,16 +78,27 @@ class IntColumnBuilder extends ColumnBuilder[Int]{
   }
 
 
-  var scheme = "auto"
-
   /** After all values have been appended, build() is called to write all the
     * values into a ByteBuffer.
     */
   override def build: ByteBuffer = {
+    logDebug("scheme at the start of build() was " + scheme)
 
-    scheme = System.getenv("TEST_SHARK_INT_COLUMN_COMPRESSION_SCHEME")
+    // highest priority override is if someone (like a test) calls the getter
+    //.scheme()
+
+    // next priority override - from TBL PROPERTIES
+
     if(scheme == null || scheme == "auto") scheme = pickCompressionScheme
     // choices are none, auto, RLE, dict
+
+    val selectivity = (_stats.uniques.size).toDouble / _nonNulls.size
+    val transitionsRatio = (_stats.transitions).toDouble / _nonNulls.size
+    logInfo("uniques=" + _stats.uniques.size + " selectivity=" + selectivity + 
+      " transitionsRatio=" + transitionsRatio + 
+      " transitions=" + _stats.transitions +
+      " #values=" + _nonNulls.size)
+
 
     scheme.toUpperCase match {
       case "NONE" => {

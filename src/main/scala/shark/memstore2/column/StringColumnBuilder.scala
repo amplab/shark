@@ -16,21 +16,18 @@
  */
 
 package shark.memstore2.column
-import shark.{LogHelper, SharkConfVars}
-import collection.mutable.{Set, HashSet}
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 
+import com.ning.compress.lzf.LZFEncoder
 import it.unimi.dsi.fastutil.bytes.ByteArrayList
 import it.unimi.dsi.fastutil.ints.IntArrayList
-import com.ning.compress.lzf.LZFEncoder
-
+import java.nio.{ByteBuffer, ByteOrder}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector
 import org.apache.hadoop.io.Text
+import scala.collection.mutable.{HashSet, Set}
+import shark.LogHelper
 
-class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper {
-
+class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper{
   private var _stats: ColumnStats.StringColumnStats = null
   private var _uniques: collection.mutable.Set[Text] = new HashSet()
 
@@ -43,18 +40,10 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper {
   private var rleSs = new RLEStreamingSerializer[Text]( { () => null })
 
   override def initialize(initialSize: Int) {
-    initialize(initialSize, "auto", "auto")
-  }
-
-  override def initialize(initialSize: Int,
-                          columnarComprString: String,
-                          columnarComprInt: String) {
     _arr = new ByteArrayList(initialSize * ColumnIterator.STRING_SIZE)
     _lengthArr = new IntArrayList(initialSize)
     _stats = new ColumnStats.StringColumnStats
     logInfo("initialized a StringColumnStats ")
-    // override from TBLPROPERTIES
-    scheme = columnarComprString
     super.initialize(initialSize)
   }
 
@@ -96,31 +85,23 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper {
     else "none"
   }
 
-  var scheme = "auto"
-
   override def build: ByteBuffer = {
+    logDebug("scheme at the start of build() was " + scheme)
 
     // highest priority override is if someone (like a test) calls the getter
     //.scheme()
-    // TESTING
-    // scheme = "NONE"
 
     // next priority override - from TBL PROPERTIES
-    // if(System.getenv("TEST_SHARK_STRING_COLUMN_COMPRESSION_SCHEME") != null)
-    //   scheme = System.getenv("TEST_SHARK_STRING_COLUMN_COMPRESSION_SCHEME")
-    // choices are none, auto, RLE, LZF
 
-    // otherwise pick auto scheme 
+    // choices are none, auto, RLE, LZF
     if(scheme == null || scheme.toUpperCase == "AUTO") scheme = pickCompressionScheme
 
     val selectivity = (_uniques.size).toDouble / _lengthArr.size
     val transitionsRatio = (_stats.transitions).toDouble / _lengthArr.size
-  
     logInfo("uniques=" + _uniques.size + " selectivity=" + selectivity +
       " transitionsRatio=" + transitionsRatio + 
       " transitions=" + _stats.transitions +
       " #values=" + _lengthArr.size)
-
 
 
     scheme.toUpperCase match {
@@ -161,12 +142,10 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper {
             val writable = new Text()
             writable.append(_arr.elements(), runningOffset, _lengthArr.get(i))
             rleSs.encodeSingle(writable)
-            // println(writable.toString + " len " + _lengthArr.get(i))
             totalStringLengthInBuffer += (_lengthArr.get(i) + 4)
             runningOffset += _lengthArr.get(i)
           } else {
             rleSs.encodeSingle(null)
-            // println( " len " + _lengthArr.get(i))
             totalStringLengthInBuffer += 4
           }
           i += 1
