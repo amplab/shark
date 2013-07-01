@@ -103,7 +103,7 @@ git checkout "${hive_branch}"
 set +x
 
 echo "Recent commits in Hive:"
-git log -n 10 
+git --no-pager log -n 10 
 
 hive_version_base=$( awk -F= '/^version=/ {print $NF}' <build.properties )
 if [ -z "${hive_version_base}" ]; then
