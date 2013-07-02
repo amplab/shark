@@ -26,16 +26,11 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.IntObjectInspector
 
 import collection.mutable.{Set, HashSet}
-
+import shark.LogHelper
 
 /** Build a column of Int values into a ByteBuffer in memory.
   */
-class IntColumnBuilder extends ColumnBuilder[Int]{
-
-  // logger problems - rmeove before commit
-  private def logInfo(msg: String) = { println("INFO " + msg) }
-  private def logDebug(msg: String) = { println("DEBUG " + msg) }
-
+class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
   private var _stats: ColumnStats.IntColumnStats = new ColumnStats.IntColumnStats
   private var _nonNulls: IntArrayList = null
   private val MAX_UNIQUE_VALUES = 256 // 2 ** 8 - storable in 8 bits or 1 Byte

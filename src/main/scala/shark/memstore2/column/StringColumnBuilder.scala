@@ -17,24 +17,17 @@
 
 package shark.memstore2.column
 
-import shark.{SharkConfVars}
-import collection.mutable.{Set, HashSet}
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
-
+import com.ning.compress.lzf.LZFEncoder
 import it.unimi.dsi.fastutil.bytes.ByteArrayList
 import it.unimi.dsi.fastutil.ints.IntArrayList
-import com.ning.compress.lzf.LZFEncoder
-
+import java.nio.{ByteBuffer, ByteOrder}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector
 import org.apache.hadoop.io.Text
+import scala.collection.mutable.{HashSet, Set}
+import shark.LogHelper
 
-class StringColumnBuilder extends ColumnBuilder[Text]{
-  // logger problems - rmeove before commit
-  private def logInfo(msg: String) = { println("INFO " + msg) }
-  private def logDebug(msg: String) = { println("DEBUG " + msg) }
-
+class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper{
   private var _stats: ColumnStats.StringColumnStats = null
   private var _uniques: collection.mutable.Set[Text] = new HashSet()
 
@@ -149,12 +142,10 @@ class StringColumnBuilder extends ColumnBuilder[Text]{
             val writable = new Text()
             writable.append(_arr.elements(), runningOffset, _lengthArr.get(i))
             rleSs.encodeSingle(writable)
-            // println(writable.toString + " len " + _lengthArr.get(i))
             totalStringLengthInBuffer += (_lengthArr.get(i) + 4)
             runningOffset += _lengthArr.get(i)
           } else {
             rleSs.encodeSingle(null)
-            // println( " len " + _lengthArr.get(i))
             totalStringLengthInBuffer += 4
           }
           i += 1
