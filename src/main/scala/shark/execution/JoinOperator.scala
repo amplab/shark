@@ -107,11 +107,11 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
       rddsJavaMap.get(inputIndex.byteValue.toInt).asInstanceOf[RDD[(ReduceKey, Any)]]
     }
     val partNum: Int = 
-    if (rddsCorpartitioned(rdds.map(_._2.asInstanceOf[RDD[(_,_)]]))) {
-      rdds(0)._2.asInstanceOf[RDD[(_, _)]].partitioner.get.numPartitions
-    } else {
-      numReduceTasks
-    }
+      if (rddsCorpartitioned(rdds.map(_._2.asInstanceOf[RDD[(_,_)]]))) {
+        rdds(0)._2.asInstanceOf[RDD[(_, _)]].partitioner.get.numPartitions
+      } else {
+        numReduceTasks
+      }
 
     val cogrouped = new CoGroupedRDD[ReduceKey](
       rddsInJoinOrder.toSeq.asInstanceOf[Seq[RDD[(_, _)]]], new HashPartitioner(partNum))

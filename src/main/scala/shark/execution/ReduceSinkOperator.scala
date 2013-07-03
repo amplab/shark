@@ -270,10 +270,10 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
 
       val key = keySer.serialize(evaluatedKey, keyObjInspector).asInstanceOf[BytesWritable]
       val value = valueSer.serialize(evaluatedValue, valObjInspector).asInstanceOf[BytesWritable]
- 
+
       reduceKey.bytesWritable = key
       reduceKey.partitionCode = partitionCode
-      (reduceKey.createDeepCopy, value)
+      (reduceKey, value)
     }
   }
 

@@ -56,5 +56,4 @@ class FilterOperator extends UnaryOperator[HiveFilterOperator] {
         conditionInspector.getPrimitiveJavaObject(conditionEvaluator.evaluate(row)))
     }
   }
-
 }

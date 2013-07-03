@@ -90,7 +90,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
           val partNum = localHconf.getInt("shark.copartition.partnum", 5)
           SharkEnv.memoryMetadataManager.get(coPartitionTableName) match {
             case Some(coRdd) => logInfo("Copartitioning table %s with %s ".
-                format(tableName, coPartitionTableName))
+                                        format(tableName, coPartitionTableName))
               (new CoPartitioner(partNum), getCacheLocations(coRdd))
             case _ => logInfo("Copartition table not found in cache:" + coPartitionTableName)
               (new CoPartitioner(partNum), null)
@@ -125,7 +125,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
     // Put all rows of the table into a set of TablePartition's. Each partition contains
     // only one TablePartition object.
-    var rdd: RDD[TablePartition] = rddToCache.mapPartitionsWithIndex ({ case(partitionIndex, iter) =>
+    var rdd: RDD[TablePartition] = rddToCache.mapPartitionsWithIndex({ case(partitionIndex, iter) =>
       op.initializeOnSlave()
       val serde = new ColumnarSerDe
       serde.initialize(op.hconf, op.localHiveOp.getConf.getTableInfo.getProperties())
