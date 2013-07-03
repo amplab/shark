@@ -39,7 +39,9 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.sql("set hive.metastore.warehouse.dir=" + WAREHOUSE_PATH)
 
     sc.sql("set shark.test.data.path=" + TestUtils.dataFilePath)
-
+    sc.sql("set shark.copartition.partnum=4")
+    sc.sql("set mapred.reduce.tasks=4")
+    
     // test
     sc.sql("drop table if exists test")
     sc.sql("CREATE TABLE test (key INT, val STRING)")
@@ -62,6 +64,9 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       OVERWRITE INTO TABLE clicks""")
     sc.sql("drop table if exists clicks_cached")
     sc.sql("create table clicks_cached as select * from clicks")
+    sc.sql("drop table if exists clicks_copart_cached")
+    sc.sql("""create table clicks_copart_cached TBLPROPERTIES("shark.partition.col"="_col0") 
+           as select * from clicks""")
 
     // users
     sc.sql("drop table if exists users")
@@ -71,6 +76,9 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       OVERWRITE INTO TABLE users""")
     sc.sql("drop table if exists users_cached")
     sc.sql("create table users_cached as select * from users")
+    sc.sql("drop table if exists users_copart_cached")
+    sc.sql("""create table users_copart_cached TBLPROPERTIES("shark.partition.col"="_col0", 
+           "shark.copartition.table"="clicks_copart_cached") as select * from users""")
   }
 
   override def afterAll() {
@@ -169,6 +177,19 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
 
   test("map join2") {
     expectSql("select count(*) from clicks join users on (clicks.id = users.id)", "5")
+  }
+  
+  //////////////////////////////////////////////////////////////////////////////
+  // copartition join
+  //////////////////////////////////////////////////////////////////////////////
+  test("copartition join") {
+    expectSql("select u.id, u.name, c.click from clicks_copart_cached c join users_copart_cached u" +
+    		  " on u.id = c.id", Array("1\tA\t0", "1\tA\t1", "1\tA\t1", "2\tB\t0", "2\tB\t1"))
+  }
+
+  test("copartition join2") {
+    expectSql("select u.id, u.name, c.click from clicks_copart_cached c join users_cached u" +
+    		  " on u.id = c.id", Array("1\tA\t0", "1\tA\t1", "1\tA\t1", "2\tB\t0", "2\tB\t1"))
   }
 
   //////////////////////////////////////////////////////////////////////////////

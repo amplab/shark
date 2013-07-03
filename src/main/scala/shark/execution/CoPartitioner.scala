@@ -5,13 +5,13 @@ import spark.HashPartitioner
 
 class CoPartitioner(partitions: Int) extends HashPartitioner(partitions) {
   
-  private val partCols = new ArrayBuffer[String]
+  private val _partCols = new ArrayBuffer[String]
   
   def addPartitionCol(col: String) {
-    partCols += col
+    _partCols += col
   }
   
-  def getPartCols = partCols
+  def partitionColumns = _partCols
   
   override def equals(other: Any): Boolean = {
     other match {

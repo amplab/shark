@@ -34,6 +34,7 @@ import spark.RDD
 abstract class Operator[T <: HiveOperator] extends LogHelper with Serializable {
 
   def preservesPartitioning = false
+  
   /**
    * Initialize the operator on master node. This can have dependency on other
    * nodes. When an operator's initializeOnMaster() is invoked, all its parents'

@@ -18,11 +18,9 @@
 package shark.execution
 
 import java.util.{HashMap => JHashMap, List => JList}
-
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
-
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{JoinOperator => HiveJoinOperator}
 import org.apache.hadoop.hive.ql.plan.{ExprNodeColumnDesc, ExprNodeGenericFuncDesc, JoinDesc, TableDesc}
@@ -31,7 +29,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.StandardStructObjectInspect
 import org.apache.hadoop.io.BytesWritable
 import shark.CoPartitioner
 import shark.execution.serialization.OperatorSerializationWrapper
-
 import spark.{CoGroupedRDD, Partitioner, HashPartitioner, RDD}
 
 
@@ -82,17 +79,13 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
     combineMultipleRdds(inputRdds)
   }
 
-  def rddsCorpartitioned(rdds: Seq[RDD[(_,_)]]): Boolean = {
-    if (rdds.size < 2)
-      return false
-    val partitioner = rdds(0).partitioner
-    if (None == partitioner)
-      return false
-    for (i <- 1 until rdds.size)
-      if (partitioner != rdds(i).partitioner)
-        return false
-    true
-  }
+  def rddsCorpartitioned(rdds: Seq[RDD[(_,_)]]): Boolean = 
+    if (rdds.size > 1 && rdds.head.partitioner != None) {
+      val part = rdds.head.partitioner
+      rdds.find(_.partitioner != part).isDefined
+    } else {
+      false
+    }
 
   override def combineMultipleRdds(rdds: Seq[(Int, RDD[_])]): RDD[_] = {
     // Determine the number of reduce tasks to run.
@@ -113,10 +106,12 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
     val rddsInJoinOrder = order.map { inputIndex =>
       rddsJavaMap.get(inputIndex.byteValue.toInt).asInstanceOf[RDD[(ReduceKey, Any)]]
     }
-    var partNum: Int = numReduceTasks
+    val partNum: Int = 
     if (rddsCorpartitioned(rdds.map(_._2.asInstanceOf[RDD[(_,_)]]))) {
-      partNum = rdds(0)._2.asInstanceOf[RDD[(_, _)]].partitioner.get.numPartitions
-    } 
+      rdds(0)._2.asInstanceOf[RDD[(_, _)]].partitioner.get.numPartitions
+    } else {
+      numReduceTasks
+    }
 
     val cogrouped = new CoGroupedRDD[ReduceKey](
       rddsInJoinOrder.toSeq.asInstanceOf[Seq[RDD[(_, _)]]], new HashPartitioner(partNum))
@@ -132,7 +127,7 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
 
       val cp = new CartesianProduct[Any](op.numTables)
 
-      part.flatMap { case (k: ReduceKey, bufs: Array[_]) =>
+      part.flatMap { case (k: ReduceKeyReduceSide, bufs: Array[_]) =>
         writable.set(k.byteArray, 0, k.length)
 
         // If nullCheck is false, we can skip deserializing the key.
@@ -169,13 +164,7 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
     iter.map { elements: Array[Any] =>
       var index = 0
       while (index < numTables) {
-        var element: Array[Byte] = null
-        elements(index) match {
-          case array: Array[Byte] => 
-            element = array
-          case writable: BytesWritable =>
-            element = writable.getBytes()
-        }
+        val element = elements(index).asInstanceOf[Array[Byte]]
         var i = 0
         if (element == null) {
           while (i < joinVals.get(index.toByte).size) {

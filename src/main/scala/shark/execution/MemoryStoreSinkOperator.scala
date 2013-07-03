@@ -69,9 +69,9 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     val op = OperatorSerializationWrapper(this)
     val shouldPartition = partitionCol != ""
  
-    def getCacheLocations(rdd: RDD[_]) = {
+    def getCacheLocations(rdd: RDD[_]): Array[Seq[String]] = {
       val blockIds = rdd.partitions.indices.map(index=> "rdd_%d_%d".format(rdd.id, index)).toArray
-      SparkEnv.get.blockManager.master.getLocations(blockIds).map{
+      SparkEnv.get.blockManager.master.getLocations(blockIds).map {
         locations => locations.map(_.hostPort).toSeq
       }.toArray
     } 
@@ -89,9 +89,10 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         val (partitioner, locations) = {
           val partNum = localHconf.getInt("shark.copartition.partnum", 5)
           SharkEnv.memoryMetadataManager.get(coPartitionTableName) match {
-            case Some(coRdd) => logInfo("table found in cache:" + coPartitionTableName)
+            case Some(coRdd) => logInfo("Copartitioning table %s with %s ".
+                format(tableName, coPartitionTableName))
               (new CoPartitioner(partNum), getCacheLocations(coRdd))
-            case _ => logInfo("table not found in cache:" + coPartitionTableName)
+            case _ => logInfo("Copartition table not found in cache:" + coPartitionTableName)
               (new CoPartitioner(partNum), null)
           }
         }
@@ -117,7 +118,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         logInfo("kvRdd generated for table with copartitionCol " + partitionCol + " " + partitioner)
         new ShuffledWithLocationsRDD(kvRdd, partitioner, locations).mapPartitions(
             {iter => iter.map(x => x._2)}, true)
-      }else{
+      } else {
         inputRdd
       }
     }
@@ -158,7 +159,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         statsAcc += Tuple2(partitionIndex, new TablePartitionStats(Array(), 0))
         Iterator(new TablePartition(0, Array()))
       }
-    }, true)
+    }, preservesPartitioning = true)
 
     if (tachyonWriter != null) {
       // Put the table in Tachyon.

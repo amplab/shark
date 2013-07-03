@@ -51,7 +51,10 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
   @BeanProperty var firstConfPartDesc: PartitionDesc  = _
   @BeanProperty var tableDesc: TableDesc = _
   @BeanProperty var localHconf: HiveConf = _
-
+  var keepPartitioning = true
+  
+  override def preservesPartitioning = keepPartitioning
+  
   /**
    * Initialize the hive TableScanOperator. This initialization propagates
    * downstream. When all Hive TableScanOperators are initialized, the entire
@@ -177,6 +180,10 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         rdd
       }
 
+    if(prunedRdd.partitions.size != rdd.partitions.size) {
+      keepPartitioning = false
+    }
+
     prunedRdd.mapPartitions ({ iter =>
       if (iter.hasNext) {
         val tablePartition = iter.next.asInstanceOf[TablePartition]
@@ -184,7 +191,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
       } else {
         Iterator()
       }
-    }, true)
+    }, preservesPartitioning)
   }
 
   /**

@@ -76,27 +76,32 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
     initializeOisAndSers(conf, objectInspector)
   }
 
-  def getPartColName = {  
+  def getPartColName: ArrayBuffer[String] = {  
+    def getGenericFuncColumnName(colDesc: ExprNodeGenericFuncDesc): ArrayBuffer[String] = {
+      val colsName = new ArrayBuffer[String]
+      colDesc.getChildren().foreach { child =>
+        child match {
+          case columnDesc: ExprNodeColumnDesc =>
+            colsName += columnDesc.getColumn
+          case genericFuncDesc: ExprNodeGenericFuncDesc =>
+            colsName ++= getGenericFuncColumnName(genericFuncDesc)
+        }
+      }
+      colsName
+    }
     val partColsName = new ArrayBuffer[String]
     conf.getPartitionCols.foreach { expr =>
       expr match{
         case columnDesc: ExprNodeColumnDesc =>
           partColsName += columnDesc.getColumn
         case genericFuncDesc: ExprNodeGenericFuncDesc =>
-          genericFuncDesc.getChildren.foreach { child =>
-            child match {
-              case columnDesc: ExprNodeColumnDesc =>
-                partColsName += columnDesc.getColumn
-              case _ =>
-            }
-          }
-        case _ =>
+          partColsName ++= getGenericFuncColumnName(genericFuncDesc)
       }
     }
     partColsName
   }
   
-  def getPartColInternalName = {
+  def getPartColInternalName: ArrayBuffer[String] = {
     val partColsName = getPartColName
     val tableColsNameToIndex = objectInspector.asInstanceOf[StructObjectInspector].
           getAllStructFieldRefs.zipWithIndex.map { case (field, index) =>
@@ -119,13 +124,12 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
   override def preprocessRdd(rdd: RDD[_]) = {
     val partColInternalName = getPartColInternalName
     rdd.partitioner.foreach { part => part match {
-        case copart: CoPartitioner => 
-          val partCols = copart.getPartCols
-          val keySet = partColInternalName.toSet
-          if(partColInternalName.size == partCols.size){
-            keepPartitioning = partCols.forall(keySet.contains(_))
-          }
-        case _ =>
+      case copart: CoPartitioner => 
+        val partCols = copart.partitionColumns
+        val keySet = partColInternalName.toSet
+        if(partColInternalName.size == partCols.size){
+          keepPartitioning = partCols.forall(keySet.contains(_))
+        }
       }
     }
     rdd
@@ -266,14 +270,10 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
 
       val key = keySer.serialize(evaluatedKey, keyObjInspector).asInstanceOf[BytesWritable]
       val value = valueSer.serialize(evaluatedValue, valObjInspector).asInstanceOf[BytesWritable]
-
-      val valArr = new Array[Byte](value.getLength)
-      Array.copy(value.getBytes, 0, valArr, 0, value.getLength)
-      val valueCopy = new BytesWritable(valArr)
  
       reduceKey.bytesWritable = key
       reduceKey.partitionCode = partitionCode
-      (reduceKey.createDeepCopy, valueCopy)
+      (reduceKey.createDeepCopy, value)
     }
   }
 
