@@ -23,10 +23,9 @@ import org.apache.hadoop.hive.ql.QTestUtil;
  * The test driver. It overloads Hive's TestCliDriver to use SharkQTestUtil.
  * There is also a feature to selectively run tests, i.e. only tests whose
  * names match the regular expression pattern defined in environmental variable
- * TEST are invoked. Note that this test is ignored so we don't run it in our
- * normal unit tests. This should only be launched with the explicit test script.
+ * TEST are invoked.
  */
-@Ignore public class TestSharkCliDriver extends TestCliDriver {
+public class TestSharkCliDriver extends TestCliDriver {
 
   static {
     // Replace qt in Hive's TestCliDriver with SharkQTestUtil.
@@ -105,7 +104,7 @@ import org.apache.hadoop.hive.ql.QTestUtil;
 
       if (regexPattern != null) {
         Matcher m = regexPattern.matcher(test.getName());
-        if (m.find() || test.getName() == "testCliDriver_shutdown") {
+        if (m.find() || test.getName().equals("testCliDriver_shutdown")) {
           passRegex = true;
         }
       }

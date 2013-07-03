@@ -54,7 +54,7 @@ class SharkContext(
    * Execute the command and return the results as a sequence. Each element
    * in the sequence is one row.
    */
-  def sql(cmd: String, maxRows: Int = 1000): Seq[String] = {
+  def sql(cmd: String, maxRows: Int = Int.MaxValue): Seq[String] = {
     SparkEnv.set(sparkEnv)
     val cmd_trimmed: String = cmd.trim()
     val tokens: Array[String] = cmd_trimmed.split("\\s+")
@@ -66,7 +66,9 @@ class SharkContext(
     if (proc.isInstanceOf[Driver]) {
       val driver: Driver =
         if (SharkConfVars.getVar(hiveconf, SharkConfVars.EXEC_MODE) == "shark") {
-          new SharkDriver(hiveconf)
+          val newDriver = new SharkDriver(hiveconf)
+          newDriver.setMaxRows(maxRows)
+          newDriver
         } else {
           proc.asInstanceOf[Driver]
         }
@@ -96,6 +98,7 @@ class SharkContext(
     SparkEnv.set(sparkEnv)
     SessionState.start(sessionState)
     val driver = new SharkDriver(hiveconf)
+    driver.setMaxRows(Int.MaxValue)
     try {
       driver.init()
       driver.tableRdd(cmd)

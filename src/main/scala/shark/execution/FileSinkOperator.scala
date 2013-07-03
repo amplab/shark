@@ -17,6 +17,8 @@
 
 package shark.execution
 
+import scala.collection.Map
+import scala.collection.mutable.ArrayBuffer
 import scala.reflect.BeanProperty
 
 import org.apache.hadoop.fs.FileSystem
@@ -67,11 +69,7 @@ class FileSinkOperator extends TerminalOperator with Serializable {
   }
 
   override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
-
-    var numRows = 0
-
     iter.foreach { row =>
-      numRows += 1
       localHiveOp.processOp(row, 0)
     }
 
@@ -105,44 +103,21 @@ class FileSinkOperator extends TerminalOperator with Serializable {
           createFilesMethod.invoke(localHiveOp, fileSystemPaths)
           finalPath = finalPaths(idx)
         }
-        if (!fileSystem.exists(finalPath.getParent)) {
-          fileSystem.mkdirs(finalPath.getParent)
-        }
+        if (!fileSystem.exists(finalPath.getParent())) fileSystem.mkdirs(finalPath.getParent())
       }
     }
 
     localHiveOp.closeOp(false)
-    Iterator(numRows)
+    iter
   }
 
   override def execute(): RDD[_] = {
     val inputRdd = if (parentOperators.size == 1) executeParents().head._2 else null
-    val rdd = preprocessRdd(inputRdd)
-
-    parentOperators.head match {
-      case op: LimitOperator =>
-        // If there is a limit operator, let's only run one partition at a time to avoid
-        // launching too many tasks.
-        val limit = op.limit
-        var totalRows = 0
-        var nextPartition = 0
-        while (totalRows < limit) {
-          // Run one partition and get back the number of rows processed there.
-          totalRows += rdd.context.runJob(
-            rdd,
-            FileSinkOperator.executeProcessFileSinkPartition(this),
-            Seq(nextPartition),
-            allowLocal = false).sum
-          nextPartition += 1
-        }
-
-      case _ =>
-        val rows = rdd.context.runJob(rdd, FileSinkOperator.executeProcessFileSinkPartition(this))
-        logInfo("Total number of rows written: " + rows.sum)
-    }
-
+    val rddPreprocessed = preprocessRdd(inputRdd)
+    rddPreprocessed.context.runJob(
+      rddPreprocessed, FileSinkOperator.executeProcessFileSinkPartition(this))
     hiveOp.jobClose(localHconf, true, new JobCloseFeedBack)
-    rdd
+    rddPreprocessed
   }
 }
 
@@ -150,14 +125,15 @@ class FileSinkOperator extends TerminalOperator with Serializable {
 object FileSinkOperator {
   def executeProcessFileSinkPartition(operator: FileSinkOperator) = {
     val op = OperatorSerializationWrapper(operator)
-    def writeFiles(context: TaskContext, iter: Iterator[_]): Int = {
+    def writeFiles(context: TaskContext, iter: Iterator[_]): Boolean = {
       op.logDebug("Started executing mapPartitions for operator: " + op)
       op.logDebug("Input object inspectors: " + op.objectInspectors)
 
       op.initializeOnSlave(context)
-      val numRows = op.processPartition(-1, iter).next().asInstanceOf[Int]
+      val newPart = op.processPartition(-1, iter)
       op.logDebug("Finished executing mapPartitions for operator: " + op)
-      numRows
+
+      true
     }
     writeFiles _
   }

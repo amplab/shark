@@ -33,6 +33,7 @@ object TimestampColumnIterator {
     override def next()  {
       _timestamp.setTime(_bytesReader.getLong())
       _timestamp.setNanos(_bytesReader.getInt())
+      _writable.set(_timestamp)
     }
 
     override def current = _writable
