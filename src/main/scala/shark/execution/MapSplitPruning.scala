@@ -100,14 +100,12 @@ object MapSplitPruning {
       val columnStats = s.stats(field.fieldID)
 
       if (columnStats != null) {
-        val min = columnStats.min
-        val max = columnStats.max
         udf match {
-          case _: GenericUDFOPEqual => testEqual(min, max, value)
-          case _: GenericUDFOPEqualOrGreaterThan => testEqualOrGreaterThan(min, max, value)
-          case _: GenericUDFOPEqualOrLessThan => testEqualOrLessThan(min, max, value)
-          case _: GenericUDFOPGreaterThan => testGreaterThan(min, max, value)
-          case _: GenericUDFOPLessThan => testLessThan(min, max, value)
+          case _: GenericUDFOPEqual => columnStats:=value
+          case _: GenericUDFOPEqualOrGreaterThan => columnStats:>=value
+          case _: GenericUDFOPEqualOrLessThan => columnStats:<=value
+          case _: GenericUDFOPGreaterThan => columnStats:>value
+          case _: GenericUDFOPLessThan => columnStats:<value
           case _ => true
         }
       } else {
@@ -118,87 +116,5 @@ object MapSplitPruning {
       // If the predicate is not of type column op value, don't prune.
       true
     }
-  }
-
-  def testEqual(min: Any, max: Any, value: Any): Boolean = {
-    // Assume min and max have the same type.
-    val c = tryCompare(min, value)
-    tryCompare(min, value) match {
-      case Some(c) => c <= 0 && tryCompare(max, value).get >= 0
-      case None => true
-    }
-  }
-
-  def testEqualOrGreaterThan(min: Any, max: Any, value: Any): Boolean = {
-    // Assume min and max have the same type.
-    tryCompare(max, value) match {
-      case Some(c) => c >= 0
-      case None => true
-    }
-  }
-
-  def testEqualOrLessThan(min: Any, max: Any, value: Any): Boolean = {
-    // Assume min and max have the same type.
-    tryCompare(min, value) match {
-      case Some(c) => c <= 0
-      case None => true
-    }
-  }
-
-  def testGreaterThan(min: Any, max: Any, value: Any): Boolean = {
-    // Assume min and max have the same type.
-    tryCompare(max, value) match {
-      case Some(c) => c > 0
-      case None => true
-    }
-  }
-
-  def testLessThan(min: Any, max: Any, value: Any): Boolean = {
-    // Assume min and max have the same type.
-    tryCompare(min, value) match {
-      case Some(c) => c < 0
-      case None => true
-    }
-  }
-
-  def testNotEqual(min: Any, max: Any, value: Any): Boolean = {
-    // Assume min and max have the same type.
-    tryCompare(min, value) match {
-      case Some(c) => c != 0 || (tryCompare(max, value).get != 0)
-      case None => true
-    }
-  }
-
-  /**
-   * Try to compare value a and b.
-   * If a is greater than b, return 1.
-   * If a equals b, return 0.
-   * If a is less than b, return -1.
-   * If a and b are not comparable, return None.
-   */
-  def tryCompare(a: Any, b: Any): Option[Int] = a match {
-    case a: Number => b match {
-      case b: Number => Some((a.longValue - b.longValue).toInt)
-      case _ => None
-    }
-    case a: Boolean => b match {
-      case b: Boolean => Some(if (a && !b) 1 else if (!a && b) -1 else 0)
-      case _ => None
-    }
-    case a: Text => b match {
-      case b: Text => Some(a.compareTo(b))
-      case b: String => Some(a.compareTo(new Text(b)))
-      case _=> None
-    }
-    case a: String => b match {
-      case b: Text => Some((new Text(a)).compareTo(b))
-      case b: String => Some(a.compareTo(b))
-      case _ => None
-    }
-    case a: Timestamp => b match {
-      case b: Timestamp => Some(a.compareTo(b))
-      case _ => None
-    }
-    case _ => None
   }
 }

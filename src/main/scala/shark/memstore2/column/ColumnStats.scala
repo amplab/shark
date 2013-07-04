@@ -45,6 +45,11 @@ sealed trait ColumnStats[@specialized(Boolean, Byte, Short, Int, Long, Float, Do
   def max: T = _max
 
   override def toString = "[" + min + ", " + max + "]"
+  def :<=(v: Any): Boolean = (this:=v) || (this:<v)
+  def :>=(v: Any): Boolean = (this:=v) || (this:>v)
+  def  :=(v: Any): Boolean
+  def  :>(v: Any): Boolean
+  def  :<(v: Any): Boolean
 }
 
 
@@ -60,6 +65,27 @@ object ColumnStats {
       if (v) _max = v
       else _min = v
     }
+    def :=(v: Any): Boolean = {
+      v match {
+        case u:Boolean => _min <= u && _max >= u
+        case _ => true
+      }
+    }
+
+    def :>(v: Any): Boolean = {
+      v match {
+        case u:Boolean => _max > u
+        case _ => true
+      }
+    }
+
+    def :<(v: Any): Boolean = {
+      v match {
+        case u:Boolean => _min < u
+        case _ => true
+      }
+    }
+
   }
 
   class ByteColumnStats extends ColumnStats[Byte] {
@@ -69,6 +95,27 @@ object ColumnStats {
       if (v > _max) _max = v
       if (v < _min) _min = v
     }
+    
+    def :=(v: Any): Boolean = {
+      v match {
+        case u:Byte => _min <= u && _max >= u
+        case _ => true
+      }
+    }
+
+    def :>(v: Any): Boolean = {
+      v match {
+        case u:Byte => _max > u
+        case _ => true
+      }
+    }
+
+    def :<(v: Any): Boolean = {
+      v match {
+        case u:Byte => _min < u
+        case _ => true
+      }
+    }
   }
 
   class ShortColumnStats extends ColumnStats[Short] {
@@ -77,6 +124,26 @@ object ColumnStats {
     override def append(v: Short) {
       if (v > _max) _max = v
       if (v < _min) _min = v
+    }
+    def :=(v: Any): Boolean = {
+      v match {
+        case u:Short => _min <= u && _max >= u
+        case _ => true
+      }
+    }
+
+    def :>(v: Any): Boolean = {
+      v match {
+        case u:Short => _max > u
+        case _ => true
+      }
+    }
+
+    def :<(v: Any): Boolean = {
+      v match {
+        case u:Short => _min < u
+        case _ => true
+      }
     }
   }
 
@@ -101,6 +168,27 @@ object ColumnStats {
     def isDescending = _orderedState != ASCENDING && _orderedState != UNORDERED
     def isOrdered = isAscending || isDescending
     def maxDelta = _maxDelta
+
+    def :=(v: Any): Boolean = {
+      v match {
+        case u:Int => _min <= u && _max >= u
+        case _ => true
+      }
+    }
+
+    def :>(v: Any): Boolean = {
+      v match {
+        case u:Int => _max > u
+        case _ => true
+      }
+    }
+
+    def :<(v: Any): Boolean = {
+      v match {
+        case u:Int => _min < u
+        case _ => true
+      }
+    }
 
     override def append(v: Int) {
       if (v > _max) _max = v
@@ -138,6 +226,26 @@ object ColumnStats {
       if (v > _max) _max = v
       if (v < _min) _min = v
     }
+    def :=(v: Any): Boolean = {
+      v match {
+        case u:Long => _min <= u && _max >= u
+        case _ => true
+      }
+    }
+
+    def :>(v: Any): Boolean = {
+      v match {
+        case u:Long => _max > u
+        case _ => true
+      }
+    }
+
+    def :<(v: Any): Boolean = {
+      v match {
+        case u:Long => _min < u
+        case _ => true
+      }
+    }
   }
 
   class FloatColumnStats extends ColumnStats[Float] {
@@ -146,6 +254,26 @@ object ColumnStats {
     override def append(v: Float) {
       if (v > _max) _max = v
       if (v < _min) _min = v
+    }
+    def :=(v: Any): Boolean = {
+      v match {
+        case u:Float => _min <= u && _max >= u
+        case _ => true
+      }
+    }
+
+    def :>(v: Any): Boolean = {
+      v match {
+        case u:Float => _max > u
+        case _ => true
+      }
+    }
+
+    def :<(v: Any): Boolean = {
+      v match {
+        case u:Float => _min < u
+        case _ => true
+      }
     }
   }
 
@@ -156,6 +284,26 @@ object ColumnStats {
       if (v > _max) _max = v
       if (v < _min) _min = v
     }
+    def :=(v: Any): Boolean = {
+      v match {
+        case u:Double => _min <= u && _max >= u
+        case _ => true
+      }
+    }
+
+    def :>(v: Any): Boolean = {
+      v match {
+        case u:Double => _max > u
+        case _ => true
+      }
+    }
+
+    def :<(v: Any): Boolean = {
+      v match {
+        case u:Double => _min < u
+        case _ => true
+      }
+    }
   }
 
   class TimestampColumnStats extends ColumnStats[Timestamp] {
@@ -165,12 +313,56 @@ object ColumnStats {
       if (v.compareTo(_max) > 0) _max = v
       if (v.compareTo(_min) < 0) _min = v
     }
+    def :=(v: Any): Boolean = {
+      v match {
+        case u: Timestamp => _min.compareTo(u) <=0 && _max.compareTo(u) >= 0
+        case _ => true
+      }
+    }
+
+    def :>(v: Any): Boolean = {
+      v match {
+        case u: Timestamp => _max.compareTo(u) > 0
+        case _ => true
+      }
+    }
+
+    def :<(v: Any): Boolean = {
+       v match {
+        case u: Timestamp => _min.compareTo(u) < 0
+        case _ => true
+      }
+    }
   }
 
   class StringColumnStats extends ColumnStats[Text] with Externalizable {
     // Note: this is not Java serializable because Text is not Java serializable.
     protected var _max: Text = null
     protected var _min: Text = null
+
+    def :=(v: Any): Boolean = {
+      v match {
+        case u:Text => _min.compareTo(u) <= 0 && _max.compareTo(u) >= 0
+        case u: String => this:=(new Text(u))
+        case _ => true
+      }
+    }
+
+    def :>(v: Any): Boolean = {
+      v match {
+        case u:Text => _max.compareTo(u) > 0
+        case u: String => this:>(new Text(u))
+        case _ => true
+      }
+    }
+
+    def :<(v: Any): Boolean = {
+      v match {
+        case u:Text => _min.compareTo(u) < 0
+        case u: String => this:<(new Text(u))
+        case _ => true
+      }
+    }
 
     override def append(v: Text) {
       // Need to make a copy of Text since Text is not immutable and we reuse
