@@ -26,6 +26,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
 
+import shark.memstore2.column.CompressionScheme._
 
 /** Builder interface for a column. Each column type (PrimitiveCategory) would
  * be expected to implement its own builder. Each builder takes an array of
@@ -73,7 +74,7 @@ trait ColumnBuilder[@specialized(Boolean, Byte, Short, Int, Long, Float, Double)
   /** Compression/Encoding scheme for the column. Not supported by all types
     * Setter should be called before build()
     */
-  var scheme: String = "auto"
+  var scheme = CompressionScheme.Auto
 
   protected var _nullBitmap: EWAHCompressedBitmap = null
 
@@ -88,7 +89,6 @@ trait ColumnBuilder[@specialized(Boolean, Byte, Short, Int, Long, Float, Double)
     }
   }
 }
-
 
 object ColumnBuilder {
 

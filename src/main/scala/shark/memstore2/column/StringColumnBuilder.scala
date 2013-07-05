@@ -26,6 +26,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspe
 import org.apache.hadoop.io.Text
 import scala.collection.mutable.{HashSet, Set}
 import shark.LogHelper
+import shark.memstore2.column.CompressionScheme._
 
 class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper{
   private var _stats: ColumnStats.StringColumnStats = null
@@ -70,7 +71,7 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper{
 
   override def stats = _stats
 
-  def pickCompressionScheme: String = {
+  def pickCompressionScheme: CompressionScheme.Value = {
     // Initial RLE choice logic - use RLE if the
     // selectivity is < 20% &&
     // ratio of transitions < 30% 
@@ -81,8 +82,8 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper{
       ((selectivity < 0.2) &&
         (transitionsRatio < 0.3))
 
-    if(rleUsed) "RLE"
-    else "none"
+    if(rleUsed) RLE
+    else None
   }
 
   override def build: ByteBuffer = {
@@ -94,7 +95,7 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper{
     // next priority override - from TBL PROPERTIES
 
     // choices are none, auto, RLE, LZF
-    if(scheme == null || scheme.toUpperCase == "AUTO") scheme = pickCompressionScheme
+    if(scheme == null || scheme == Auto) scheme = pickCompressionScheme
 
     val selectivity = (_uniques.size).toDouble / _lengthArr.size
     val transitionsRatio = (_stats.transitions).toDouble / _lengthArr.size
@@ -104,8 +105,8 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper{
       " #values=" + _lengthArr.size)
 
 
-    scheme.toUpperCase match {
-      case "NONE" => {
+    scheme match {
+      case None => {
         var minbufsize = _lengthArr.size * 4 + _arr.size +
         ColumnIterator.COLUMN_TYPE_LENGTH
         val buf = ByteBuffer.allocate(minbufsize)
@@ -116,7 +117,7 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper{
         val (popBytes, pop) = populateStringsInBuffer(_arr, _lengthArr, buf)
         pop
       }
-      case "LZF" => {
+      case LZF => {
 
         val (tempBufSize, compressed) = encodeAsBlocks(_arr, _lengthArr)
 
@@ -132,7 +133,7 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper{
         buf.rewind
         buf
       }
-      case "RLE" => {
+      case RLE => {
         var totalStringLengthInBuffer = 0
 
         var i = 0
