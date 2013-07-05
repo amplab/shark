@@ -21,8 +21,8 @@ import java.io.ObjectInput
 import java.io.ObjectOutput
 import java.io.Externalizable
 import java.sql.Timestamp
-
 import org.apache.hadoop.io.Text
+import shark.util.BloomFilter
 
 
 /**
@@ -339,10 +339,12 @@ object ColumnStats {
     // Note: this is not Java serializable because Text is not Java serializable.
     protected var _max: Text = null
     protected var _min: Text = null
-
+    private var _filter = new BloomFilter[String](0.03, 1000000)
     def :=(v: Any): Boolean = {
       v match {
-        case u:Text => _min.compareTo(u) <= 0 && _max.compareTo(u) >= 0
+        case u:Text => _min.compareTo(u) <= 0 &&
+        			   _max.compareTo(u) >= 0 &&
+        			   _filter.contains(u.toString())
         case u: String => this:=(new Text(u))
         case _ => true
       }
@@ -369,9 +371,11 @@ object ColumnStats {
       // the same Text object in serializer to mitigate frequent GC.
       if (_max == null || v.compareTo(_max) > 0) _max = new Text(v)
       if (_min == null || v.compareTo(_min) < 0) _min = new Text(v)
+      _filter.add(v.toString())
     }
 
     override def readExternal(in: ObjectInput) {
+      _filter = in.readObject().asInstanceOf[BloomFilter[String]]
       if (in.readBoolean()) {
         _max = new Text
         _max.readFields(in)
@@ -383,6 +387,7 @@ object ColumnStats {
     }
 
     override def writeExternal(out: ObjectOutput) {
+      out.writeObject(_filter)
       if (_max == null) {
         out.write(0)
       } else {
