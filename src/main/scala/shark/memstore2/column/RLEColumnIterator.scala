@@ -29,14 +29,11 @@ import it.unimi.dsi.fastutil.ints.IntArrayList
   * 
   */
 
-class RLEColumnIterator[T <: ColumnIterator](
-  baseIterCls: Class[T])
-    extends ColumnIterator {
-
+class RLEColumnIterator[T <: ColumnIterator](baseIterCls: Class[T]) extends ColumnIterator {
   private var extPos = -1
   private var currentRunPos = -1
   private var intPos = -1
-  private def length = lengths.get(intPos)
+  private def length = lengths.getInt(intPos)
 
   private var lengths: IntArrayList = null
   var baseIter: T = _
@@ -57,33 +54,32 @@ class RLEColumnIterator[T <: ColumnIterator](
   }
 
   override def next() {
-    require(lengths != null)
     // first call
     if (currentRunPos == -1) {
       intPos = 0;
       currentRunPos = 0;
       baseIter.next()
       extPos = 0
-      return
-    }
-
-    extPos += 1
-    // logDebug("current length " + length + " intPos " + intPos + " currentRunPos " + currentRunPos + " extPos " + extPos)
-
-    if(currentRunPos < (length-1)) {
-      // still inside run - current will return the right value
-      currentRunPos += 1
-
     } else {
-      if(currentRunPos == length-1 ) {
-        currentRunPos = 0
-      } else { // > 
-        throw new RuntimeException("Run position longer than length of run")
-      }
 
-      intPos += 1
-      baseIter.next()
-      // logDebug(" pos " + extPos + " value " + current)
+      extPos += 1
+      // logDebug("current length " + length + " intPos " + intPos + " currentRunPos " + currentRunPos + " extPos " + extPos)
+
+      if(currentRunPos < (length-1)) {
+        // still inside run - current will return the right value
+        currentRunPos += 1
+
+      } else {
+        if(currentRunPos == length-1 ) {
+          currentRunPos = 0
+        } else { // >
+          throw new RuntimeException("Run position longer than length of run")
+        }
+
+        intPos += 1
+        baseIter.next()
+        // logDebug(" pos " + extPos + " value " + current)
+      }
     }
   }
 

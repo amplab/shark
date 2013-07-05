@@ -23,7 +23,7 @@ import java.io.Externalizable
 import java.sql.Timestamp
 
 import org.apache.hadoop.io.Text
-import collection.mutable.{Set, HashSet}
+import it.unimi.dsi.fastutil.ints.IntArraySet
 
 /**
  * Column level statistics, including range (min, max).
@@ -97,7 +97,7 @@ object ColumnStats {
     private var _lastValue = 0
     private var _maxDelta = 0
 
-    var uniques: collection.mutable.Set[Int] = new HashSet()
+    var uniques = new IntArraySet(0)
     protected var uniques_ = uniques // setter protected
     var transitions: Int = 0
     protected var transitions_ = transitions // setter protected
@@ -110,7 +110,7 @@ object ColumnStats {
     override def append(v: Int) {
       if (v > _max) _max = v
       if (v < _min) _min = v
-      uniques += v
+      uniques.add(v)
 
       if (_orderedState == UNINITIALIZED) {
         // First value.
@@ -121,7 +121,7 @@ object ColumnStats {
         // Second value.
         _orderedState = if (v >= _lastValue) ASCENDING else DESCENDING
         _maxDelta = math.abs(v - _lastValue)
-        if(_maxDelta != 0) transitions += 1
+        if (_maxDelta != 0) transitions += 1
         _lastValue = v
       } else if (_orderedState == ASCENDING) {
         if (v < _lastValue) {
@@ -129,7 +129,7 @@ object ColumnStats {
           transitions += 1
         } else {
           if (v - _lastValue > _maxDelta) _maxDelta = v - _lastValue
-          if(_maxDelta != 0) transitions += 1
+          if (_maxDelta != 0) transitions += 1
           _lastValue = v
         }
       } else if (_orderedState == DESCENDING) {
@@ -138,7 +138,7 @@ object ColumnStats {
           transitions += 1
         } else {
           if (_lastValue - v > _maxDelta) _maxDelta = _lastValue - v
-          if(_maxDelta != 0) transitions += 1
+          if (_maxDelta != 0) transitions += 1
           _lastValue = v
         }
       }
@@ -196,9 +196,11 @@ object ColumnStats {
       if (_max == null || v.compareTo(_max) > 0) _max = new Text(v)
       if (_min == null || v.compareTo(_min) < 0) _min = new Text(v)
 
-      if (transitions == 0) { transitions = 1 }
-      else if (_prev == null || v.compareTo(_prev) != 0) { transitions += 1 }
-      else {}
+      if (transitions == 0) { 
+        transitions = 1
+      } else if (_prev == null || v.compareTo(_prev) != 0) {
+        transitions += 1
+      }
 
       if (v == null) { 
         _prev = null
@@ -208,10 +210,12 @@ object ColumnStats {
     }
 
     override def appendNull() {
-      super.appendNull
-      if (transitions == 0) { transitions = 1 }
-      else if (null != _prev) { transitions += 1 }
-      else {}
+      super.appendNull()
+      if (transitions == 0) { 
+        transitions = 1
+      } else if (null != _prev) {
+        transitions += 1 
+      }
       _prev = null
     }
 

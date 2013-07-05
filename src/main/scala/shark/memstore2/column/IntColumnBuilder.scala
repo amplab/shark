@@ -167,7 +167,7 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
       case "DICT" => {
         val dict = new IntDictionary
         logInfo("#uniques " + _stats.uniques.size)
-        dict.initialize(_stats.uniques.toList)
+        dict.initialize(_stats.uniques.toIntArray)
         val minbufsize = (_nonNulls.size*1) + ColumnIterator.COLUMN_TYPE_LENGTH +
         sizeOfNullBitmap + (dict.sizeInBits/8)
 

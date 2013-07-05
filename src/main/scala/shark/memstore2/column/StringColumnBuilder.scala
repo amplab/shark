@@ -158,12 +158,13 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper{
         val vals = rleStrings map (_._2)
         val runs = new IntArrayList(vals.size)
         totalStringLengthInBuffer = 0
-        rleStrings.foreach { x => 
+        rleStrings.foreach { x =>
           runs.add(x._1)
           val value = x._2
           totalStringLengthInBuffer += 4 // int to mark length
-          if(value != null)
+          if (value != null) {
             totalStringLengthInBuffer += value.getLength()
+          }
         }
 
         var minbufsize = rleStrings.size*4 + //runs
