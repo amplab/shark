@@ -23,10 +23,12 @@ import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPOr
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPAnd
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqual
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFBaseCompare
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFBetween
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPGreaterThan
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPLessThan
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqualOrGreaterThan
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqualOrLessThan
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFIn
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.io.Text
 
@@ -54,7 +56,14 @@ object MapSplitPruning {
         case e: ExprNodeGenericFuncEvaluator => {
           e.genericUDF match {
             case _: GenericUDFOPAnd => test(s, e.children(0)) && test(s, e.children(1))
-            case _: GenericUDFOPOr =>  test(s, e.children(0)) || test(s, e.children(1))
+            case _: GenericUDFOPOr => test(s, e.children(0)) || test(s, e.children(1))
+            case _: GenericUDFBetween => 
+              testBetweenPredicate(s, e.children(0).asInstanceOf[ExprNodeConstantEvaluator],
+                e.children(1).asInstanceOf[ExprNodeColumnEvaluator],
+                e.children(2).asInstanceOf[ExprNodeConstantEvaluator],
+                e.children(3).asInstanceOf[ExprNodeConstantEvaluator])
+            case _: GenericUDFIn =>
+              testInPredicate(s, e.children(0).asInstanceOf[ExprNodeColumnEvaluator], e.children.drop(1))
             case udf: GenericUDFBaseCompare =>
               testComparisonPredicate(s, udf, e.children(0), e.children(1))
             case _ => true
@@ -65,6 +74,47 @@ object MapSplitPruning {
     }
   }
 
+  def testInPredicate(
+    s: TablePartitionStats,
+    columnEval: ExprNodeColumnEvaluator,
+    expEvals: Array[ExprNodeEvaluator]): Boolean = {
+
+    val field = columnEval.field.asInstanceOf[IDStructField]
+    val columnStats = s.stats(field.fieldID)
+
+    if (columnStats != null) {
+      expEvals.exists {
+        e =>
+          val constEval = e.asInstanceOf[ExprNodeConstantEvaluator]
+          columnStats := constEval.expr.getValue()
+      }
+    } else {
+      // If there is no stats on the column, don't prune.
+      true
+    }
+  }
+  
+  def testBetweenPredicate(
+    s: TablePartitionStats,
+    invertEval: ExprNodeConstantEvaluator,
+    columnEval: ExprNodeColumnEvaluator,
+    leftEval: ExprNodeConstantEvaluator,
+    rightEval: ExprNodeConstantEvaluator): Boolean = {
+    
+    val field = columnEval.field.asInstanceOf[IDStructField]
+    val columnStats = s.stats(field.fieldID)
+    val leftValue: Object = leftEval.expr.getValue
+    val rightValue: Object = rightEval.expr.getValue
+    val invertValue: Boolean = invertEval.expr.getValue.asInstanceOf[Boolean]
+    
+    if (columnStats != null) {
+       val exists = (columnStats:>=leftValue) && (columnStats:<=rightValue)
+       if (invertValue) !exists else exists
+      } else {
+        // If there is no stats on the column, don't prune.
+        true
+      }
+  }
   /**
    * Test whether we should keep the split as a candidate given the comparison
    * predicate. Return true if the split should be kept as a candidate, false if
