@@ -32,7 +32,7 @@ import shark.memstore2.buffer.Unsafe
  */
 trait Dictionary[@specialized(Int) T]{
   var uniques: Array[T]
-  def initialize(u: List[T]): Unit
+  def initialize(u: Array[T]): Unit
   def get(b: Byte): T
   def getWritable(b: Byte): Object
   def getByte(t: T): Byte
@@ -46,7 +46,9 @@ trait Dictionary[@specialized(Int) T]{
   */
 class IntDictionary extends Dictionary[Int]{
   var uniques = new Array[Int](0)
-  override def initialize(u: List[Int]) = {
+  private var writable = new IntWritable
+
+  override def initialize(u: Array[Int]) = {
     uniques = new Array[Int](u.size)
     u.copyToArray(uniques)
   }
@@ -68,7 +70,8 @@ class IntDictionary extends Dictionary[Int]{
   }
 
   override def getWritable(b: Byte): Object = {
-    new IntWritable(get(b))
+    writable.set(get(b))
+    writable
   }
 
   // return the Byte representation for Int value
@@ -111,16 +114,12 @@ object DictionarySerializer{
     val bufferLengthInBytes = bufReader.getInt()
     
     val uniqueCount = (bufferLengthInBytes - 4)/4 // 4 Bytes used to store length
-    var uniques = new ListBuffer[Int]()
-    var i = 0
-    while (i < uniqueCount) {
-      uniques += bufReader.getInt()
-      i += 1
-    }
- 
+    var uniques = new Array[Int](uniqueCount)
+    bufReader.getInts(uniques, uniqueCount)
+
     val dict = new IntDictionary
     // println("bufferLengthInBytes " + bufferLengthInBytes + " readFromBuffer: uniques.size " + uniques.size)
-    dict.initialize(uniques.toList)
+    dict.initialize(uniques)
     dict
   }
 }

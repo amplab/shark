@@ -18,7 +18,6 @@
 package shark.memstore2.column
 
 import shark.memstore2.buffer.ByteBufferReader
-import shark.LogHelper
 
 /** Iterator interface for a column. The iterator should be initialized by a
  * byte buffer, and next can be invoked to get the value for each cell.
@@ -133,13 +132,15 @@ object ColumnIterator {
   _iteratorFactory(BINARY) = createFactory(classOf[BinaryColumnIterator.Default])
 
   val DICT_INT = 13
-  _iteratorFactory(DICT_INT) = createFactoryWithEWAH(classOf[DictionaryEncodedIntColumnIterator.Default])
+  _iteratorFactory(DICT_INT) =
+    createFactoryWithEWAH(classOf[DictionaryEncodedIntColumnIterator.Default])
 
   val RLE_STRING = 14
   _iteratorFactory(RLE_STRING) = createFactoryWithRLE(classOf[StringColumnIterator.Default])
 
-  // val DICT_STRING = 15
-  // _iteratorFactory(DICT_STRING) = createFactory(classOf[DictionaryEncodedStringColumnIterator.Default])
+  val DICT_STRING = 15
+  // _iteratorFactory(DICT_STRING) =
+  //   createFactory(classOf[DictionaryEncodedStringColumnIterator.Default])
 
   val LZF_STRING = 16
   _iteratorFactory(LZF_STRING) = createFactoryWithLZF(classOf[StringColumnIterator.Default])

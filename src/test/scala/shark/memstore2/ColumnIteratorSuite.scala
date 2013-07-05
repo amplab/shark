@@ -133,7 +133,7 @@ class ColumnIteratorSuite extends FunSuite {
   test("dictionary encoding Int") {
     val l = List[Int](1,22,30,4)
     val d = new IntDictionary
-    d.initialize(l)
+    d.initialize(l.toArray)
 
     assert(d.get(0) == 1)
 

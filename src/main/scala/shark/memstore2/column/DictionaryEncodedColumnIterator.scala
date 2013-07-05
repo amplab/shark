@@ -48,7 +48,7 @@ class DictionaryEncodedColumnIterator[Iter <: ColumnIterator](baseIterCls: Class
   override def current: Object = {
     if (!initialized) {
       // require(initialized == true)
-      throw new RuntimeException("RLEColumnIterator next() should be called first")
+      throw new RuntimeException("DictionaryEncodedColumnIterator next() should be called first")
     } else {
       _dict.getWritable(currentByte)
     }

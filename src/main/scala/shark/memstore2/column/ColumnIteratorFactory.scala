@@ -26,12 +26,12 @@ import shark.LogHelper
  * of the column iterator to create depending on metadata embedded in the
  * buffer. For example, it can choose whether to handle null values or not.
  */
-trait ColumnIteratorFactory extends LogHelper{
+trait ColumnIteratorFactory extends LogHelper {
   def createIterator(buf: ByteBufferReader): ColumnIterator
 }
 
 
-object ColumnIteratorFactory{
+object ColumnIteratorFactory {
 
   /**
    * Create a factory for the given column iterator.
@@ -111,21 +111,4 @@ object ColumnIteratorFactory{
     }
   }
  
-/*
-  def createWithEWAHDecorator(c: ColumnIterator) = {
-    new ColumnIteratorFactory {
-      override def createIterator(buf: ByteBufferReader): ColumnIterator = {
-        val nullable = buf.getLong() == 1L
-        if (nullable) {
-          logDebug(
-            " created with EWAHDecorator")
-// troubles mixing mixins and reflection in scala
-          new (classOf[c].getInstance(buf) with EWAHNullableColumnIteratorDecorator)
-        } else {
-          c
-        }
-      }
-    }
-  }
-*/
 }

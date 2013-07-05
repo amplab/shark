@@ -55,13 +55,11 @@ class ColumnarSerDe extends SerDe with LogHelper {
 
     if(tbl != null) {
       if(tbl.get(SharkConfVars.COLUMNAR_COMPR_STRING.varname) != null) {
-        columnarComprString =
-          tbl.get(SharkConfVars.COLUMNAR_COMPR_STRING.varname).toString
+        columnarComprString = tbl.get(SharkConfVars.COLUMNAR_COMPR_STRING.varname).toString
       }
 
       if (tbl.get(SharkConfVars.COLUMNAR_COMPR_INT.varname) != null) {
-        columnarComprInt =
-          tbl.get(SharkConfVars.COLUMNAR_COMPR_INT.varname).toString
+        columnarComprInt = tbl.get(SharkConfVars.COLUMNAR_COMPR_INT.varname).toString
       }
 
       logDebug("columnarComprString configured as  " + columnarComprString)
@@ -72,8 +70,7 @@ class ColumnarSerDe extends SerDe with LogHelper {
     // an instance of the table's StructObjectInspector by creating an instance SerDe, which
     // it initializes by passing a 'null' argument for 'conf'.
     if (conf != null) {
-      initialColumnSize = SharkConfVars.getIntVar(conf,
-        SharkConfVars.COLUMN_INITIALSIZE)
+      initialColumnSize = SharkConfVars.getIntVar(conf, SharkConfVars.COLUMN_INITIALSIZE)
 
       if (initialColumnSize == - 1) {
         // Approximate the size of a partition by using the HDFS "dfs.block.size" config.

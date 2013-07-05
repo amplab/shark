@@ -43,31 +43,29 @@ object LZFSerializer{
   def decode(b: Array[Byte]): Array[Byte] = LZFDecoder.decode(b)
 
 
-  // Also advances the buffer to the point after the uncompressedBytes have been written
+  /** Write compressed data in an array to ByteBuffer 
+    * Also advances the buffer to the point after the uncompressedBytes have been written
+    */
   def writeToBuffer(buf: ByteBuffer, numUncompressedBytes: Int, compressedBytes: Array[Byte]) {
     buf.putInt(numUncompressedBytes)
     val len = compressedBytes.size
     buf.putInt(len)
-    val iter = compressedBytes.iterator
-    while (iter.hasNext) {
-      buf.put(iter.next)
-    }
+
+    buf.put(compressedBytes)
     buf
   }
 
-  // Also advances the buffer to the point after the uncompressedBytes have been read
+  /** Read compressed data into an array from a ByteBuffer 
+    * Also advances the buffer to the point after the uncompressedBytes have been written
+    * Returns a tuple of (numUncompressedBytes, compressedBytes)
+    */
   def readFromBuffer(buf: ByteBufferReader): (Int, Array[Byte]) = {
     val numUncompressedBytes = buf.getInt()
     val num = buf.getInt()
     var compressedBytes = new Array[Byte](num)
 
-    var i = 0
-    while (i < num) {
-      compressedBytes(i) = (buf.getByte())
-      i += 1
-    }
+    buf.getBytes(compressedBytes, num)
     (numUncompressedBytes, compressedBytes)
   }
-
 
 }

@@ -68,10 +68,11 @@ class EWAHNullableColumnIterator[T <: ColumnIterator](
     _pos += 1
     // println(" _nextNullPosition " + _nextNullPosition + " ][ _pos " + _pos)
 
-    if(_pos == _nextNullPosition)
+    if (_pos == _nextNullPosition) {
       null
-    else
+    } else {
       baseIter.next()
+    }
   }
 
   // Semantics are to not change state - read-only

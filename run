@@ -156,5 +156,4 @@ if [ "x$RUNNER" == "x" ] ; then
   fi
 fi
 
-echo "$RUNNER $EXTRA_ARGS $@"
 exec $RUNNER $EXTRA_ARGS "$@"
