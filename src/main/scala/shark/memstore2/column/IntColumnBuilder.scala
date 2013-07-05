@@ -27,6 +27,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.IntObjectInspecto
 
 import collection.mutable.{Set, HashSet}
 import shark.LogHelper
+import shark.memstore2.column.CompressionScheme._
 
 /** Build a column of Int values into a ByteBuffer in memory.
   */
@@ -62,7 +63,7 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
 
   override def stats = _stats
 
-  def pickCompressionScheme: String = {
+  def pickCompressionScheme: CompressionScheme.Value = {
     // RLE choice logic - use RLE if the
     // selectivity is < 20% &&
     // ratio of transitions < 50% (run+value is 2 ints instead of 1)
@@ -70,10 +71,10 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
     val transitionsRatio = (_stats.transitions).toDouble / _nonNulls.size
 
     if(selectivity < 0.2) {
-      if (transitionsRatio < 0.5) return "RLE"
-      else return "dict"
+      if (transitionsRatio < 0.5) return RLE
+      else return Dict
     } else {
-      return "none"
+      return None
     }
   }
 
@@ -89,7 +90,7 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
 
     // next priority override - from TBL PROPERTIES
 
-    if(scheme == null || scheme == "auto") scheme = pickCompressionScheme
+    if(scheme == null || scheme == CompressionScheme.Auto) scheme = pickCompressionScheme
     // choices are none, auto, RLE, dict
 
     val selectivity = (_stats.uniques.size).toDouble / _nonNulls.size
@@ -100,8 +101,8 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
       " #values=" + _nonNulls.size)
 
 
-    scheme.toUpperCase match {
-      case "NONE" => {
+    scheme match {
+      case None => {
         val minbufsize = (_nonNulls.size*4) + ColumnIterator.COLUMN_TYPE_LENGTH + sizeOfNullBitmap
         val buf = ByteBuffer.allocate(minbufsize)
         logDebug("sizeOfNullBitmap " + sizeOfNullBitmap +
@@ -123,7 +124,7 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
         buf.rewind()
         buf
       } 
-      case "RLE" => {
+      case RLE => {
         var rleSs = new RLEStreamingSerializer[Int]( { () => -1 } )
         var i = 0
         while (i < _nonNulls.size) {
@@ -164,7 +165,7 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
         buf.rewind()
         buf
       }
-      case "DICT" => {
+      case Dict => {
         val dict = new IntDictionary
         logInfo("#uniques " + _stats.uniques.size)
         dict.initialize(_stats.uniques.toIntArray)

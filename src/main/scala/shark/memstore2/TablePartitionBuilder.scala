@@ -41,8 +41,10 @@ class TablePartitionBuilder(oi: StructObjectInspector, initialColumnSize: Int,
     val columnBuilder = ColumnBuilder.create(fields.get(i).getFieldObjectInspector)
 
     columnBuilder match {
-      case _: StringColumnBuilder => columnBuilder.scheme = columnarComprString
-      case _: IntColumnBuilder    => columnBuilder.scheme = columnarComprInt
+      case _: StringColumnBuilder => 
+        columnBuilder.scheme = CompressionScheme.withName(columnarComprString.capitalize)
+      case _: IntColumnBuilder    => 
+        columnBuilder.scheme = CompressionScheme.withName(columnarComprInt.capitalize)
       case _ => // Do nothing - "Column type does not support compression - TablePartitionBuilder"
     }
 
