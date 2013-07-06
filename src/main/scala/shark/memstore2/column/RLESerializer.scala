@@ -21,8 +21,7 @@ import scala.collection.mutable._
 import scala.annotation.tailrec
 import shark.memstore2.buffer.ByteBufferReader
 
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
+import java.nio.{ ByteBuffer, IntBuffer, ByteOrder }
 import it.unimi.dsi.fastutil.ints.IntArrayList
 
 
@@ -151,6 +150,7 @@ object RLESerializer{
   def writeToBuffer(buf: ByteBuffer, lengths: IntArrayList) {
     buf.order(ByteOrder.nativeOrder())
     buf.putInt(lengths.size)
+
     var i = 0
     while (i < lengths.size) {
       buf.putInt(lengths.get(i))

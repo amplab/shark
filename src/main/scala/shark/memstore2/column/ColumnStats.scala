@@ -94,9 +94,15 @@ object ColumnStats {
 
     protected var _max = Int.MinValue
     protected var _min = Int.MaxValue
-    private var _lastValue = 0
+    private var _prev = 0
     private var _maxDelta = 0
 
+    // nulls are ignored in IntColumnStats for uniques and transition counting because a Null Bit
+    // Vector encoding wrapper is always expected in the buffer.
+
+    // TODO: In the worst case this Set can be as big as the column itself. This huge waste of
+    // memory should be replaced by HLL or a shortcut eventually. Leaving it here for now as we
+    // figure out the compression scheme heuristics.
     var uniques = new IntArraySet(0)
     protected var uniques_ = uniques // setter protected
     var transitions: Int = 0
@@ -105,6 +111,7 @@ object ColumnStats {
     def isAscending = _orderedState != DESCENDING && _orderedState != UNORDERED
     def isDescending = _orderedState != ASCENDING && _orderedState != UNORDERED
     def isOrdered = isAscending || isDescending
+
     def maxDelta = _maxDelta
 
     override def append(v: Int) {
@@ -112,37 +119,40 @@ object ColumnStats {
       if (v < _min) _min = v
       uniques.add(v)
 
+      if (_orderedState != UNINITIALIZED && v != _prev) {
+        transitions += 1
+      }
+
       if (_orderedState == UNINITIALIZED) {
         // First value.
         _orderedState = INITIALIZED
-        _lastValue = v
+        _prev = v
         transitions = 1
       } else if (_orderedState == INITIALIZED) {
         // Second value.
-        _orderedState = if (v >= _lastValue) ASCENDING else DESCENDING
-        _maxDelta = math.abs(v - _lastValue)
-        if (_maxDelta != 0) transitions += 1
-        _lastValue = v
+        _orderedState = if (v >= _prev) ASCENDING else DESCENDING
+        _maxDelta = math.abs(v - _prev)
+        _prev = v
       } else if (_orderedState == ASCENDING) {
-        if (v < _lastValue) {
+        if (v < _prev) {
           _orderedState = UNORDERED
-          transitions += 1
         } else {
-          if (v - _lastValue > _maxDelta) _maxDelta = v - _lastValue
-          if (_maxDelta != 0) transitions += 1
-          _lastValue = v
+          if (v - _prev > _maxDelta) _maxDelta = v - _prev
+          _prev = v
         }
       } else if (_orderedState == DESCENDING) {
-        if (v > _lastValue) {
+        if (v > _prev) {
           _orderedState = UNORDERED
-          transitions += 1
         } else {
-          if (_lastValue - v > _maxDelta) _maxDelta = _lastValue - v
-          if (_maxDelta != 0) transitions += 1
-          _lastValue = v
+          if (_prev - v > _maxDelta) _maxDelta = _prev - v
+          _prev = v
         }
       }
     }
+
+    // There is no appendNull override because IntColumns are always expected to be wrapped with
+    // Null Bit Vectors so nulls are handled earlier.
+
   }
 
   class LongColumnStats extends ColumnStats[Long] {
@@ -185,27 +195,36 @@ object ColumnStats {
     // Note: this is not Java serializable because Text is not Java serializable.
     protected var _max: Text = null
     protected var _min: Text = null
-
     protected var _prev: Text = null
+
+    // Use these Text objects to copy over contents because Text is not immutable and we reuse the
+    // same Text object to mitigate frequent GC.
+    private var _maxStore: Text = new Text()
+    private var _minStore: Text = new Text()
+    private var _prevStore: Text = new Text()
+
     var transitions: Int = 0
     protected var transitions_ = transitions // setter protected
 
     override def append(v: Text) {
-      // Need to make a copy of Text since Text is not immutable and we reuse
-      // the same Text object in serializer to mitigate frequent GC.
-      if (_max == null || v.compareTo(_max) > 0) _max = new Text(v)
-      if (_min == null || v.compareTo(_min) < 0) _min = new Text(v)
-
+      require (v != null) // appendNull() should have been called
+      if (_max == null || v.compareTo(_max) > 0) {
+        _maxStore.set(v)
+        _max = _maxStore
+      }
+      if (_min == null || v.compareTo(_min) < 0) { 
+        _minStore.set(v)
+        _min = _minStore
+      }
       if (transitions == 0) { 
         transitions = 1
       } else if (_prev == null || v.compareTo(_prev) != 0) {
         transitions += 1
       }
-
-      if (v == null) { 
-        _prev = null
-      } else {
-        _prev = new Text(v)
+      // must compute transitions before updating _prev
+      if (_prev == null || v.compareTo(_prev) != 0) { 
+        _prevStore.set(v)
+        _prev = _prevStore
       }
     }
 
