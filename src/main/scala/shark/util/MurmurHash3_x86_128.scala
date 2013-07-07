@@ -3,6 +3,26 @@ package shark.util
 import java.lang.Integer.{ rotateLeft => rotl }
 import scala.math._
 import com.google.common.primitives.Ints
+/**
+ * <p>The MurmurHash3_x86_128(...) is a fast, non-cryptographic, 128-bit hash 
+ * function that has excellent avalanche and 2-way bit independence properties. 
+ * </p>
+ * 
+ * <p>The C++ version, revision 147, of the MurmurHash3, written Austin Appleby,
+ * and which is in the Public Domain, was the inspiration for this 
+ * implementation in Scala.  The C++ version can be found at 
+ * <a href="http://code.google.com/p/smhasher">SMHasher & MurmurHash</a>.</p>
+ * 
+ * The Scala implementation follows the C++ version closely with two additional features
+ * tailored for scenarios where object allocation is expensive., e.g where the hash function
+ * is called several million times.
+ * Use the method hash(data, seed, length) if you would like to reuse the same input buffer.
+ * Likewise, use the method hash(data, seed, length, results) if you would like to reuse
+ * the output buffer which is always of a fixed length 4.
+ * 
+ * 
+ * @author Ram Sriharsha (harshars at yahoo-inc dot com)</p>
+ */
 
 sealed class HashState(var h1: Int, var h2: Int, var h3: Int, var h4: Int) {
   
@@ -73,14 +93,26 @@ sealed class HashState(var h1: Int, var h2: Int, var h3: Int, var h4: Int) {
 
 object MurmurHash3_x86_128 extends AnyRef with Serializable {
 
+  /**
+   * @param data is the bytes to be hashed.
+   * @param seed is the seed for the murmurhash algorithm.
+   */
   @inline final def hash(data: Array[Byte], seed: Int)
-  : Tuple4[Int, Int, Int, Int]  = {
+  : Array[Int]  = {
     hash(data, seed, data.length)
   }
 
-  @inline final def hash(data: Array[Byte], seed: Int, length: Int)
-  : Tuple4[Int, Int, Int, Int] = {
-    var i = 0
+  /**
+   * An optimization for reusing memory under large number of hash calls.
+   * @param data is the bytes to be hashed.
+   * @param seed is the seed for the murmurhash algorithm.
+   * @param length is the length of the buffer to use for hashing.
+   * @param results is the output buffer to store the four ints that are returned,
+   * 			 should have size atleast 4.
+   */
+  @inline final def hash(data: Array[Byte], seed: Int, length: Int,
+      results: Array[Int]): Unit = {
+     var i = 0
     val blocks = length >> 4
     val state = new HashState(seed, seed, seed, seed)
     while (i < blocks) {
@@ -116,9 +148,33 @@ object MurmurHash3_x86_128 extends AnyRef with Serializable {
       }
     }
     state.finalMix(k1, k2, k3, k4, length)
-    (state.h1, state.h2, state.h3, state.h4)
+    results(0) = state.h1
+    results(1) = state.h2
+    results(2) = state.h3
+    results(3) = state.h4
+  }
+
+  /**
+   * An optimization for reusing memory under large number of hash calls.
+   * @param data is the bytes to be hashed.
+   * @param seed is the seed for the murmurhash algorithm.
+   * @param length is the length of the buffer to use for hashing.
+   * @return is an array of size 4 that holds the four ints that comprise the 128 bit hash.
+   */
+  @inline final def hash(data: Array[Byte], seed: Int, length: Int)
+  : Array[Int] = {
+    val results = new Array[Int](4)
+    hash(data, seed, length, results)
+    results
   }
   
+  /**
+   * Utility function to convert a byte array into an int, filling in zeros
+   * if the byte array is not big enough.
+   * @param data is the byte array to be converted to an int.
+   * @param index is the starting index in the byte array.
+   * @param rem is the remainder of the byte array to examine.
+   */
   @inline final def getInt(data: Array[Byte], index: Int, rem: Int): Int = {
     rem  match {
       case 3 => data(index) << 24 | 
