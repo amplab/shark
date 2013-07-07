@@ -67,15 +67,18 @@ public class MurmurHash3 implements Serializable {
 		return hashState.finalMix128(k1, 0, length*8);
 	}
 	
+	public static final long[] hash(byte[] key, long seed) {
+		return hash(key, seed, key.length);
+	}
+
 	//--Hash of byte[]----------------------------------------------------
 	/**
 	 * Returns a long array of size 2, which is a 128-bit hash of the input.
 	 * @param key The input byte[] array.
 	 * @param seed  A long-valued seed.
 	 */
-	public static final long[] hash(byte[] key, long seed) {
+	public static final long[] hash(byte[] key, long seed, int length) {
 		HashState hashState = new HashState(seed, seed);
-		final int length = key.length; //in bytes
 		
 		// Number of 128-bit blocks of 16 bytes, possible remainder of 15 bytes.
 		final int nblocks = length >> 4;

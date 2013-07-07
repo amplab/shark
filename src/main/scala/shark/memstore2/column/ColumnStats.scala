@@ -369,9 +369,15 @@ object ColumnStats {
     override def append(v: Text) {
       // Need to make a copy of Text since Text is not immutable and we reuse
       // the same Text object in serializer to mitigate frequent GC.
-      if (_max == null || v.compareTo(_max) > 0) _max = new Text(v)
-      if (_min == null || v.compareTo(_min) < 0) _min = new Text(v)
-      _filter.add(v.toString())
+      if (_max == null) _max = new Text(v)
+      else if (v.compareTo(_max) > 0) {
+        _max.set(v.getBytes(), 0, v.getLength())
+      }
+      if (_min == null) _min = new Text(v)
+      else if (v.compareTo(_min) < 0) {
+        _min.set(v.getBytes(), 0, v.getLength())
+      }
+      _filter.add(v.getBytes(), v.getLength())
     }
 
     override def readExternal(in: ObjectInput) {

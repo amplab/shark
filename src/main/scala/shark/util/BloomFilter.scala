@@ -28,6 +28,12 @@ class BloomFilter(numBitsPerElement: Double, expectedSize: Int, numHashes: Int)
       h => bitSet.set(h % bitSetSize, true)
     }
   }
+  
+  def add(data: Array[Byte], len: Int) {
+    hash(data,numHashes, len).foreach {
+      h => bitSet.set(h % bitSetSize, true)
+    }
+  }
 
   def add(data: String, charset: Charset=Charset.forName("UTF-8")) {
     add(data.getBytes(charset))
@@ -58,15 +64,24 @@ class BloomFilter(numBitsPerElement: Double, expectedSize: Int, numHashes: Int)
       h => !bitSet.get(h % bitSetSize)
     } 
   }
-
   
+  def contains(data: Array[Byte], len: Int): Boolean = {
+    !hash(data,numHashes, len).exists {
+      h => !bitSet.get(h % bitSetSize)
+    } 
+  }
+
   private def hash(data: Array[Byte], n: Int): Seq[Int] = {
+    hash(data, n, data.length)
+  }
+
+  private def hash(data: Array[Byte], n: Int, len: Int): Seq[Int] = {
     val s = (ceil (n / 4.0)).toInt
     val l = 4 * s
     val a = new Array[Int](n)
     Range(0, s).foreach {
       i => {
-        val u = MurmurHash3.hash(data, SEED + i)
+        val u = MurmurHash3.hash(data, SEED + i, len)
         a(i) = u(0).toInt.abs
         var j = i + 1
         if (j < n)
