@@ -2,7 +2,7 @@ package shark.util
 
 import java.lang.Integer.{ rotateLeft => rotl }
 import scala.math._
-import com.google.common.primitives.Ints
+
 /**
  * <p>The MurmurHash3_x86_128(...) is a fast, non-cryptographic, 128-bit hash 
  * function that has excellent avalanche and 2-way bit independence properties. 
@@ -70,6 +70,7 @@ sealed class HashState(var h1: Int, var h2: Int, var h3: Int, var h4: Int) {
     h ^= h >> 16
     h
   }
+
   @inline final def selfMixK1(k: Int): Int = {
     var k1 = k; k1 *= C1; k1 = rotl(k1, 15); k1 *= C2
     k1
@@ -91,7 +92,7 @@ sealed class HashState(var h1: Int, var h2: Int, var h3: Int, var h4: Int) {
   }
 }
 
-object MurmurHash3_x86_128 extends AnyRef with Serializable {
+object MurmurHash3_x86_128 {
 
   /**
    * @param data is the bytes to be hashed.
@@ -123,11 +124,11 @@ object MurmurHash3_x86_128 extends AnyRef with Serializable {
       state.blockMix(k1, k2, k3, k4)
       i += 1
     }
-    var k1 , k2, k3, k4 = 0
-    val tail = blocks*16
-	val rem = length - tail
+    var k1, k2, k3, k4 = 0
+    val tail = blocks * 16
+    val rem = length - tail
     // atmost 15 bytes remain
-	rem match {
+    rem match {
       case 12 | 13 | 14 | 15 => {
         k1 = getInt(data, tail, 4)
         k2 = getInt(data, tail + 4, 4)

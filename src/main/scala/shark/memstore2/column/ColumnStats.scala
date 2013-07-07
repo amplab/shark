@@ -45,8 +45,10 @@ sealed trait ColumnStats[@specialized(Boolean, Byte, Short, Int, Long, Float, Do
   def max: T = _max
 
   override def toString = "[" + min + ", " + max + "]"
-  def :<=(v: Any): Boolean = (this:=v) || (this:<v)
-  def :>=(v: Any): Boolean = (this:=v) || (this:>v)
+  
+  def :><(l: Any, r: Any): Boolean = (this :>= l) && (this :<= r)
+  def :<=(v: Any): Boolean = (this := v) || (this :< v)
+  def :>=(v: Any): Boolean = (this := v) || (this :> v)
   def  :=(v: Any): Boolean
   def  :>(v: Any): Boolean
   def  :<(v: Any): Boolean

@@ -108,7 +108,7 @@ object MapSplitPruning {
     val invertValue: Boolean = invertEval.expr.getValue.asInstanceOf[Boolean]
     
     if (columnStats != null) {
-       val exists = (columnStats:>=leftValue) && (columnStats:<=rightValue)
+       val exists = (columnStats :>< (leftValue , rightValue))
        if (invertValue) !exists else exists
       } else {
         // If there is no stats on the column, don't prune.
@@ -151,11 +151,11 @@ object MapSplitPruning {
 
       if (columnStats != null) {
         udf match {
-          case _: GenericUDFOPEqual => columnStats:=value
-          case _: GenericUDFOPEqualOrGreaterThan => columnStats:>=value
-          case _: GenericUDFOPEqualOrLessThan => columnStats:<=value
-          case _: GenericUDFOPGreaterThan => columnStats:>value
-          case _: GenericUDFOPLessThan => columnStats:<value
+          case _: GenericUDFOPEqual => columnStats := value
+          case _: GenericUDFOPEqualOrGreaterThan => columnStats :>= value
+          case _: GenericUDFOPEqualOrLessThan => columnStats :<= value
+          case _: GenericUDFOPGreaterThan => columnStats :> value
+          case _: GenericUDFOPLessThan => columnStats :< value
           case _ => true
         }
       } else {
