@@ -3,17 +3,14 @@ package shark.util
 import java.util.BitSet
 import java.nio.charset.Charset
 import scala.math._
+import com.google.common.primitives.Bytes
 import com.google.common.primitives.Ints
 import com.google.common.primitives.Longs
-import scala.collection.mutable.ArrayBuffer
-import com.google.common.hash.Murmur3_128HashFunction
-import com.google.common.hash.Hashing
-import com.google.common.primitives.Bytes
 
 class BloomFilter(numBitsPerElement: Double, expectedSize: Int, numHashes: Int) 
 	extends AnyRef with Serializable{
 
-  val SEED = System.getProperty("shark.bloomfilter.seed","123456789").toLong
+  val SEED = System.getProperty("shark.bloomfilter.seed","1234567890").toInt
   val bitSetSize = ceil(numBitsPerElement * expectedSize).toInt
   val bitSet = new BitSet(bitSetSize)
 
@@ -22,16 +19,22 @@ class BloomFilter(numBitsPerElement: Double, expectedSize: Int, numHashes: Int)
        expectedSize, 
        BloomFilter.numHashes(fpp, expectedSize))
   }
-  
+
   def add(data: Array[Byte]) {
-    hash(data,numHashes).foreach {
-      h => bitSet.set(h % bitSetSize, true)
+    val hashes = hash(data, numHashes)
+    var i = hashes.size
+    while (i > 0) {
+      i -= 1
+      bitSet.set(hashes(i) % bitSetSize, true)
     }
   }
-  
+
   def add(data: Array[Byte], len: Int) {
-    hash(data,numHashes, len).foreach {
-      h => bitSet.set(h % bitSetSize, true)
+    val hashes = hash(data, numHashes, len)
+    var i = hashes.size
+    while (i > 0) {
+      i -= 1
+      bitSet.set(hashes(i) % bitSetSize, true)
     }
   }
 
@@ -76,23 +79,22 @@ class BloomFilter(numBitsPerElement: Double, expectedSize: Int, numHashes: Int)
   }
 
   private def hash(data: Array[Byte], n: Int, len: Int): Seq[Int] = {
-    val s = (ceil (n / 4.0)).toInt
-    val l = 4 * s
+    val s = n >> 2
     val a = new Array[Int](n)
-    Range(0, s).foreach {
-      i => {
-        val u = MurmurHash3.hash(data, SEED + i, len)
-        a(i) = u(0).toInt.abs
-        var j = i + 1
-        if (j < n)
-        a(j) = (u(0) >> 32).toInt.abs
-        j += 1
-        if (j < n)
-        a(j) = u(1).toInt.abs
-        j += 1
-        if (j < n)
-        a(j) = (u(1) >> 32).toInt.abs
-      }
+    var i = 0
+    while (i < s) {
+      val u = MurmurHash3_x86_128.hash(data, SEED + i, len)
+      a(i) = u._1.abs
+      var j = i + 1
+      if (j < n)
+        a(j) = u._2.abs
+      j += 1
+      if (j < n)
+        a(j) = u._3.abs
+      j += 1
+      if (j < n)
+        a(j) = u._4.abs
+      i += 1
     }
     a
   }
