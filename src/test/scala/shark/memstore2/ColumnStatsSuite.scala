@@ -130,6 +130,15 @@ class ColumnStatsSuite extends FunSuite {
     Array(22, 1, 24).foreach(c.append)
     c.appendNull()
     assert(!c.isOrdered && !c.isAscending && !c.isDescending)
+    
+    c = new ColumnStats.IntColumnStats
+    Array(22, 1, 24).foreach(c.append)
+    assert(c:=13 == true)
+    assert(c:>13 == true)
+    assert(c:<13 == true)
+    assert(c:=0 == false)
+    assert(c:>25 == false)
+    assert(c:<1 == false)
   }
 
   test("LongColumnStats") {
@@ -204,6 +213,12 @@ class ColumnStatsSuite extends FunSuite {
     c.append(ts4)
     assert(c.min.equals(ts1) && c.max.equals(ts4))
     assert(c.nullCount == 3)
+    assert(c:=new Timestamp(2000) == true)
+    assert(c:>new Timestamp(1500) == true)
+    assert(c:<new Timestamp(2500) == true)
+    assert(c:=new Timestamp(900) == false)
+    assert(c:>new Timestamp(2100) == false)
+    assert(c:<new Timestamp(900) == false)
   }
 
   test("StringColumnStats") {
@@ -229,5 +244,13 @@ class ColumnStatsSuite extends FunSuite {
     assert(c.min.equals(T("0987")) && c.max.equals(T("cccc")))
     assert(c.nullCount == 2)
     assert(c.transitions === 6)
+    assert(c:>"a" == true)
+    assert(c:<"z" == true)
+    assert(c:="c" == true)
+    assert(c:="cccd" == false)
+    assert(c:<"cccd" == true)
+    assert(c:>"cccd" == false)
+    assert(c:>="cccd" == false)
+    assert(c:<="cccd" == true)
   }
 }
