@@ -160,18 +160,13 @@ object RLESerializer{
   }
 
 
-  // Create a IntArrayList representing the run lengths from the byte buffer.
+  // Create a ByteBufferReader representing the run lengths from the byte buffer.
   // Also advances the buffer to the point after the lengths have been read
-  def readFromBuffer(buf: ByteBufferReader): IntArrayList = {
+  def readFromBuffer(buf: ByteBufferReader): (Int, ByteBufferReader) = {
+    val lengths = buf.duplicate
     val numLengths = buf.getInt()
-    var lengths: IntArrayList = new IntArrayList(numLengths)
-
-    var i = 0
-    while (i < numLengths) {
-      lengths.add(buf.getInt())
-      i += 1
-    }
-    lengths
+    buf.position(4*numLengths + buf.position) //advance the main ByteBuffer
+    lengths.getInt() // also advance on the lengths duplicated ByteBuffer
+    (numLengths, lengths)
   }
-
 } // object
