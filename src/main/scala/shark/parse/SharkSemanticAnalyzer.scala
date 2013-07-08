@@ -18,7 +18,7 @@
 package shark.parse
 
 import java.lang.reflect.Method
-import java.util.ArrayList
+import java.util.{ArrayList, Properties}
 import java.util.{List => JavaList}
 
 import scala.collection.JavaConversions._
@@ -111,6 +111,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
           td.getTblProps().put("shark.cache", cacheMode.toString)
         }
 
+
         if (CacheType.shouldCache(cacheMode)) {
           td.setSerName(classOf[ColumnarSerDe].getName)
         }
@@ -173,6 +174,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         hiveSinkOps.map { hiveSinkOp =>
           val tableName = hiveSinkOp.asInstanceOf[HiveFileSinkOperator].getConf().getTableInfo()
             .getTableName()
+          val tableProperties = hiveSinkOp.asInstanceOf[HiveFileSinkOperator].getConf().getTableInfo().getProperties()
 
           if (tableName == null || tableName == "") {
             // If table name is empty, it is an INSERT (OVERWRITE) DIRECTORY.
@@ -187,7 +189,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                   val useUnionRDD = qb.getParseInfo.isInsertIntoTable(cachedTableName)
                   OperatorFactory.createSharkMemoryStoreOutputPlan(
                     hiveSinkOp,
-                    cachedTableName,
+                    tableProperties,
                     rdd.getStorageLevel,
                     _resSchema.size,                // numColumns
                     cacheMode == CacheType.tachyon, // use tachyon
@@ -209,9 +211,17 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
             val storageLevel = MemoryMetadataManager.getStorageLevelFromString(
               qb.getTableDesc().getTblProps.get("shark.cache.storageLevel"))
             qb.getTableDesc().getTblProps().put(CachedTableRecovery.QUERY_STRING, ctx.getCmd())
+
+            var tableProperties: Properties = new Properties
+            qb.getTableDesc().getTblProps().keySet().foreach { k => 
+              val v = qb.getTableDesc().getTblProps().get(k)
+              tableProperties.setProperty(k, v)
+            }
+            tableProperties.setProperty("name", qb.getTableDesc.getTableName)
+
             OperatorFactory.createSharkMemoryStoreOutputPlan(
               hiveSinkOps.head,
-              qb.getTableDesc.getTableName,
+              tableProperties,
               storageLevel,
               _resSchema.size,                // numColumns
               cacheMode == CacheType.tachyon, // use tachyon

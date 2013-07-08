@@ -84,14 +84,17 @@ class ColumnStatsSuite extends FunSuite {
     var c = new ColumnStats.IntColumnStats
     c.append(0)
     assert(c.min == 0 && c.max == 0)
+    assert(c.transitions === 1)
     c.append(1)
     assert(c.min == 0 && c.max == 1)
+    assert(c.transitions === 2)
     c.append(-1)
     assert(c.min == -1 && c.max == 1)
     c.append(65537)
     assert(c.min == -1 && c.max == 65537)
     c.append(-65537)
     assert(c.min == -65537 && c.max == 65537)
+    assert(c.transitions === 5)
 
     c = new ColumnStats.IntColumnStats
     assert(c.isOrdered && c.isAscending && c.isDescending)
@@ -110,6 +113,7 @@ class ColumnStatsSuite extends FunSuite {
     c.appendNull()
     c.appendNull()
     assert(c.maxDelta == 18)
+    assert(c.transitions === 5)
 
     c = new ColumnStats.IntColumnStats
     Array(22, 1, 0, -5).foreach(c.append)
@@ -118,6 +122,9 @@ class ColumnStatsSuite extends FunSuite {
     c.appendNull()
     c.appendNull()
     assert(c.maxDelta == 21)
+    // nulls are ignored in IntColumnStats for unique and transition counting
+    assert(c.transitions === 4)
+    assert(c.uniques.size === 4)
 
     c = new ColumnStats.IntColumnStats
     Array(22, 1, 24).foreach(c.append)
@@ -220,18 +227,23 @@ class ColumnStatsSuite extends FunSuite {
     assert(c.min == null && c.max == null)
     c.append("a")
     assert(c.min.equals(T("a")) && c.max.equals(T("a")))
+    assert(c.transitions === 1)
     c.appendNull()
     assert(c.min.equals(T("a")) && c.max.equals(T("a")))
+    assert(c.transitions === 2)
     c.append("b")
     assert(c.min.equals(T("a")) && c.max.equals(T("b")))
+    assert(c.transitions === 3)
     c.append("b")
     assert(c.min.equals(T("a")) && c.max.equals(T("b")))
+    assert(c.transitions === 3)
     c.append("cccc")
     c.appendNull()
     assert(c.min.equals(T("a")) && c.max.equals(T("cccc")))
     c.append("0987")
     assert(c.min.equals(T("0987")) && c.max.equals(T("cccc")))
     assert(c.nullCount == 2)
+    assert(c.transitions === 6)
     assert(c:>"a" == true)
     assert(c:<"z" == true)
     assert(c:="c" == true)
