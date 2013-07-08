@@ -90,6 +90,11 @@ class JavaByteBufferReader(buf: ByteBuffer) extends ByteBufferReader {
 
   override def position: Int = _buf.position()
 
+  override def duplicate(): ByteBufferReader = {
+    // JavaByteBufferReader in its constructor will make a duplicate of the buffer.
+    new JavaByteBufferReader(_buf)
+  }
+
   override def printDebug() {
     val b = _buf.duplicate()
     while (b.hasRemaining()) print(b.get() + " ")
