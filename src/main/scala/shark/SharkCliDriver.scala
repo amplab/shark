@@ -322,6 +322,7 @@ class SharkCliDriver(loadRdds: Boolean = false) extends CliDriver with LogHelper
           if (end > start) {
             val timeTaken:Double = (end - start) / 1000.0
             console.printInfo("Time taken: " + timeTaken + " seconds", null)
+            logInfo("Time taken: " + timeTaken + " seconds")
           }
 
           // Destroy the driver to release all the locks.

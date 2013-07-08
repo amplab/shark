@@ -24,32 +24,60 @@ import javaewah.IntIterator
 import shark.memstore2.buffer.ByteBufferReader
 
 
-/**
- * A wrapper around non-null ColumnIterator so it can handle null values.
- */
+/** Wrapper around Concrete ColumnIterators so they can handle null values.
+  * The Null Bit Vector is maintained in the first part of the Buffer.
+  * Can be composed with other wrappers like the [[shark.memstore2.column.RLEColumnIterator]]
+  */
 class EWAHNullableColumnIterator[T <: ColumnIterator](
-    baseIterCls: Class[T], bytes: ByteBufferReader)
+    bIter: T, bytes: ByteBufferReader)
   extends ColumnIterator {
 
-  val _nullBitmap: EWAHCompressedBitmap = EWAHCompressedBitmapSerializer.readFromBuffer(bytes)
+  val _nullBitmap: EWAHCompressedBitmap =
+  EWAHCompressedBitmapSerializer.readFromBuffer(bytes)
+
+  
+  // The location of the null bits is returned, in increasing order through
+  // _nullsIter
   val _nullsIter: IntIterator = _nullBitmap.intIterator
+
   var _pos = -1
   var _nextNullPosition = -1
+  private var currentNull = false
 
-  val baseIter: T = {
-    val ctor = baseIterCls.getConstructor(classOf[ByteBufferReader])
-    ctor.newInstance(bytes).asInstanceOf[T]
-  }
+  // Construction using a reference instead of classname - used to compose with
+  // other encodings like RLE
+  val baseIter: T = bIter
+
+  // auxiliary constructor for most construction
+  def this(baseIterCls: Class[T], bytes: ByteBufferReader) = 
+    this(
+      {
+        val ctor = baseIterCls.getConstructor(classOf[ByteBufferReader])
+        ctor.newInstance(bytes).asInstanceOf[T]
+      },
+      bytes)
+
 
   override def next() {
+    if (_pos >= _nextNullPosition || _pos == -1) {
+      if (_nullsIter.hasNext) {
+        _nextNullPosition = _nullsIter.next
+      } 
+    }
+
     _pos += 1
-    baseIter.next()
+    // println(" _nextNullPosition " + _nextNullPosition + " ][ _pos " + _pos)
+
+    if (_pos == _nextNullPosition) {
+      null
+    } else {
+      baseIter.next()
+    }
   }
 
+  // Semantics are to not change state - read-only
   override def current: Object = {
-    while (_nextNullPosition < _pos && _nullsIter.hasNext) _nextNullPosition = _nullsIter.next
     if (_nextNullPosition == _pos) {
-      _nextNullPosition = if (_nullsIter.hasNext) _nullsIter.next else Int.MaxValue
       null
     } else {
       baseIter.current

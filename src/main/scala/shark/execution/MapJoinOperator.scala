@@ -31,7 +31,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.io.BytesWritable
 
 import shark.SharkEnv
-import shark.SharkEnvSlave
 import shark.execution.serialization.{OperatorSerializationWrapper, SerializableWritable}
 import spark.{RDD, SparkEnv}
 import spark.broadcast.Broadcast
@@ -140,7 +139,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
         partRows
       }
       if(storageLevel == StorageLevel.NONE)
-        rddForHash.unpersist 
+        rddForHash.unpersist(true)
       logInfo("wrappedRows size:" + wrappedRows.size)
       val collectTime = System.currentTimeMillis() - startCollect
       logInfo("HashTable collect took " + collectTime + " ms")

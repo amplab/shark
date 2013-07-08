@@ -46,7 +46,6 @@ class HiveStructSerializer(val rowObjectInspector: StructObjectInspector) {
     }
     val bytes = new Array[Byte](outputByteBuffer.length)
     System.arraycopy(outputByteBuffer.getData(), 0, bytes, 0, outputByteBuffer.length)
-    println("bytes: " + bytes.toSeq)
     bytes
   }
 

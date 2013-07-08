@@ -29,10 +29,10 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.LongObjectInspect
 class LongColumnBuilder extends ColumnBuilder[Long] {
 
   private var _stats: ColumnStats.LongColumnStats = null
-  private var _arr: LongArrayList = null
+  private var _nonNulls: LongArrayList = null
 
   override def initialize(initialSize: Int) {
-    _arr = new LongArrayList(initialSize)
+    _nonNulls = new LongArrayList(initialSize)
     _stats = new ColumnStats.LongColumnStats
     super.initialize(initialSize)
   }
@@ -47,13 +47,12 @@ class LongColumnBuilder extends ColumnBuilder[Long] {
   }
 
   override def append(v: Long) {
-    _arr.add(v)
+    _nonNulls.add(v)
     _stats.append(v)
   }
 
   override def appendNull() {
-    _nullBitmap.set(_arr.size)
-    _arr.add(0)
+    _nullBitmap.set(_nonNulls.size + _stats.nullCount)
     _stats.appendNull()
   }
 
@@ -61,15 +60,15 @@ class LongColumnBuilder extends ColumnBuilder[Long] {
 
   override def build: ByteBuffer = {
     val buf = ByteBuffer.allocate(
-      _arr.size * 8 + ColumnIterator.COLUMN_TYPE_LENGTH + sizeOfNullBitmap)
+      _nonNulls.size * 8 + ColumnIterator.COLUMN_TYPE_LENGTH + sizeOfNullBitmap)
     buf.order(ByteOrder.nativeOrder())
     buf.putLong(ColumnIterator.LONG)
 
     writeNullBitmap(buf)
 
     var i = 0
-    while (i < _arr.size) {
-      buf.putLong(_arr.get(i))
+    while (i < _nonNulls.size) {
+      buf.putLong(_nonNulls.get(i))
       i += 1
     }
     buf.rewind()

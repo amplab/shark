@@ -36,8 +36,13 @@ import shark.memstore2.column.ColumnIteratorFactory
 class TablePartitionIterator(
     val numRows: Long,
     val columnIterators: Array[ColumnIterator],
-    val columnUsed: BitSet = null)
+    val columnUsed: BitSet)
   extends Iterator[ColumnarStruct] {
+
+  def this(numRows: Long, 
+      columnIterators: Array[ColumnIterator]) {
+    this(numRows, columnIterators, BitSet() ++ Range(0,columnIterators.size))
+  }
 
   private val _struct = new ColumnarStruct(columnIterators)
 
@@ -47,20 +52,7 @@ class TablePartitionIterator(
 
   def next(): ColumnarStruct = {
     _position += 1
-    var i = 0
-    while (i < _columnIteratorsToAdvance.size) {
-      _columnIteratorsToAdvance(i).next
-      i += 1
-    }
+    columnUsed.map(colId => columnIterators(colId).next)
     _struct
-  }
-
-  // Track the list of columns we need to call next on.
-  private val _columnIteratorsToAdvance: Array[ColumnIterator] = {
-    if (columnUsed == null) {
-      columnIterators
-    } else {
-      columnUsed.map(colId => columnIterators(colId)).toArray
-    }
   }
 }
