@@ -18,68 +18,66 @@
 package shark.memstore2.column
 
 import shark.memstore2.buffer.ByteBufferReader
-import it.unimi.dsi.fastutil.ints.IntArrayList
 
-/**
-  * A wrapper around any ColumnIterator so it can be Run Length Encoded
-  * 
+/** A wrapper around any ColumnIterator so it can be Run Length Encoded
   * Builder classes should serialize the lengths of runs into the Buffer first
   * then follow that with a serialization of the actual values.
   * Run lengths are assumed to be small enough to fit into Ints.
-  * 
+  *
   */
-
 class RLEColumnIterator[T <: ColumnIterator](baseIterCls: Class[T]) extends ColumnIterator {
   private var extPos = -1
   private var currentRunPos = -1
   private var intPos = -1
-  private def length = lengths.getInt(intPos)
+  private var length = -1
 
-  private var lengths: IntArrayList = null
+  private var lengths: ByteBufferReader = _
   var baseIter: T = _
 
-  // allows delayed construction - required while composing iterators - see factory
+  /** allows delayed construction - required while composing iterators - see factory
+   */
   def initialize(bytes: ByteBufferReader) {
-    lengths = RLESerializer.readFromBuffer(bytes)
+    val (numLengths, lengthsRef) = RLESerializer.readFromBuffer(bytes)
+    lengths = lengthsRef
     baseIter = {
       val ctor = baseIterCls.getConstructor(classOf[ByteBufferReader])
       ctor.newInstance(bytes).asInstanceOf[T]
     }
   }
 
-  // auxiliary constructor
+  /** auxiliary constructor
+   */
   def this(baseIterCls: Class[T], bytes: ByteBufferReader) = {
     this(baseIterCls)
     initialize(bytes)
   }
 
   override def next() {
-    // first call
     if (currentRunPos == -1) {
-      intPos = 0;
+      // first call
       currentRunPos = 0;
+      intPos = 0;
       baseIter.next()
       extPos = 0
+      length = lengths.getInt()
     } else {
-
       extPos += 1
       // logDebug("current length " + length + " intPos " + intPos + " currentRunPos " + currentRunPos + " extPos " + extPos)
 
-      if(currentRunPos < (length-1)) {
+      if (currentRunPos < (length - 1)) {
         // still inside run - current will return the right value
         currentRunPos += 1
-
-      } else {
-        if(currentRunPos == length-1 ) {
-          currentRunPos = 0
-        } else { // >
-          throw new RuntimeException("Run position longer than length of run")
-        }
-
+      } else if (currentRunPos == (length - 1)) {
+        currentRunPos = 0
+        // update new run length
+        length = lengths.getInt()
         intPos += 1
         baseIter.next()
-        // logDebug(" pos " + extPos + " value " + current)
+      } else { // >
+        throw new RuntimeException("Run position [" + currentRunPos +
+          "] > than length of run [" + length + "]")
       }
+      // logDebug(" pos " + extPos + " value " + current)
     }
   }
 

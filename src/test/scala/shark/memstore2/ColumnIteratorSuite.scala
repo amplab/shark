@@ -193,11 +193,11 @@ class ColumnIteratorSuite extends FunSuite {
     buf.rewind
 
     var bbr = ByteBufferReader.createUnsafeReader(buf)
-    val newl = RLESerializer.readFromBuffer(bbr)
+    val (numNewl, newl) = RLESerializer.readFromBuffer(bbr)
     var lb = new ListBuffer[Int]()
     var j = 0
-    while (j < newl.size) {
-      lb  += newl.get(j)
+    while (j < numNewl) {
+      lb  += newl.getInt()
       j += 1
     }
     assert(lb.toList == l)
@@ -216,7 +216,7 @@ class ColumnIteratorSuite extends FunSuite {
     while(i < l.size) {
       it.next
       val writableOi = PrimitiveObjectInspectorFactory.writableIntObjectInspector
-      assert(l(i) == writableOi.getPrimitiveJavaObject(it.current))
+      assert(l(i) === writableOi.getPrimitiveJavaObject(it.current))
       i += 1
     }
 
@@ -238,12 +238,12 @@ class ColumnIteratorSuite extends FunSuite {
       buf.rewind
 
       var bbr = ByteBufferReader.createUnsafeReader(buf)
-      val newruns = RLESerializer.readFromBuffer(bbr)
+      val (newrunsSize, newruns) = RLESerializer.readFromBuffer(bbr)
 
       var lb = new ListBuffer[Int]()
       var j = 0
-      while (j < newruns.size) {
-        lb  += newruns.get(j)
+      while (j < newrunsSize) {
+        lb  += newruns.getInt()
         j += 1
       }
       assert(lb.toList == runs)
