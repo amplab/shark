@@ -101,6 +101,12 @@ class UnsafeDirectByteBufferReader(buf: java.nio.ByteBuffer) extends ByteBufferR
 
   override def position: Int = (_offset - _base_offset).toInt
 
+  override def duplicate(): ByteBufferReader = {
+    val dup = new UnsafeDirectByteBufferReader(buf)
+    dup._offset = this._offset
+    dup
+  }
+
   private def getMemoryAddress(buffer: java.nio.ByteBuffer): Long = {
     val addressField = classOf[java.nio.Buffer].getDeclaredField("address")
     addressField.setAccessible(true)
