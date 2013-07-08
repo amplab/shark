@@ -21,16 +21,16 @@ import java.io.ObjectInput
 import java.io.ObjectOutput
 import java.io.Externalizable
 import java.sql.Timestamp
-import it.unimi.dsi.fastutil.ints.IntArraySet
-import org.apache.hadoop.io.Text
-import shark.util.BloomFilter
 
+import org.apache.hadoop.io.Text
+import it.unimi.dsi.fastutil.ints.IntArraySet
 
 /**
  * Column level statistics, including range (min, max).
  */
 sealed trait ColumnStats[@specialized(Boolean, Byte, Short, Int, Long, Float, Double) T]
     extends Serializable {
+
   var _nullCount = 0
 
   def append(v: T)
@@ -45,13 +45,6 @@ sealed trait ColumnStats[@specialized(Boolean, Byte, Short, Int, Long, Float, Do
   def max: T = _max
 
   override def toString = "[" + min + ", " + max + "]"
-  
-  def :><(l: Any, r: Any): Boolean = (this :>= l) && (this :<= r)
-  def :<=(v: Any): Boolean = (this := v) || (this :< v)
-  def :>=(v: Any): Boolean = (this := v) || (this :> v)
-  def  :=(v: Any): Boolean
-  def  :>(v: Any): Boolean
-  def  :<(v: Any): Boolean
 }
 
 
@@ -67,26 +60,6 @@ object ColumnStats {
       if (v) _max = v
       else _min = v
     }
-    def :=(v: Any): Boolean = {
-      v match {
-        case u:Boolean => _min <= u && _max >= u
-        case _ => true
-      }
-    }
-
-    def :>(v: Any): Boolean = {
-      v match {
-        case u:Boolean => _max > u
-        case _ => true
-      }
-    }
-
-    def :<(v: Any): Boolean = {
-      v match {
-        case u:Boolean => _min < u
-        case _ => true
-      }
-    }
   }
 
   class ByteColumnStats extends ColumnStats[Byte] {
@@ -96,27 +69,6 @@ object ColumnStats {
       if (v > _max) _max = v
       if (v < _min) _min = v
     }
-    
-    def :=(v: Any): Boolean = {
-      v match {
-        case u:Byte => _min <= u && _max >= u
-        case _ => true
-      }
-    }
-
-    def :>(v: Any): Boolean = {
-      v match {
-        case u:Byte => _max > u
-        case _ => true
-      }
-    }
-
-    def :<(v: Any): Boolean = {
-      v match {
-        case u:Byte => _min < u
-        case _ => true
-      }
-    }
   }
 
   class ShortColumnStats extends ColumnStats[Short] {
@@ -125,26 +77,6 @@ object ColumnStats {
     override def append(v: Short) {
       if (v > _max) _max = v
       if (v < _min) _min = v
-    }
-    def :=(v: Any): Boolean = {
-      v match {
-        case u:Short => _min <= u && _max >= u
-        case _ => true
-      }
-    }
-
-    def :>(v: Any): Boolean = {
-      v match {
-        case u:Short => _max > u
-        case _ => true
-      }
-    }
-
-    def :<(v: Any): Boolean = {
-      v match {
-        case u:Short => _min < u
-        case _ => true
-      }
     }
   }
 
@@ -181,27 +113,6 @@ object ColumnStats {
     def isOrdered = isAscending || isDescending
 
     def maxDelta = _maxDelta
-
-    def :=(v: Any): Boolean = {
-      v match {
-        case u:Int => _min <= u && _max >= u
-        case _ => true
-      }
-    }
-
-    def :>(v: Any): Boolean = {
-      v match {
-        case u:Int => _max > u
-        case _ => true
-      }
-    }
-
-    def :<(v: Any): Boolean = {
-      v match {
-        case u:Int => _min < u
-        case _ => true
-      }
-    }
 
     override def append(v: Int) {
       if (v > _max) _max = v
@@ -251,26 +162,6 @@ object ColumnStats {
       if (v > _max) _max = v
       if (v < _min) _min = v
     }
-    def :=(v: Any): Boolean = {
-      v match {
-        case u:Long => _min <= u && _max >= u
-        case _ => true
-      }
-    }
-
-    def :>(v: Any): Boolean = {
-      v match {
-        case u:Long => _max > u
-        case _ => true
-      }
-    }
-
-    def :<(v: Any): Boolean = {
-      v match {
-        case u:Long => _min < u
-        case _ => true
-      }
-    }
   }
 
   class FloatColumnStats extends ColumnStats[Float] {
@@ -279,26 +170,6 @@ object ColumnStats {
     override def append(v: Float) {
       if (v > _max) _max = v
       if (v < _min) _min = v
-    }
-    def :=(v: Any): Boolean = {
-      v match {
-        case u:Float => _min <= u && _max >= u
-        case _ => true
-      }
-    }
-
-    def :>(v: Any): Boolean = {
-      v match {
-        case u:Float => _max > u
-        case _ => true
-      }
-    }
-
-    def :<(v: Any): Boolean = {
-      v match {
-        case u:Float => _min < u
-        case _ => true
-      }
     }
   }
 
@@ -309,26 +180,6 @@ object ColumnStats {
       if (v > _max) _max = v
       if (v < _min) _min = v
     }
-    def :=(v: Any): Boolean = {
-      v match {
-        case u:Double => _min <= u && _max >= u
-        case _ => true
-      }
-    }
-
-    def :>(v: Any): Boolean = {
-      v match {
-        case u:Double => _max > u
-        case _ => true
-      }
-    }
-
-    def :<(v: Any): Boolean = {
-      v match {
-        case u:Double => _min < u
-        case _ => true
-      }
-    }
   }
 
   class TimestampColumnStats extends ColumnStats[Timestamp] {
@@ -338,26 +189,6 @@ object ColumnStats {
       if (v.compareTo(_max) > 0) _max = v
       if (v.compareTo(_min) < 0) _min = v
     }
-    def :=(v: Any): Boolean = {
-      v match {
-        case u: Timestamp => _min.compareTo(u) <=0 && _max.compareTo(u) >= 0
-        case _ => true
-      }
-    }
-
-    def :>(v: Any): Boolean = {
-      v match {
-        case u: Timestamp => _max.compareTo(u) > 0
-        case _ => true
-      }
-    }
-
-    def :<(v: Any): Boolean = {
-       v match {
-        case u: Timestamp => _min.compareTo(u) < 0
-        case _ => true
-      }
-    }
   }
 
   class StringColumnStats extends ColumnStats[Text] with Externalizable {
@@ -365,7 +196,6 @@ object ColumnStats {
     protected var _max: Text = null
     protected var _min: Text = null
     protected var _prev: Text = null
-    private var _filter = new BloomFilter(0.03, 1000000)
 
     // Use these Text objects to copy over contents because Text is not immutable and we reuse the
     // same Text object to mitigate frequent GC.
@@ -396,7 +226,6 @@ object ColumnStats {
         _prevStore.set(v)
         _prev = _prevStore
       }
-      _filter.add(v.getBytes(), v.getLength())
     }
 
     override def appendNull() {
@@ -409,34 +238,7 @@ object ColumnStats {
       _prev = null
     }
 
-    def :=(v: Any): Boolean = {
-      v match {
-        case u:Text => _min.compareTo(u) <= 0 &&
-        			   _max.compareTo(u) >= 0 &&
-        			   _filter.contains(u.toString())
-        case u: String => this:=(new Text(u))
-        case _ => true
-      }
-    }
-
-    def :>(v: Any): Boolean = {
-      v match {
-        case u:Text => _max.compareTo(u) > 0
-        case u: String => this:>(new Text(u))
-        case _ => true
-      }
-    }
-
-    def :<(v: Any): Boolean = {
-      v match {
-        case u:Text => _min.compareTo(u) < 0
-        case u: String => this:<(new Text(u))
-        case _ => true
-      }
-    }
-
     override def readExternal(in: ObjectInput) {
-      _filter = in.readObject().asInstanceOf[BloomFilter]
       if (in.readBoolean()) {
         _max = new Text
         _max.readFields(in)
@@ -448,7 +250,6 @@ object ColumnStats {
     }
 
     override def writeExternal(out: ObjectOutput) {
-      out.writeObject(_filter)
       if (_max == null) {
         out.write(0)
       } else {

@@ -23,12 +23,10 @@ import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPOr
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPAnd
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqual
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFBaseCompare
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFBetween
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPGreaterThan
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPLessThan
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqualOrGreaterThan
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqualOrLessThan
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFIn
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.io.Text
 
@@ -56,14 +54,7 @@ object MapSplitPruning {
         case e: ExprNodeGenericFuncEvaluator => {
           e.genericUDF match {
             case _: GenericUDFOPAnd => test(s, e.children(0)) && test(s, e.children(1))
-            case _: GenericUDFOPOr => test(s, e.children(0)) || test(s, e.children(1))
-            case _: GenericUDFBetween => 
-              testBetweenPredicate(s, e.children(0).asInstanceOf[ExprNodeConstantEvaluator],
-                e.children(1).asInstanceOf[ExprNodeColumnEvaluator],
-                e.children(2).asInstanceOf[ExprNodeConstantEvaluator],
-                e.children(3).asInstanceOf[ExprNodeConstantEvaluator])
-            case _: GenericUDFIn =>
-              testInPredicate(s, e.children(0).asInstanceOf[ExprNodeColumnEvaluator], e.children.drop(1))
+            case _: GenericUDFOPOr =>  test(s, e.children(0)) || test(s, e.children(1))
             case udf: GenericUDFBaseCompare =>
               testComparisonPredicate(s, udf, e.children(0), e.children(1))
             case _ => true
@@ -74,47 +65,6 @@ object MapSplitPruning {
     }
   }
 
-  def testInPredicate(
-    s: TablePartitionStats,
-    columnEval: ExprNodeColumnEvaluator,
-    expEvals: Array[ExprNodeEvaluator]): Boolean = {
-
-    val field = columnEval.field.asInstanceOf[IDStructField]
-    val columnStats = s.stats(field.fieldID)
-
-    if (columnStats != null) {
-      expEvals.exists {
-        e =>
-          val constEval = e.asInstanceOf[ExprNodeConstantEvaluator]
-          columnStats := constEval.expr.getValue()
-      }
-    } else {
-      // If there is no stats on the column, don't prune.
-      true
-    }
-  }
-  
-  def testBetweenPredicate(
-    s: TablePartitionStats,
-    invertEval: ExprNodeConstantEvaluator,
-    columnEval: ExprNodeColumnEvaluator,
-    leftEval: ExprNodeConstantEvaluator,
-    rightEval: ExprNodeConstantEvaluator): Boolean = {
-    
-    val field = columnEval.field.asInstanceOf[IDStructField]
-    val columnStats = s.stats(field.fieldID)
-    val leftValue: Object = leftEval.expr.getValue
-    val rightValue: Object = rightEval.expr.getValue
-    val invertValue: Boolean = invertEval.expr.getValue.asInstanceOf[Boolean]
-    
-    if (columnStats != null) {
-       val exists = (columnStats :>< (leftValue , rightValue))
-       if (invertValue) !exists else exists
-      } else {
-        // If there is no stats on the column, don't prune.
-        true
-      }
-  }
   /**
    * Test whether we should keep the split as a candidate given the comparison
    * predicate. Return true if the split should be kept as a candidate, false if
@@ -150,12 +100,14 @@ object MapSplitPruning {
       val columnStats = s.stats(field.fieldID)
 
       if (columnStats != null) {
+        val min = columnStats.min
+        val max = columnStats.max
         udf match {
-          case _: GenericUDFOPEqual => columnStats := value
-          case _: GenericUDFOPEqualOrGreaterThan => columnStats :>= value
-          case _: GenericUDFOPEqualOrLessThan => columnStats :<= value
-          case _: GenericUDFOPGreaterThan => columnStats :> value
-          case _: GenericUDFOPLessThan => columnStats :< value
+          case _: GenericUDFOPEqual => testEqual(min, max, value)
+          case _: GenericUDFOPEqualOrGreaterThan => testEqualOrGreaterThan(min, max, value)
+          case _: GenericUDFOPEqualOrLessThan => testEqualOrLessThan(min, max, value)
+          case _: GenericUDFOPGreaterThan => testGreaterThan(min, max, value)
+          case _: GenericUDFOPLessThan => testLessThan(min, max, value)
           case _ => true
         }
       } else {
@@ -166,5 +118,87 @@ object MapSplitPruning {
       // If the predicate is not of type column op value, don't prune.
       true
     }
+  }
+
+  def testEqual(min: Any, max: Any, value: Any): Boolean = {
+    // Assume min and max have the same type.
+    val c = tryCompare(min, value)
+    tryCompare(min, value) match {
+      case Some(c) => c <= 0 && tryCompare(max, value).get >= 0
+      case None => true
+    }
+  }
+
+  def testEqualOrGreaterThan(min: Any, max: Any, value: Any): Boolean = {
+    // Assume min and max have the same type.
+    tryCompare(max, value) match {
+      case Some(c) => c >= 0
+      case None => true
+    }
+  }
+
+  def testEqualOrLessThan(min: Any, max: Any, value: Any): Boolean = {
+    // Assume min and max have the same type.
+    tryCompare(min, value) match {
+      case Some(c) => c <= 0
+      case None => true
+    }
+  }
+
+  def testGreaterThan(min: Any, max: Any, value: Any): Boolean = {
+    // Assume min and max have the same type.
+    tryCompare(max, value) match {
+      case Some(c) => c > 0
+      case None => true
+    }
+  }
+
+  def testLessThan(min: Any, max: Any, value: Any): Boolean = {
+    // Assume min and max have the same type.
+    tryCompare(min, value) match {
+      case Some(c) => c < 0
+      case None => true
+    }
+  }
+
+  def testNotEqual(min: Any, max: Any, value: Any): Boolean = {
+    // Assume min and max have the same type.
+    tryCompare(min, value) match {
+      case Some(c) => c != 0 || (tryCompare(max, value).get != 0)
+      case None => true
+    }
+  }
+
+  /**
+   * Try to compare value a and b.
+   * If a is greater than b, return 1.
+   * If a equals b, return 0.
+   * If a is less than b, return -1.
+   * If a and b are not comparable, return None.
+   */
+  def tryCompare(a: Any, b: Any): Option[Int] = a match {
+    case a: Number => b match {
+      case b: Number => Some((a.longValue - b.longValue).toInt)
+      case _ => None
+    }
+    case a: Boolean => b match {
+      case b: Boolean => Some(if (a && !b) 1 else if (!a && b) -1 else 0)
+      case _ => None
+    }
+    case a: Text => b match {
+      case b: Text => Some(a.compareTo(b))
+      case b: String => Some(a.compareTo(new Text(b)))
+      case _=> None
+    }
+    case a: String => b match {
+      case b: Text => Some((new Text(a)).compareTo(b))
+      case b: String => Some(a.compareTo(b))
+      case _ => None
+    }
+    case a: Timestamp => b match {
+      case b: Timestamp => Some(a.compareTo(b))
+      case _ => None
+    }
+    case _ => None
   }
 }
