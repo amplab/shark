@@ -165,6 +165,10 @@
           <groupId>org.slf4j</groupId>
           <artifactId>slf4j-log4j12</artifactId>
         </exclusion>
+        <exclusion>
+          <groupId>asm</groupId>
+          <artifactId>asm</artifactId>
+        </exclusion>
       </exclusions>
     </dependency>
     <dependency>
@@ -194,6 +198,10 @@
         <exclusion>
           <groupId>org.slf4j</groupId>
           <artifactId>slf4j-log4j12</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>asm</groupId>
+          <artifactId>asm</artifactId>
         </exclusion>
       </exclusions>
     </dependency>
@@ -251,6 +259,12 @@
       <groupId>org.apache.hive</groupId>
       <artifactId>hive-hbase-handler</artifactId>
       <version>${hive.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>asm</groupId>
+          <artifactId>asm</artifactId>
+        </exclusion>
+      </exclusions>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -689,6 +703,12 @@
           <groupId>org.apache.hbase</groupId>
           <artifactId>hbase</artifactId>
           <version>${hbase.version}</version>
+          <exclusions>
+            <exclusion>
+              <groupId>asm</groupId>
+              <artifactId>asm</artifactId>
+            </exclusion>
+          </exclusions>
         </dependency>
         <!-- Test -->
         <dependency>
