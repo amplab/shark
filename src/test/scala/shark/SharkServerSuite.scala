@@ -13,6 +13,7 @@ import org.scalatest.matchers.ShouldMatchers
 import org.scalatest.FlatSpec
 import scala.collection.JavaConversions._
 import scala.concurrent.ops._
+import spark.SparkEnv
 
 class SharkServerSuite extends FunSuite with BeforeAndAfterAll  with BeforeAndAfterEach with ShouldMatchers {
 
@@ -155,15 +156,16 @@ class SharkServerSuite extends FunSuite with BeforeAndAfterAll  with BeforeAndAf
 
   test("drop table") {
     val stmt = createStatement
-    stmt.executeQuery("""create table foo_cached(key int, val string) partitioned by (dt string)""")
-    stmt.executeQuery("insert overwrite table foo_cached partition(dt='100') select * from test")
-    //at this point we should have 500 entries
+    stmt.executeQuery("""create table foo_cached as select * from test""")
+    stmt.executeQuery("insert into table foo_cached select * from test")
+    //at this point we should have 1000 entries
     val rs = stmt.executeQuery("select count(*) from foo_cached")
+    assert(SharkEnv.memoryMetadataManager.contains("foo_cached") == true)
     //check if this worked
     rs.next;
     val count = rs.getInt(1)
     stmt.close
-    count should equal(500)
+    count should equal(1000)
     val stmt2 = createStatement
     stmt2.executeQuery("drop table foo_cached")
     //at this point the table should have been removed from cache as well as from blockmanager
