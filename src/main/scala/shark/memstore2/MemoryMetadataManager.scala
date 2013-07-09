@@ -24,6 +24,7 @@ import scala.collection.mutable.ConcurrentMap
 
 import shark.SharkConfVars
 import spark.RDD
+import spark.rdd.UnionRDD
 import spark.storage.StorageLevel
 
 
@@ -57,6 +58,24 @@ class MemoryMetadataManager {
   def getAllKeyStrings(): Seq[String] = {
     _keyToRdd.keys.collect { case k: String => k } toSeq
   }
+
+  def unpersist(key: String): Option[RDD[_]] = {
+    def unpersist(rdd: Option[RDD[_]]): Unit = {
+      rdd match {
+        case Some(u: UnionRDD[_]) => {
+          u.unpersist()
+          u.rdds.foreach(r => unpersist(Some(r)))
+        }
+        case None => Unit
+        case Some(x) => x.unpersist()
+      }
+    }
+    val rdd = _keyToRdd.remove(key)
+    _keyToStats.remove(key)
+    unpersist(rdd)
+    rdd
+  }
+
 }
 
 
