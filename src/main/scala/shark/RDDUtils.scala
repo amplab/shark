@@ -36,7 +36,7 @@ object RDDUtils {
   
   def getStorageLevelOfCachedTable(rdd: RDD[_]): StorageLevel = {
     rdd match {
-      case u: UnionRDD[_] => u.rdds.foldLeft(rdd.getStorageLevel){
+      case u: UnionRDD[_] => u.rdds.foldLeft(rdd.getStorageLevel) {
         (s, r) => {
           if (s == StorageLevel.NONE) {
             getStorageLevelOfCachedTable(r)
