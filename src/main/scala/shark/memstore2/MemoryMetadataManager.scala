@@ -64,7 +64,9 @@ class MemoryMetadataManager {
       rdd match {
         case Some(u: UnionRDD[_]) => {
           u.unpersist()
-          u.rdds.foreach(r => unpersist(Some(r)))
+          u.rdds.foreach {
+            r => unpersist(Some(r))
+          }
         }
         case None => Unit
         case Some(x) => x.unpersist()
