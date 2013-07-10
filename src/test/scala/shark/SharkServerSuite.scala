@@ -172,6 +172,26 @@ class SharkServerSuite extends FunSuite with BeforeAndAfterAll  with BeforeAndAf
     assert(SharkEnv.memoryMetadataManager.contains("foo_cached") == false)
   }
   
+  test("drop nonexistent table") {
+    val stmt = createStatement
+    try {
+    	stmt.executeQuery("drop table bar_cached")
+    } catch {
+    	case e: Throwable => fail("dropping non existent tables should be ok")
+    }
+    
+  }
+  
+  test("drop noncached table") {
+    val stmt = createStatement
+    try {
+    	stmt.executeQuery("drop table test")
+    } catch {
+    	case e: Throwable => fail("dropping non cached tables should be ok")
+    }
+    
+  }
+  
   def getConnection:Connection  = DriverManager.getConnection("jdbc:hive://localhost:10000/default", "", "")
   
   def createStatement:Statement = {

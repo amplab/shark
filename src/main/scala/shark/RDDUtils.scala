@@ -23,8 +23,8 @@ import scala.collection.JavaConverters._
 import com.google.common.collect.{Ordering => GOrdering}
 
 import spark.RDD
-import spark.rdd.UnionRDD
 import spark.SparkContext._
+import spark.rdd.UnionRDD
 import spark.storage.StorageLevel
 
 
