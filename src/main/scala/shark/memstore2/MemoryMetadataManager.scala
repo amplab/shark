@@ -60,22 +60,24 @@ class MemoryMetadataManager {
   }
 
   def unpersist(key: String): Option[RDD[_]] = {
-    def unpersist(rdd: Option[RDD[_]]): Unit = {
+    def unpersist(rdd: RDD[_]): Unit = {
       rdd match {
-        case Some(u: UnionRDD[_]) => {
+        case u: UnionRDD[_] => {
           u.unpersist()
           u.rdds.foreach {
-            r => unpersist(Some(r))
+            r => unpersist(r)
           }
         }
-        case None => Unit
-        case Some(x) => x.unpersist()
+        case x => x.unpersist()
       }
     }
-    val rdd = _keyToRdd.remove(key)
+    val o = _keyToRdd.remove(key)
     _keyToStats.remove(key)
-    unpersist(rdd)
-    rdd
+    o match {
+      case Some(rdd) => unpersist(rdd)
+      case None => Unit
+    }
+    o
   }
 
 }
