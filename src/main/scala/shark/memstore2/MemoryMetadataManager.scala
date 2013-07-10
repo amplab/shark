@@ -24,6 +24,7 @@ import scala.collection.mutable.ConcurrentMap
 
 import shark.SharkConfVars
 import spark.RDD
+import spark.rdd.UnionRDD
 import spark.storage.StorageLevel
 
 
@@ -45,6 +46,24 @@ class MemoryMetadataManager {
 
   def putStats(key: String, stats: collection.Map[Int, TablePartitionStats]) {
     _keyToStats.put(key.toLowerCase, stats)
+  }
+
+  def remove(key: String): Option[RDD[_]] = {
+    val rdd = _keyToRdd.remove(key)
+    _keyToStats.remove(key)
+    removeRDDRecursive(rdd)
+    rdd
+  }
+
+  private def removeRDDRecursive(rdd: Option[RDD[_]]):Unit = {
+    rdd match {
+      case Some(u: UnionRDD[_]) => {
+        u.unpersist()
+        u.rdds.foreach(r => removeRDDRecursive(Some(r)))
+      }
+      case None => Unit
+      case Some(x) => x.unpersist()
+    }
   }
 
   def getStats(key: String): Option[collection.Map[Int, TablePartitionStats]] = {

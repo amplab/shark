@@ -18,9 +18,7 @@
 package shark.execution
 
 import java.util.{ArrayList, Arrays}
-
 import scala.reflect.BeanProperty
-
 import org.apache.hadoop.mapred.{FileInputFormat, InputFormat, JobConf}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_PARTITION_COLUMNS
@@ -32,15 +30,17 @@ import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectIns
   StructObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.io.Writable
-
 import shark.{SharkConfVars, SharkEnv, Utils}
+import shark.execution.optimization.ColumnPruner
 import shark.execution.serialization.{XmlSerializer, JavaSerializer}
 import shark.memstore2.{CacheType, TablePartition, TablePartitionStats}
 import shark.tachyon.TachyonException
-
 import spark.RDD
 import spark.rdd.{PartitionPruningRDD, UnionRDD}
 import org.apache.hadoop.hive.ql.io.HiveInputFormat
+import shark.execution.optimization.ColumnPruner
+import shark.execution.optimization.ColumnPruner
+import shark.memstore2.TablePartitionIterator
 
 
 class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopOperator {
@@ -177,10 +177,13 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         rdd
       }
 
+    val columnsUsed = new ColumnPruner(this, table).getColumnsUsed
     prunedRdd.mapPartitions { iter =>
       if (iter.hasNext) {
         val tablePartition = iter.next.asInstanceOf[TablePartition]
-        tablePartition.iterator
+        val tblPartitionIter = tablePartition.iterator.asInstanceOf[TablePartitionIterator]
+        new TablePartitionIterator(tblPartitionIter.numRows, tblPartitionIter.columnIterators, columnsUsed)
+        //tablePartition.iterator
       } else {
         Iterator()
       }

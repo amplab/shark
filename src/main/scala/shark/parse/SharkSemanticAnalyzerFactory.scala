@@ -18,9 +18,9 @@
 package shark.parse
 
 import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.hadoop.hive.ql.parse.{ASTNode, BaseSemanticAnalyzer, SemanticAnalyzerFactory,
-  ExplainSemanticAnalyzer, SemanticAnalyzer}
-
+import org.apache.hadoop.hive.ql.parse.{ ASTNode, BaseSemanticAnalyzer, 
+  ExplainSemanticAnalyzer, DDLSemanticAnalyzer,
+  SemanticAnalyzer, SemanticAnalyzerFactory }
 import shark.SharkConfVars
 
 
@@ -37,7 +37,9 @@ object SharkSemanticAnalyzerFactory {
     } else if (baseSem.isInstanceOf[ExplainSemanticAnalyzer] &&
         SharkConfVars.getVar(conf, SharkConfVars.EXPLAIN_MODE) == "shark") {
       new SharkExplainSemanticAnalyzer(conf)
-    } else {
+    } else if (baseSem.isInstanceOf[DDLSemanticAnalyzer]) {
+    	new SharkDDLSemanticAnalyzer(conf)
+    }else {
       baseSem
     }
   }
