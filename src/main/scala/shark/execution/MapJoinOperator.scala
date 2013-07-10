@@ -130,7 +130,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
       if(storageLevel == StorageLevel.NONE)
         rddForHash.persist(StorageLevel.MEMORY_AND_DISK)
       rddForHash.foreach(_ => Unit)
-      val wrappedRows = rddForHash.partitions.flatMap { part => 
+      val wrappedRows = rddForHash.partitions.flatMap { part =>
         val blockId = "rdd_%s_%s".format(rddForHash.id, part.index)
         val iter = SparkEnv.get.blockManager.get(blockId)
         val partRows = new ArrayBuffer[(Seq[AnyRef], Seq[Array[AnyRef]])]
@@ -140,7 +140,8 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
         partRows
       }
       if(storageLevel == StorageLevel.NONE)
-        rddForHash.unpersist 
+        rddForHash.unpersist()
+
       logInfo("wrappedRows size:" + wrappedRows.size)
       val collectTime = System.currentTimeMillis() - startCollect
       logInfo("HashTable collect took " + collectTime + " ms")
