@@ -22,7 +22,7 @@ import scala.collection.mutable.{HashMap, HashSet}
 import shark.api.JavaSharkContext
 import shark.memstore2.MemoryMetadataManager
 import shark.tachyon.TachyonUtilImpl
-import spark.SparkContext
+import spark.{RDD, SparkContext}
 import spark.scheduler.StatsReportListener
 
 /** A singleton object for the master program. The slaves should not access this. */
@@ -106,6 +106,10 @@ object SharkEnv extends LogHelper {
   // Keeps track of added JARs and files so that we don't add them twice in consecutive queries.
   val addedFiles = HashSet[String]()
   val addedJars = HashSet[String]()
+
+  def unpersist(key: String): Option[RDD[_]] = {
+    memoryMetadataManager.unpersist(key)
+  }
 
   /** Cleans up and shuts down the Shark environments. */
   def stop() {
