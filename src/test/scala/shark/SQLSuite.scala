@@ -235,6 +235,14 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     expect("select val from sharktest5Cached where key = 407", "val_407")
     assert(SharkEnv.memoryMetadataManager.contains("sharkTest5Cached"))
   }
+  
+  test("dropping cached tables should clean up RDDs") {
+    sc.sql("drop table if exists sharkTest5Cached")
+    sc.sql("""create table sharkTest5Cached TBLPROPERTIES ("shark.cache" = "true") as
+      select * from test""")
+    sc.sql("drop table sharkTest5Cached")
+    assert(!SharkEnv.memoryMetadataManager.contains("sharkTest5Cached"))
+  }
 
   //////////////////////////////////////////////////////////////////////////////
   // SharkContext APIs (e.g. sql2rdd, sql)

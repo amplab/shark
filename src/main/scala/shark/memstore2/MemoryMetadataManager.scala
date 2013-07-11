@@ -71,7 +71,7 @@ class MemoryMetadataManager {
         case x => x.unpersist()
       }
     }
-    val o = _keyToRdd.remove(key)
+    val o = _keyToRdd.remove(key.toLowerCase())
     _keyToStats.remove(key)
     o match {
       case Some(rdd) => unpersist(rdd)
