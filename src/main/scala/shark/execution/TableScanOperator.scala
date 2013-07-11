@@ -34,8 +34,9 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectIn
 import org.apache.hadoop.io.Writable
 
 import shark.{SharkConfVars, SharkEnv, Utils}
+import shark.execution.optimization.ColumnPruner
 import shark.execution.serialization.{XmlSerializer, JavaSerializer}
-import shark.memstore2.{CacheType, TablePartition, TablePartitionStats}
+import shark.memstore2.{CacheType, TablePartition, TablePartitionIterator, TablePartitionStats}
 import shark.tachyon.TachyonException
 
 import spark.RDD
@@ -177,10 +178,13 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         rdd
       }
 
+    val columnsUsed = new ColumnPruner(this, table).getColumnsUsed
     prunedRdd.mapPartitions { iter =>
       if (iter.hasNext) {
         val tablePartition = iter.next.asInstanceOf[TablePartition]
-        tablePartition.iterator
+        val tblPartitionIter = tablePartition.iterator.asInstanceOf[TablePartitionIterator]
+        new TablePartitionIterator(tblPartitionIter.numRows, tblPartitionIter.columnIterators, columnsUsed)
+        //tablePartition.iterator
       } else {
         Iterator()
       }
