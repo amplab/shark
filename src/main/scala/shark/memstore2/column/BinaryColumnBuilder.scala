@@ -42,11 +42,19 @@ class BinaryColumnBuilder extends ColumnBuilder[LazyBinary] {
   }
 
   override def append(o: Object, oi: ObjectInspector) {
-    append(o.asInstanceOf[LazyBinary])
+    if (o.isInstanceOf[LazyBinary]) {
+      append(o.asInstanceOf[LazyBinary])
+    } else if (o.isInstanceOf[BytesWritable]) {
+      append(o.asInstanceOf[BytesWritable])
+    }
   }
 
   override def append(v: LazyBinary) {
     val w: BytesWritable = v.getWritableObject()
+    append(w)
+  }
+
+  def append(w: BytesWritable) {
     _lengthArr.add(w.getLength())
     _arr.addElements(_arr.size, w.getBytes(), 0, w.getLength())
   }
