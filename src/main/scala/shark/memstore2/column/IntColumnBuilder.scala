@@ -21,6 +21,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 import it.unimi.dsi.fastutil.ints.IntArrayList
+import it.unimi.dsi.fastutil.ints.IntArraySet
 
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.IntObjectInspector
@@ -34,7 +35,13 @@ import shark.memstore2.column.CompressionScheme._
 class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
   private var _stats: ColumnStats.IntColumnStats = new ColumnStats.IntColumnStats
   private var _nonNulls: IntArrayList = null
-  private val MAX_UNIQUE_VALUES = 256 // 2 ** 8 - storable in 8 bits or 1 Byte
+
+  // In the worst case this Set can be as big as the column itself. This huge waste of
+  // memory should be replaced by HLL or a shortcut eventually. Leaving it here for now as we
+  // figure out the compression scheme heuristics.
+  private var uniques = new IntArraySet(0)
+
+  private val MAX_DICT_UNIQUE_VALUES = 256 // 2 ** 8 - storable in 8 bits or 1 Byte
 
   override def initialize(initialSize: Int) {
     _nonNulls = new IntArrayList(initialSize)
@@ -54,6 +61,7 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
   override def append(v: Int) {
     _nonNulls.add(v)
     _stats.append(v)
+    uniques.add(v)
   }
 
   override def appendNull() {
@@ -67,22 +75,27 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
     // RLE choice logic - use RLE if the
     // selectivity is < 20% &&
     // ratio of transitions < 50% (run+value is 2 ints instead of 1)
-    val selectivity = (_stats.uniques.size).toDouble / _nonNulls.size
+    val selectivity = (uniques.size).toDouble / _nonNulls.size
     val transitionsRatio = (_stats.transitions).toDouble / _nonNulls.size
 
-    if(selectivity < 0.2) {
-      if (transitionsRatio < 0.5) return RLE
-      else return Dict
+    if (selectivity > 0.2) {
+      CompressionScheme.None // compressed data might be bigger than original - don't bother trying
+    } else if (transitionsRatio < 0.5) {
+      RLE
+    } else if (uniques.size < MAX_DICT_UNIQUE_VALUES) {
+      Dict
     } else {
-      return None
+      LZF // low selectivity, but large number of uniques - LZF might offer good trade-off
     }
   }
 
 
-  /** After all values have been appended, build() is called to write all the
+  /** After all values have been append()ed, build() is called to write all the
     * values into a ByteBuffer.
     */
   override def build: ByteBuffer = {
+    // store count in stats object so it can be used later for optimization
+    _stats.uniqueCount = uniques.size
     logDebug("scheme at the start of build() was " + scheme)
 
     // highest priority override is if someone (like a test) calls the getter
@@ -93,9 +106,11 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
     if(scheme == null || scheme == CompressionScheme.Auto) scheme = pickCompressionScheme
     // choices are none, auto, RLE, dict
 
-    val selectivity = (_stats.uniques.size).toDouble / _nonNulls.size
+    val selectivity = (uniques.size).toDouble / _nonNulls.size
     val transitionsRatio = (_stats.transitions).toDouble / _nonNulls.size
-    logInfo("uniques=" + _stats.uniques.size + " selectivity=" + selectivity + 
+    logInfo(
+      "uniques=" + uniques.size + 
+      " selectivity=" + selectivity +
       " transitionsRatio=" + transitionsRatio + 
       " transitions=" + _stats.transitions +
       " #values=" + _nonNulls.size)
@@ -167,8 +182,8 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
       }
       case Dict => {
         val dict = new IntDictionary
-        logInfo("#uniques " + _stats.uniques.size)
-        dict.initialize(_stats.uniques.toIntArray)
+        logInfo("#uniques " + uniques.size)
+        dict.initialize(uniques.toIntArray)
         val minbufsize = (_nonNulls.size*1) + ColumnIterator.COLUMN_TYPE_LENGTH +
         sizeOfNullBitmap + (dict.sizeInBits/8)
 
@@ -193,9 +208,7 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
           buf.put(dict.getByte(_nonNulls.get(i)))
           i += 1
         }
-        logInfo("Compression ratio is " +
-          (_nonNulls.size.toFloat*4/(minbufsize)) +
-          " : 1")
+        logInfo("Compression ratio is " + (_nonNulls.size.toFloat*4/(minbufsize)) + " : 1")
         buf.rewind()
         buf
       }
