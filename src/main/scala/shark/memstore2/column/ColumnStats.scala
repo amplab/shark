@@ -17,17 +17,15 @@
 
 package shark.memstore2.column
 
-import java.io.ObjectInput
-import java.io.ObjectOutput
-import java.io.Externalizable
+import java.io.{ ObjectInput, ObjectOutput, Externalizable }
 import java.sql.Timestamp
 
 import org.apache.hadoop.io.Text
 import it.unimi.dsi.fastutil.ints.IntArraySet
 
-/**
- * Column level statistics, including range (min, max).
- */
+/** Column level statistics, including range (min, max) for columns in cached tables.
+  * These will be get stored in the spark master's memory, per column, per RDD after serialization.
+  */
 sealed trait ColumnStats[@specialized(Boolean, Byte, Short, Int, Long, Float, Double) T]
     extends Serializable {
 
@@ -100,11 +98,7 @@ object ColumnStats {
     // nulls are ignored in IntColumnStats for uniques and transition counting because a Null Bit
     // Vector encoding wrapper is always expected in the buffer.
 
-    // TODO: In the worst case this Set can be as big as the column itself. This huge waste of
-    // memory should be replaced by HLL or a shortcut eventually. Leaving it here for now as we
-    // figure out the compression scheme heuristics.
-    var uniques = new IntArraySet(0)
-    protected var uniques_ = uniques // setter protected
+    var uniqueCount: Int = 0
     var transitions: Int = 0
     protected var transitions_ = transitions // setter protected
 
@@ -117,7 +111,6 @@ object ColumnStats {
     override def append(v: Int) {
       if (v > _max) _max = v
       if (v < _min) _min = v
-      uniques.add(v)
 
       if (_orderedState != UNINITIALIZED && v != _prev) {
         transitions += 1
