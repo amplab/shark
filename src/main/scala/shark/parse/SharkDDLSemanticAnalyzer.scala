@@ -12,7 +12,7 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
     super.analyzeInternal(node)
     //handle drop table query
     if (node.getToken().getType() == HiveParser.TOK_DROPTABLE) {
-       SharkEnv.unpersist(getTableName(node))
+      SharkEnv.unpersist(getTableName(node))
     }
   }
 
