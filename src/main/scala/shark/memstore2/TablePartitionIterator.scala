@@ -18,9 +18,7 @@
 package shark.memstore2
 
 import java.nio.ByteBuffer
-
-import scala.collection.immutable.BitSet
-
+import java.util.BitSet
 import shark.memstore2.column.ColumnIterator
 import shark.memstore2.column.ColumnIteratorFactory
 
@@ -41,7 +39,7 @@ class TablePartitionIterator(
 
   def this(numRows: Long, 
       columnIterators: Array[ColumnIterator]) {
-    this(numRows, columnIterators, BitSet() ++ Range(0,columnIterators.size))
+    this(numRows, columnIterators, TablePartitionIterator.newBitSet(columnIterators.size))
   }
 
   private val _struct = new ColumnarStruct(columnIterators)
@@ -52,7 +50,24 @@ class TablePartitionIterator(
 
   def next(): ColumnarStruct = {
     _position += 1
-    columnUsed.map(colId => columnIterators(colId).next)
+    var i = columnUsed.nextSetBit(0)
+    while (i > -1) {
+      columnIterators(i).next
+      i = columnUsed.nextSetBit(i + 1)
+    }
     _struct
+  }
+}
+
+object TablePartitionIterator {
+  
+  def newBitSet(numCols: Int): BitSet = {
+    val b = new BitSet(numCols)
+    var i = numCols 
+    while (i > 0) {
+      i -= 1
+      b.set(i, true)
+    }
+    b
   }
 }
