@@ -1,14 +1,11 @@
 package shark.parse
 
 import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.hadoop.hive.ql.parse.ASTNode
-import org.apache.hadoop.hive.ql.parse.DDLSemanticAnalyzer
-import shark.LogHelper
-import org.apache.hadoop.hive.ql.parse.HiveParser
-import shark.SharkEnv
-import org.apache.hadoop.hive.ql.parse.BaseSemanticAnalyzer
-import spark.rdd.UnionRDD
+import org.apache.hadoop.hive.ql.parse.{ASTNode, BaseSemanticAnalyzer, DDLSemanticAnalyzer, HiveParser}
+import shark.{LogHelper, SharkEnv}
 import spark.RDD
+import spark.rdd.UnionRDD
+
 
 class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf) with LogHelper {
 
@@ -16,7 +13,7 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
     super.analyzeInternal(node)
     //handle drop table query
     if (node.getToken().getType() == HiveParser.TOK_DROPTABLE) {
-      SharkEnv.removeRDD(getTableName(node))
+      SharkEnv.unpersist(getTableName(node))
     }
   }
 

@@ -76,6 +76,28 @@ class MemoryMetadataManager {
   def getAllKeyStrings(): Seq[String] = {
     _keyToRdd.keys.collect { case k: String => k } toSeq
   }
+
+  def unpersist(key: String): Option[RDD[_]] = {
+    def unpersist(rdd: RDD[_]): Unit = {
+      rdd match {
+        case u: UnionRDD[_] => {
+          u.unpersist()
+          u.rdds.foreach {
+            r => unpersist(r)
+          }
+        }
+        case x => x.unpersist()
+      }
+    }
+    val o = _keyToRdd.remove(key.toLowerCase())
+    _keyToStats.remove(key)
+    o match {
+      case Some(rdd) => unpersist(rdd)
+      case None => Unit
+    }
+    o
+  }
+
 }
 
 

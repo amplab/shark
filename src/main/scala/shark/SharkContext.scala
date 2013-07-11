@@ -47,18 +47,8 @@ class SharkContext(
 
   @transient val sparkEnv = SparkEnv.get
 
-  @transient val hiveconf = new HiveConf(classOf[SessionState])
-  Utils.setAwsCredentials(hiveconf)
-
-  try {
-    LogUtils.initHiveLog4j()
-  } catch {
-    case e: LogInitializationException => // Ignore the error.
-  }
-
-  @transient val sessionState = new SessionState(hiveconf)
-  sessionState.out = new PrintStream(System.out, true, "UTF-8")
-  sessionState.err = new PrintStream(System.out, true, "UTF-8")
+  SharkContext.init()
+  import SharkContext._
 
   /**
    * Execute the command and return the results as a sequence. Each element
@@ -123,3 +113,27 @@ class SharkContext(
     results.foreach(println)
   }
 }
+
+
+object SharkContext {
+  // Since we can never properly shut down Hive, we put the Hive related initializations
+  // here in a global singleton.
+
+  @transient val hiveconf = new HiveConf(classOf[SessionState])
+  Utils.setAwsCredentials(hiveconf)
+
+  try {
+    LogUtils.initHiveLog4j()
+  } catch {
+    case e: LogInitializationException => // Ignore the error.
+  }
+
+  @transient val sessionState = new SessionState(hiveconf)
+  sessionState.out = new PrintStream(System.out, true, "UTF-8")
+  sessionState.err = new PrintStream(System.out, true, "UTF-8")
+
+  // A dummy init to make sure the object is properly initialized.
+  def init() {}
+}
+
+

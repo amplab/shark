@@ -21,7 +21,7 @@ import scala.collection.mutable.{HashMap, HashSet}
 import shark.api.JavaSharkContext
 import shark.memstore2.MemoryMetadataManager
 import shark.tachyon.TachyonUtilImpl
-import spark.SparkContext
+import spark.{RDD, SparkContext}
 import spark.scheduler.StatsReportListener
 import spark.RDD
 
@@ -106,10 +106,11 @@ object SharkEnv extends LogHelper {
   val addedFiles = HashSet[String]()
   val addedJars = HashSet[String]()
 
-  def removeRDD(key: String): Option[RDD[_]] = {
-    memoryMetadataManager.remove(key)
+  def unpersist(key: String): Option[RDD[_]] = {
+    memoryMetadataManager.unpersist(key)
   }
-  
+
+
   /** Cleans up and shuts down the Shark environments. */
   def stop() {
     logInfo("Shutting down Shark Environment")

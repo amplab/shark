@@ -42,5 +42,6 @@ class SortSuite extends FunSuite {
       assert(output == expected.take(math.min(k, 4)))
     }
     sc.stop()
+    System.clearProperty("spark.driver.port")
   }
 }
