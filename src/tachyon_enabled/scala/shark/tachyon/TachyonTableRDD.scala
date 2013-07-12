@@ -29,7 +29,7 @@ import shark.memstore2._
 import spark.{Dependency, Partition, RDD, SerializableWritable, SparkContext, TaskContext}
 
 import tachyon.client.InStream
-import tachyon.client.OpType
+import tachyon.client.ReadType
 import tachyon.client.RawTable
 import tachyon.client.TachyonFile
 
@@ -64,13 +64,13 @@ class TachyonTableRDD(path: String, @transient sc: SparkContext)
     val buffers = Array.tabulate[ByteBuffer](rawTable.getColumns()) { columnIndex =>
       val fp = rawTable.getRawColumn(columnIndex).getPartition(theSplit.index, true)
       var buf: ByteBuffer = fp.readByteBuffer()
-      if (buf == null && fp.recacheData()) {
+      if (buf == null && fp.recache()) {
         buf = fp.readByteBuffer()
       }
       if (buf == null) {
         // TODO Log this. Reading data from remote is bad.
         buf = ByteBuffer.allocate(fp.length().toInt)
-        val is = fp.getInStream(OpType.READ_TRY_CACHE)
+        val is = fp.getInStream(ReadType.CACHE)
         is.read(buf.array)
         is.close()
         buf.limit(fp.length().toInt)
