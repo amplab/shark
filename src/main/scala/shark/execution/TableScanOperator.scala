@@ -111,9 +111,9 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     if (cacheMode == CacheType.heap) {
       // Table should be in Spark heap (block manager).
       val rdd = SharkEnv.memoryMetadataManager.get(tableKey).getOrElse {
-        logError("""|Cached table not found in block manager.
+        logError("""|Cached table %s not found in block manager.
                     |Are you trying to access a cached table from a Shark session other than
-                    |the one in which it was created?""".stripMargin)
+                    |the one in which it was created?""".stripMargin.format(tableKey))
         throw(new QueryExecutionException("Cached table not found"))
       }
       logInfo("Loading table " + tableKey + " from Spark block manager")
