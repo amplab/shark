@@ -22,7 +22,7 @@ import java.nio.ByteBuffer
 import shark.{SharkEnv, SharkEnvSlave}
 
 import tachyon.client.OutStream
-import tachyon.client.OpType
+import tachyon.client.WriteType
 
 
 class TachyonTableWriterImpl(@transient path: String, @transient numColumns: Int)
@@ -50,8 +50,8 @@ class TachyonTableWriterImpl(@transient path: String, @transient numColumns: Int
     val rawColumn = rawTable.getRawColumn(column)
     rawColumn.createPartition(part)
     val file = rawColumn.getPartition(part)
-    val outStream = file.getOutStream(OpType.WRITE_CACHE_THROUGH)
-    outStream.write(data)
+    val outStream = file.getOutStream(WriteType.CACHE_THROUGH)
+    outStream.write(data.array(), 0, data.limit())
     outStream.close()
   }
 }

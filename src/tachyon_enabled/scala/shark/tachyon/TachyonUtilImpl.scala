@@ -26,14 +26,14 @@ import shark.memstore2.ColumnarStruct
 
 import spark.RDD
 
-import tachyon.client.{RawTable, RawColumn, TachyonClient}
+import tachyon.client.{RawTable, RawColumn, TachyonFS}
 
 /**
  * An abstraction for the Tachyon APIs.
  */
 class TachyonUtilImpl(val master: String, val warehousePath: String) extends TachyonUtil {
 
-  val client = if (master != null && master != "") TachyonClient.getClient(master) else null
+  val client = if (master != null && master != "") TachyonFS.get(master) else null
 
   def getPath(tableName: String): String = warehousePath + "/" + tableName
 
