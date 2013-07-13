@@ -365,7 +365,6 @@ object ColumnStats {
     protected var _max: Text = null
     protected var _min: Text = null
     protected var _prev: Text = null
-    private var _filter = new BloomFilter(0.03, 1000000)
 
     // Use these Text objects to copy over contents because Text is not immutable and we reuse the
     // same Text object to mitigate frequent GC.
@@ -396,7 +395,6 @@ object ColumnStats {
         _prevStore.set(v)
         _prev = _prevStore
       }
-      _filter.add(v.getBytes(), v.getLength())
     }
 
     override def appendNull() {
@@ -412,8 +410,7 @@ object ColumnStats {
     def :=(v: Any): Boolean = {
       v match {
         case u:Text => _min.compareTo(u) <= 0 &&
-        			   _max.compareTo(u) >= 0 &&
-        			   _filter.contains(u.toString())
+        			   _max.compareTo(u) >= 0
         case u: String => this:=(new Text(u))
         case _ => true
       }
@@ -436,7 +433,6 @@ object ColumnStats {
     }
 
     override def readExternal(in: ObjectInput) {
-      _filter = in.readObject().asInstanceOf[BloomFilter]
       if (in.readBoolean()) {
         _max = new Text
         _max.readFields(in)
@@ -448,7 +444,6 @@ object ColumnStats {
     }
 
     override def writeExternal(out: ObjectOutput) {
-      out.writeObject(_filter)
       if (_max == null) {
         out.write(0)
       } else {
