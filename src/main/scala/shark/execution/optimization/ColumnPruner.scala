@@ -1,9 +1,9 @@
 package shark.execution.optimization
 
+import java.util.BitSet
 import scala.collection.JavaConversions.asScalaBuffer
 import scala.collection.JavaConversions.bufferAsJavaList
 import scala.collection.JavaConversions.collectionAsScalaIterable
-import scala.collection.immutable.BitSet
 
 import org.apache.hadoop.hive.ql.exec.GroupByPreShuffleOperator
 import org.apache.hadoop.hive.ql.metadata.Table
@@ -25,9 +25,9 @@ class ColumnPruner(@transient op: TopOperator[_], @transient tbl: Table) extends
   val skip = tuple._1 && tuple._2.isEmpty
   val columnsUsed = {
     val allColumns = tbl.getAllCols().map(x => x.getName())
-    var b = BitSet()
+    var b = new BitSet()
     for (i <- Range(0, allColumns.size()) if (tuple._2.contains(allColumns(i)))) {
-      b += i
+      b.set(i, true)
     }
     b
   }
