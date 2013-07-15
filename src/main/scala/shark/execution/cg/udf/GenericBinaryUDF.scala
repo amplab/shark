@@ -85,12 +85,6 @@ sealed abstract class BinaryUDF(node: GenericFunNode)
   // will try to reuse the the result object (WritableObject), but need a null indicator
   override def evaluationType() = EvaluationType.SET  
 
-  // set the result object invalid
-  override def invalidValueExpr() = nullValueIndicatorVariableName() + "=false"
-  
-  // reset the result object as valid
-  override def initValueExpr() = nullValueIndicatorVariableName() + "=true"
-
   override def prepare(rowInspector: ObjectInspector, children: Array[_<:ExprNode[ExprNodeDesc]]) = {
     if (children.size != 2) {
       throw new CGAssertRuntimeException("expected 2 arguments in the BinaryUDF")
@@ -247,15 +241,13 @@ case class UDFOPBitXorBinaryUDF(override val node: GenericFunNode)
   override protected def cgUDFCallPrimitive() = v1 + "^" + v2
 }
 
+/**
+ * Parent class for UDFOPAnd / UDFOPOrs
+ */
 class UDFOPLogical(override val node: GenericFunNode)
   extends BinaryUDF(node) {
-    override protected def cgUDFCallBoolean() = {
-    var code = cgUDFCallPrimitive()
-    if (code != null)
-      () => resultVariableName() + ".set(" + code + ");"
-    else
-      null
-  }
+  var leftNotNullValueCheckExpr: String = _
+  var rightNotNullValueCheckExpr: String = _
 }
 
 /**
@@ -263,35 +255,47 @@ class UDFOPLogical(override val node: GenericFunNode)
  */
 case class UDFOPAnd(override val node: GenericFunNode)
   extends UDFOPLogical(node) {
-  override protected def cgUDFCallPrimitive() = v1 + "&&" + v2
-  // for AND, if the first(left) operand is false, then no need to calculate the right 
-  override protected def partialEvaluateCheck(
-    args: Array[_<:ExprCodeGen],
-    currentParamIdx: Int) =
-    if (currentParamIdx == 0) {
-      "false == " + v1
-    } else {
-      null
-    }
 
-  override protected def partialEvaluateResult(
-    args: Array[_<:ExprCodeGen],
-    currentParamIdx: Int) =
+  /**
+   * AND
+   * v1!=null && v1 = false ==> false
+   * v2!=null && v2 = false ==> false
+   * v1!=null && v2!=null ==>   true
+   * => null
+   */
+  override protected def shortcut(currentParamIdx: Int): (String, String, Boolean) = {
+    var tuple = super.shortcut(currentParamIdx)
+    
+    var condition: String = null
+    var result: String = null
     if (currentParamIdx == 0) {
-      this.resultVariableName() + ".set(false)"
+      condition = leftNotNullValueCheckExpr
+      condition = concatExprs("&&", condition, "!(" + v1.valueExpr() + ")")
+      result = this.resultVariableName() + ".set(false);"
     } else {
-      null
+      condition = rightNotNullValueCheckExpr
+      condition = concatExprs("&&", condition, "!(" + v2.valueExpr() + ")")
+      result = this.resultVariableName() + ".set(false);"
     }
+    (condition, result, true)
+  }
+  
+  override protected def cgUDFCallBoolean() = ()=>{
+    leftNotNullValueCheckExpr = v1.cgValidateCheck()
+    rightNotNullValueCheckExpr = v2.cgValidateCheck()
+    
+    var condition = concatExprs("&&", leftNotNullValueCheckExpr, rightNotNullValueCheckExpr)
+    if(condition != null) {
+    "if(%s) %s.set(true); else {%s;}".format(
+        concatExprs("&&", leftNotNullValueCheckExpr, rightNotNullValueCheckExpr), 
+        this.resultVariableName(), 
+        this.invalidValueExpr())
+    } else {
+      this.resultVariableName() + ".set(true);"
+    }
+  }
 }
 
-/**
- * OR
- * the value is strict in the order of following rules
- * v1 != null && v1 == true ==> true
- * v2 != null && v2 == true ==> true
- * v1 != null && v2 != null ==> false
- * ==> null
- */
 case class UDFOPOr(override val node: GenericFunNode)
   extends UDFOPLogical(node) {
     
@@ -305,66 +309,42 @@ case class UDFOPOr(override val node: GenericFunNode)
       result
     }
   }
-  
+
   /**
-   * the partial evaluating is trying to figure out the value for
+   * OR
+   * the value is strict in the order of following rules
    * v1 != null && v1 == true ==> true
    * v2 != null && v2 == true ==> true
+   * v1 != null && v2 != null ==> false
+   * ==> null
    */
-  override protected def requireNullValueCheck(parameterIndex: Int) = {
-    if(parameterIndex == 0 && v2.constantNull()) 
-      true
-    else if (parameterIndex == 1 && v1.constantNull()) 
-      true
-    else
-      false
-  }
-  override protected def cgUDFCallPrimitive() = format(v1, v2)
-
-  // for OR, if the first(left) operand is true, then no need to calculate the other 
-  override protected def partialEvaluateCheck(
-    args: Array[_<:ExprCodeGen],
-    currentParamIdx: Int) =
-    if (currentParamIdx == 0 && !v1.constantNull()) 
-      partialCheck(0, v1)
-    else if (currentParamIdx == 1 && !v2.constantNull())
-      partialCheck(1, v2)
-    else
-      null
-
-  override protected def partialEvaluateResult(
-    args: Array[_<:ExprCodeGen],
-    currentParamIdx: Int) = this.resultVariableName() + ".set(true)"
-  
-  private def partialCheck(idx: Int, node: ExprNode[_]) = {
-     var cgValidate = node.cgValidateCheck()
-     
-     if((cgValidate == null) || requireNullValueCheck(idx))
-        "" + node
-      else {
-        node.notifycgValidateCheckCodeNeed()
-        cgValidate + "&&" + node
-      }
+  protected override def shortcut(currentParamIdx: Int): (String, String, Boolean) = {
+    var condition: String = null
+    var result: String = null
+    if (currentParamIdx == 0) {
+      condition = leftNotNullValueCheckExpr
+      condition = concatExprs("&&", condition, v1.valueExpr())
+      result = this.resultVariableName() + ".set(true);"
+    } else {
+      condition = rightNotNullValueCheckExpr
+      condition = concatExprs("&&", condition, v2.valueExpr())
+      result = this.resultVariableName() + ".set(true);"
+    }
+    (condition, result, true)
   }
   
-  private def format(
-    v1: ExprNode[ExprNodeDesc],
-    v2: ExprNode[ExprNodeDesc]) = {
-
-    var check1 = v1.cgValidateCheck()
-    var check2 = v2.cgValidateCheck()
+  override protected def cgUDFCallBoolean() = ()=>{
+    leftNotNullValueCheckExpr = v1.cgValidateCheck()
+    rightNotNullValueCheckExpr = v2.cgValidateCheck()
     
-    if (check1 != null) v1.notifycgValidateCheckCodeNeed()
-    if (check2 != null) v2.notifycgValidateCheckCodeNeed()
-
-    if (check1 != null && check2 != null) {
-      "(%s && %s) ? false : (%s)".format(check1, check2, invalidValueExpr())
-    } else if (check1 != null) { // v2 is not null constantly
-      "(%s) ? %s : %s".format(check1, v1 + "||" + v2, v2)
-    } else if (check2 != null) { // v1 is not null constantly
-      "(%s) ? %s : %s".format(check2, v1 + "||" + v2, v1)
-    } else { // both v1, v2 are not null constantly
-      v1 + "||" + v2
+    var condition = concatExprs("&&", leftNotNullValueCheckExpr, rightNotNullValueCheckExpr)
+    if (condition != null) {
+      "if(%s) %s.set(false); else {%s;}".format(
+        concatExprs("&&", leftNotNullValueCheckExpr, rightNotNullValueCheckExpr), 
+        this.resultVariableName(), 
+        this.invalidValueExpr())
+    } else {
+      this.resultVariableName() + ".set(false);"
     }
   }
 }

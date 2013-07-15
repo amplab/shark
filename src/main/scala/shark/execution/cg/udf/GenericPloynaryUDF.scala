@@ -18,6 +18,7 @@
 package shark.execution.cg.udf
 
 import org.apache.hadoop.io.Text
+import org.apache.hadoop.io.BooleanWritable
 import org.apache.hadoop.hive.ql.plan.ExprNodeDesc
 import org.apache.hadoop.hive.ql.parse.TypeCheckProcFactory
 import org.apache.hadoop.hive.ql.plan.ExprNodeGenericFuncDesc
@@ -36,6 +37,11 @@ import shark.execution.cg.CGAssertRuntimeException
 import shark.execution.cg.node.ConverterNode
 import shark.execution.cg.node.ConverterType
 import shark.execution.cg.ExprCodeGen
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFUtils
+import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException
+import scala.collection.mutable.ArrayBuffer
+import org.apache.hadoop.hive.ql.plan.ExprNodeConstantDesc
+import scala.runtime.ArrayRuntime
 
 /*
  * 1) This file is used to re-implement the generic UDF, any un-recognized UDF will fail the CG and
@@ -48,7 +54,6 @@ import shark.execution.cg.ExprCodeGen
  */
 class UDFPrintf(node: GenericFunNode) extends UDFCodeGen(node) {
 
-  private var arguments: Array[_<:ExprNode[ExprNodeDesc]] = _
   override def evaluationType() = EvaluationType.SET
 
   override protected def cgUDFCall() = {
@@ -148,4 +153,188 @@ object UDFOPBetween {
 
     node.getContext().create(desc)
   }
+}
+
+/**
+ * if
+ */
+object UDFIf {
+  def apply(node: GenericFunNode) = {
+    val exprs = node.desc.getChildExprs()
+    val desc = TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc("case",
+        exprs.get(0),
+        new ExprNodeConstantDesc(true),
+        exprs.get(1),
+        exprs.get(2)
+    ).asInstanceOf[ExprNodeGenericFuncDesc]
+
+    node.getContext().create(desc)
+  }
+}
+
+/**
+ * when
+ * "CASE WHEN a THEN b WHEN c THEN d [ELSE f] END"
+ * a and c should be boolean
+ */
+object UDFWhen {
+  def apply(node: GenericFunNode) = {
+    import scala.collection.JavaConversions._
+    
+    val exprs = new ExprNodeConstantDesc(true)::node.desc.getChildExprs().toList
+    var sss = java.util.Arrays.asList(exprs:_*)
+    val desc = TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc("case", 
+        exprs.toList:_*
+    ).asInstanceOf[ExprNodeGenericFuncDesc]
+
+    node.getContext().create(desc)
+  }
+}
+
+/**
+ * Case
+ */
+class UDFCase(node: GenericFunNode) 
+  extends UDFCodeGen(node) {
+  
+  override def evaluationType() = EvaluationType.GET
+
+  override protected def requireNullValueCheck(parameterIndex: Int) = true
+
+  /**
+   * case value when A then a [when B then b] else c end
+   * if value == null then the value would be "c", if any, other wise null
+   */
+  override protected def cgInnersDeferred(
+    args: Array[_ <: ExprCodeGen],
+    parameterIdx: Int,
+    udfCall: String,
+    partialEvaluate: Boolean): StringBuffer = {
+    var content = new StringBuffer()
+    if (parameterIdx >= arguments.length) {
+      content.append(udfCall + "\n")
+    } else {
+      var node_0 = arguments(0)
+      var node   = arguments(parameterIdx)
+      addEvaluateCode(content, node)
+      
+      if (parameterIdx == 0) {
+        // CASE
+        var condition = concatExprs("&&", node.cgValidateCheck(), null)
+        if (condition != null) {
+          content.append(
+          "if(%s){\n %s\n} else {\n  %s\n}\n".format(condition, 
+             cgInnersDeferred(arguments, 1, udfCall, true),
+             // try to jump to the END value
+             cgInnersDeferred(
+                 arguments, arguments.length - (arguments.length + 1) % 2, 
+                 udfCall, 
+                 true))
+           )
+        } else {
+          content.append(cgInnersDeferred(arguments, 1, udfCall, true))
+        }
+      } else if (parameterIdx == arguments.length - 1 || parameterIdx % 2 == 0) { 
+        // ELSE or THEN
+          content.append(cgUDFCall(parameterIdx))
+      } else { 
+        // WHEN
+        var condition = node.cgValidateCheck()
+          condition = concatExprs("&&", 
+              condition, 
+              "%s.equals(%s)".format(node_0.resultVariableName(),node.resultVariableName()))
+
+        content.append(
+          "if(%s){\n %s\n} else {\n  %s\n}\n".format(condition, 
+              cgInnersDeferred(arguments, parameterIdx + 1, udfCall, true), // jump to THEN 
+              cgInnersDeferred(arguments, parameterIdx + 2, udfCall, true)) // jump to next WHEN
+        )
+      }
+      
+      if (partialEvaluate) {
+        for(i <- parameterIdx until args.length) {
+          args(i).notifyEvaluatingCodeGenNeed()
+          args(i).notifycgValidateCheckCodeNeed()
+        }
+      }
+    }
+    
+    content
+  }
+    
+  private def cgUDFCall(idx: Int) = {
+    var valueNode = arguments(idx)
+    var cgValidate = valueNode.cgValidateCheck()
+    
+    if (cgValidate != null) {
+      "if(%s) {\n  %s = %s;\n} else {\n  %s;\n}".format(cgValidate, 
+          this.resultVariableName(), 
+          valueNode.valueExpr(),
+          invalidValueExpr())
+    } else {
+      "%s = %s;\n".format(this.resultVariableName(), valueNode.valueExpr())
+    }
+  }
+  
+  override protected def cgUDFCall() = {
+    // if can not find any matches
+    if (arguments.length % 2 == 0) {
+      // has the "ELSE"
+      ()=> cgUDFCall(arguments.length - 1)
+    } else {
+      ()=>{
+        var expr = invalidValueExpr()
+        if (null != expr) 
+          expr+ ";"
+        else
+          ""
+      }
+    }
+  }
+  
+  override def prepare(rowInspector: ObjectInspector, children: Array[_ <: ExprNode[ExprNodeDesc]]):
+    Array[_<:ExprNode[ExprNodeDesc]] = {
+    var caseOIResolver = new GenericUDFUtils.ReturnObjectInspectorResolver(true)
+    var returnOIResolver = new GenericUDFUtils.ReturnObjectInspectorResolver(true)
+    var subnodes = ArrayBuffer[ExprNode[ExprNodeDesc]]()
+    
+    var childrenDesc = node.desc.getChildExprs()
+    if (childrenDesc.size() != children.length) {
+      // can not handle
+      return null
+    }
+    
+    for(i <- 0 until childrenDesc.size()) {
+      if (i == 0 || (i % 2 == 1 && i != childrenDesc.size() - 1)) {
+        if (!caseOIResolver.update(childrenDesc.get(i).getWritableObjectInspector()))
+          throw new UDFArgumentTypeException(i + 1,
+            "The expressions after WHEN should have the same type with that after CASE: \""
+            + caseOIResolver.get().getTypeName() + "\" is expected but \""
+            + childrenDesc.get(i).getTypeString() + "\" is found")
+      } else {
+        if (!returnOIResolver.update(childrenDesc.get(i).getWritableObjectInspector())) {
+          throw new UDFArgumentTypeException(i + 1,
+            "The expressions after THEN should have the same type: \""
+            + returnOIResolver.get().getTypeName()
+            + "\" is expected but \"" + childrenDesc.get(i).getTypeString()
+            + "\" is found")
+        }
+      }
+    }
+    
+    for(i <- 0 until children.length) {
+      if (i == 0 || (i % 2 == 1 && i != children.length - 1))
+        subnodes.+=(ConverterNode(children(i), caseOIResolver.get(), ConverterType.HIVE_CONVERTER))
+      else
+        subnodes.+=(ConverterNode(children(i), returnOIResolver.get(), ConverterType.HIVE_CONVERTER))
+    }
+    
+    assert(this.getOutputInspector() == returnOIResolver.get())
+
+    subnodes.toArray
+  }
+}
+
+object UDFCase {
+  def apply(node: GenericFunNode) = new UDFCase(node)
 }

@@ -90,6 +90,8 @@ case class UDFOPNot(override val node: GenericFunNode)
 case class UDFOPNull(override val node: GenericFunNode)
   extends UnaryUDF(node) {
 
+  // not require any validation, because it's always available
+  override def evaluationType() = EvaluationType.NOT_NULL
   override protected def cgUDFCallPrimitive() = "null==" + v1
   override protected def cgUDFCallBoolean() = {
     var code = cgUDFCallPrimitive()
@@ -99,17 +101,13 @@ case class UDFOPNull(override val node: GenericFunNode)
       null
   }
   
-  override def invalidValueExpr(): String = null
-  override def initValueExpr(): String = null
-  
   override def prepare(rowInspector: ObjectInspector, children: Array[_ <: ExprNode[ExprNodeDesc]]) = {
     if (children.size != 1) {
       throw new CGAssertRuntimeException("expected 1 arguments in the GenericUDFOPNotNullCodeGen")
     }
 
     v1 = ConverterNode(children(0), children(0).getOutputInspector())
-    // not require any validation, because it's always available
-    codeValidationSnippet = ()=>null
+    
     Array(v1)
   }
     
@@ -148,6 +146,9 @@ case class UDFOPBitNotBinaryUDF(override val node: GenericFunNode)
  */
 case class UDFOPNotNull(override val node: GenericFunNode)
   extends UnaryUDF(node) {
+  
+  // not require any validation, because it's always available
+  override def evaluationType() = EvaluationType.NOT_NULL
   override protected def cgUDFCallPrimitive() = "null!=" + v1
   
   override def invalidValueExpr(): String = null
@@ -159,8 +160,6 @@ case class UDFOPNotNull(override val node: GenericFunNode)
     }
 
     v1 = ConverterNode(children(0), children(0).getOutputInspector())
-    // not require any validation, because it's always available
-    codeValidationSnippet = ()=>null
     Array(v1)
   }
     

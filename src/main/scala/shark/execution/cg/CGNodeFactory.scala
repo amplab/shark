@@ -61,6 +61,9 @@ class CGNodeFactory(val context: CGContext) {
       case x: GenericUDFOPNotNull            => UDFOPNotNull(node) // IS NOT NULL
       case x: GenericUDFPrintf               => UDFPrintf(node) // printf
       case x: GenericUDFInstr                => UDFInstr(node) // instr
+      case x: GenericUDFCase                 => UDFCase(node) // case
+      case x: GenericUDFWhen                 => UDFWhen(node) // when
+      case x: GenericUDFIf                   => UDFIf(node) // if
       // TODO as un-recognized genericUDF will lead to code gen fails, and resort to Hive Expr Evals
       // most likely more frequently used GenericUDF would be added in the future.
       case x: GenericUDFBridge               => create(x, node) // bridge

@@ -43,7 +43,6 @@ import shark.execution.cg.node.ConverterType
 case class BridgeUDF(udf: GenericUDFBridge, override val node: GenericFunNode)
   extends UDFCodeGen(node) {
 
-  private var arguments: Array[_<:ExprNode[ExprNodeDesc]] = _
   protected lazy val udfVariableName: String = 
     getContext().createValueVariableName( // create the UDF object
         ValueType.TYPE_UDF, 
@@ -53,8 +52,6 @@ case class BridgeUDF(udf: GenericUDFBridge, override val node: GenericFunNode)
         false, 
         null)
 
-  override def initValueExpr() = null
-  override def invalidValueExpr() = null
   override def evaluationType() = EvaluationType.GET
 
   override protected def cgUDFCall() = {

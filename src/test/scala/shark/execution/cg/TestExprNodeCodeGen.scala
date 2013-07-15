@@ -1433,15 +1433,166 @@ class TestExprNodeCodeGen extends FunSuite with BeforeAndAfterEach {
     
     compareResult(hiveResults, cgResults, true)
   }
+
+  test("if") {
+    var salary = new ExprNodeColumnDesc(TypeInfoFactory.floatTypeInfo, "salary", "a", false)
+    var age = new ExprNodeColumnDesc(TypeInfoFactory.shortTypeInfo, "age", "a", false)
+    var id = new ExprNodeColumnDesc(TypeInfoFactory.longTypeInfo, "id", "a", false)
+    var d = new ExprNodeConstantDesc(TypeInfoFactory.doubleTypeInfo, 3.629.asInstanceOf[Double])
     
+    var v1 = TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc("+", age, id)
+    var v2 = TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc("-", age, id)
+    
+    var descs = ArrayBuffer[ExprNodeDesc]()
+    
+    descs += TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc(
+          "if", 
+          TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc("=", age, age),
+          v1,
+          v2)
+    descs += TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc(
+          "if", 
+          TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc("=", age, id),
+          v1,
+          v2)
+    descs += TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc(
+          "if", 
+          TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc("=", d, id),
+          v1,
+          v2)
+    
+    descs.foreach(desc=> {
+      var cgeval = CGEvaluatorFactory.getEvaluator(desc)
+      var hiveeval = ExprNodeEvaluatorFactory.get(desc)
+      cgeval.initialize(oi)
+      hiveeval.initialize(oi)
+
+//      println(hiveeval.evaluate(cachedLazyStruct))
+//      println(cgeval.evaluate(cgcachedLazyStruct))
+//      println(hiveeval.evaluate(cachedLazyStruct1))
+//      println(cgeval.evaluate(cgcachedLazyStruct1))
+//      println(hiveeval.evaluate(cachedLazyStruct2))
+//      println(cgeval.evaluate(cgcachedLazyStruct2))
+
+      assert(cgeval.evaluate(cgcachedLazyStruct) == hiveeval.evaluate(cachedLazyStruct))
+      assert(cgeval.evaluate(cgcachedLazyStruct1) == hiveeval.evaluate(cachedLazyStruct1))
+      assert(cgeval.evaluate(cgcachedLazyStruct2) == hiveeval.evaluate(cachedLazyStruct2))
+    })
+  }
+  
+  test("when") {
+    var salary = new ExprNodeColumnDesc(TypeInfoFactory.floatTypeInfo, "salary", "a", false)
+    var age = new ExprNodeColumnDesc(TypeInfoFactory.shortTypeInfo, "age", "a", false)
+    var id = new ExprNodeColumnDesc(TypeInfoFactory.longTypeInfo, "id", "a", false)
+    var d = new ExprNodeConstantDesc(TypeInfoFactory.doubleTypeInfo, 3.629.asInstanceOf[Double])
+    
+//    var salary_d = TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc("+", salary, d)
+//    var age_d = TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc("+", age, d)
+//    var id_d = TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc("+", id, d)
+    var salary_d = new ExprNodeConstantDesc(TypeInfoFactory.doubleTypeInfo, 1.629.asInstanceOf[Double])
+    var age_d = new ExprNodeConstantDesc(TypeInfoFactory.doubleTypeInfo, 2.629.asInstanceOf[Double])
+    var id_d = new ExprNodeConstantDesc(TypeInfoFactory.doubleTypeInfo, 3.629.asInstanceOf[Double])
+    
+    var descs = ArrayBuffer[ExprNodeDesc]()
+    
+    descs += TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc(
+          "when", 
+          TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc("=", age_d, age_d),
+          salary_d,
+          TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc("=", age_d, salary),
+          age_d,
+          id_d)
+    descs += TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc(
+          "when", 
+          TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc("=", age_d, id_d),
+          salary_d,
+          TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc("=", age, age),
+          age_d,
+          id_d)
+    descs += TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc(
+          "when", 
+          TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc("=", age_d, id_d),
+          salary_d,
+          TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc("=", age_d, id),
+          age_d,
+          id_d)
+    
+    descs.foreach(desc=> {
+      var cgeval = CGEvaluatorFactory.getEvaluator(desc)
+      var hiveeval = ExprNodeEvaluatorFactory.get(desc)
+      cgeval.initialize(oi)
+      hiveeval.initialize(oi)
+
+//      println(hiveeval.evaluate(cachedLazyStruct))
+//      println(cgeval.evaluate(cgcachedLazyStruct))
+//      println(hiveeval.evaluate(cachedLazyStruct1))
+//      println(cgeval.evaluate(cgcachedLazyStruct1))
+//      println(hiveeval.evaluate(cachedLazyStruct2))
+//      println(cgeval.evaluate(cgcachedLazyStruct2))
+
+      assert(cgeval.evaluate(cgcachedLazyStruct) == hiveeval.evaluate(cachedLazyStruct))
+      assert(cgeval.evaluate(cgcachedLazyStruct1) == hiveeval.evaluate(cachedLazyStruct1))
+      assert(cgeval.evaluate(cgcachedLazyStruct2) == hiveeval.evaluate(cachedLazyStruct2))
+    })
+  }
+  
+  test("expression case") {
+    var salary = new ExprNodeColumnDesc(TypeInfoFactory.floatTypeInfo, "salary", "a", false)
+    var age = new ExprNodeColumnDesc(TypeInfoFactory.shortTypeInfo, "age", "a", false)
+    var id = new ExprNodeColumnDesc(TypeInfoFactory.longTypeInfo, "id", "a", false)
+    var v1 = new ExprNodeConstantDesc(TypeInfoFactory.shortTypeInfo, 1.asInstanceOf[Short])
+    var v2 = new ExprNodeConstantDesc(TypeInfoFactory.shortTypeInfo, 2.asInstanceOf[Short])
+    var v3 = new ExprNodeConstantDesc(TypeInfoFactory.shortTypeInfo, 3.asInstanceOf[Short])
+    
+    var descs = ArrayBuffer[ExprNodeDesc]()
+    
+    // CASE age WHEN 1 THEN 2 END
+    descs += TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc(
+          "case", age, // case age 
+          v1, // when age = 1
+          v2) // then 2
+    // CASE age WHEN (1 + age) THEN (salary + 2) ELSE (salary+3) END
+    descs += TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc(
+          "case", age, // case age 
+          TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc("+", // when 
+              v1,
+              age), 
+          TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc("+", // then 
+              salary, 
+              v2), 
+          TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc("+", // else 
+              salary, 
+              v3)) 
+    // CASE (age+1) WHEN (age+2) THEN (id + id) WHEN (age+3) THEN (id+age) ELSE (2+id) END
+    descs += TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc(
+          "case", 
+          TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc("+", age, v1), // case
+          TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc("+", age, v2), // when
+          TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc("+", id, id), // then
+          TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc("+", age, v3), // when
+          TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc("+", id, age), // then
+          TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc("+", v2, id)) // else
+    
+    descs.foreach(desc=> {
+      var cgeval = CGEvaluatorFactory.getEvaluator(desc)
+      var hiveeval = ExprNodeEvaluatorFactory.get(desc)
+      cgeval.initialize(oi)
+      hiveeval.initialize(oi)
+      
+      assert(cgeval.evaluate(cgcachedLazyStruct) == hiveeval.evaluate(cachedLazyStruct))
+      assert(cgeval.evaluate(cgcachedLazyStruct1) == hiveeval.evaluate(cachedLazyStruct1))
+      assert(cgeval.evaluate(cgcachedLazyStruct2) == hiveeval.evaluate(cachedLazyStruct2))
+    })
+  }
+  
 //  @Test
 //  def test() {
-//    var x = new ExprNodeColumnDesc(TypeInfoFactory.stringTypeInfo, "depart", "a", false)
-//    var y = new ExprNodeColumnDesc(TypeInfoFactory.stringTypeInfo, "depart", "a", false)
+//    var x = new ExprNodeColumnDesc(TypeInfoFactory.stringTypeInfo, "testnullstring", "a", false)
+//    var y = new ExprNodeColumnDesc(TypeInfoFactory.stringTypeInfo, "testnullstring", "a", false)
 //    var desc: ExprNodeDesc = null
 //
 //    try {
-//      desc = TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc("isnotnull", x)
+//      desc = TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc("<=>", x, y)
 //    } catch {
 //      case _ => // do nothing
 //    }

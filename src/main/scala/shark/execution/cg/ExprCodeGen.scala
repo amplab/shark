@@ -35,6 +35,7 @@ import shark.LogHelper
  * SET: indicate the node value is retrieved from the re-implemented UDF/GenericUDF,
  *      need to provide a Writable object to store the real value and an extra boolean value 
  *      to indicate its validity (Null or Not Null)
+ * NOT_NULL: as the the SET, but the the node value can NOT be null constantly
  * GET: indicate the node value is retrieved from UDF or ObjectInspector calls,
  *      need to provide a Writable reference to point to that value.
  * CONSTANT: indicate the node is constant variable,
@@ -43,7 +44,7 @@ import shark.LogHelper
  * NULL: always be null value
  */
 object EvaluationType extends Enumeration {
-  val SET, GET, CONSTANT, NULL = Value
+  val SET, NOT_NULL, GET, CONSTANT, NULL = Value
 }
 
 /**
@@ -65,6 +66,7 @@ abstract class ExprCodeGen(@BeanProperty val context: CGContext)
   var codeValidationSnippet:()=>String = ()=>{
     evaluationType() match {
       case EvaluationType.GET      => resultVariableName() + "!=null"
+      case EvaluationType.NOT_NULL => null
       case EvaluationType.CONSTANT => "true"
       case EvaluationType.NULL     => "false"
       case EvaluationType.SET      => nullValueIndicatorVariableName()
@@ -111,12 +113,28 @@ abstract class ExprCodeGen(@BeanProperty val context: CGContext)
   /**
    * code snippet of initialize the value of current node in the gen code
    */
-  def initValueExpr(): String = null
-  
+  def initValueExpr(): String = {
+    evaluationType() match {
+      case EvaluationType.GET      => resultVariableName() + "=null"
+      case EvaluationType.NOT_NULL => null
+      case EvaluationType.CONSTANT => null
+      case EvaluationType.NULL     => null
+      case EvaluationType.SET      => nullValueIndicatorVariableName() + "=true"
+    }
+  }
+
   /**
    * code snippet of mark the value of current node as invalid
    */
-  def invalidValueExpr(): String = null
+  def invalidValueExpr(): String = {
+    evaluationType() match {
+      case EvaluationType.GET      => resultVariableName() + "=null"
+      case EvaluationType.NOT_NULL => null
+      case EvaluationType.CONSTANT => null
+      case EvaluationType.NULL     => null
+      case EvaluationType.SET      => nullValueIndicatorVariableName() + "=false"
+    }
+  }
   
   /**
    * variable type represents the current expr value
