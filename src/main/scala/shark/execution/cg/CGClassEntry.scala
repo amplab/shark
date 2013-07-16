@@ -67,9 +67,10 @@ class CGClassEntry(val desc: ExprNodeDesc)
    */
   def initialize(rowInspector: ObjectInspector) = {
     if (!initialized) {
-      synchronized(
+      synchronized {
         if (!initialized) { // double check
           try {
+            logWarning("trying codegen for %s".format(desc.getExprString()))
             var node = new CodeNode(
               CGClassEntry.PACKANGE_NAME,
               CGClassEntry.getRandomClassName(),
@@ -88,14 +89,14 @@ class CGClassEntry(val desc: ExprNodeDesc)
           } catch {
             // if anything wrong with the code gen, then switch off the code gen
             case ioe: Throwable => {
-              ioe.printStackTrace(errStream())
+              logWarning("failed in codegen for %s".format(desc.getExprString()))
               outputOI = null
               clazz = null
             }
           }
           initialized = true
         }
-      )
+      }
     }
 
     evaluator(rowInspector)
@@ -128,32 +129,35 @@ object CGClassEntry extends LogHelper {
 
   private def getRandomClassName() = "GEN" + UUID.randomUUID().toString().replaceAll("\\-", "_")
 
-  def apply(desc: ExprNodeGenericFuncDesc): CGClassEntry = synchronized {
-    var ite = tuples.iterator()
-    var continue = true
+  def apply(desc: ExprNodeGenericFuncDesc): CGClassEntry = {
+    logInfo("LRU tuples size:%s".format(tuples.size()))
     
+    var continue = true
     var tuple : (ExprNodeGenericFuncDesc, CGClassEntry) = null
     
-    // Simple LRU list 
-    while(ite.hasNext && continue) {
-      tuple = ite.next()
-      if(tuple._1.isSame(desc)) {
-        ite.remove() // 0. pick & remove
-        
-        continue = false
+    synchronized {
+      var ite = tuples.iterator()
+      // Simple LRU list 
+      while(ite.hasNext && continue) {
+        tuple = ite.next()
+        if(tuple._1.isSame(desc)) {
+          ite.remove() // 0. pick & remove
+          logInfo("LRU cache hit [%s]".format(desc))
+          continue = false
+        }
       }
+      
+      if (continue) {
+        // not found
+        tuple = (desc, new CGClassEntry(desc)) // 0. or create
+        logInfo("LRU cache miss [%s]".format(desc))
+      }
+      
+      tuples.addFirst(tuple) // 1. put into the head of the list
+  
+      // 2. if cache size is greater than threshold, remove the eldest tuple
+      if (tuples.length > CACHE_SIZE) tuples.removeLast()
     }
-    
-    if (continue) {
-      // not found
-      tuple = (desc, new CGClassEntry(desc)) // 0. or create
-    }
-    
-    tuples.addFirst(tuple) // 1. put into the head of the list
-
-    // 2. if cache size is greater than threshold, remove the eldest tuple
-    if (tuples.length > CACHE_SIZE) tuples.removeLast()
-    
     tuple._2
   }
 }

@@ -41,11 +41,11 @@ object CGEvaluatorFactory extends LogHelper {
    * @param useCG true for retrieving the CodeGen evaluator, otherwise Hive Expr Evaluator 
    */
   def get(desc: ExprNodeDesc, useCG: Boolean): ExprNodeEvaluator = {
+    logInfo("Using CodeGen ExprEvaluator [%s]".format(useCG))
+    
     if (useCG) {
-      logInfo("Using CodeGen for Expression Evaluating")
       getEvaluator(desc, false)
     } else {
-      logInfo("Using Hive ExprEvaluator for Expression Evaluating")
       ExprNodeEvaluatorFactory.get(desc)
     }
   }
