@@ -121,6 +121,11 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     expectSql("select val, count(*) from test_bigint_cached where key=484 group by val", "val_484\t1")
   }
 
+  test("limit") {
+    assert(sc.sql("select * from test limit 10").length == 10)
+    assert(sc.sql("select * from test limit 501").length == 500)
+  }
+
   //////////////////////////////////////////////////////////////////////////////
   // sorting
   //////////////////////////////////////////////////////////////////////////////
