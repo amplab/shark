@@ -143,6 +143,11 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     expectSql("select * from users order by name desc, id desc limit 2", Array("2\tB", "3\tA"), false)
   }
 
+  test("limit") {
+    assert(sc.sql("select * from test limit 10").length == 10)
+    assert(sc.sql("select * from test limit 501").length == 500)
+  }
+
   //////////////////////////////////////////////////////////////////////////////
   // column pruning
   //////////////////////////////////////////////////////////////////////////////
