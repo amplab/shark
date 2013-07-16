@@ -64,6 +64,8 @@ object SharkBuild extends Build {
     javaOptions += "-XX:MaxPermSize=512m",
     javaOptions += "-Xmx2g",
 
+    testOptions in Test += Tests.Argument("-oF"), // Full stack trace on test failures
+
     testListeners <<= target.map(
       t => Seq(new eu.henkelmann.sbt.JUnitXmlTestsListener(t.getAbsolutePath))),
 
