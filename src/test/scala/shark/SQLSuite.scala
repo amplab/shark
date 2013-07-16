@@ -122,6 +122,11 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     expect("select val, count(*) from test_bigint_cached where key=484 group by val", "val_484\t1")
   }
 
+  test("limit") {
+    assert(sc.sql("select * from test limit 10").length == 10)
+    assert(sc.sql("select * from test limit 501").length == 500)
+  }
+
   //////////////////////////////////////////////////////////////////////////////
   // column pruning
   //////////////////////////////////////////////////////////////////////////////
@@ -237,7 +242,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     expect("select val from sharktest5Cached where key = 407", "val_407")
     assert(SharkEnv.memoryMetadataManager.contains("sharkTest5Cached"))
   }
-  
+
   test("dropping cached tables should clean up RDDs") {
     sc.sql("drop table if exists sharkTest5Cached")
     sc.sql("""create table sharkTest5Cached TBLPROPERTIES ("shark.cache" = "true") as
