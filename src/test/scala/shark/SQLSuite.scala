@@ -123,8 +123,13 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   test("limit") {
-    assert(sc.sql("select * from test limit 10").length == 10)
-    assert(sc.sql("select * from test limit 501").length == 500)
+    assert(sc.sql("select * from test limit 10").length === 10)
+    assert(sc.sql("select * from test limit 501").length === 500)
+    sc.sql("drop table if exists test_limit0")
+    assert(sc.sql("select * from test limit 0").length === 0)
+    assert(sc.sql("create table test_limit0 as select * from test limit 0").length === 0)
+    assert(sc.sql("select * from test_limit0 limit 0").length === 0)
+    assert(sc.sql("select * from test_limit0 limit 1").length === 0)
   }
 
   //////////////////////////////////////////////////////////////////////////////
