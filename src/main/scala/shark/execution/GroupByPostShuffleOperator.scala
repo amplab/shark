@@ -299,15 +299,23 @@ class GroupByPostShuffleOperator extends GroupByPreShuffleOperator with HiveTopO
             row(0) = nextRow(0)
             row(1) = nextRow(1)
 
-            if (row(1) != null) {
-              // Aggregate the non distinct columns from the values.
-              GroupByPostShuffleOperator.super.aggregateExistingKey(row, aggrs)
-            }
-
             assert(unionExprEvaluator != null)
             // union tag is the tag (index) for the distinct column.
             val uo = unionExprEvaluator.evaluate(row).asInstanceOf[UnionObject]
             val unionTag = uo.getTag.toInt
+
+            if (unionTag == 0) {
+              // Aggregate the non distinct columns from the values.
+              for (pos <- nonDistinctAggrs) {
+                val o = new Array[Object](aggregationParameterFields(pos).length)
+                var pi = 0
+                while (pi < aggregationParameterFields(pos).length) {
+                  o(pi) = aggregationParameterFields(pos)(pi).evaluate(row)
+                  pi += 1
+                }
+                aggregationEvals(pos).aggregate(aggrs(pos), o)
+              }
+            }
 
             // update non-distinct aggregations : "KEY._colx:t._coly"
             val nonDistinctKeyAgg: JSet[java.lang.Integer] = nonDistinctKeyAggrs.get(unionTag)
