@@ -45,12 +45,15 @@ import javax.tools.ToolProvider
 import scala.collection.mutable.LinkedHashSet
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ArrayBuffer
+
+import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.ql.plan.ExprNodeDesc
 import org.apache.hadoop.hive.ql.plan.ExprNodeGenericFuncDesc
+
 import shark.LogHelper
 import shark.execution.cg.node.CodeNode
-import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo
+
 
 /**
  * Get the CGExecutor instance from ExprNodeDesc:
@@ -80,10 +83,12 @@ class CGClassEntry(val desc: ExprNodeDesc)
               outputOI = node.getOutputInspector()
 
               if (outputOI != null) {
-                if (node.constantNull())
+                if (node.constantNull()) {
+                  logInfo("Constant Null for %s".format(desc.getExprString()))
                   clazz = NullEvaluatorClass()
-                else
-                  clazz = createClass(node.fullClassName, node.cgEvaluate())
+                } else {
+                  clazz = createClass(node)
+                }
               }
             }
           } catch {
@@ -115,8 +120,10 @@ class CGClassEntry(val desc: ExprNodeDesc)
     }
   }
 
-  protected def createClass(classFullName: String, code: String): Class[IEvaluate] = {
-    var clz = JavaCompilerHelper.compile(classFullName, code)
+  protected def createClass(node: CodeNode): Class[IEvaluate] = {
+    var code = node.cgEvaluate()
+    logInfo("%s==>\n%s".format(node.desc.getExprString(), code))
+    var clz = JavaCompilerHelper.compile(node.fullClassName, code)
 
     clz.asInstanceOf[Class[IEvaluate]]
   }
@@ -167,7 +174,6 @@ object CGClassEntry extends LogHelper {
  */
 object JavaCompilerHelper extends LogHelper with DiagnosticListener[JavaFileObject] {
   val FOR_UNIT_TEST_WORK_AROUND = "for_unit_test_workaround"
-  private lazy val classFileManager = new SingleClassFileManager()
 
   override def report(d: Diagnostic[_ <: JavaFileObject]) {
     logError("Line:%s Msg:%s Source:%s".
@@ -225,6 +231,7 @@ object JavaCompilerHelper extends LogHelper with DiagnosticListener[JavaFileObje
    * @throws CGAssertRuntimeException if anything wrong in compiling
    */
   def compile(fullClassName: String, code: String) = {
+    var classFileManager = new SingleClassFileManager()
     classFileManager.compile(List((fullClassName, code)), this, compileOptions())
     classFileManager.loadClass(fullClassName)
   }
@@ -234,7 +241,7 @@ object JavaCompilerHelper extends LogHelper with DiagnosticListener[JavaFileObje
  * Classloader for loading the generated class
  */
 class CacheClassLoader(cl: ClassLoader) extends SecureClassLoader(cl) with LogHelper {
-  private var clazzCache = new ConcurrentHashMap[String, Class[_]]()
+  private val clazzCache = new ConcurrentHashMap[String, Class[_]]()
 
   override def findClass(name: String) = {
     var clazz = clazzCache.get(name)
@@ -301,12 +308,7 @@ private class SingleClassFileManager(
 
     var result = compiler.getTask(null, this, dl, options, null, jsObject).call()
 
-    if (result) {
-      files.foreach(x => {
-        logDebug("Compiling: " + x._1)
-        logDebug("Generated Code: " + x._2)
-      })
-    } else {
+    if (!result) {
       files.foreach(x => {
         logError("Compiling: " + x._1)
         logError("Generated Code: " + x._2)
