@@ -60,7 +60,7 @@ class HiveStructPartialSerializer(rowObjectInspector: StructObjectInspector,
   private val outputByteBuffer = new OutputByteBuffer
   private val colObjectInspectors = fields.map(_.getFieldObjectInspector)
   
-  def serialize(row: Object, invert: Boolean = false): Array[Byte] = {
+  def serialize(row: Object, invert: Boolean = false): BytesWritable = {
     outputByteBuffer.reset()
     var i = 0
     while (i < fields.size) {
@@ -70,8 +70,8 @@ class HiveStructPartialSerializer(rowObjectInspector: StructObjectInspector,
         invert)
       i += 1
     }
-    val bytes = new Array[Byte](outputByteBuffer.length)
-    System.arraycopy(outputByteBuffer.getData(), 0, bytes, 0, outputByteBuffer.length)
+    val bytes = new BytesWritable
+    bytes.set(outputByteBuffer.getData, 0, outputByteBuffer.getLength)
     bytes
   }
 }

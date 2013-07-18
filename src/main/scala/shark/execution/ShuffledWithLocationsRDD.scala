@@ -1,6 +1,7 @@
 package spark.rdd
 
 import spark.{Partition, Partitioner, RDD}
+import shark.SharkEnv
 
 /**
  * The resulting RDD from a shuffle (e.g. repartitioning of data).
@@ -13,7 +14,8 @@ import spark.{Partition, Partitioner, RDD}
 class ShuffledWithLocationsRDD[K, V](
     @transient parent: RDD[(K, V)],
     part: Partitioner,
-    @transient locations: Array[Seq[String]]) extends ShuffledRDD(parent, part) {
+    @transient locations: Array[Seq[String]]) 
+    extends ShuffledRDD(parent, part, SharkEnv.shuffleSerializerName) {
 
   override def getPreferredLocations(split: Partition): Seq[String] = {
     if (locations != null) 

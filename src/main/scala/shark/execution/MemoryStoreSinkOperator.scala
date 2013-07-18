@@ -108,16 +108,17 @@ class MemoryStoreSinkOperator extends TerminalOperator {
           val fields = partCols.map(sois.getStructFieldRef(_))
           val bserializer = new HiveStructPartialSerializer(sois, fields)
           rowIter.map { row =>
-            val key = bserializer.serialize(row.asInstanceOf[AnyRef])
+            val key = bserializer.serialize(row.asInstanceOf[AnyRef]).asInstanceOf[BytesWritable]
             val value = serde.serialize(row, op.objectInspector).asInstanceOf[BytesWritable]
-            val valueArr = new Array[Byte](value.getLength)
-            Array.copy(value.getBytes, 0, valueArr, 0, valueArr.getLength)
-            (new BytesWritable(key), valueArr)
+            val reduceKey = new ReduceKeyMapSide(key)
+            (reduceKey, value)
           }
         }
         logInfo("kvRdd generated for table with copartitionCol " + partitionCol + " " + partitioner)
-        new ShuffledWithLocationsRDD(kvRdd, partitioner, locations).mapPartitions(
-            {iter => iter.map(x => x._2)}, true)
+        new ShuffledWithLocationsRDD[Any, Any](kvRdd.asInstanceOf[RDD[(Any, Any)]], 
+            partitioner, locations).mapPartitions(iter => {
+              iter.map { case (k: ReduceKeyReduceSide, v: Array[Byte]) => v }
+            }, true)
       } else {
         inputRdd
       }
