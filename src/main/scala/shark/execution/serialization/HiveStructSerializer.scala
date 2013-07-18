@@ -58,20 +58,21 @@ class HiveStructSerializer(val rowObjectInspector: StructObjectInspector) {
 class HiveStructPartialSerializer(rowObjectInspector: StructObjectInspector, 
                                   fields: Array[StructField]) {
   private val outputByteBuffer = new OutputByteBuffer
-//  private val fields  = cols.map(rowObjectInspector.getStructFieldRef(_))
   private val colObjectInspectors = fields.map(_.getFieldObjectInspector)
   
-  def serialize(row: Object, invert: Boolean = false) = {
+  def serialize(row: Object, invert: Boolean = false): Array[Byte] = {
     outputByteBuffer.reset()
-    for(i <- 0 until fields.size){
+    var i = 0
+    while (i < fields.size) {
       BinarySortableSerDe.serialize(outputByteBuffer, 
-         rowObjectInspector.getStructFieldData(row, fields(i)),
-         colObjectInspectors(i), 
-         invert)
+        rowObjectInspector.getStructFieldData(row, fields(i)),
+        colObjectInspectors(i), 
+        invert)
+      i += 1
     }
     val bytes = new Array[Byte](outputByteBuffer.length)
     System.arraycopy(outputByteBuffer.getData(), 0, bytes, 0, outputByteBuffer.length)
-    new BytesWritable(bytes)
+    bytes
   }
 }
 

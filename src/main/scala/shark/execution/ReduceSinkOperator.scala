@@ -76,7 +76,8 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
     initializeOisAndSers(conf, objectInspector)
   }
 
-  def getPartColName: ArrayBuffer[String] = {  
+  // Get table's partition column names
+  private def getPartColName: ArrayBuffer[String] = {  
     def getGenericFuncColumnName(colDesc: ExprNodeGenericFuncDesc): ArrayBuffer[String] = {
       val colsName = new ArrayBuffer[String]
       colDesc.getChildren().foreach { child =>
@@ -101,6 +102,7 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
     partColsName
   }
   
+  // Get table's column names and convert to internal names eg: _col0 _col1
   def getPartColInternalName: ArrayBuffer[String] = {
     val partColsName = getPartColName
     val tableColsNameToIndex = objectInspector.asInstanceOf[StructObjectInspector].

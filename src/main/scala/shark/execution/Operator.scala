@@ -207,7 +207,8 @@ object Operator extends LogHelper {
    * to do logging, but calling logging automatically adds a reference to the
    * operator (which is not serializable by Java) in the Spark closure.
    */
-  def executeProcessPartition(operator: Operator[_ <: HiveOperator], rdd: RDD[_], preservesPartitioning: Boolean): RDD[_] = {
+  def executeProcessPartition(operator: Operator[_ <: HiveOperator], rdd: RDD[_], 
+      preservesPartitioning: Boolean): RDD[_] = {
     val op = OperatorSerializationWrapper(operator)
     rdd.mapPartitionsWithIndex ({ case(split, partition) =>
       op.logDebug("Started executing mapPartitions for operator: " + op)

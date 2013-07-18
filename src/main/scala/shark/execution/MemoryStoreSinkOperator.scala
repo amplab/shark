@@ -112,7 +112,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
             val value = serde.serialize(row, op.objectInspector).asInstanceOf[BytesWritable]
             val valueArr = new Array[Byte](value.getLength)
             Array.copy(value.getBytes, 0, valueArr, 0, valueArr.getLength)
-            (key, valueArr)
+            (new BytesWritable(key), valueArr)
           }
         }
         logInfo("kvRdd generated for table with copartitionCol " + partitionCol + " " + partitioner)

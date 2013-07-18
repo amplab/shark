@@ -51,7 +51,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
   @BeanProperty var firstConfPartDesc: PartitionDesc  = _
   @BeanProperty var tableDesc: TableDesc = _
   @BeanProperty var localHconf: HiveConf = _
-  var keepPartitioning = true
+  private var keepPartitioning = true
   
   override def preservesPartitioning = keepPartitioning
   
@@ -180,6 +180,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         rdd
       }
 
+    //TODO: we will support copartition joins even for pruned rdds 
     if(prunedRdd.partitions.size != rdd.partitions.size) {
       keepPartitioning = false
     }
