@@ -17,19 +17,17 @@
 
 package shark.memstore2.column
 
-import java.io.ObjectInput
-import java.io.ObjectOutput
-import java.io.Externalizable
+import java.io.{ ObjectInput, ObjectOutput, Externalizable }
 import java.sql.Timestamp
 
 import org.apache.hadoop.io.Text
+import it.unimi.dsi.fastutil.ints.IntArraySet
 
-
-/**
- * Column level statistics, including range (min, max).
- */
+/** Column level statistics, including range (min, max) for columns in cached tables.
+  * These will be get stored in the spark master's memory, per column, per RDD after serialization.
+  */
 sealed trait ColumnStats[@specialized(Boolean, Byte, Short, Int, Long, Float, Double) T]
-  extends Serializable {
+    extends Serializable {
 
   var _nullCount = 0
 
@@ -82,7 +80,7 @@ object ColumnStats {
 
   object IntColumnStats {
     private val UNINITIALIZED = 0  // Haven't seen the first value yet.
-    private val INITIALIAZED = 1   // Seen first, and processing second value.
+    private val INITIALIZED = 1   // Seen first, and processing second value.
     private val ASCENDING = 2
     private val DESCENDING = 3
     private val UNORDERED = 4
@@ -94,41 +92,60 @@ object ColumnStats {
 
     protected var _max = Int.MinValue
     protected var _min = Int.MaxValue
-    private var _lastValue = 0
+    private var _prev = 0
     private var _maxDelta = 0
+
+    // nulls are ignored in IntColumnStats for uniques and transition counting because a Null Bit
+    // Vector encoding wrapper is always expected in the buffer.
+
+    var uniqueCount: Int = 0
+    var transitions: Int = 0
+    protected var transitions_ = transitions // setter protected
 
     def isAscending = _orderedState != DESCENDING && _orderedState != UNORDERED
     def isDescending = _orderedState != ASCENDING && _orderedState != UNORDERED
     def isOrdered = isAscending || isDescending
+
     def maxDelta = _maxDelta
 
     override def append(v: Int) {
       if (v > _max) _max = v
       if (v < _min) _min = v
 
+      if (_orderedState != UNINITIALIZED && v != _prev) {
+        transitions += 1
+      }
+
       if (_orderedState == UNINITIALIZED) {
         // First value.
-        _orderedState = INITIALIAZED
-        _lastValue = v
-      } else if (_orderedState == INITIALIAZED) {
+        _orderedState = INITIALIZED
+        _prev = v
+        transitions = 1
+      } else if (_orderedState == INITIALIZED) {
         // Second value.
-        _orderedState = if (v >= _lastValue) ASCENDING else DESCENDING
-        _maxDelta = math.abs(v - _lastValue)
-        _lastValue = v
+        _orderedState = if (v >= _prev) ASCENDING else DESCENDING
+        _maxDelta = math.abs(v - _prev)
+        _prev = v
       } else if (_orderedState == ASCENDING) {
-        if (v < _lastValue) _orderedState = UNORDERED
-        else {
-          if (v - _lastValue > _maxDelta) _maxDelta = v - _lastValue
-          _lastValue = v
+        if (v < _prev) {
+          _orderedState = UNORDERED
+        } else {
+          if (v - _prev > _maxDelta) _maxDelta = v - _prev
+          _prev = v
         }
       } else if (_orderedState == DESCENDING) {
-        if (v > _lastValue) _orderedState = UNORDERED
-        else {
-          if (_lastValue - v > _maxDelta) _maxDelta = _lastValue - v
-          _lastValue = v
+        if (v > _prev) {
+          _orderedState = UNORDERED
+        } else {
+          if (_prev - v > _maxDelta) _maxDelta = _prev - v
+          _prev = v
         }
       }
     }
+
+    // There is no appendNull override because IntColumns are always expected to be wrapped with
+    // Null Bit Vectors so nulls are handled earlier.
+
   }
 
   class LongColumnStats extends ColumnStats[Long] {
@@ -171,12 +188,47 @@ object ColumnStats {
     // Note: this is not Java serializable because Text is not Java serializable.
     protected var _max: Text = null
     protected var _min: Text = null
+    protected var _prev: Text = null
+
+    // Use these Text objects to copy over contents because Text is not immutable and we reuse the
+    // same Text object to mitigate frequent GC.
+    private var _maxStore: Text = new Text()
+    private var _minStore: Text = new Text()
+    private var _prevStore: Text = new Text()
+
+    var transitions: Int = 0
+    protected var transitions_ = transitions // setter protected
 
     override def append(v: Text) {
-      // Need to make a copy of Text since Text is not immutable and we reuse
-      // the same Text object in serializer to mitigate frequent GC.
-      if (_max == null || v.compareTo(_max) > 0) _max = new Text(v)
-      if (_min == null || v.compareTo(_min) < 0) _min = new Text(v)
+      require (v != null) // appendNull() should have been called
+      if (_max == null || v.compareTo(_max) > 0) {
+        _maxStore.set(v)
+        _max = _maxStore
+      }
+      if (_min == null || v.compareTo(_min) < 0) { 
+        _minStore.set(v)
+        _min = _minStore
+      }
+      if (transitions == 0) { 
+        transitions = 1
+      } else if (_prev == null || v.compareTo(_prev) != 0) {
+        transitions += 1
+      }
+      // must compute transitions before updating _prev
+      if (_prev == null || v.compareTo(_prev) != 0) { 
+        _prevStore.set(v)
+        _prev = _prevStore
+      }
+    }
+
+    override def appendNull() {
+      super.appendNull()
+      if (transitions == 0) { 
+        transitions = 1
+      } else if (null != _prev) {
+        transitions += 1 
+      }
+      _prev = null
     }
 
     override def readExternal(in: ObjectInput) {
