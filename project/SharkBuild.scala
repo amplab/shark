@@ -22,7 +22,7 @@ import Keys._
 object SharkBuild extends Build {
 
   // Shark version
-  val SHARK_VERSION = "0.7.0"
+  val SHARK_VERSION = "0.7.1"
 
   val SPARK_VERSION = "0.7.3"
 
