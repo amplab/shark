@@ -30,6 +30,7 @@ class ByteBufferReaderSuite extends FunSuite {
     val reader = new JavaByteBufferReader(buf)
     testData(reader)
     testPosition(reader)
+    testDuplicate(reader)
   }
 
   test("UnsafeDirectByteBufferReader") {
@@ -38,6 +39,7 @@ class ByteBufferReaderSuite extends FunSuite {
     val reader = ByteBufferReader.createUnsafeReader(buf)
     testData(reader)
     testPosition(reader)
+    testDuplicate(reader)
   }
 
   test("UnsafeHeapByteBufferReader") {
@@ -46,6 +48,7 @@ class ByteBufferReaderSuite extends FunSuite {
     val reader = ByteBufferReader.createUnsafeReader(buf)
     testData(reader)
     testPosition(reader)
+    testDuplicate(reader)
   }
 
   val data_size = 4 + 8 + 1 + 8 + 4 + 2 + 3 + 2*2 + 3*4 + 3*8 + 3*4 + 3*8
@@ -123,5 +126,15 @@ class ByteBufferReaderSuite extends FunSuite {
   def testPosition(reader: ByteBufferReader) {
     reader.position(4)
     assert(reader.getLong() === 10034534500L)
+  }
+
+  def testDuplicate(reader: ByteBufferReader) {
+    reader.position(0)
+    assert(reader.getInt() === 655350)
+    val reader1 = reader.duplicate()
+    assert(reader.getLong() === 10034534500L)
+    assert(reader1.getLong() === 10034534500L)
+    assert(reader.getByte() === 1.toByte)
+    assert(reader1.getByte() === 1.toByte)
   }
 }
