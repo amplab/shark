@@ -17,7 +17,7 @@
 
 package shark.execution
 
-import java.util.{ArrayList, List => JList, Random}
+import java.util.{ArrayList, Arrays, List => JList, Random}
 
 import scala.collection.Iterator
 import scala.collection.JavaConversions._
@@ -302,8 +302,8 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
       System.arraycopy(allKeys, 0, keyBuffer, 0, numDistributionKeys)
       keyBuffer(numDistributionKeys) = null
 
-      // The partition code determins where we are sending the rows.
-      reduceKey.partitionCode = keyBuffer.hashCode()
+      // The partition code determines where we are sending the rows.
+      reduceKey.partitionCode = Arrays.hashCode(keyBuffer)
 
       Iterator.tabulate(distinctColumnIndices.length) { distinctI =>
         var i = 0
