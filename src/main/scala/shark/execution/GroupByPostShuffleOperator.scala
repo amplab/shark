@@ -196,7 +196,7 @@ class GroupByPostShuffleOperator extends GroupByPreShuffleOperator with HiveTopO
     var numReduceTasks = hconf.getIntVar(HiveConf.ConfVars.HADOOPNUMREDUCERS)
     // If we have no keys, it needs a total aggregation with 1 reducer.
     if (numReduceTasks < 1 || conf.getKeys.size == 0) numReduceTasks = 1
-    val partitioner = new HashPartitioner(numReduceTasks)
+    val partitioner = new ReduceKeyPartitioner(numReduceTasks)
 
     val repartitionedRDD = new ShuffledRDD[Any, Any](
       inputRdd, partitioner, SharkEnv.shuffleSerializerName)

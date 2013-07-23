@@ -107,8 +107,13 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   test("count distinct") {
+    sc.sql("set mapred.reduce.tasks=3")
     expectSql("select count(distinct key) from test", "309")
     expectSql("select count(distinct key) from test_cached", "309")
+    expectSql(
+      """|SELECT substr(key,1,1), count(DISTINCT substr(val,5)) from test
+         |GROUP BY substr(key,1,1)""".stripMargin,
+      Array("0\t1", "1\t71", "2\t69", "3\t62", "4\t74", "5\t6", "6\t5", "7\t6", "8\t8", "9\t7"))
   }
 
   test("count bigint") {

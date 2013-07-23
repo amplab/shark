@@ -92,7 +92,9 @@ class ReduceKeyMapSide(var bytesWritable: BytesWritable) extends ReduceKey
 
   override def hashCode = bytesWritable.hashCode()
 
-  override def toString = bytesWritable.toString()
+  override def toString = {
+    this.getClass.getName + "(" + partitionCode + ": " + bytesWritable.toString + ")"
+  }
 
   override def writeExternal(out: ObjectOutput) {
     bytesWritable.write(out)
@@ -126,7 +128,9 @@ class ReduceKeyReduceSide(private val _byteArray: Array[Byte]) extends ReduceKey
 
   override def hashCode = WritableComparator.hashBytes(_byteArray, _byteArray.length)
 
-  override def toString = new BytesWritable(byteArray).toString
+  override def toString = {
+    this.getClass.getName + "(" + new BytesWritable(byteArray).toString + ")"
+  }
 }
 
 
