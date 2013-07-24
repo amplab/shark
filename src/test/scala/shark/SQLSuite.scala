@@ -47,7 +47,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.sql("drop table if exists test_cached")
     sc.sql("CREATE TABLE test_cached AS SELECT * FROM test")
 
-    // test
+    // test_null
     sc.sql("drop table if exists test_null")
     sc.sql("CREATE TABLE test_null (key INT, val STRING)")
     sc.sql("LOAD DATA LOCAL INPATH '${hiveconf:shark.test.data.path}/kv3.txt' INTO TABLE test_null")
@@ -78,36 +78,37 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     System.clearProperty("spark.driver.port")
   }
 
-  private def expect(sql: String, expectedResults: Array[String]) {
-    val results = sc.sql(sql).sortWith(_ < _)
-    val expected = expectedResults.sortWith(_ < _)
+  private def expectSql(sql: String, expectedResults: Array[String], sort: Boolean = true) {
+    val results = if (sort) sc.sql(sql).sortWith(_ < _) else sc.sql(sql)
+    val expected = if (sort) expectedResults.sortWith(_ < _) else expectedResults
     assert(results.corresponds(expected)(_.equals(_)),
+      "In SQL: " + sql + "\n" +
       "Expected: " + expected.mkString("\n") + "; got " + results.mkString("\n"))
   }
 
   // A shortcut for single row results.
-  private def expect(sql: String, expectedResult: String) {
-    expect(sql, Array(expectedResult))
+  private def expectSql(sql: String, expectedResult: String) {
+    expectSql(sql, Array(expectedResult))
   }
 
   //////////////////////////////////////////////////////////////////////////////
   // basic SQL
   //////////////////////////////////////////////////////////////////////////////
   test("count") {
-    expect("select count(*) from test", "500")
-    expect("select count(*) from test_cached", "500")
+    expectSql("select count(*) from test", "500")
+    expectSql("select count(*) from test_cached", "500")
   }
 
   test("filter") {
-    expect("select * from test where key=100 or key=497",
+    expectSql("select * from test where key=100 or key=497",
       Array("100\tval_100", "100\tval_100", "497\tval_497"))
-    expect("select * from test_cached where key=100 or key=497",
+    expectSql("select * from test_cached where key=100 or key=497",
       Array("100\tval_100", "100\tval_100", "497\tval_497"))
   }
 
   test("count distinct") {
-    expect("select count(distinct key) from test", "309")
-    expect("select count(distinct key) from test_cached", "309")
+    expectSql("select count(distinct key) from test", "309")
+    expectSql("select count(distinct key) from test_cached", "309")
   }
 
   test("count bigint") {
@@ -117,26 +118,55 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       OVERWRITE INTO TABLE test_bigint""")
     sc.sql("drop table if exists test_bigint_cached")
     sc.sql("create table test_bigint_cached as select * from test_bigint")
-    expect("select val, count(*) from test_bigint_cached where key=484 group by val", "val_484\t1")
+    expectSql("select val, count(*) from test_bigint_cached where key=484 group by val", "val_484\t1")
+  }
+
+  test("limit") {
+    assert(sc.sql("select * from test limit 10").length === 10)
+    assert(sc.sql("select * from test limit 501").length === 500)
+    sc.sql("drop table if exists test_limit0")
+    assert(sc.sql("select * from test limit 0").length === 0)
+    assert(sc.sql("create table test_limit0 as select * from test limit 0").length === 0)
+    assert(sc.sql("select * from test_limit0 limit 0").length === 0)
+    assert(sc.sql("select * from test_limit0 limit 1").length === 0)
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // sorting
+  //////////////////////////////////////////////////////////////////////////////
+  test("full order by") {
+    expectSql("select * from users order by id", Array("1\tA", "2\tB", "3\tA"), sort = false)
+    expectSql("select * from users order by id desc", Array("3\tA", "2\tB", "1\tA"), sort = false)
+    expectSql("select * from users order by name, id", Array("1\tA", "3\tA", "2\tB"), sort = false)
+    expectSql("select * from users order by name desc, id desc", Array("2\tB", "3\tA", "1\tA"),
+      sort = false)
+  }
+
+  test("full order by with limit") {
+    expectSql("select * from users order by id limit 2", Array("1\tA", "2\tB"), sort = false)
+    expectSql("select * from users order by id desc limit 2", Array("3\tA", "2\tB"), sort = false)
+    expectSql("select * from users order by name, id limit 2", Array("1\tA", "3\tA"), sort = false)
+    expectSql("select * from users order by name desc, id desc limit 2", Array("2\tB", "3\tA"),
+      sort = false)
   }
 
   //////////////////////////////////////////////////////////////////////////////
   // column pruning
   //////////////////////////////////////////////////////////////////////////////
   test("column pruning filters") {
-    expect("select count(*) from test_cached where key > -1", "500")
+    expectSql("select count(*) from test_cached where key > -1", "500")
   }
 
   test("column pruning group by") {
-    expect("select key, count(*) from test_cached group by key order by key limit 1", "0\t3")
+    expectSql("select key, count(*) from test_cached group by key order by key limit 1", "0\t3")
   }
 
   test("column pruning group by with single filter") {
-    expect("select key, count(*) from test_cached where val='val_484' group by key", "484\t1")
+    expectSql("select key, count(*) from test_cached where val='val_484' group by key", "484\t1")
   }
 
   test("column pruning aggregate function") {
-    expect("select val, sum(key) from test_cached group by val order by val desc limit 1",
+    expectSql("select val, sum(key) from test_cached group by val order by val desc limit 1",
       "val_98\t196")
   }
 
@@ -144,13 +174,23 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   // map join
   //////////////////////////////////////////////////////////////////////////////
   test("map join") {
-    expect("""select u.name, count(c.click) from clicks c join users u on (c.id = u.id)
+    expectSql("""select u.name, count(c.click) from clicks c join users u on (c.id = u.id)
       group by u.name having u.name='A'""",
       "A\t3")
   }
 
   test("map join2") {
-    expect("select count(*) from clicks join users on (clicks.id = users.id)", "5")
+    expectSql("select count(*) from clicks join users on (clicks.id = users.id)", "5")
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // join
+  //////////////////////////////////////////////////////////////////////////////
+  test("outer join on null key") {
+    expectSql("""select count(distinct a.val) from
+        (select * from test_null where key is null) a
+        left outer join
+        (select * from test_null where key is null) b on a.key=b.key""", "7")
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -159,17 +199,17 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   test("insert into cached tables") {
     sc.sql("drop table if exists test1_cached")
     sc.sql("create table test1_cached as select * from test")
-    expect("select count(*) from test1_cached", "500")
+    expectSql("select count(*) from test1_cached", "500")
     sc.sql("insert into table test1_cached select * from test where key > -1 limit 499")
-    expect("select count(*) from test1_cached", "999")
+    expectSql("select count(*) from test1_cached", "999")
   }
 
   test("insert overwrite") {
     sc.sql("drop table if exists test2_cached")
     sc.sql("create table test2_cached as select * from test")
-    expect("select count(*) from test2_cached", "500")
+    expectSql("select count(*) from test2_cached", "500")
     sc.sql("insert overwrite table test2_cached select * from test where key > -1 limit 499")
-    expect("select count(*) from test2_cached", "499")
+    expectSql("select count(*) from test2_cached", "499")
   }
 
   test("error when attempting to update cached table(s) using command with multiple INSERTs") {
@@ -188,9 +228,9 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   // test("drop partition") {
   //   sc.sql("create table foo_cached(key int, val string) partitioned by (dt string)")
   //   sc.sql("insert overwrite table foo_cached partition(dt='100') select * from test")
-  //   expect("select count(*) from foo_cached", "500")
+  //   expectSql("select count(*) from foo_cached", "500")
   //   sc.sql("alter table foo_cached drop partition(dt='100')")
-  //   expect("select count(*) from foo_cached", "0")
+  //   expectSql("select count(*) from foo_cached", "0")
   // }
 
   test("create cached table with table properties") {
@@ -198,7 +238,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.sql("""create table ctas_tbl_props TBLPROPERTIES ('shark.cache'='true') as
       select * from test""")
     assert(SharkEnv.memoryMetadataManager.contains("ctas_tbl_props"))
-    expect("select * from ctas_tbl_props where key=407", "407\tval_407")
+    expectSql("select * from ctas_tbl_props where key=407", "407\tval_407")
   }
 
   test("cached tables with complex types") {
@@ -210,11 +250,11 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       overwrite into table test_complex_types""")
     sc.sql("""create table test_complex_types_cached TBLPROPERTIES ("shark.cache" = "true") as
       select * from test_complex_types""")
-    expect("select a from test_complex_types_cached where a = 'a0'", """a0""")
-    expect("select b from test_complex_types_cached where a = 'a0'", """["b00","b01"]""")
-    expect("select c from test_complex_types_cached where a = 'a0'",
+    expectSql("select a from test_complex_types_cached where a = 'a0'", """a0""")
+    expectSql("select b from test_complex_types_cached where a = 'a0'", """["b00","b01"]""")
+    expectSql("select c from test_complex_types_cached where a = 'a0'",
       """[{"c001":"C001","c002":"C002"},{"c011":null,"c012":"C012"}]""")
-    expect("select d from test_complex_types_cached where a = 'a0'",
+    expectSql("select d from test_complex_types_cached where a = 'a0'",
       """{"d01":["d011","d012"],"d02":["d021","d022"]}""")
     assert(SharkEnv.memoryMetadataManager.contains("test_complex_types_cached"))
   }
@@ -223,7 +263,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.sql("set shark.cache.flag.checkTableName=false")
     sc.sql("drop table if exists should_not_be_cached")
     sc.sql("create table should_not_be_cached as select * from test")
-    expect("select key from should_not_be_cached where key = 407", "407")
+    expectSql("select key from should_not_be_cached where key = 407", "407")
     assert(!SharkEnv.memoryMetadataManager.contains("should_not_be_cached"))
     sc.sql("set shark.cache.flag.checkTableName=true")
   }
@@ -232,7 +272,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.sql("drop table if exists sharkTest5Cached")
     sc.sql("""create table sharkTest5Cached TBLPROPERTIES ("shark.cache" = "true") as
       select * from test""")
-    expect("select val from sharktest5Cached where key = 407", "val_407")
+    expectSql("select val from sharktest5Cached where key = 407", "val_407")
     assert(SharkEnv.memoryMetadataManager.contains("sharkTest5Cached"))
   }
 

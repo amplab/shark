@@ -112,7 +112,6 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
     cogrouped.mapPartitions { part =>
       op.initializeOnSlave()
 
-      val tmp = new Array[Object](2)
       val writable = new BytesWritable
       val nullSafes = op.conf.getNullSafes()
 
@@ -127,7 +126,7 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
               op.keyDeserializer.deserialize(writable).asInstanceOf[JList[_]],
               op.keyObjectInspector,
               nullSafes)) {
-          bufs.zipWithIndex.flatMap { case (buf, label) =>
+          bufs.iterator.zipWithIndex.flatMap { case (buf, label) =>
             val bufsNull = Array.fill(op.numTables)(ArrayBuffer[Any]())
             bufsNull(label) = buf
             op.generateTuples(cp.product(bufsNull.asInstanceOf[Array[Seq[Any]]], op.joinConditions))
