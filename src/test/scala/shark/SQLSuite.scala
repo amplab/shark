@@ -47,7 +47,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.sql("drop table if exists test_cached")
     sc.sql("CREATE TABLE test_cached AS SELECT * FROM test")
 
-    // test
+    // test_null
     sc.sql("drop table if exists test_null")
     sc.sql("CREATE TABLE test_null (key INT, val STRING)")
     sc.sql("LOAD DATA LOCAL INPATH '${hiveconf:shark.test.data.path}/kv3.txt' INTO TABLE test_null")
@@ -140,17 +140,19 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   // sorting
   //////////////////////////////////////////////////////////////////////////////
   test("full order by") {
-    expectSql("select * from users order by id", Array("1\tA", "2\tB", "3\tA"), false)
-    expectSql("select * from users order by id desc", Array("3\tA", "2\tB", "1\tA"), false)
-    expectSql("select * from users order by name, id", Array("1\tA", "3\tA", "2\tB"), false)
-    expectSql("select * from users order by name desc, id desc", Array("2\tB", "3\tA", "1\tA"), false)
+    expectSql("select * from users order by id", Array("1\tA", "2\tB", "3\tA"), sort = false)
+    expectSql("select * from users order by id desc", Array("3\tA", "2\tB", "1\tA"), sort = false)
+    expectSql("select * from users order by name, id", Array("1\tA", "3\tA", "2\tB"), sort = false)
+    expectSql("select * from users order by name desc, id desc", Array("2\tB", "3\tA", "1\tA"),
+      sort = false)
   }
 
   test("full order by with limit") {
-    expectSql("select * from users order by id limit 2", Array("1\tA", "2\tB"), false)
-    expectSql("select * from users order by id desc limit 2", Array("3\tA", "2\tB"), false)
-    expectSql("select * from users order by name, id limit 2", Array("1\tA", "3\tA"), false)
-    expectSql("select * from users order by name desc, id desc limit 2", Array("2\tB", "3\tA"), false)
+    expectSql("select * from users order by id limit 2", Array("1\tA", "2\tB"), sort = false)
+    expectSql("select * from users order by id desc limit 2", Array("3\tA", "2\tB"), sort = false)
+    expectSql("select * from users order by name, id limit 2", Array("1\tA", "3\tA"), sort = false)
+    expectSql("select * from users order by name desc, id desc limit 2", Array("2\tB", "3\tA"),
+      sort = false)
   }
 
   test("limit") {
@@ -189,6 +191,16 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
 
   test("map join2") {
     expectSql("select count(*) from clicks join users on (clicks.id = users.id)", "5")
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // join
+  //////////////////////////////////////////////////////////////////////////////
+  test("outer join on null key") {
+    expectSql("""select count(distinct a.val) from
+        (select * from test_null where key is null) a
+        left outer join
+        (select * from test_null where key is null) b on a.key=b.key""", "7")
   }
 
   //////////////////////////////////////////////////////////////////////////////
