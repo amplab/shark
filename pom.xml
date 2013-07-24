@@ -16,7 +16,7 @@
     <encoding>UTF-8</encoding>
     <scala.version>2.9.3</scala.version>
     <hive.version>0.9.0-csd-19</hive.version>
-    <spark.version>0.8.0-candidate-csd-6</spark.version>
+    <spark.version>0.8.0-candidate-csd-7-SNAPSHOT</spark.version>
     <cdh.version>4.1.2</cdh.version>
     <java.version>1.5</java.version>
     <hbase.version>0.94.5-csd-30</hbase.version>
@@ -226,7 +226,7 @@
     <dependency>
       <groupId>org.tachyonproject</groupId>
       <artifactId>tachyon</artifactId>
-      <version>0.2.1-csd-2</version>
+      <version>0.2.1-csd-3-SNAPSHOT</version>
     </dependency>
     <dependency>
       <groupId>jline</groupId>
