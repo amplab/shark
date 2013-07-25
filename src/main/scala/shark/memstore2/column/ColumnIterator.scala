@@ -148,6 +148,9 @@ object ColumnIterator {
   val RLE_INT = 17
   _iteratorFactory(RLE_INT) = ColumnIteratorFactory.createIntWithEwahRLE
 
+  val LZF_INT = 18
+  _iteratorFactory(LZF_INT) = ColumnIteratorFactory.createIntWithEwahLZF
+
   // Helper methods so we don't need to write the whole thing up there.
   def createFactory[T <: ColumnIterator](c: Class[T]) = {
     ColumnIteratorFactory.create(c)

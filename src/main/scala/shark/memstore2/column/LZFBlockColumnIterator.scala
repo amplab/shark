@@ -30,38 +30,59 @@ import com.ning.compress.lzf.LZFOutputStream
 import com.ning.compress.lzf.LZFEncoder
 import com.ning.compress.lzf.LZFDecoder
 
-/**
- * A wrapper that uses LZ compression. Decompresses in blocks (or chunks) so
- * that large amounts of scratch space will not required for large columns. LZF
- * is a chunk-based algorithm in any case.
- */
-
-
+/** A wrapper that uses LZ compression. Decompresses in blocks (or chunks) so
+  * that large amounts of scratch space will not required for large columns. LZF
+  * is a chunk-based algorithm in any case.
+  */
 class LZFBlockColumnIterator[T <: ColumnIterator](
-  baseIterCls: Class[T], bytes: ByteBufferReader)
+  baseIterCls: Class[T])
     extends ColumnIterator {
 
   var initialized = false
-  var (numUncompressedBytes, compressedArr) = LZFSerializer.readFromBuffer(bytes)
+  var is: InputStream = _
+  var bis: ByteArrayInputStream = _
+  var baseIter: T = _
   // use a safe larger size
   val minChunkSize = math.max(LZFSerializer.MIN_CHUNK_BYTES, 2*LZFSerializer.BLOCK_SIZE)
-  val uncompressedArr = new Array[Byte](minChunkSize)
+  var uncompressedArr = new Array[Byte](minChunkSize)
 
-  val bis: ByteArrayInputStream = new ByteArrayInputStream(compressedArr)
-  val is: InputStream = new LZFInputStream(bis)
+  var uncompressedBB: ByteBuffer = _
+  var rowCount = 0
 
-  val uncompressedBB = ByteBuffer.allocate(numUncompressedBytes)
-  // logDebug("numUncompressedBytes " + numUncompressedBytes)
-  uncompressedBB.order(ByteOrder.nativeOrder())
-
-  val baseIter: T = {
-    val ctor = baseIterCls.getConstructor(classOf[ByteBufferReader])
-    val uncompressedBBR = ByteBufferReader.createUnsafeReader(uncompressedBB)
-    ctor.newInstance(uncompressedBBR).asInstanceOf[T]
+  /** auxiliary constructor
+    */
+  def this(baseIterCls: Class[T], bytes: ByteBufferReader) = {
+    this(baseIterCls)
+    initialize(bytes)
   }
 
+  /** delayed construction - required while composing iterators - see factory
+    */
+  def initialize(bytes: ByteBufferReader) {
+    var (numUncompressedBytes, compressedArr) = LZFSerializer.readFromBuffer(bytes)
 
-  var rowCount = 0
+    bis = new ByteArrayInputStream(compressedArr)
+    is = new LZFInputStream(bis)
+
+    if (bis == null) {
+      throw new RuntimeException("ByteArrayInputStream bis is null")
+    }
+
+    if (is == null) {
+      throw new RuntimeException("LZFInputStream [is] is null")
+    }
+
+    uncompressedBB = ByteBuffer.allocate(numUncompressedBytes)
+    // logDebug("numUncompressedBytes " + numUncompressedBytes)
+    uncompressedBB.order(ByteOrder.nativeOrder())
+
+    baseIter = {
+      val ctor = baseIterCls.getConstructor(classOf[ByteBufferReader])
+      val uncompressedBBR = ByteBufferReader.createUnsafeReader(uncompressedBB)
+      ctor.newInstance(uncompressedBBR).asInstanceOf[T]
+    }
+  }
+
   override def next = {
     initialized = true
     (rowCount % LZFSerializer.BLOCK_SIZE) match {

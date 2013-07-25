@@ -45,7 +45,6 @@ class ColumnIteratorSuite extends FunSuite {
 
   val PARALLEL_MODE = true
 
-
   test("void column") {
     val builder = new VoidColumnBuilder
     builder.initialize(5)
@@ -155,6 +154,31 @@ class ColumnIteratorSuite extends FunSuite {
     assert(d.get(3) == newd.get(3))
   }
  
+  test("LZF Int") {
+    val builder = new IntColumnBuilder
+    builder.scheme = CompressionScheme.LZF
+
+    testColumn(
+      Array[java.lang.Integer](1, 2, 5, 134, -12, 0, 99, 1),
+      builder,
+      PrimitiveObjectInspectorFactory.writableIntObjectInspector,
+      classOf[LZFBlockColumnIterator[IntColumnIterator.Default]],
+      false)
+    assert(builder.stats.min === -12)
+    assert(builder.stats.max === 134)
+
+    testColumn(
+      Array[java.lang.Integer]
+        (null, 1, 2, null, 5, 134, -12, null, 0, 99, null, null, null, 1),
+      builder,
+      PrimitiveObjectInspectorFactory.writableIntObjectInspector,
+      classOf[LZFBlockColumnIterator[IntColumnIterator.Default]],
+      true)
+    assert(builder.stats.min === -12)
+    assert(builder.stats.max === 134)
+
+  }
+
   test("RLE") {
 
     def testRLE(l: List[Int]) = {
@@ -252,8 +276,17 @@ class ColumnIteratorSuite extends FunSuite {
   }
 
   test("int column") {
-    val builder = new IntColumnBuilder
- 
+    var builder = new IntColumnBuilder
+    testColumn(
+      Array[java.lang.Integer](1, 2, 5, 134, -12, 0, 99, 1),
+      builder,
+      PrimitiveObjectInspectorFactory.writableIntObjectInspector,
+      classOf[DictionaryEncodedIntColumnIterator.Default],
+      false)
+    assert(builder.stats.min === -12)
+    assert(builder.stats.max === 134)
+
+    builder = new IntColumnBuilder
     testColumn(
       Array[java.lang.Integer]
         (null, 1, 2, null, 5, 134, -12, null, 0, 99, null, null, null, 1),
@@ -264,36 +297,29 @@ class ColumnIteratorSuite extends FunSuite {
     assert(builder.stats.min === -12)
     assert(builder.stats.max === 134)
 
-   testColumn(
-     Array[java.lang.Integer](0, 1, 2, 5, 134, -12, 1, 0, 99, 1),
-     builder,
-     PrimitiveObjectInspectorFactory.writableIntObjectInspector,
-     classOf[DictionaryEncodedIntColumnIterator.Default],
-     false)
-    assert(builder.stats.min === -12)
-    assert(builder.stats.max === 134)
-
-    val repeats = List.fill(20000)(2) 
+    val repeats = List.fill(20000)(2)
     val seqWithRepeats = List.concat(repeats, Range(-100, 100, 1))
     val seqWRJava : Seq[java.lang.Integer] = for {
       i <- seqWithRepeats
     } yield new java.lang.Integer(i)
 
+    builder = new IntColumnBuilder
     testColumn(
       seqWRJava,
       builder,
       PrimitiveObjectInspectorFactory.writableIntObjectInspector,
-      classOf[DictionaryEncodedIntColumnIterator.Default],
+      classOf[RLEColumnIterator[IntColumnIterator.Default]],
       false)
     assert(builder.stats.min === -100)
     assert(builder.stats.max === 99)
 
-    // too many unique values (>256) - compression should not turn on
+    // too many unique values (>256) - dict compression should not turn on
     val list = Range(-300, 300, 1)
     val seqJava : Seq[java.lang.Integer] = for {
       i <- list
     } yield new java.lang.Integer(i)
 
+    builder = new IntColumnBuilder
     testColumn(
       seqJava,
       builder,
@@ -306,21 +332,21 @@ class ColumnIteratorSuite extends FunSuite {
 
     val nulls = List.fill(10000)(null)
     val seqWithNull = List.concat(nulls, seqJava)
-    assert(seqWithNull.size == 10600)
+    assert(seqWithNull.size === 10600)
 
+    builder = new IntColumnBuilder
     testColumn(
-      seqJava,
+      seqWithNull,
       builder,
       PrimitiveObjectInspectorFactory.writableIntObjectInspector,
       classOf[IntColumnIterator.Default],
-      false) // TODO - should be EWAH nullable - but cannot get types right for
-             // test to pass
+      true)
     assert(builder.stats.min === -300)
     assert(builder.stats.max === 299)
   }
 
   test("long column") {
-    val builder = new LongColumnBuilder
+    var builder = new LongColumnBuilder
     testColumn(
       Array[java.lang.Long](1L, -345345L, 15L, 0L, 23445456L),
       builder,
@@ -329,6 +355,7 @@ class ColumnIteratorSuite extends FunSuite {
     assert(builder.stats.min === -345345L)
     assert(builder.stats.max === 23445456L)
 
+    builder = new LongColumnBuilder
     testColumn(
       Array[java.lang.Long](null, -345345L, 15L, 0L, null),
       builder,
@@ -380,7 +407,7 @@ class ColumnIteratorSuite extends FunSuite {
   }
 
   test("string column") {
-    val builder = new StringColumnBuilder
+    var builder = new StringColumnBuilder
     testColumn(
       Array[Text](new Text("a"), new Text(""), new Text("b"), new Text("Abcdz")),
       builder,
@@ -392,6 +419,7 @@ class ColumnIteratorSuite extends FunSuite {
     assert(builder.stats.min.toString === "")
     assert(builder.stats.max.toString === "b")
 
+    builder = new StringColumnBuilder
     testColumn(
       Array[Text](new Text("a"), new Text(""), null, new Text("b"), new Text("Abcdz"), null),
       builder,
@@ -407,13 +435,26 @@ class ColumnIteratorSuite extends FunSuite {
     val seqWithRepeats = List.concat(repeats,
       Array[Text](new Text("a"), new Text(""), null, null, null, new Text("b"), 
         new Text("Abcdz")))
-    val seqWithRepeatedRepeats = List.concat(repeats, repeats, repeats, repeats)
+    val seqWithRepeatedRepeats = List.concat(seqWithRepeats, seqWithRepeats, seqWithRepeats, seqWithRepeats)
+    assert(seqWithRepeatedRepeats.size === 207*4)
 
+    builder = new StringColumnBuilder
     testColumn(
       seqWithRepeatedRepeats,
       builder,
       PrimitiveObjectInspectorFactory.writableStringObjectInspector,
       classOf[RLEColumnIterator[StringColumnIterator.Default]],
+      false,
+      (a, b) => (a.equals(b.toString))
+    )
+
+    builder = new StringColumnBuilder
+    builder.scheme = CompressionScheme.LZF
+    testColumn(
+      seqWithRepeatedRepeats,
+      builder,
+      PrimitiveObjectInspectorFactory.writableStringObjectInspector,
+      classOf[LZFBlockColumnIterator[StringColumnIterator.Default]],
       false,
       (a, b) => (a.equals(b.toString))
     )
@@ -495,12 +536,13 @@ class ColumnIteratorSuite extends FunSuite {
 
       val factory = ColumnIterator.getFactory(columnType)
       val iter = factory.createIterator(bufreader)
+      //println(columnType + " " + iter.getClass)
 
-      // if (expectEWAHWrapper) {
-      //   assert(iter.getClass === classOf[EWAHNullableColumnIterator[U]])
-      // } else {
-      //   assert(iter.getClass === iteratorClass)
-      // }
+      if (expectEWAHWrapper) {
+        assert(iter.getClass === classOf[EWAHNullableColumnIterator[U]])
+      } else {
+        assert(iter.getClass === iteratorClass)
+      }
 
       (0 until testData.size).foreach { i =>
         iter.next()
@@ -508,7 +550,7 @@ class ColumnIteratorSuite extends FunSuite {
         val reality = writableOi.getPrimitiveJavaObject(iter.current)
         //println ("at position " + i + " expected " + expected + ", but saw " + reality)
         assert((expected == null && reality == null) || compareFunc(reality, expected),
-           "at position " + i + " expected " + expected + ", but saw " + reality)
+          "at position " + i + " expected " + expected + ", but saw " + reality)
       }
     }
 

@@ -23,7 +23,6 @@ import org.apache.hadoop.io.Text
 import org.apache.hadoop.io.IntWritable
 
 import shark.memstore2.buffer.ByteBufferReader
-import shark.memstore2.buffer.Unsafe
 
 /** Provide a simple serializer to store dictionaries for compression.  These
  * dictionaries will be serialized in the ByteBuffer so that they can go between
@@ -100,16 +99,18 @@ object DictionarySerializer{
     buf.putInt(bitmap.sizeInBits/8)
     var pos: Int = 0
     while (pos < bitmap.size) {
-      // println("writetobuffer: pos was " + pos + " sizeInBits/8 " + bitmap.sizeInBits/8)
+      // println("writetobuffer: pos was " + pos + 
+      //   " sizeInBits/8 " + bitmap.sizeInBits/8 + 
+      //   " bitmap.size " + bitmap.size)
       buf.putInt(bitmap.get(pos.toByte))
       pos += 1
     }
-    // println("buf pos was " + buf.position)
     buf
   }
 
   // Create a Dictionary from the byte buffer.
   def readFromBuffer(bufReader: ByteBufferReader): Dictionary[Int] = {
+    // println("bufReader.position before dict  " + bufReader.position)
 
     val bufferLengthInBytes = bufReader.getInt()
     

@@ -44,7 +44,7 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper{
     _arr = new ByteArrayList(initialSize * ColumnIterator.STRING_SIZE)
     _lengthArr = new IntArrayList(initialSize)
     _stats = new ColumnStats.StringColumnStats
-    logInfo("initialized a StringColumnStats ")
+    logDebug("initialized a StringColumnStats ")
     super.initialize(initialSize)
   }
 

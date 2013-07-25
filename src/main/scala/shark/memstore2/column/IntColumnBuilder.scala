@@ -17,6 +17,7 @@
 
 package shark.memstore2.column
 
+import com.ning.compress.lzf.LZFEncoder
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -79,7 +80,14 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
     val transitionsRatio = (_stats.transitions).toDouble / _nonNulls.size
 
     if (selectivity > 0.2) {
-      CompressionScheme.None // compressed data might be bigger than original - don't bother trying
+
+      if (uniques.size < MAX_DICT_UNIQUE_VALUES) {
+        Dict
+      } else {
+        CompressionScheme.None // compressed data might be bigger than original - don't bother
+                               // trying
+      }
+
     } else if (transitionsRatio < 0.5) {
       RLE
     } else if (uniques.size < MAX_DICT_UNIQUE_VALUES) {
@@ -139,6 +147,29 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
         buf.rewind()
         buf
       } 
+      case LZF => {
+        val (tempBufSize, compressedByteArray) = encodeAsLZFBlocks(_nonNulls)
+        val minbufsize = (compressedByteArray.size*1) + 2*4 + ColumnIterator.COLUMN_TYPE_LENGTH +
+          sizeOfNullBitmap
+        logDebug("sizeOfNullBitmap " + sizeOfNullBitmap +
+          " ColumnIterator.COLUMN_TYPE_LENGTH " +
+          ColumnIterator.COLUMN_TYPE_LENGTH +
+          " 2*4 (numUncompressedBytes, length) " + 2*4 +
+          " compressedByteArray.size*1 " + compressedByteArray.size*1)
+
+        val buf = ByteBuffer.allocate(minbufsize)
+        logInfo("Allocated ByteBuffer of scheme " + scheme + " size " + minbufsize)
+
+        buf.order(ByteOrder.nativeOrder())
+        buf.putLong(ColumnIterator.LZF_INT)
+
+        writeNullBitmap(buf)
+
+        LZFSerializer.writeToBuffer(buf, _nonNulls.size*4, compressedByteArray)
+
+        buf.rewind()
+        buf
+      }
       case RLE => {
         var rleSs = new RLEStreamingSerializer[Int]( { () => -1 } )
         var i = 0
@@ -213,8 +244,51 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
         buf
       }
       case _ => throw new IllegalArgumentException(
-        "scheme must be one of auto, none, RLE, dict")
+        "scheme must be one of Auto, None, LZF, RLE, Dict")
     } // match
 
+  }
+
+  /** encode into blocks of fixed number of elements
+    * return uncompressed size and buffer with compressed data
+    */
+  def encodeAsLZFBlocks(arr:IntArrayList): (Int, Array[Byte]) = {
+
+    var intsSoFar = 0
+    var outSoFar: Int = 0
+    logDebug("going to ask for bytes " + (2*LZFSerializer.BLOCK_SIZE))
+    var out = new Array[Byte](2*LZFSerializer.BLOCK_SIZE) // extra just in case nothing compresses
+    var len = LZFSerializer.BLOCK_SIZE/4 // number of ints to compress at a time
+    if (arr.size < LZFSerializer.BLOCK_SIZE/4) len = arr.size
+
+    var runningOffset = 0
+
+    while(intsSoFar < arr.size) {
+      logDebug("arr.size, intsSoFar, outSoFar")
+      logDebug(List(arr.size, intsSoFar, outSoFar).toString)
+
+      val buffer = ByteBuffer.allocate(4 * len)
+      buffer.order(ByteOrder.nativeOrder())
+      var i = 0
+      while (i < len) {
+        buffer.putInt(arr.getInt(i+runningOffset))
+        i += 1
+      }
+      buffer.rewind
+
+      // int len = LZFEncoder.appendEncoded(byte[] input, int inputPtr, int inputLength,
+      //                                    byte[] outputBuffer, int outputPtr)
+
+      outSoFar = LZFEncoder.appendEncoded(buffer.array, 0, 4*len, out, outSoFar)
+      intsSoFar += len
+      runningOffset += 4*len
+      if(arr.size - intsSoFar <= (LZFSerializer.BLOCK_SIZE/4)) 
+        len = arr.size - intsSoFar
+    }
+
+    val encodedArr = new Array[Byte](outSoFar)
+    Array.copy(out, 0, encodedArr, 0, outSoFar)
+
+    (outSoFar, encodedArr)
   }
 }

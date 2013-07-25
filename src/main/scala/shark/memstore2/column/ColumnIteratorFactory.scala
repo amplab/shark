@@ -82,8 +82,7 @@ object ColumnIteratorFactory {
   def createIntWithEwahRLE: ColumnIteratorFactory = {
     new ColumnIteratorFactory {
       override def createIterator(buf: ByteBufferReader): ColumnIterator = {
-
-        logInfo("IntColumnIterator " + " created with RLE & EWAH")
+        logDebug("IntColumnIterator " + " created with RLE & EWAH")
         val nullable = (buf.getLong() == 1L)
         if (nullable) {
           // funky 3 layer construction required because bytebuffer advances automatically
@@ -104,9 +103,30 @@ object ColumnIteratorFactory {
   def createWithLZF[T <: ColumnIterator](baseIterClass: Class[T]): ColumnIteratorFactory = {
     new ColumnIteratorFactory {
       override def createIterator(buf: ByteBufferReader): ColumnIterator = {
-          logInfo("baseIterClass " + baseIterClass + " created with LZF")
-          new LZFBlockColumnIterator[T](baseIterClass, buf)
-//        new LZFColumnIterator[T](baseIterClass, buf)
+          logDebug("baseIterClass " + baseIterClass + " created with LZF")
+          new LZFBlockColumnIterator[T](baseIterClass, buf) // uses chunks 
+//        new LZFColumnIterator[T](baseIterClass, buf)      // no chunks - single shot decompress
+      }
+    }
+  }
+
+  /**
+   * Create a factory for an int column iterator wrapped by LZF first and then EWAH
+   */
+  def createIntWithEwahLZF: ColumnIteratorFactory = {
+    new ColumnIteratorFactory {
+      override def createIterator(buf: ByteBufferReader): ColumnIterator = {
+        logDebug("IntColumnIterator " + " created with LZF & EWAH")
+        val nullable = (buf.getLong() == 1L)
+        if (nullable) {
+          // funky 3 layer construction required because bytebuffer advances automatically
+          val iter = new LZFBlockColumnIterator(classOf[IntColumnIterator.Default])
+          val ret = new EWAHNullableColumnIterator(iter, buf)
+          iter.initialize(buf)
+          ret
+        } else {
+          new LZFBlockColumnIterator(classOf[IntColumnIterator.Default], buf)
+        }
       }
     }
   }

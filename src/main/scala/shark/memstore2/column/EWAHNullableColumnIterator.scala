@@ -28,14 +28,10 @@ import shark.memstore2.buffer.ByteBufferReader
   * The Null Bit Vector is maintained in the first part of the Buffer.
   * Can be composed with other wrappers like the [[shark.memstore2.column.RLEColumnIterator]]
   */
-class EWAHNullableColumnIterator[T <: ColumnIterator](
-    bIter: T, bytes: ByteBufferReader)
+class EWAHNullableColumnIterator[T <: ColumnIterator](bIter: T, bytes: ByteBufferReader)
   extends ColumnIterator {
 
-  val _nullBitmap: EWAHCompressedBitmap =
-  EWAHCompressedBitmapSerializer.readFromBuffer(bytes)
-
-  
+  val _nullBitmap: EWAHCompressedBitmap = EWAHCompressedBitmapSerializer.readFromBuffer(bytes)
   // The location of the null bits is returned, in increasing order through
   // _nullsIter
   val _nullsIter: IntIterator = _nullBitmap.intIterator
@@ -46,17 +42,20 @@ class EWAHNullableColumnIterator[T <: ColumnIterator](
 
   // Construction using a reference instead of classname - used to compose with
   // other encodings like RLE
-  val baseIter: T = bIter
+  var baseIter: T = bIter
 
-  // auxiliary constructor for most construction
-  def this(baseIterCls: Class[T], bytes: ByteBufferReader) = 
-    this(
-      {
-        val ctor = baseIterCls.getConstructor(classOf[ByteBufferReader])
-        ctor.newInstance(bytes).asInstanceOf[T]
-      },
+  /** auxiliary constructor for most construction */
+  def this(baseIterCls: Class[T], bytes: ByteBufferReader) = {
+    this( { 
+      val ctorThrowAway = baseIterCls.getConstructor(classOf[ByteBufferReader])
+      // use .duplicate() so that this can be thrown away
+      ctorThrowAway.newInstance(bytes.duplicate).asInstanceOf[T] // not used
+    },
       bytes)
-
+    // overwrite construction and get new one from the right position in the ByteBufferReader
+    val ctor = baseIterCls.getConstructor(classOf[ByteBufferReader])
+    baseIter = ctor.newInstance(bytes).asInstanceOf[T]
+  }
 
   override def next() {
     if (_pos >= _nextNullPosition || _pos == -1) {
