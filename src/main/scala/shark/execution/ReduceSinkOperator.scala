@@ -33,8 +33,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectIns
 import org.apache.hadoop.hive.serde2.objectinspector.StandardUnionObjectInspector.StandardUnion
 import org.apache.hadoop.io.BytesWritable
 
-import shark.SharkEnvSlave
-
 
 /**
  * Converts a collection of rows into key, value pairs. This is the
@@ -94,9 +92,7 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
     ois.add(keySer.getObjectInspector)
     ois.add(valueSer.getObjectInspector)
 
-    val outputObjInspector = SharkEnvSlave.objectInspectorLock.synchronized {
-      ObjectInspectorFactory.getStandardStructObjectInspector(List("KEY","VALUE"), ois)
-    }
+    val outputObjInspector = ObjectInspectorFactory.getStandardStructObjectInspector(List("KEY","VALUE"), ois)
 
     val joinTag = conf.getTag()
 
@@ -137,21 +133,17 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
     valueSer.initialize(null, valueTableDesc.getProperties())
 
     // Initialize object inspector for key columns.
-    keyObjInspector = SharkEnvSlave.objectInspectorLock.synchronized {
-      ReduceSinkOperatorHelper.initEvaluatorsAndReturnStruct(
+    keyObjInspector = ReduceSinkOperatorHelper.initEvaluatorsAndReturnStruct(
         keyEval,
         distinctColIndices,
         conf.getOutputKeyColumnNames,
         numDistributionKeys,
         rowInspector)
-    }
 
     // Initialize object inspector for value columns.
     val valFieldInspectors = valueEval.map(eval => eval.initialize(rowInspector)).toList
-    valObjInspector = SharkEnvSlave.objectInspectorLock.synchronized {
-      ObjectInspectorFactory.getStandardStructObjectInspector(
+    valObjInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
         conf.getOutputValueColumnNames(), valFieldInspectors)
-    }
 
     // Initialize evaluator and object inspector for partition columns.
     partitionEval = conf.getPartitionCols.map(ExprNodeEvaluatorFactory.get(_)).toArray
