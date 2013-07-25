@@ -45,7 +45,10 @@ paper.aux
 # Test Reports
 TEST*.xml
 test_warehouses
+<<<<<<< HEAD
+=======
 
 # Ensime files for emacs
+>>>>>>> amplab
 .ensime
 .ensime_lucene
