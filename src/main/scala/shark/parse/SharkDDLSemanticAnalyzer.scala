@@ -12,12 +12,24 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
     super.analyzeInternal(node)
     //handle drop table query
     if (node.getToken().getType() == HiveParser.TOK_DROPTABLE) {
-      SharkEnv.unpersist(getTableName(node))
+      val tableName = getTableName(node)
+
+      if (SharkEnv.tachyonUtil.tachyonEnabled()) {
+        if (SharkEnv.tachyonUtil.tableExists(tableName)) {
+          logInfo("Table " + tableName + " is in Tachyon.");
+          if (SharkEnv.tachyonUtil.dropTable(tableName)) {
+            logInfo("In Tachyon Table " + tableName + " was deleted.");
+          }
+        }
+      } else {
+        logInfo("Tachyon is not enabled. Potential table in it is not dropped.");
+      }
+
+      SharkEnv.unpersist(tableName)
     }
   }
 
   private def getTableName(node: ASTNode): String = {
     BaseSemanticAnalyzer.getUnescapedName(node.getChild(0).asInstanceOf[ASTNode])
   }
-
 }
