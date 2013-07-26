@@ -30,7 +30,11 @@ import shark.memstore2.column.CompressionScheme._
 
 class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper{
   private var _stats: ColumnStats.StringColumnStats = null
-  private var _uniques: collection.mutable.Set[Text] = new HashSet()
+
+  // Only valid for counts lower than MAX_DICT_UNIQUE_VALUES. Does not get updated after that.
+  // Choice made that this is too expensive currently and is not used enough.
+  // Not directly used now but will be when Dict encoding is implemented
+  private var _uniques: collection.mutable.Set[Int] = new HashSet()
 
   // In string, a length of -1 is used to represent null values.
   private val NULL_VALUE = -1
@@ -61,7 +65,9 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper{
     _lengthArr.add(v.getLength)
     _arr.addElements(_arr.size, v.getBytes, 0, v.getLength)
     _stats.append(v)
-    _uniques += v
+    if (_uniques.size < DictionarySerializer.MAX_DICT_UNIQUE_VALUES) {
+      _uniques += v.hashCode
+    }
   }
 
   override def appendNull() {
@@ -72,18 +78,20 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper{
   override def stats = _stats
 
   def pickCompressionScheme: CompressionScheme.Value = {
-    // Initial RLE choice logic - use RLE if the
-    // selectivity is < 20% &&
-    // ratio of transitions < 30% 
-    val selectivity = (_uniques.size).toDouble / _lengthArr.size
+    // RLE choice logic - use RLE if the ratio of transitions < 30% 
+    // Space utilized depends on both ratio of transitions and average #bytes per row in column
+    // TransitionsRatio should be less than (x+4)/(x+8) where x is average bytes per row
+    // But decompression/uncompression time is also a factor - hence sticking with the
+    // conservative 30%
     val transitionsRatio = (_stats.transitions).toDouble / _lengthArr.size
   
-    val rleUsed = 
-      ((selectivity < 0.2) &&
-        (transitionsRatio < 0.3))
+    val rleUsed = (transitionsRatio < 0.3)
 
-    if(rleUsed) RLE
-    else None
+    if (rleUsed) {
+      RLE
+    } else { 
+      None
+    }
   }
 
   override def build: ByteBuffer = {
@@ -97,9 +105,8 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper{
     // choices are none, auto, RLE, LZF
     if(scheme == null || scheme == Auto) scheme = pickCompressionScheme
 
-    val selectivity = (_uniques.size).toDouble / _lengthArr.size
     val transitionsRatio = (_stats.transitions).toDouble / _lengthArr.size
-    logInfo("uniques=" + _uniques.size + " selectivity=" + selectivity +
+    logInfo(
       " transitionsRatio=" + transitionsRatio + 
       " transitions=" + _stats.transitions +
       " #values=" + _lengthArr.size)

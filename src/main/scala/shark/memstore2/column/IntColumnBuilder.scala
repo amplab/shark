@@ -37,12 +37,9 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
   private var _stats: ColumnStats.IntColumnStats = new ColumnStats.IntColumnStats
   private var _nonNulls: IntArrayList = null
 
-  // In the worst case this Set can be as big as the column itself. This huge waste of
-  // memory should be replaced by HLL or a shortcut eventually. Leaving it here for now as we
-  // figure out the compression scheme heuristics.
-  private var uniques = new IntArraySet(0)
-
-  private val MAX_DICT_UNIQUE_VALUES = 256 // 2 ** 8 - storable in 8 bits or 1 Byte
+  // Only valid for counts lower than MAX_DICT_UNIQUE_VALUES. Does not get updated after that.
+  // Choice made that this is too expensive currently and is not used enough.
+  private var uniques = new IntArraySet(DictionarySerializer.MAX_DICT_UNIQUE_VALUES)
 
   override def initialize(initialSize: Int) {
     _nonNulls = new IntArrayList(initialSize)
@@ -62,7 +59,9 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
   override def append(v: Int) {
     _nonNulls.add(v)
     _stats.append(v)
-    uniques.add(v)
+    if (uniques.size < DictionarySerializer.MAX_DICT_UNIQUE_VALUES) {
+      uniques.add(v)
+    }
   }
 
   override def appendNull() {
@@ -73,27 +72,14 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
   override def stats = _stats
 
   def pickCompressionScheme: CompressionScheme.Value = {
-    // RLE choice logic - use RLE if the
-    // selectivity is < 20% &&
-    // ratio of transitions < 50% (run+value is 2 ints instead of 1)
-    val selectivity = (uniques.size).toDouble / _nonNulls.size
     val transitionsRatio = (_stats.transitions).toDouble / _nonNulls.size
 
-    if (selectivity > 0.2) {
-
-      if (uniques.size < MAX_DICT_UNIQUE_VALUES) {
-        Dict
-      } else {
-        CompressionScheme.None // compressed data might be bigger than original - don't bother
-                               // trying
-      }
-
-    } else if (transitionsRatio < 0.5) {
-      RLE
-    } else if (uniques.size < MAX_DICT_UNIQUE_VALUES) {
+    if (transitionsRatio < 0.5) {
+      RLE // 1 int for length + 1 int for value - hence 0.5
+    } else if (uniques.size < DictionarySerializer.MAX_DICT_UNIQUE_VALUES) {
       Dict
     } else {
-      LZF // low selectivity, but large number of uniques - LZF might offer good trade-off
+      None
     }
   }
 
@@ -114,11 +100,8 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
     if(scheme == null || scheme == CompressionScheme.Auto) scheme = pickCompressionScheme
     // choices are none, auto, RLE, dict
 
-    val selectivity = (uniques.size).toDouble / _nonNulls.size
     val transitionsRatio = (_stats.transitions).toDouble / _nonNulls.size
     logInfo(
-      "uniques=" + uniques.size + 
-      " selectivity=" + selectivity +
       " transitionsRatio=" + transitionsRatio + 
       " transitions=" + _stats.transitions +
       " #values=" + _nonNulls.size)

@@ -152,10 +152,37 @@ class ColumnIteratorSuite extends FunSuite {
 
     assert(d.get(0) == newd.get(0))
     assert(d.get(3) == newd.get(3))
+
+    val seqNull  = ( List(),              classOf[DictionaryEncodedIntColumnIterator.Default] )
+    val seqSmall = ( Range(-10, 10, 1),   classOf[DictionaryEncodedIntColumnIterator.Default] )
+    val seq254   = ( Range(-127, 127, 1), classOf[DictionaryEncodedIntColumnIterator.Default] )
+    val seq255   = ( Range(-127, 128, 1), classOf[DictionaryEncodedIntColumnIterator.Default] )
+    val seq256   = ( Range(-127, 129, 1), classOf[IntColumnIterator.Default] )
+    val seqBig   = ( Range(-127, 256, 1), classOf[IntColumnIterator.Default] )
+    assert(seq256._1.size === 256)
+
+    List(seqNull, seqSmall, seq254, seq255, seq256, seqBig).foreach { s =>
+      val seqJava : Seq[java.lang.Integer] = for {
+        i <- s._1
+      } yield new java.lang.Integer(i)
+
+      val builder = new IntColumnBuilder
+      testColumn(
+        seqJava,
+        builder,
+        PrimitiveObjectInspectorFactory.writableIntObjectInspector,
+        s._2,
+        false)
+    }
+
+    val tooBig = new IntDictionary
+    intercept[IllegalArgumentException] {
+      tooBig.initialize(seqBig._1.toArray)
+    }
   }
  
   test("LZF Int") {
-    val builder = new IntColumnBuilder
+    var builder = new IntColumnBuilder
     builder.scheme = CompressionScheme.LZF
 
     testColumn(
@@ -167,6 +194,7 @@ class ColumnIteratorSuite extends FunSuite {
     assert(builder.stats.min === -12)
     assert(builder.stats.max === 134)
 
+    builder = new IntColumnBuilder
     testColumn(
       Array[java.lang.Integer]
         (null, 1, 2, null, 5, 134, -12, null, 0, 99, null, null, null, 1),

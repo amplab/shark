@@ -43,11 +43,13 @@ trait Dictionary[@specialized(Int) T]{
 /** Int implementation. Saves space by using 1 byte per Int
   * instead of 4.
   */
-class IntDictionary extends Dictionary[Int]{
+class IntDictionary extends Dictionary[Int] {
   var uniques = new Array[Int](0)
   private var writable = new IntWritable
 
   override def initialize(u: Array[Int]) = {
+    require(u.size < DictionarySerializer.MAX_DICT_UNIQUE_VALUES, 
+      "Too many unique values to build an IntDictionary " + u.size)
     uniques = new Array[Int](u.size)
     u.copyToArray(uniques)
   }
@@ -91,6 +93,9 @@ class IntDictionary extends Dictionary[Int]{
 /** Helper to share code betwen the Iterator and various Builders.
   */
 object DictionarySerializer{
+  // Dictionaries can only work when number of unique values is lower than this. Values should fit
+  // in Bytes.
+  val MAX_DICT_UNIQUE_VALUES = 256 // 2 ** 8 - storable in 8 bits or 1 Byte
 
   // Append the serialized bytes of the Dictionary into the ByteBuffer.
   def writeToBuffer(buf: ByteBuffer, bitmap: IntDictionary) {
