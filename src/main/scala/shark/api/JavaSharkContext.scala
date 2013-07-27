@@ -22,8 +22,8 @@ import java.util.{List => JList}
 
 import scala.collection.JavaConversions._
 
-import spark.api.java.JavaSparkContext
 import shark.SharkContext
+import spark.api.java.JavaSparkContext
 
 class JavaSharkContext(val sharkCtx: SharkContext) extends JavaSparkContext(sharkCtx) {
 
@@ -76,7 +76,7 @@ class JavaSharkContext(val sharkCtx: SharkContext) extends JavaSparkContext(shar
    */
   def sql2rdd(cmd: String): JavaTableRDD = {
     val rdd = sharkCtx.sql2rdd(cmd)
-    new JavaTableRDD(rdd, rdd.schema)
+    new JavaTableRDD(rdd, rdd.tableDesc)
   }
 
   /**
