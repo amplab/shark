@@ -19,37 +19,15 @@ package shark.memstore2.column
 
 import shark.memstore2.buffer.ByteBufferReader
 
-/** Iterator interface for a column. The iterator should be initialized by a
- * byte buffer, and next can be invoked to get the value for each cell.
- *
- * Adding a new compression/encoding scheme to the code requires several
- * things. First among them is an addition to the list of iterators here. An
- * iterator that knows how to iterate through an encoding-specific ByteBuffer is
- * required. This ByteBuffer would have been created by the one of the concrete
- * [[shark.memstore2.buffer.ColumnBuilder]] classes.  
- * 
- * 
- * The relationship/composition possibilities between the new
- * encoding/compression and existing schemes dictates how the new iterator is
- * implemented.  Null Encoding and RLE Encoding working as generic wrappers that
- * can be wrapped around any data type.  Dictionary Encoding does not work in a
- * hierarchial manner instead requiring the creation of a separate
- * DictionaryEncoded Iterator per Data type.
- * 
- * The changes required for the LZF encoding's Builder/Iterator might be the
- * easiest to look to get a feel for what is required -
- * [[shark.memstore2.buffer.LZFColumnIterator]]. See SHA 225f4d90d8721a9d9e8f
- * 
- * The base class ColumnIterator is the read side of this equation. For the
- * write side see [[shark.memstore2.buffer.ColumnBuilder]].
- * 
+
+/**
+ * Iterator interface for a column. The iterator should be initialized by a byte
+ * buffer, and next can be invoked to get the value for each cell.
  */
 abstract class ColumnIterator {
 
   def next()
 
-  // Should be implemented as a read-only operation by the ColumnIterator
-  // Can be called any number of times
   def current: Object
 }
 
@@ -131,23 +109,6 @@ object ColumnIterator {
   val BINARY = 12
   _iteratorFactory(BINARY) = createFactory(classOf[BinaryColumnIterator.Default])
 
-  val DICT_INT = 13
-  _iteratorFactory(DICT_INT) =
-    createFactoryWithEWAH(classOf[DictionaryEncodedIntColumnIterator.Default])
-
-  val RLE_STRING = 14
-  _iteratorFactory(RLE_STRING) = createFactoryWithRLE(classOf[StringColumnIterator.Default])
-
-  val DICT_STRING = 15
-  // _iteratorFactory(DICT_STRING) =
-  //   createFactory(classOf[DictionaryEncodedStringColumnIterator.Default])
-
-  val LZF_STRING = 16
-  _iteratorFactory(LZF_STRING) = createFactoryWithLZF(classOf[StringColumnIterator.Default])
-
-  val RLE_INT = 17
-  _iteratorFactory(RLE_INT) = ColumnIteratorFactory.createIntWithEwahRLE
-
   // Helper methods so we don't need to write the whole thing up there.
   def createFactory[T <: ColumnIterator](c: Class[T]) = {
     ColumnIteratorFactory.create(c)
@@ -157,11 +118,4 @@ object ColumnIterator {
     ColumnIteratorFactory.createWithEWAH(c)
   }
 
-  def createFactoryWithRLE[T <: ColumnIterator](c: Class[T]) = {
-    ColumnIteratorFactory.createWithRLE(c)
-  }
-
-  def createFactoryWithLZF[T <: ColumnIterator](c: Class[T]) = {
-    ColumnIteratorFactory.createWithLZF(c)
-  }
 }

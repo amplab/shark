@@ -39,7 +39,6 @@ object SharkBuild extends Build {
     id = "root",
     base = file("."),
     settings = coreSettings)
-    .settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)
 
   def coreSettings = Defaults.defaultSettings ++ Seq(
 
@@ -61,8 +60,8 @@ object SharkBuild extends Build {
     ),
 
     fork := true,
-    javaOptions += "-XX:MaxPermSize=512m",
-    javaOptions += "-Xmx2g",
+    javaOptions in test += "-XX:MaxPermSize=512m",
+    javaOptions in test += "-Xmx2g",
 
     testOptions in Test += Tests.Argument("-oF"), // Full stack trace on test failures
 
@@ -95,7 +94,6 @@ object SharkBuild extends Build {
       "org.spark-project" %% "spark-core" % SPARK_VERSION,
       "org.spark-project" %% "spark-repl" % SPARK_VERSION,
       "com.google.guava" % "guava" % "11.0.1",
-      "com.ning" % "compress-lzf" % "0.9.7",
       "it.unimi.dsi" % "fastutil" % "6.4.2",
       "org.scalatest" %% "scalatest" % "1.9.1" % "test",
       "junit" % "junit" % "4.10" % "test",

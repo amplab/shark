@@ -182,6 +182,8 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
           } else {
             // Otherwise, check if we are inserting into a table that was cached.
             val cachedTableName = tableName.split('.')(1) // Ignore the database name
+            tableProperties.setProperty("name", cachedTableName)
+
             SharkEnv.memoryMetadataManager.get(cachedTableName) match {
               case Some(rdd) => {
                 if (hiveSinkOps.size == 1) {
@@ -190,7 +192,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                   val storageLevel = RDDUtils.getStorageLevelOfCachedTable(rdd)
                   OperatorFactory.createSharkMemoryStoreOutputPlan(
                     hiveSinkOp,
-                    tableProperties,
+                    cachedTableName,
                     storageLevel,
                     _resSchema.size,                // numColumns
                     cacheMode == CacheType.tachyon, // use tachyon
@@ -222,7 +224,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
 
             OperatorFactory.createSharkMemoryStoreOutputPlan(
               hiveSinkOps.head,
-              tableProperties,
+              qb.getTableDesc.getTableName,
               storageLevel,
               _resSchema.size,                // numColumns
               cacheMode == CacheType.tachyon, // use tachyon

@@ -29,10 +29,10 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.DoubleObjectInspe
 class DoubleColumnBuilder extends ColumnBuilder[Double] {
 
   private var _stats: ColumnStats.DoubleColumnStats = null
-  private var _nonNulls: DoubleArrayList = null
+  private var _arr: DoubleArrayList = null
 
   override def initialize(initialSize: Int) {
-    _nonNulls = new DoubleArrayList(initialSize)
+    _arr = new DoubleArrayList(initialSize)
     _stats = new ColumnStats.DoubleColumnStats
     super.initialize(initialSize)
   }
@@ -47,12 +47,13 @@ class DoubleColumnBuilder extends ColumnBuilder[Double] {
   }
 
   override def append(v: Double) {
-    _nonNulls.add(v)
+    _arr.add(v)
     _stats.append(v)
   }
 
   override def appendNull() {
-    _nullBitmap.set(_nonNulls.size + _stats.nullCount)
+    _nullBitmap.set(_arr.size)
+    _arr.add(0)
     _stats.appendNull()
   }
 
@@ -60,15 +61,15 @@ class DoubleColumnBuilder extends ColumnBuilder[Double] {
 
   override def build: ByteBuffer = {
     val buf = ByteBuffer.allocate(
-      _nonNulls.size * 8 + ColumnIterator.COLUMN_TYPE_LENGTH + sizeOfNullBitmap)
+      _arr.size * 8 + ColumnIterator.COLUMN_TYPE_LENGTH + sizeOfNullBitmap)
     buf.order(ByteOrder.nativeOrder())
     buf.putLong(ColumnIterator.DOUBLE)
 
     writeNullBitmap(buf)
 
     var i = 0
-    while (i < _nonNulls.size) {
-      buf.putDouble(_nonNulls.get(i))
+    while (i < _arr.size) {
+      buf.putDouble(_arr.get(i))
       i += 1
     }
     buf.rewind()

@@ -35,14 +35,14 @@ class TimestampColumnBuilder extends ColumnBuilder[Timestamp] {
 
   private var _stats: ColumnStats.TimestampColumnStats = null
 
-  private var _nonNullsTime: LongArrayList = null
-  private var _nonNullsNanos: IntArrayList = null
+  private var _arrTime: LongArrayList = null
+  private var _arrNanos: IntArrayList = null
 
   private var _hasNanoField = false
 
   override def initialize(initialSize: Int) {
-    _nonNullsTime = new LongArrayList(initialSize)
-    _nonNullsNanos = new IntArrayList(initialSize)
+    _arrTime = new LongArrayList(initialSize)
+    _arrNanos = new IntArrayList(initialSize)
     _hasNanoField = false
     _stats = new ColumnStats.TimestampColumnStats
     super.initialize(initialSize)
@@ -58,17 +58,19 @@ class TimestampColumnBuilder extends ColumnBuilder[Timestamp] {
   }
 
   override def append(v: Timestamp) {
-    _nonNullsTime.add(v.getTime())
+    _arrTime.add(v.getTime())
     val nano = v.getNanos()
     if (nano != 0) {
       _hasNanoField = true
     }
-    _nonNullsNanos.add(nano)
+    _arrNanos.add(nano)
     _stats.append(v)
   }
 
   override def appendNull() {
-    _nullBitmap.set(_nonNullsTime.size + _stats.nullCount)
+    _nullBitmap.set(_arrTime.size)
+    _arrTime.add(0)
+    _arrNanos.add(0)
     _stats.appendNull()
   }
 
@@ -77,16 +79,16 @@ class TimestampColumnBuilder extends ColumnBuilder[Timestamp] {
   override def build: ByteBuffer = {
     // TODO: As an optimization, we can optionally skip nanos field if it is not used.
     val buf = ByteBuffer.allocate(
-      _nonNullsTime.size * 8 + _nonNullsNanos.size * 4 + ColumnIterator.COLUMN_TYPE_LENGTH + sizeOfNullBitmap)
+      _arrTime.size * 8 + _arrNanos.size * 4 + ColumnIterator.COLUMN_TYPE_LENGTH + sizeOfNullBitmap)
     buf.order(ByteOrder.nativeOrder())
     buf.putLong(ColumnIterator.TIMESTAMP)
 
     writeNullBitmap(buf)
 
     var i = 0
-    while (i < _nonNullsTime.size) {
-      buf.putLong(_nonNullsTime.get(i))
-      buf.putInt(_nonNullsNanos.get(i))
+    while (i < _arrTime.size) {
+      buf.putLong(_arrTime.get(i))
+      buf.putInt(_arrNanos.get(i))
       i += 1
     }
     buf.rewind()

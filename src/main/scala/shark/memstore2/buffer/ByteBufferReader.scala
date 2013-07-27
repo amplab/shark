@@ -50,8 +50,6 @@ trait ByteBufferReader {
 
   def position: Int
 
-  def duplicate(): ByteBufferReader
-
   def printDebug()
 }
 

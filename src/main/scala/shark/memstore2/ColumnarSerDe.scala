@@ -43,28 +43,12 @@ class ColumnarSerDe extends SerDe with LogHelper {
   var tablePartitionBuilder: TablePartitionBuilder = _
   var serDeParams: SerDeParameters = _
   var initialColumnSize: Int = _
-  var columnarComprString: String = _
-  var columnarComprInt: String = _
   val serializeStream = new ByteStream.Output
-
 
   override def initialize(conf: Configuration, tbl: Properties) {
     serDeParams = LazySimpleSerDe.initSerdeParams(conf, tbl, this.getClass.getName)
     // Create oi & writable.
     objectInspector = ColumnarStructObjectInspector(serDeParams)
-
-    if(tbl != null) {
-      if(tbl.get(SharkConfVars.COLUMNAR_COMPR_STRING.varname) != null) {
-        columnarComprString = tbl.get(SharkConfVars.COLUMNAR_COMPR_STRING.varname).toString
-      }
-
-      if (tbl.get(SharkConfVars.COLUMNAR_COMPR_INT.varname) != null) {
-        columnarComprInt = tbl.get(SharkConfVars.COLUMNAR_COMPR_INT.varname).toString
-      }
-
-      logDebug("columnarComprString configured as  " + columnarComprString)
-      logDebug("columnarComprInt configured as  " + columnarComprInt)
-    }
 
     // This null check is needed because Hive's SemanticAnalyzer.genFileSinkPlan() creates
     // an instance of the table's StructObjectInspector by creating an instance SerDe, which
@@ -86,7 +70,6 @@ class ColumnarSerDe extends SerDe with LogHelper {
         val rowSize = ColumnarSerDe.getFieldSize(objectInspector).toLong
         initialColumnSize = (partitionSize / rowSize).toInt
 
-
         logInfo("Estimated size of each row is: " + rowSize)
       }
     }
@@ -106,8 +89,7 @@ class ColumnarSerDe extends SerDe with LogHelper {
 
   override def serialize(obj: Object, objInspector: ObjectInspector): Writable = {
     if (tablePartitionBuilder == null) {
-      tablePartitionBuilder = new TablePartitionBuilder(objectInspector,
-        initialColumnSize, columnarComprString, columnarComprInt)
+      tablePartitionBuilder = new TablePartitionBuilder(objectInspector, initialColumnSize)
     }
 
     tablePartitionBuilder.incrementRowCount()
