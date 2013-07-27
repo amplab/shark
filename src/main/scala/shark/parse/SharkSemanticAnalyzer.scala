@@ -182,8 +182,6 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
           } else {
             // Otherwise, check if we are inserting into a table that was cached.
             val cachedTableName = tableName.split('.')(1) // Ignore the database name
-            tableProperties.setProperty("name", cachedTableName)
-
             SharkEnv.memoryMetadataManager.get(cachedTableName) match {
               case Some(rdd) => {
                 if (hiveSinkOps.size == 1) {
