@@ -124,6 +124,7 @@ class ColumnStatsSuite extends FunSuite {
     assert(c.maxDelta == 21)
     // nulls are ignored in IntColumnStats for unique and transition counting
     assert(c.transitions === 4)
+    assert(c.uniques.size === 4)
 
     c = new ColumnStats.IntColumnStats
     Array(22, 1, 24).foreach(c.append)
