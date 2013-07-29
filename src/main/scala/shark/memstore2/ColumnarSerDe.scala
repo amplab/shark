@@ -54,16 +54,16 @@ class ColumnarSerDe extends SerDe with LogHelper {
     objectInspector = ColumnarStructObjectInspector(serDeParams)
 
     if(tbl != null) {
-      if(tbl.get(SharkConfVars.COLUMNAR_COMPR_STRING.varname) != null) {
-        columnarComprString = tbl.get(SharkConfVars.COLUMNAR_COMPR_STRING.varname).toString
+      if(tbl.get(SharkConfVars.COLUMN_COMPRESS_STRING.varname) != null) {
+        columnarComprString = tbl.get(SharkConfVars.COLUMN_COMPRESS_STRING.varname).toString
       } else {
-        columnarComprString = SharkConfVars.COLUMNAR_COMPR_STRING.defaultVal
+        columnarComprString = SharkConfVars.COLUMN_COMPRESS_STRING.defaultVal
       }
 
-      if (tbl.get(SharkConfVars.COLUMNAR_COMPR_INT.varname) != null) {
-        columnarComprInt = tbl.get(SharkConfVars.COLUMNAR_COMPR_INT.varname).toString
+      if (tbl.get(SharkConfVars.COLUMN_COMPRESS_INT.varname) != null) {
+        columnarComprInt = tbl.get(SharkConfVars.COLUMN_COMPRESS_INT.varname).toString
       } else {
-        columnarComprInt = SharkConfVars.COLUMNAR_COMPR_INT.defaultVal
+        columnarComprInt = SharkConfVars.COLUMN_COMPRESS_INT.defaultVal
       }
 
       logDebug("columnarComprString configured as  " + columnarComprString)

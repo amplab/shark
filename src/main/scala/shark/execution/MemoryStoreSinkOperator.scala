@@ -76,13 +76,13 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       }
 
     var tableProperties = op.localHiveOp.getConf.getTableInfo.getProperties()
-    if (createTableProperties.get(SharkConfVars.COLUMNAR_COMPR_STRING.varname) != null) {
-      tableProperties.setProperty(SharkConfVars.COLUMNAR_COMPR_STRING.varname,
-        createTableProperties.get(SharkConfVars.COLUMNAR_COMPR_STRING.varname).toString)
+    if (createTableProperties.get(SharkConfVars.COLUMN_COMPRESS_STRING.varname) != null) {
+      tableProperties.setProperty(SharkConfVars.COLUMN_COMPRESS_STRING.varname,
+        createTableProperties.get(SharkConfVars.COLUMN_COMPRESS_STRING.varname).toString)
     }
-    if (createTableProperties.get(SharkConfVars.COLUMNAR_COMPR_INT.varname) != null) {
-      tableProperties.setProperty(SharkConfVars.COLUMNAR_COMPR_INT.varname,
-        createTableProperties.get(SharkConfVars.COLUMNAR_COMPR_INT.varname).toString)
+    if (createTableProperties.get(SharkConfVars.COLUMN_COMPRESS_INT.varname) != null) {
+      tableProperties.setProperty(SharkConfVars.COLUMN_COMPRESS_INT.varname,
+        createTableProperties.get(SharkConfVars.COLUMN_COMPRESS_INT.varname).toString)
     }
     op.logInfo("Op Table Properties - " + tableProperties)
 
