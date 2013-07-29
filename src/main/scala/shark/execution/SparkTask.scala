@@ -18,19 +18,17 @@
 package shark.execution
 
 import java.util.{HashMap => JHashMap, List => JavaList}
-import java.io.File
 
 import org.apache.hadoop.hive.metastore.api.FieldSchema
 import org.apache.hadoop.hive.ql.{Context, DriverContext}
 import org.apache.hadoop.hive.ql.exec.{TableScanOperator => HiveTableScanOperator, Utilities}
+import org.apache.hadoop.hive.ql.exec.{Task => HiveTask}
 import org.apache.hadoop.hive.ql.metadata.{Partition, Table}
 import org.apache.hadoop.hive.ql.optimizer.ppr.PartitionPruner
 import org.apache.hadoop.hive.ql.parse._
-import org.apache.hadoop.hive.ql.plan.{PlanUtils, CreateTableDesc, PartitionDesc}
+import org.apache.hadoop.hive.ql.plan.{PlanUtils, PartitionDesc}
 import org.apache.hadoop.hive.ql.plan.api.StageType
 import org.apache.hadoop.hive.ql.session.SessionState
-
-import scala.collection.JavaConversions._
 
 import shark.api.TableRDD
 import shark.{LogHelper, SharkEnv}
@@ -47,8 +45,7 @@ extends java.io.Serializable
 /**
  * SparkTask executes a query plan composed of RDD operators.
  */
-class SparkTask extends org.apache.hadoop.hive.ql.exec.Task[SparkWork]
-with java.io.Serializable with LogHelper {
+class SparkTask extends HiveTask[SparkWork] with Serializable with LogHelper {
 
   private var _tableRdd: TableRDD = null
   def tableRdd = _tableRdd

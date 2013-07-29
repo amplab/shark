@@ -37,6 +37,10 @@ class Row(val rawdata: Any, val colname2indexMap: Map[String, Int], val oi: Stru
     ref.getFieldObjectInspector.asInstanceOf[PrimitiveObjectInspector].getPrimitiveJavaObject(data)
   }
 
+  def get(field: String) = apply(field)
+
+  def get(field: Int) = apply(field)
+
   def getBoolean(field: String): java.lang.Boolean = getBoolean(colname2indexMap(field))
 
   def getByte(field: String): java.lang.Byte = getByte(colname2indexMap(field))
