@@ -30,7 +30,7 @@ object DictionaryEncodedIntColumnIterator{
 
   sealed class Default(private val _bytesReader: ByteBufferReader) extends ColumnIterator {
     private val _writable = new IntWritable
-    private val _dict = DictionarySerializer.readFromBuffer(_bytesReader)
+    private val _dict = IntDictionarySerializer.readFromBuffer(_bytesReader)
 
     override def next() {
       _writable.set(_dict.get(_bytesReader.getByte()))

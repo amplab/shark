@@ -131,8 +131,7 @@ class ColumnIteratorSuite extends FunSuite {
 
   test("dictionary encoding Int") {
     val l = List[Int](1,22,30,4)
-    val d = new IntDictionary
-    d.initialize(l.toArray)
+    val d = new IntDictionary(l.toArray)
 
     assert(d.get(0) == 1)
 
@@ -143,12 +142,12 @@ class ColumnIteratorSuite extends FunSuite {
     assert(5 == buf.getInt())
     buf.rewind
 
-    DictionarySerializer.writeToBuffer(buf, d)
+    IntDictionarySerializer.writeToBuffer(buf, d)
     buf.rewind
 
     val bbr = ByteBufferReader.createUnsafeReader(buf)
 
-    val newd = DictionarySerializer.readFromBuffer(bbr)
+    val newd = IntDictionarySerializer.readFromBuffer(bbr)
 
     assert(d.get(0) == newd.get(0))
     assert(d.get(3) == newd.get(3))
@@ -175,9 +174,8 @@ class ColumnIteratorSuite extends FunSuite {
         false)
     }
 
-    val tooBig = new IntDictionary
     intercept[IllegalArgumentException] {
-      tooBig.initialize(seqBig._1.toArray)
+      val tooBig = new IntDictionary(seqBig._1.toArray)
     }
   }
  
@@ -273,14 +271,32 @@ class ColumnIteratorSuite extends FunSuite {
     }
 
     {
+      assert(true  === StringColumnBuilder.textEquals(new Text("a"), new Text("a")))
+      assert(false === StringColumnBuilder.textEquals(new Text("a"), new Text("b")))
+      assert(false === StringColumnBuilder.textEquals(new Text("a"), null))
+      assert(false === StringColumnBuilder.textEquals(new Text(""),  null))
+      assert(true  === StringColumnBuilder.textEquals(new Text(""),  new Text("")))
+      assert(true  === StringColumnBuilder.textEquals(null,          null))
+
       // and now for strings
       var l = List[Text](new Text("a"), new Text("b"), new Text("b"), new Text("Abc"))
       var runs = List[Int](1,2,1)
       var values = List[Text](new Text("a"), new Text("b"), new Text("Abc"))
-      var rle = RLESerializer.encode(l)
-      var rle_decoded = RLESerializer.decode(rle)
-      assert(rle_decoded == l)
 
+      // non-streaming
+      {
+        val rle = RLESerializer.encode(l)
+        val rle_decoded = RLESerializer.decode(rle)
+        assert(rle_decoded === l)
+      }
+
+      // streaming
+      {
+        var rle = new RLEStreamingSerializer[Text]({ () => null }, StringColumnBuilder.textEquals)
+        l.foreach { x => rle.encodeSingle(x) }
+        val rle_decoded = RLESerializer.decode(rle.getCoded)
+        assert(rle_decoded === l)
+      }
 
       // does serializing work?
       var buf = ByteBuffer.allocate(204800)

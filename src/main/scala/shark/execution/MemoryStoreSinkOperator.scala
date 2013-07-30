@@ -84,31 +84,30 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       tableProperties.setProperty(SharkConfVars.COLUMN_COMPRESS_INT.varname,
         createTableProperties.get(SharkConfVars.COLUMN_COMPRESS_INT.varname).toString)
     }
-    op.logInfo("Op Table Properties - " + tableProperties)
+    op.logInfo("Creating table with properties (TBLPROPERTY) - " + tableProperties)
 
     // Put all rows of the table into a set of TablePartition's. Each partition contains
     // only one TablePartition object.
-    var rdd: RDD[TablePartition] = inputRdd.mapPartitionsWithIndex {
-      case (partitionIndex, iter) =>
-        op.initializeOnSlave()
-        val serde = new ColumnarSerDe
-        serde.initialize(op.hconf, tableProperties)
+    var rdd: RDD[TablePartition] = inputRdd.mapPartitionsWithIndex { case (partitionIndex, iter) =>
+      op.initializeOnSlave()
+      val serde = new ColumnarSerDe
+      serde.initialize(op.hconf, tableProperties)
 
-        // Serialize each row into the builder object.
-        // ColumnarSerDe will return a TablePartitionBuilder.
-        var builder: Writable = null
-        iter.foreach { row =>
-          builder = serde.serialize(row.asInstanceOf[AnyRef], op.objectInspector)
-        }
+      // Serialize each row into the builder object.
+      // ColumnarSerDe will return a TablePartitionBuilder.
+      var builder: Writable = null
+      iter.foreach { row =>
+        builder = serde.serialize(row.asInstanceOf[AnyRef], op.objectInspector)
+      }
 
-        if (builder != null) {
-          statsAcc += Tuple2(partitionIndex, builder.asInstanceOf[TablePartitionBuilder].stats)
-          Iterator(builder.asInstanceOf[TablePartitionBuilder].build)
-        } else {
-          // Empty partition.
-          statsAcc += Tuple2(partitionIndex, new TablePartitionStats(Array(), 0))
-          Iterator(new TablePartition(0, Array()))
-        }
+      if (builder != null) {
+        statsAcc += Tuple2(partitionIndex, builder.asInstanceOf[TablePartitionBuilder].stats)
+        Iterator(builder.asInstanceOf[TablePartitionBuilder].build)
+      } else {
+        // Empty partition.
+        statsAcc += Tuple2(partitionIndex, new TablePartitionStats(Array(), 0))
+        Iterator(new TablePartition(0, Array()))
+      }
     }
 
     if (tachyonWriter != null) {
@@ -118,14 +117,13 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       SharkEnv.memoryMetadataManager.put(tableName, rdd)
 
       tachyonWriter.createTable(ByteBuffer.allocate(0))
-      rdd = rdd.mapPartitionsWithIndex {
-        case (partitionIndex, iter) =>
-          val partition = iter.next()
-          partition.toTachyon.zipWithIndex.foreach {
-            case (buf, column) =>
-              tachyonWriter.writeColumnPartition(column, partitionIndex, buf)
-          }
-          Iterator(partition)
+      rdd = rdd.mapPartitionsWithIndex { case (partitionIndex, iter) =>
+        val partition = iter.next()
+        partition.toTachyon.zipWithIndex.foreach {
+          case (buf, column) =>
+            tachyonWriter.writeColumnPartition(column, partitionIndex, buf)
+        }
+        Iterator(partition)
       }
       // Force evaluate so the data gets put into Tachyon.
       rdd.foreach(_ => Unit)
@@ -186,9 +184,8 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     }
 
     if (SharkConfVars.getBoolVar(localHconf, SharkConfVars.MAP_PRUNING_PRINT_DEBUG)) {
-      columnStats.foreach {
-        case (index, tableStats) =>
-          println("Partition " + index + " " + tableStats.toString)
+      columnStats.foreach { case (index, tableStats) =>
+        println("Partition " + index + " " + tableStats.toString)
       }
     }
 

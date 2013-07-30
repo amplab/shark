@@ -28,6 +28,8 @@ import scala.collection.mutable.{HashSet, Set}
 import shark.LogHelper
 import shark.memstore2.column.CompressionScheme._
 
+/** Build a column of Text values into a ByteBuffer in memory.
+  */
 class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper{
   private var _stats: ColumnStats.StringColumnStats = null
 
@@ -42,7 +44,7 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper{
   private var _lengthArr: IntArrayList = null
 
   // build run length encoding optimistically
-  private var rleSs = new RLEStreamingSerializer[Text]( { () => null })
+  private var rleSs = new RLEStreamingSerializer[Text]( { () => null }, StringColumnBuilder.textEquals)
 
   override def initialize(initialSize: Int) {
     _arr = new ByteArrayList(initialSize * ColumnIterator.STRING_SIZE)
@@ -114,10 +116,10 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper{
 
     scheme match {
       case None => {
-        var minbufsize = _lengthArr.size * 4 + _arr.size +
-        ColumnIterator.COLUMN_TYPE_LENGTH
-        val buf = ByteBuffer.allocate(minbufsize)
-        logInfo("Allocated ByteBuffer of scheme " + scheme + " size " + minbufsize)
+        val bufSize = _lengthArr.size * 4 + _arr.size +
+          ColumnIterator.COLUMN_TYPE_LENGTH
+        val buf = ByteBuffer.allocate(bufSize)
+        logInfo("Allocated ByteBuffer of scheme " + scheme + " size " + bufSize)
         buf.order(ByteOrder.nativeOrder())
         buf.putLong(ColumnIterator.STRING)
 
@@ -128,10 +130,10 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper{
 
         val (tempBufSize, compressed) = encodeAsBlocks(_arr, _lengthArr)
 
-        var minbufsize = 8 + compressed.size +
+        val bufSize = 8 + compressed.size +
         ColumnIterator.COLUMN_TYPE_LENGTH
-        val buf = ByteBuffer.allocate(minbufsize)
-        logInfo("Allocated ByteBuffer of scheme " + scheme + " size " + minbufsize)
+        val buf = ByteBuffer.allocate(bufSize)
+        logInfo("Allocated ByteBuffer of scheme " + scheme + " size " + bufSize)
         buf.order(ByteOrder.nativeOrder())
         buf.putLong(ColumnIterator.LZF_STRING)
 
@@ -175,17 +177,17 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper{
           }
         }
 
-        var minbufsize = rleStrings.size*4 + //runs
+        val bufSize = rleStrings.size*4 + //runs
         rleStrings.size*4 + //lengths per string
         totalStringLengthInBuffer         + //string
         ColumnIterator.COLUMN_TYPE_LENGTH
         logInfo("number of Strings " + rleStrings.size + " totalStringLengthInBuffer  " + totalStringLengthInBuffer)
 
-        val buf = ByteBuffer.allocate(minbufsize)
+        val buf = ByteBuffer.allocate(bufSize)
         buf.order(ByteOrder.nativeOrder())
         buf.putLong(ColumnIterator.RLE_STRING)
 
-        logInfo("Allocated ByteBuffer of scheme " + scheme + " size " + minbufsize)
+        logInfo("Allocated ByteBuffer of scheme " + scheme + " size " + bufSize)
         logDebug("size of runs " + runs.size)
         RLESerializer.writeToBuffer(buf, runs)
         populateStringsInBuffer(rleStrings, buf)
@@ -300,4 +302,15 @@ class StringColumnBuilder extends ColumnBuilder[Text] with LogHelper{
     buf
   }
 
+}
+
+object StringColumnBuilder {
+  def nullOrHashCode(t: Text): Int = {
+    // -1 because Text returns positive int hashcodes
+    if (t == null) -1 else t.hashCode
+  }
+
+  val textEquals = (a: Text, b: Text) => {
+    nullOrHashCode(a) == nullOrHashCode(b)
+  }
 }

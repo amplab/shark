@@ -83,7 +83,7 @@ class LZFBlockColumnIterator[T <: ColumnIterator](
     }
   }
 
-  override def next = {
+  override def next() {
     initialized = true
     (rowCount % LZFSerializer.BLOCK_SIZE) match {
       case 0 => {     // may need new chunk - get that and populate BB

@@ -25,37 +25,12 @@ import java.nio.{ ByteBuffer, IntBuffer, ByteOrder }
 import it.unimi.dsi.fastutil.ints.IntArrayList
 
 
-/* Decorator attempt with abstract override - incomplete - nandu
- * cannot get factory to work
-trait RLEncoding[T] extends ColumnBuilder[T]{
-  private var list:ListBuffer[T] = null
-
-  abstract override def append(v: T) {
-    list += v
-    super.append(v)
-  }
-
-  abstract override def build: ByteBuffer {
-    var rle = RLESerializer.encode(list.toList)
-    var buf = ByteBuffer.allocate(20480)
-    buf.order(ByteOrder.nativeOrder())
-
-    RLESerializer.writeToBuffer(buf, l)
-    buf.rewind
-
-    super.buildIntoExistingBuffer
-
-
-    buf
-  }
-}
-*/
-
 /** Helper class to implement Run Length Encoding across both the
   * RLEColumnIterator and various Builders. This one builds runs at item at a
   * time.
   */
-class RLEStreamingSerializer[A](val fac: () => A){
+class RLEStreamingSerializer[A](val makeA: () => A,
+                                val equals: (A, A) => Boolean = RLESerializer.equalsDefault _){
   var coded = collection.mutable.ArrayBuffer.empty[(Int,A)]
   private var coded_ = coded
 
@@ -82,12 +57,12 @@ class RLEStreamingSerializer[A](val fac: () => A){
     }
   }
 
-  private var previous: A = fac()
+  private var previous: A = makeA()
   private var previousRun: Int = 0
 
   def encodeSingle(current: A): Unit =
     if (previousRun > 0) {
-      if(previous == current) { // same value
+      if (equals(previous, current)) { // same value
         previousRun += 1
       } else { // diff value
         coded.append((previousRun, previous))
@@ -104,7 +79,7 @@ class RLEStreamingSerializer[A](val fac: () => A){
 /** Helper object to implement Run Length Encoding across both the
   * RLEColumnIterator and various Builders.
   */
-object RLESerializer{
+object RLESerializer {
 
 // http://aperiodic.net/phil/scala/s-99/p13.scala
 //     Implement the so-called run-length encoding data compression method
@@ -169,4 +144,6 @@ object RLESerializer{
     lengths.getInt() // also advance on the lengths duplicated ByteBuffer
     (numLengths, lengths)
   }
+
+  def equalsDefault[A](a: A, b: A) = { a == b }
 } // object

@@ -283,22 +283,22 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   test("creating cache tables with unsupported compression scheme") {
-    val e = intercept[QueryExecutionException] { 
+    val e = intercept[QueryExecutionException] {
       sc.sql("drop table if exists compr_cached")
       val intSchemeMod = "BADPROPS"
       val strSchemeMod = "BADPROPS"
       info("scheme overrides from SQL int[" + intSchemeMod + "] string[" + strSchemeMod + "]")
-      val tblProperties = """TBLPROPERTIES ("shark.columnar.compr.int"="""" +
+      val tblProperties = """TBLPROPERTIES ("shark.column.compress.int"="""" +
       intSchemeMod +
-      """", "shark.columnar.compr.string"="""" +
+      """", "shark.column.compress.string"="""" +
       strSchemeMod +
       """")"""
       val query = "create table compr_cached " + tblProperties + " as select * from test"
+      info(query)
       sc.sql(query) 
     }
     e.getMessage.contains("Bad compression scheme")
   }
-
 
   test("requests to compress unsupported column types is ignored like other unused TBLPROPERTIES") {
     sc.sql("DROP TABLE if exists compr_test")
@@ -306,11 +306,11 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.sql("LOAD DATA LOCAL INPATH '${hiveconf:shark.test.data.path}/kv1.txt' INTO TABLE compr_test")
 
     sc.sql("DROP TABLE if exists compr_test_cached")
-    sc.sql("""CREATE TABLE compr_test_cached TBLPROPERTIES("shark.columnar.compr.long"="RLE") 
+    sc.sql("""CREATE TABLE compr_test_cached TBLPROPERTIES("shark.column.compress.long"="RLE") 
            AS SELECT * FROM compr_test""")
 
     sc.sql("DROP TABLE if exists compr_test_cached")
-    sc.sql("""CREATE TABLE compr_test_cached TBLPROPERTIES("shark.columnar.compr.NOSUCHTYPE"="RLE") 
+    sc.sql("""CREATE TABLE compr_test_cached TBLPROPERTIES("shark.column.compress.NOSUCHTYPE"="RLE") 
            AS SELECT * FROM compr_test""")
     // no errors reported. no compression used
   }

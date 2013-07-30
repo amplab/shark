@@ -42,7 +42,7 @@ class LZFColumnIterator[T <: ColumnIterator](
     ctor.newInstance(uncompressedBBR).asInstanceOf[T]
   }
 
-  override def next = {
+  override def next() {
     initialized = true
     baseIter.next()
   }

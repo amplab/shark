@@ -18,7 +18,6 @@
 package shark.memstore2.column
 
 import java.nio.ByteBuffer
-import scala.collection.mutable.{ListBuffer}
 import org.apache.hadoop.io.Text
 import org.apache.hadoop.io.IntWritable
 
@@ -29,39 +28,33 @@ import shark.memstore2.buffer.ByteBufferReader
  * the column builder and column iterator.
  * 
  */
-trait Dictionary[@specialized(Int) T]{
-  var uniques: Array[T]
-  def initialize(u: Array[T]): Unit
+trait Dictionary[@specialized(Int) T] {
   def get(b: Byte): T
   def getWritable(b: Byte): Object
   def getByte(t: T): Byte
-  def sizeInBits: Int
-  def size: Int = uniques.size
+  /* Number of bytes needed to store Dictionary */
+  def sizeInBytes: Int
+  /* Number of elements in Dictionary */
+  def size: Int
 }
 
 
 /** Int implementation. Saves space by using 1 byte per Int
   * instead of 4.
   */
-class IntDictionary extends Dictionary[Int] {
-  var uniques = new Array[Int](0)
+class IntDictionary(uniques: Array[Int]) extends Dictionary[Int] {
+  require(uniques.size < DictionarySerializer.MAX_DICT_UNIQUE_VALUES,
+    "Too many unique values to build an IntDictionary " + uniques.size)
+
   private var writable = new IntWritable
 
-  override def initialize(u: Array[Int]) = {
-    require(u.size < DictionarySerializer.MAX_DICT_UNIQUE_VALUES, 
-      "Too many unique values to build an IntDictionary " + u.size)
-    uniques = new Array[Int](u.size)
-    u.copyToArray(uniques)
-  }
+  override def size = uniques.size
 
   // return the Int associated with Byte
   override def get(b:Byte): Int = {
     // Convert byte to index
     // -128, 128 ===> 0, 256
-    var idx: Int = b
-    if(b < 0) {
-      idx = b + 256
-    }
+    val idx = if (b < 0) (b + 256) else b
 
     if (idx < 0 || size <= idx) {
       throw new IndexOutOfBoundsException("Index " + idx + " Size " + size)
@@ -79,8 +72,8 @@ class IntDictionary extends Dictionary[Int] {
   override def getByte(i: Int): Byte = 
     uniques.indexOf(i).toByte
 
-  override def sizeInBits = {
-    val ret = 32 * (1 + uniques.size) 
+  override def sizeInBytes = {
+    val ret = 4 * (1 + uniques.size) 
     // println("Need " + ret + " Bytes to store dictionary in memory")
     ret
   }
@@ -92,40 +85,37 @@ class IntDictionary extends Dictionary[Int] {
 
 /** Helper to share code betwen the Iterator and various Builders.
   */
-object DictionarySerializer{
+object DictionarySerializer {
   // Dictionaries can only work when number of unique values is lower than this. Values should fit
   // in Bytes.
   val MAX_DICT_UNIQUE_VALUES = 256 // 2 ** 8 - storable in 8 bits or 1 Byte
+}
 
+object IntDictionarySerializer {
   // Append the serialized bytes of the Dictionary into the ByteBuffer.
-  def writeToBuffer(buf: ByteBuffer, bitmap: IntDictionary) {
+  def writeToBuffer(buf: ByteBuffer, dict: IntDictionary) {
     // compression size in Bytes
     // compression dict Bytes
-    buf.putInt(bitmap.sizeInBits/8)
+    buf.putInt(dict.sizeInBytes)
     var pos: Int = 0
-    while (pos < bitmap.size) {
+    while (pos < dict.size) {
       // println("writetobuffer: pos was " + pos + 
-      //   " sizeInBits/8 " + bitmap.sizeInBits/8 + 
+      //   " sizeInBytes " + bitmap.sizeInBytes + 
       //   " bitmap.size " + bitmap.size)
-      buf.putInt(bitmap.get(pos.toByte))
+      buf.putInt(dict.get(pos.toByte))
       pos += 1
     }
     buf
   }
 
   // Create a Dictionary from the byte buffer.
-  def readFromBuffer(bufReader: ByteBufferReader): Dictionary[Int] = {
-    // println("bufReader.position before dict  " + bufReader.position)
-
+  def readFromBuffer(bufReader: ByteBufferReader): IntDictionary = {
     val bufferLengthInBytes = bufReader.getInt()
-    
     val uniqueCount = (bufferLengthInBytes - 4)/4 // 4 Bytes used to store length
     var uniques = new Array[Int](uniqueCount)
     bufReader.getInts(uniques, uniqueCount)
 
-    val dict = new IntDictionary
     // println("bufferLengthInBytes " + bufferLengthInBytes + " readFromBuffer: uniques.size " + uniques.size)
-    dict.initialize(uniques)
-    dict
+    new IntDictionary(uniques)
   }
 }

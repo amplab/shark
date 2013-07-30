@@ -61,7 +61,7 @@ class EWAHNullableColumnIterator[T <: ColumnIterator](bIter: T, bytes: ByteBuffe
     if (_pos >= _nextNullPosition || _pos == -1) {
       if (_nullsIter.hasNext) {
         _nextNullPosition = _nullsIter.next
-      } 
+      }
     }
 
     _pos += 1

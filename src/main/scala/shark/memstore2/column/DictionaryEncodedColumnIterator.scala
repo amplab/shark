@@ -31,7 +31,7 @@ class DictionaryEncodedColumnIterator[Iter <: ColumnIterator](baseIterCls: Class
     extends ColumnIterator{
   private var currentByte: Byte = 0
   private var initialized =  false
-  private val _dict = DictionarySerializer.readFromBuffer(_bytesReader)
+  private val _dict = IntDictionarySerializer.readFromBuffer(_bytesReader)
   // order matters - dict should be built first
   // private val baseIter: Iter = {
   //   val ctor = baseIterCls.getConstructor(classOf[ByteBufferReader])

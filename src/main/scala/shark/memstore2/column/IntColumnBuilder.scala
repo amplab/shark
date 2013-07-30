@@ -73,7 +73,6 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
 
   def pickCompressionScheme: CompressionScheme.Value = {
     val transitionsRatio = (_stats.transitions).toDouble / _nonNulls.size
-
     if (transitionsRatio < 0.5) {
       RLE // 1 int for length + 1 int for value - hence 0.5
     } else if (uniques.size < DictionarySerializer.MAX_DICT_UNIQUE_VALUES) {
@@ -109,13 +108,13 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
 
     scheme match {
       case None => {
-        val minbufsize = (_nonNulls.size*4) + ColumnIterator.COLUMN_TYPE_LENGTH + sizeOfNullBitmap
-        val buf = ByteBuffer.allocate(minbufsize)
+        val bufSize = (_nonNulls.size*4) + ColumnIterator.COLUMN_TYPE_LENGTH + sizeOfNullBitmap
+        val buf = ByteBuffer.allocate(bufSize)
         logDebug("sizeOfNullBitmap " + sizeOfNullBitmap +
           " ColumnIterator.COLUMN_TYPE_LENGTH " +
           ColumnIterator.COLUMN_TYPE_LENGTH +
           " _nonNulls.size*4 " + _nonNulls.size*4)
-        logInfo("Allocated ByteBuffer of scheme " + scheme + " size " + minbufsize)
+        logInfo("Allocated ByteBuffer of scheme " + scheme + " size " + bufSize)
 
         buf.order(ByteOrder.nativeOrder())
         buf.putLong(ColumnIterator.INT)
@@ -132,7 +131,7 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
       } 
       case LZF => {
         val (tempBufSize, compressedByteArray) = encodeAsLZFBlocks(_nonNulls)
-        val minbufsize = (compressedByteArray.size*1) + 2*4 + ColumnIterator.COLUMN_TYPE_LENGTH +
+        val bufSize = (compressedByteArray.size*1) + 2*4 + ColumnIterator.COLUMN_TYPE_LENGTH +
           sizeOfNullBitmap
         logDebug("sizeOfNullBitmap " + sizeOfNullBitmap +
           " ColumnIterator.COLUMN_TYPE_LENGTH " +
@@ -140,8 +139,8 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
           " 2*4 (numUncompressedBytes, length) " + 2*4 +
           " compressedByteArray.size*1 " + compressedByteArray.size*1)
 
-        val buf = ByteBuffer.allocate(minbufsize)
-        logInfo("Allocated ByteBuffer of scheme " + scheme + " size " + minbufsize)
+        val buf = ByteBuffer.allocate(bufSize)
+        logInfo("Allocated ByteBuffer of scheme " + scheme + " size " + bufSize)
 
         buf.order(ByteOrder.nativeOrder())
         buf.putLong(ColumnIterator.LZF_INT)
@@ -154,7 +153,7 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
         buf
       }
       case RLE => {
-        var rleSs = new RLEStreamingSerializer[Int]( { () => -1 } )
+        var rleSs = new RLEStreamingSerializer[Int]( { () => -1 }, { (i, j) => i == j } )
         var i = 0
         while (i < _nonNulls.size) {
           rleSs.encodeSingle(_nonNulls.get(i))
@@ -166,14 +165,14 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
         val runs = new IntArrayList(vals.size)
         rleStrings.foreach ( x => runs.add(x._1) )
 
-        val minbufsize = 
+        val bufSize = 
           4 + //#runs
           runs.size*4 + //runs
           runs.size*4 + //values
           ColumnIterator.COLUMN_TYPE_LENGTH +
           sizeOfNullBitmap
 
-        val buf = ByteBuffer.allocate(minbufsize)
+        val buf = ByteBuffer.allocate(bufSize)
         buf.order(ByteOrder.nativeOrder())
         buf.putLong(ColumnIterator.RLE_INT)
 
@@ -181,7 +180,7 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
           " ColumnIterator.COLUMN_TYPE_LENGTH " +
           ColumnIterator.COLUMN_TYPE_LENGTH +
           " runs.size*8 " + runs.size*8)
-        logInfo("Allocated ByteBuffer of scheme " + scheme + " size " + minbufsize)
+        logInfo("Allocated ByteBuffer of scheme " + scheme + " size " + bufSize)
 
         writeNullBitmap(buf)
         RLESerializer.writeToBuffer(buf, runs)
@@ -195,34 +194,33 @@ class IntColumnBuilder extends ColumnBuilder[Int] with LogHelper{
         buf
       }
       case Dict => {
-        val dict = new IntDictionary
+        val dict = new IntDictionary(uniques.toIntArray)
         logInfo("#uniques " + uniques.size)
-        dict.initialize(uniques.toIntArray)
-        val minbufsize = (_nonNulls.size*1) + ColumnIterator.COLUMN_TYPE_LENGTH +
-        sizeOfNullBitmap + (dict.sizeInBits/8)
+        val bufSize = (_nonNulls.size*1) + ColumnIterator.COLUMN_TYPE_LENGTH +
+        sizeOfNullBitmap + dict.sizeInBytes
 
         logInfo(
           " ColumnIterator.COLUMN_TYPE_LENGTH " +
             ColumnIterator.COLUMN_TYPE_LENGTH +
             " sizeOfNullBitmap " + sizeOfNullBitmap +
-            " dict.sizeinbits/8 " + (dict.sizeInBits/8) +
+            " dict.sizeInBytes " + dict.sizeInBytes +
             " _nonNulls.size*1 " + _nonNulls.size*1)
 
-        val buf = ByteBuffer.allocate(minbufsize)
-        logInfo("Allocated ByteBuffer of scheme " + scheme + " size " + minbufsize)
+        val buf = ByteBuffer.allocate(bufSize)
+        logInfo("Allocated ByteBuffer of scheme " + scheme + " size " + bufSize)
         buf.order(ByteOrder.nativeOrder())
         buf.putLong(ColumnIterator.DICT_INT)
 
         writeNullBitmap(buf)
 
-        DictionarySerializer.writeToBuffer(buf, dict)
+        IntDictionarySerializer.writeToBuffer(buf, dict)
 
         var i = 0
         while (i < _nonNulls.size) {
           buf.put(dict.getByte(_nonNulls.get(i)))
           i += 1
         }
-        logInfo("Compression ratio is " + (_nonNulls.size.toFloat*4/(minbufsize)) + " : 1")
+        logInfo("Compression ratio is " + (_nonNulls.size.toFloat*4/(bufSize)) + " : 1")
         buf.rewind()
         buf
       }
