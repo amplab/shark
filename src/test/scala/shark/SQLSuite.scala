@@ -79,7 +79,9 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   private def expectSql(sql: String, expectedResults: Array[String], sort: Boolean = true) {
-    val results = if (sort) sc.sql(sql).sortWith(_ < _) else sc.sql(sql)
+    val sharkResults: Array[String] = sc.executeSql(sql)._2.map(_.mkString("\t")).toArray
+    val results = if (sort) sharkResults.sortWith(_ < _) else sharkResults
+
     val expected = if (sort) expectedResults.sortWith(_ < _) else expectedResults
     assert(results.corresponds(expected)(_.equals(_)),
       "In SQL: " + sql + "\n" +
@@ -127,13 +129,13 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   test("limit") {
-    assert(sc.sql("select * from test limit 10").length === 10)
-    assert(sc.sql("select * from test limit 501").length === 500)
+    assert(sc.executeSql("select * from test limit 10")._2.length === 10)
+    assert(sc.executeSql("select * from test limit 501")._2.length === 500)
     sc.sql("drop table if exists test_limit0")
-    assert(sc.sql("select * from test limit 0").length === 0)
-    assert(sc.sql("create table test_limit0 as select * from test limit 0").length === 0)
-    assert(sc.sql("select * from test_limit0 limit 0").length === 0)
-    assert(sc.sql("select * from test_limit0 limit 1").length === 0)
+    assert(sc.executeSql("select * from test limit 0")._2.length === 0)
+    assert(sc.executeSql("create table test_limit0 as select * from test limit 0")._2.length === 0)
+    assert(sc.executeSql("select * from test_limit0 limit 0")._2.length === 0)
+    assert(sc.executeSql("select * from test_limit0 limit 1")._2.length === 0)
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -255,12 +257,18 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       overwrite into table test_complex_types""")
     sc.sql("""create table test_complex_types_cached TBLPROPERTIES ("shark.cache" = "true") as
       select * from test_complex_types""")
-    expectSql("select a from test_complex_types_cached where a = 'a0'", """a0""")
-    expectSql("select b from test_complex_types_cached where a = 'a0'", """["b00","b01"]""")
-    expectSql("select c from test_complex_types_cached where a = 'a0'",
+
+    assert(sc.sql("select a from test_complex_types_cached where a = 'a0'").head === "a0")
+
+    assert(sc.sql("select b from test_complex_types_cached where a = 'a0'").head ===
+      """["b00","b01"]""")
+
+    assert(sc.sql("select c from test_complex_types_cached where a = 'a0'").head ===
       """[{"c001":"C001","c002":"C002"},{"c011":null,"c012":"C012"}]""")
-    expectSql("select d from test_complex_types_cached where a = 'a0'",
+
+    assert(sc.sql("select d from test_complex_types_cached where a = 'a0'").head ===
       """{"d01":["d011","d012"],"d02":["d021","d022"]}""")
+
     assert(SharkEnv.memoryMetadataManager.contains("test_complex_types_cached"))
   }
 
