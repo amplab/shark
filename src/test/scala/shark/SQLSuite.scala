@@ -155,11 +155,6 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       sort = false)
   }
 
-  test("limit") {
-    assert(sc.sql("select * from test limit 10").length == 10)
-    assert(sc.sql("select * from test limit 501").length == 500)
-  }
-
   //////////////////////////////////////////////////////////////////////////////
   // column pruning
   //////////////////////////////////////////////////////////////////////////////

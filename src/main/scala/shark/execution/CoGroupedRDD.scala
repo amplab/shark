@@ -24,7 +24,6 @@ import scala.collection.JavaConversions._
 import scala.collection.mutable.ArrayBuffer
 
 import shark.SharkEnv
-import spark.serializer.Serializer
 
 // A version of CoGroupedRDD with the following changes:
 // - Disable map-side aggregation.
@@ -111,7 +110,7 @@ class CoGroupedRDD[K](@transient var rdds: Seq[RDD[(_, _)]], part: Partitioner)
       }
       values
     }
-    val serializer = Serializer.get(SharkEnv.shuffleSerializerName)
+    val serializer = SparkEnv.get.serializerManager.get(SharkEnv.shuffleSerializerName)
     for ((dep, depNum) <- split.deps.zipWithIndex) dep match {
       case NarrowCoGroupSplitDep(rdd, itsSplitIndex, itsSplit) => {
         // Read them from the parent

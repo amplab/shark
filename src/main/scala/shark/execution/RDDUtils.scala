@@ -23,7 +23,8 @@ import com.google.common.collect.{Ordering => GOrdering}
 
 import shark.SharkEnv
 import spark.{HashPartitioner, Partitioner, RangePartitioner, RDD}
-import spark.rdd.ShuffledRDD
+import spark.rdd.{ShuffledRDD, UnionRDD}
+import spark.storage.StorageLevel
 
 
 /**
@@ -31,6 +32,21 @@ import spark.rdd.ShuffledRDD
  * to Spark's built-in abstractions.
  */
 object RDDUtils {
+
+  def getStorageLevelOfCachedTable(rdd: RDD[_]): StorageLevel = {
+    rdd match {
+      case u: UnionRDD[_] => u.rdds.foldLeft(rdd.getStorageLevel) {
+        (s, r) => {
+          if (s == StorageLevel.NONE) {
+            getStorageLevelOfCachedTable(r)
+          } else {
+            s
+          }
+        }
+      }
+      case _ => rdd.getStorageLevel
+    }
+  }
 
   /**
    * Repartition an RDD using the given partitioner. This is similar to Spark's partitionBy,

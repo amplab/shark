@@ -35,9 +35,9 @@ import org.apache.hadoop.hive.ql.parse._
 import org.apache.hadoop.hive.ql.plan._
 import org.apache.hadoop.hive.ql.session.SessionState
 
-import shark.{CachedTableRecovery, LogHelper, SharkConfVars, SharkEnv, RDDUtils,  Utils}
-import shark.execution.{HiveOperator, Operator, OperatorFactory, ReduceSinkOperator, SparkWork,
-  TerminalOperator}
+import shark.{CachedTableRecovery, LogHelper, SharkConfVars, SharkEnv,  Utils}
+import shark.execution.{HiveOperator, Operator, OperatorFactory, RDDUtils, ReduceSinkOperator,
+  SparkWork, TerminalOperator}
 import shark.memstore2.{CacheType, ColumnarSerDe, MemoryMetadataManager}
 
 import spark.storage.StorageLevel

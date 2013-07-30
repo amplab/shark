@@ -117,20 +117,17 @@ class ExtractOperator extends UnaryOperator[HiveExtractOperator] with HiveTopOpe
   }
 
   override def processPartition(split: Int, iter: Iterator[_]) = {
-    val bytes = new BytesWritable()
+    // TODO: use MutableBytesWritable to avoid the array copy.
+    val writable = new BytesWritable
     iter map {
       case (key, value: Array[Byte]) => {
-        bytes.set(value)
-        valueDeser.deserialize(bytes)
+        writable.set(value, 0, value.length)
+        valueDeser.deserialize(writable)
       }
-      case err => throw new RuntimeException("Did not find key, value pair: " + err.toString)
+      case unrecognizedObj => {
+        throw new RuntimeException("Did not find key, value pair: " + unrecognizedObj.toString)
+      }
     }
-  }
-
-  def processOrderedRDD[K <% Ordered[K]: ClassManifest, V: ClassManifest, T](rdd: RDD[_]): RDD[_] = {
-    rdd match {
-      case r: RDD[(K, V)] => r.sortByKey()
-      case _ => rdd
   }
 }
 
