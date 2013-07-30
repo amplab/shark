@@ -110,6 +110,17 @@ object SharkEnv extends LogHelper {
   val addedJars = HashSet[String]()
 
   def unpersist(key: String): Option[RDD[_]] = {
+    if (SharkEnv.tachyonUtil.tachyonEnabled()) {
+      if (SharkEnv.tachyonUtil.tableExists(key)) {
+        logInfo("Table " + key + " is in Tachyon.");
+        if (SharkEnv.tachyonUtil.dropTable(key)) {
+          logInfo("In Tachyon Table " + key + " was deleted.");
+        }
+      }
+    } else {
+      logInfo("Tachyon is not enabled. Potential table in it is not dropped.");
+    }
+
     memoryMetadataManager.unpersist(key)
   }
 
