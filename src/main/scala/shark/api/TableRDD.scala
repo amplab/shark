@@ -27,11 +27,16 @@ import shark.execution.serialization.KryoSerializer
 import spark.{Partition, RDD, TaskContext}
 
 
-class TableRDD(prev: RDD[Any], val tableDesc: TableDesc, @transient oi: ObjectInspector)
+class TableRDD(
+    prev: RDD[Any],
+    val tableDesc: TableDesc,
+    @transient oi: ObjectInspector,
+    val limit: Int = -1)
   extends RDD[Row](prev) {
 
-  private[shark] def this(prev: RDD[Any], schema: JList[FieldSchema], oi: ObjectInspector) {
-    this(prev, new TableDesc(schema), oi)
+  private[shark]
+  def this(prev: RDD[Any], schema: JList[FieldSchema], oi: ObjectInspector, limit: Int) {
+    this(prev, new TableDesc(schema), oi, limit)
   }
 
   override def getPartitions = firstParent[Any].partitions

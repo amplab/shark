@@ -32,8 +32,7 @@ import org.apache.hadoop.hive.ql.processors.CommandProcessorFactory
 import org.apache.hadoop.hive.ql.processors.CommandProcessorResponse
 import org.apache.hadoop.hive.ql.session.SessionState
 
-import shark.api.TableRDD
-import shark.api.QueryExecutionException
+import shark.api.{ColumnDesc, Row, TableRDD, QueryExecutionException}
 import spark.{SparkContext, SparkEnv}
 
 
@@ -99,6 +98,29 @@ class SharkContext(
     try {
       driver.init()
       driver.tableRdd(cmd)
+    } finally {
+      driver.destroy()
+    }
+  }
+
+  def executeSql(cmd: String, maxRows: Int = 1000): (Array[ColumnDesc], Seq[Array[Object]]) = {
+    SparkEnv.set(sparkEnv)
+    SessionState.start(sessionState)
+    val driver = new SharkDriver(hiveconf)
+    try {
+      driver.init()
+      val rdd: TableRDD = driver.tableRdd(cmd)
+      val numCols = rdd.tableDesc.columns.length
+      val data = rdd.map { row: Row =>
+        Array.tabulate(numCols) { i => row.get(i) }
+      }
+
+      val schema = rdd.tableDesc.columns
+      if (rdd.limit < 0) {
+        (schema, data.collect())
+      } else {
+        (schema, data.take(math.min(maxRows, rdd.limit)).toSeq)
+      }
     } finally {
       driver.destroy()
     }

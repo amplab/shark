@@ -90,7 +90,12 @@ class SparkTask extends HiveTask[SparkWork] with Serializable with LogHelper {
 
     val sinkRdd = terminalOp.execute().asInstanceOf[RDD[Any]]
 
-    _tableRdd = new TableRDD(sinkRdd, work.resultSchema, terminalOp.objectInspector)
+    val limit = terminalOp.parentOperators.head match {
+      case op: LimitOperator => op.limit
+      case _ => -1
+    }
+
+    _tableRdd = new TableRDD(sinkRdd, work.resultSchema, terminalOp.objectInspector, limit)
     0
   }
 
