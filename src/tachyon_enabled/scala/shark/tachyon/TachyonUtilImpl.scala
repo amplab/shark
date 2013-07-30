@@ -35,6 +35,10 @@ class TachyonUtilImpl(val master: String, val warehousePath: String) extends Tac
 
   val client = if (master != null && master != "") TachyonFS.get(master) else null
 
+  if (master != null && warehousePath == null) {
+    throw new TachyonException("TACHYON_MASTER is set. However, TACHYON_WAREHOUSE_PATH is not.")
+  }
+
   def getPath(tableName: String): String = warehousePath + "/" + tableName
 
   override def tachyonEnabled(): Boolean = true
