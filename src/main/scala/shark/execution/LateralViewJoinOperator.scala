@@ -41,8 +41,7 @@ import spark.RDD
 class LateralViewJoinOperator extends NaryOperator[HiveLateralViewJoinOperator] {
 
   @BeanProperty var conf: SelectDesc = _
-  @BeanProperty var lvfOp: LateralViewForwardOperator = _
-  @BeanProperty var lvfOIString: String = _
+  @BeanProperty var selOp: SelectOperator = _
   @BeanProperty var udtfOp: UDTFOperator = _
   @BeanProperty var udtfOIString: String = _
 
@@ -56,13 +55,10 @@ class LateralViewJoinOperator extends NaryOperator[HiveLateralViewJoinOperator] 
 
     udtfOp = parentOperators.filter(_.isInstanceOf[UDTFOperator]).head.asInstanceOf[UDTFOperator]
     udtfOIString = KryoSerializerToString.serialize(udtfOp.objectInspectors)
-    lvfOp = parentOperators.filter(_.isInstanceOf[SelectOperator]).head.parentOperators.head
-      .asInstanceOf[LateralViewForwardOperator]
-    lvfOIString = KryoSerializerToString.serialize(lvfOp.objectInspectors)
+    selOp = parentOperators.filter(_.isInstanceOf[SelectOperator]).head.asInstanceOf[SelectOperator]
   }
 
   override def initializeOnSlave() {
-    lvfOp.objectInspectors = KryoSerializerToString.deserialize(lvfOIString)
     udtfOp.objectInspectors = KryoSerializerToString.deserialize(udtfOIString)
 
     // Get eval(), which will return array that needs to be exploded
@@ -76,9 +72,9 @@ class LateralViewJoinOperator extends NaryOperator[HiveLateralViewJoinOperator] 
   }
 
   override def execute: RDD[_] = {
-    // Execute LateralViewForwardOperator, bypassing Select / UDTF - Select
-    // branches (see diagram in Hive's).
-    val inputRDD = lvfOp.execute()
+    // Execute LVF + Select operators, bypassing Select + UDTF branch
+    // (see helpful diagram in Hive's LateralViewJoinOperator.java)
+    val inputRDD = selOp.execute()
 
     Operator.executeProcessPartition(this, inputRDD)
   }
@@ -90,7 +86,8 @@ class LateralViewJoinOperator extends NaryOperator[HiveLateralViewJoinOperator] 
 
   /** Per existing row, emit a new row with each value of the exploded array */
   override def processPartition(split: Int, iter: Iterator[_]) = {
-    val lvfSoi = lvfOp.objectInspectors.head.asInstanceOf[StructObjectInspector]
+
+    val lvfSoi = objectInspectors(0).asInstanceOf[StructObjectInspector]
     val lvfFields = lvfSoi.getAllStructFieldRefs()
 
     iter.flatMap { row =>
