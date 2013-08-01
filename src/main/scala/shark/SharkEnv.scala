@@ -114,11 +114,11 @@ object SharkEnv extends LogHelper {
       if (SharkEnv.tachyonUtil.tableExists(key)) {
         logInfo("Table " + key + " is in Tachyon.");
         if (SharkEnv.tachyonUtil.dropTable(key)) {
-          logInfo("In Tachyon Table " + key + " was deleted.");
+          logInfo("Table " + key + " was deleted from Tachyon.");
+        } else {
+          logWarning("Failed to remove table " + key + " from Tachyon.");
         }
       }
-    } else {
-      logInfo("Tachyon is not enabled. Potential table in it is not dropped.");
     }
 
     memoryMetadataManager.unpersist(key)
