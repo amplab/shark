@@ -30,6 +30,8 @@ export SPARK_HOME="$WORKSPACE/spark"
 #mkdir -p $HIVE_WAREHOUSE
 #chmod chmod 0777 $HIVE_WAREHOUSE
 
+echo JAVA_HOME is $JAVA_HOME
+
 # Download and build Hive.
 git clone https://github.com/amplab/hive.git -b shark-0.9
 pushd hive
