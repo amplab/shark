@@ -67,5 +67,6 @@ while $still_searching; do
 done
 popd
 
-# Run the Shark tests.
+# Compile and run the Shark tests.
 sbt/sbt test:compile
+bin/dev/test
