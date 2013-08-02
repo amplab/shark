@@ -34,6 +34,8 @@ import org.apache.hadoop.hive.serde2.objectinspector.StandardUnionObjectInspecto
 import org.apache.hadoop.io.BytesWritable
 
 import shark.SharkEnvSlave
+import shark.SharkConfVars
+import shark.execution.cg.CGEvaluatorFactory
 
 
 /**
@@ -42,6 +44,7 @@ import shark.SharkEnvSlave
  */
 class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
 
+  @BeanProperty var useCG = true
   @BeanProperty var conf: ReduceSinkDesc = _
 
   // The evaluator for key columns. Key columns decide the sort/hash order on
@@ -67,6 +70,7 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
 
   override def initializeOnMaster() {
     conf = hiveOp.getConf()
+    useCG = SharkConfVars.getBoolVar(super.hconf, SharkConfVars.EXPR_CG)
   }
 
   override def initializeOnSlave() {
@@ -154,7 +158,7 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
     }
 
     // Initialize evaluator and object inspector for partition columns.
-    partitionEval = conf.getPartitionCols.map(ExprNodeEvaluatorFactory.get(_)).toArray
+    partitionEval = conf.getPartitionCols.map(CGEvaluatorFactory.get(_, useCG)).toArray
     partitionObjInspectors = partitionEval.map(_.initialize(rowInspector)).toArray
   }
 
