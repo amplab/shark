@@ -20,7 +20,7 @@ fi
 # Download and build Spark.
 git clone https://github.com/mesos/spark.git
 pushd spark
-sbt/sbt clean package deploy-local
+sbt/sbt clean publish-local
 popd
 export SPARK_HOME="$WORKSPACE/spark"
 
