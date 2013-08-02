@@ -130,13 +130,6 @@ object SharkEnv extends LogHelper {
 
 /** A singleton object for the slaves. */
 object SharkEnvSlave {
-  /**
-   * A lock for various operations in ObjectInspectorFactory. Methods in that
-   * class uses a static objectInspectorCache object to cache the creation of
-   * object inspectors. That object is not thread safe so we wrap all calls to
-   * that object in a synchronized lock on this.
-   */
-  val objectInspectorLock: AnyRef = new Object()
 
   val tachyonUtil = new TachyonUtilImpl(
     System.getenv("TACHYON_MASTER"), System.getenv("TACHYON_WAREHOUSE_PATH"))
