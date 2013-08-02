@@ -17,6 +17,10 @@ if [ "x$WORKSPACE" == "x" ] ; then
   popd > /dev/null
 fi
 
+# Clean up past Spark artifacts published locally.
+rm -rf ~/.ivy2/local/org.spark*
+rm -rf ~/.ivy2/cache/org.spark*
+
 # Download and build Spark.
 git clone https://github.com/mesos/spark.git
 pushd spark
