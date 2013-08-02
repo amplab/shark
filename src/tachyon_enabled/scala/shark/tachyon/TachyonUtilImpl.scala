@@ -48,7 +48,8 @@ class TachyonUtilImpl(val master: String, val warehousePath: String) extends Tac
   }
 
   override def dropTable(tableName: String): Boolean = {
-    return client.delete(getPath(tableName), true)
+    // The second parameter (true) means recursive deletion.
+    client.delete(getPath(tableName), true)
   }
 
   override def getTableMetadata(tableName: String): ByteBuffer = {
