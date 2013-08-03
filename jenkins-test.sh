@@ -1,5 +1,11 @@
 #! /usr/bin/env bash
 
+# This script can be used as an automated way to set up Shark scratch and then run
+# the Shark unit tests. It is primarily intended to be called by a continuous
+# integration testing framework such as Jenkins to make sure all of the unit tests
+# are passing with each new commit, but is also helpful as a reference document
+# for new users of Shark to see all of the necessary steps to get up and running.
+
 usage()
 {
 cat << EOF
