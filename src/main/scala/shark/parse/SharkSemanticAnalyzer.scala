@@ -30,12 +30,11 @@ import org.apache.hadoop.hive.metastore.Warehouse
 import org.apache.hadoop.hive.ql.exec.{DDLTask, FetchTask, MoveTask, TaskFactory}
 import org.apache.hadoop.hive.ql.exec.{FileSinkOperator => HiveFileSinkOperator}
 import org.apache.hadoop.hive.ql.metadata.HiveException
-import org.apache.hadoop.hive.ql.optimizer.Optimizer
 import org.apache.hadoop.hive.ql.parse._
 import org.apache.hadoop.hive.ql.plan._
 import org.apache.hadoop.hive.ql.session.SessionState
 
-import shark.{CachedTableRecovery, LogHelper, SharkConfVars, SharkEnv,  Utils}
+import shark.{CachedTableRecovery, LogHelper, SharkConfVars, SharkEnv, SharkOptimizer, Utils}
 import shark.execution.{HiveOperator, Operator, OperatorFactory, RDDUtils, ReduceSinkOperator,
   SparkWork, TerminalOperator}
 import shark.memstore2.{CacheType, ColumnarSerDe, MemoryMetadataManager}
@@ -66,10 +65,10 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     reset()
 
     val qb = new QB(null, null, false)
-    val pctx = getParseContext()
+    var pctx = getParseContext()
     pctx.setQB(qb)
     pctx.setParseTree(ast)
-    init(pctx)
+    initParseCtx(pctx)
     var child: ASTNode = ast
 
     logInfo("Starting Shark Semantic Analysis")
@@ -81,6 +80,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     var shouldReset = false
 
     if (ast.getToken().getType() == HiveParser.TOK_CREATETABLE) {
+      init()
       super.analyzeInternal(ast)
       for (ch <- ast.getChildren) {
         ch.asInstanceOf[ASTNode].getToken.getType match {
@@ -93,7 +93,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         }
       }
 
-      // If the table descriptor can be null if the CTAS has an
+      // The table descriptor can be null if the CTAS has an
       // "if not exists" condition.
       val td = getParseContext.getQB.getTableDesc
       if (!isCTAS || td == null) {
@@ -155,17 +155,15 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       ).asInstanceOf[JavaList[FieldSchema]]
 
     // Run Hive optimization.
-    var pCtx: ParseContext = getParseContext
-    val optm = new Optimizer()
-    optm.setPctx(pCtx)
+    val optm = new SharkOptimizer()
+    optm.setPctx(pctx)
     optm.initialize(conf)
-    pCtx = optm.optimize()
-    init(pCtx)
+    pctx = optm.optimize()
 
     // Replace Hive physical plan with Shark plan. This needs to happen after
     // Hive optimization.
     val hiveSinkOps = SharkSemanticAnalyzer.findAllHiveFileSinkOperators(
-      pCtx.getTopOps().values().head)
+      pctx.getTopOps().values().head)
 
     // TODO: clean the following code. It's too messy to understand...
     val terminalOpSeq = {
@@ -179,12 +177,13 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
             OperatorFactory.createSharkFileOutputPlan(hiveSinkOp)
           } else {
             // Otherwise, check if we are inserting into a table that was cached.
-            val cachedTableName = tableName.split('.')(1) // Ignore the database name
+            val cachedTableName = tableName.split('.')(1)
+            val cachedDbName = tableName.split('.')(0)
             SharkEnv.memoryMetadataManager.get(cachedTableName) match {
               case Some(rdd) => {
                 if (hiveSinkOps.size == 1) {
                   // If useUnionRDD is false, the sink op is for INSERT OVERWRITE.
-                  val useUnionRDD = qb.getParseInfo.isInsertIntoTable(cachedTableName)
+                  val useUnionRDD = qb.getParseInfo.isInsertIntoTable(cachedDbName, cachedTableName)
                   val storageLevel = RDDUtils.getStorageLevelOfCachedTable(rdd)
                   OperatorFactory.createSharkMemoryStoreOutputPlan(
                     hiveSinkOp,
@@ -327,12 +326,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     // dependent of the main SparkTask.
     if (qb.isCTAS) {
       val crtTblDesc: CreateTableDesc = qb.getTableDesc
-
-      // Use reflection to call validateCreateTable, which is private.
-      val validateCreateTableMethod = this.getClass.getSuperclass.getDeclaredMethod(
-        "validateCreateTable", classOf[CreateTableDesc])
-      validateCreateTableMethod.setAccessible(true)
-      validateCreateTableMethod.invoke(this, crtTblDesc)
+      crtTblDesc.validate()
 
       // Clear the output for CTAS since we don't need the output from the
       // mapredWork, the DDLWork at the tail of the chain will have the output.

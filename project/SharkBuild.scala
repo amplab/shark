@@ -32,6 +32,7 @@ object SharkBuild extends Build {
   val HADOOP_VERSION = "1.0.4"
 
   // Whether to build Shark with Tachyon jar.
+  // Hive 0.10+ uses newer Thrift versions that conflict with Tachyon's
   val TACHYON_ENABLED = false
 
   lazy val root = Project(
@@ -90,7 +91,8 @@ object SharkBuild extends Build {
       "org.spark-project" %% "spark-core" % SPARK_VERSION,
       "org.spark-project" %% "spark-repl" % SPARK_VERSION,
       "com.google.guava" % "guava" % "14.0.1",
-      "org.apache.hadoop" % "hadoop-core" % HADOOP_VERSION,
+      // Differences in Jackson version cause runtime errors as per HIVE-3581
+      "org.apache.hadoop" % "hadoop-core" % HADOOP_VERSION excludeAll( ExclusionRule(organization = "org.codehaus.jackson") ),
       // See https://code.google.com/p/guava-libraries/issues/detail?id=1095
       "com.google.code.findbugs" % "jsr305" % "1.3.+",
       "it.unimi.dsi" % "fastutil" % "6.4.2",
