@@ -27,7 +27,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo
 
-import shark.{SharkConfVars, SharkEnvSlave}
+import shark.{SharkConfVars}
 
 
 class ColumnarStructObjectInspector(fields: JList[StructField]) extends StructObjectInspector {
@@ -60,15 +60,11 @@ object ColumnarStructObjectInspector {
     for (i <- 0 until columnNames.size) {
       val typeInfo = columnTypes.get(i)
       val fieldOI = typeInfo.getCategory match {
-        case Category.PRIMITIVE => SharkEnvSlave.objectInspectorLock.synchronized {
-          PrimitiveObjectInspectorFactory.getPrimitiveWritableObjectInspector(
+        case Category.PRIMITIVE => PrimitiveObjectInspectorFactory.getPrimitiveWritableObjectInspector(
             typeInfo.asInstanceOf[PrimitiveTypeInfo].getPrimitiveCategory)
-        }
-        case _ => SharkEnvSlave.objectInspectorLock.synchronized {
-          LazyFactory.createLazyObjectInspector(
+        case _ => LazyFactory.createLazyObjectInspector(
             typeInfo, serDeParams.getSeparators(), 1, serDeParams.getNullSequence(),
             serDeParams.isEscaped(), serDeParams.getEscapeChar())
-        }
       }
       fields.add(new IDStructField(i, columnNames.get(i), fieldOI))
     }
