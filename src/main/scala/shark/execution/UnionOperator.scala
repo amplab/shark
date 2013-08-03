@@ -31,7 +31,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.StandardStructObjectInspect
 import org.apache.hadoop.hive.serde2.objectinspector.StructField
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 
-import shark.SharkEnvSlave
 import shark.execution.serialization.OperatorSerializationWrapper
 
 import spark.RDD
@@ -84,10 +83,8 @@ class UnionOperator extends NaryOperator[HiveUnionOperator] {
     }
 
     val outputFieldOIs = columnTypeResolvers.map(_.get())
-    val outputObjInspector = SharkEnvSlave.objectInspectorLock.synchronized {
-      ObjectInspectorFactory.getStandardStructObjectInspector(
+    val outputObjInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
         columnNames, outputFieldOIs.toList)
-    }
 
     // whether we need to do transformation for each parent
     // We reuse needsTransform from Hive because the comparison of object
