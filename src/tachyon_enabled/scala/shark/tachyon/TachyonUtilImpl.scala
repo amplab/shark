@@ -26,7 +26,8 @@ import shark.memstore2.ColumnarStruct
 
 import spark.RDD
 
-import tachyon.client.{RawTable, RawColumn, TachyonFS}
+import tachyon.client.TachyonFS
+import tachyon.client.table.{RawTable, RawColumn}
 
 /**
  * An abstraction for the Tachyon APIs.
