@@ -63,6 +63,16 @@ if [ "x$JAVA_HOME" == "x" ] ; then
   echo "ERROR: You must set JAVA_HOME."
   exit -1
 fi
+# Make sure they are running a new enough JDK.
+JAVA_VERSION=`${JAVA_HOME}/bin/java -version 2>&1 |awk -F\" '/version/ { print $2 }'`
+JAVA_MAJOR_VERSION=`echo $JAVA_VERSION | awk -F\_ '{print $1}' | awk -F\. '{print $2}'`
+JAVA_MINOR_VERSION=`echo $JAVA_VERSION | awk -F\_ '{print $1}' | awk -F\. '{print $3}'`
+JAVA_SUB_VERSION=`echo $JAVA_VERSION | awk -F\_ '{print $2}'`
+if (($JAVA_MAJOR_VERSION < 7)) ||
+   ((($JAVA_MAJOR_VERSION == 7)) && (($JAVA_MINOR_VERSION == 0)) && (($JAVA_SUB_VERSION < 25))); then
+  echo "You are running Java version ${JAVA_VERSION}, please run Java 1.7_25 or newer."
+  exit -1
+fi
 
 if [ "x$SCALA_HOME" == "x" ] ; then
   echo "ERROR: You must set SCALA_HOME env var."
@@ -159,11 +169,17 @@ while $still_searching; do
   fi
   sleep 1
 done
-#set -e
+set -e
 popd
 
+rm -rf $WORKSPACE/hive/build/test/junit_metastore_db
+
+pushd $SHARK_PROJ_DIR
+
 # Compile and run the Shark tests.
-$SHARK_PROJ_DIR/sbt/sbt test
+sbt/sbt test
 
 # Hive CLI Tests
-$SHARK_PROJ_DIR/bin/dev/test
+bin/dev/test
+
+popd
