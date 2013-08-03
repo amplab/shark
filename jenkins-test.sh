@@ -69,8 +69,8 @@ JAVA_MAJOR_VERSION=`echo $JAVA_VERSION | awk -F\_ '{print $1}' | awk -F\. '{prin
 JAVA_MINOR_VERSION=`echo $JAVA_VERSION | awk -F\_ '{print $1}' | awk -F\. '{print $3}'`
 JAVA_SUB_VERSION=`echo $JAVA_VERSION | awk -F\_ '{print $2}'`
 if (($JAVA_MAJOR_VERSION < 7)) ||
-   ((($JAVA_MAJOR_VERSION == 7)) && (($JAVA_MINOR_VERSION == 0)) && (($JAVA_SUB_VERSION < 25))); then
-  echo "You are running Java version ${JAVA_VERSION}, please run Java 1.7_25 or newer."
+   ((($JAVA_MAJOR_VERSION == 7)) && (($JAVA_MINOR_VERSION == 0)) && (($JAVA_SUB_VERSION < 21))); then
+  echo "You are running Java version ${JAVA_VERSION}, please run Java 1.7.0_21 or newer."
   exit -1
 fi
 
