@@ -32,12 +32,14 @@ object SharkBuild extends Build {
   val HADOOP_VERSION = "1.0.4"
 
   // Whether to build Shark with Tachyon jar.
-  val TACHYON_ENABLED = false
+  val TACHYON_ENABLED = true
 
   lazy val root = Project(
     id = "root",
     base = file("."),
     settings = coreSettings)
+
+  val excludeKyro = ExclusionRule(organization = "de.javakaffee")
 
   def coreSettings = Defaults.defaultSettings ++ Seq(
 
@@ -97,6 +99,6 @@ object SharkBuild extends Build {
       "org.scalatest" %% "scalatest" % "1.9.1" % "test",
       "junit" % "junit" % "4.10" % "test",
       "com.novocode" % "junit-interface" % "0.8" % "test") ++
-      (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.3.0-SNAPSHOT") else None).toSeq
+      (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.3.0-SNAPSHOT" excludeAll(excludeKyro) ) else None).toSeq
   )
 }
