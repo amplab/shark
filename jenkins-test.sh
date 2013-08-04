@@ -61,6 +61,7 @@ fi
 
 # Since this script downloads a lot of stuff, keep it in a subdir workspace.
 WORKSPACE="$SHARK_PROJ_DIR/jenkins-test-workspace"
+mkdir -p $WORKSPACE
 pushd $WORKSPACE
 
 export SCALA_VERSION=2.9.3
@@ -163,17 +164,17 @@ fi
 
 # Run Hive tests in the background using ant as a background process.
 pushd hive
-ant test -Dtestcase=TestCliDriver &> output &
-# Watch the output of ant test and kill it when the unit tests start running.
-still_searching=true
-set +e # We expect grep to return non-0 for a while here so disable -e sh flag.
-while $still_searching; do
-  grep "^\s*\[junit\]" output
-  if [[ $? == 0 ]]; then
-    kill -s SIGINT %ant
-    still_searching=false
+{ ant test -Dtestcase=TestCliDriver | tee output; } &
+ant_pid=$!
+
+# We expect grep to return non-0 for a while here so disable -e sh flag.
+set +e
+# Keep checking the test output while ant is still running.
+while kill -0 $ant_pid && sleep 2; do
+  # Kill ant if we found the string indicating we are far enough along in tests.
+  if grep --silent "^\s*\[junit\]" output ; then
+    kill -s SIGKILL $ant_pid
   fi
-  sleep 1
 done
 set -e
 popd
