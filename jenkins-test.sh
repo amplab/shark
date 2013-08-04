@@ -192,6 +192,6 @@ sbt/sbt test
 
 clean_up_hive_metastore
 # Hive CLI Tests
-bin/dev/test
+TEST_FILE=src/test/tests_pass.txt ./bin/dev/test
 
 popd
