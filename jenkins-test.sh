@@ -124,6 +124,7 @@ if $SKIP_HADOOP ; then
   fi
 else
   rm -rf hadoop-${HADOOP_VERSION}.tar.gz
+  rm -rf hadoop-${HADOOP_VERSION}
   # Download and unpack Hadoop and set env variable.
   wget http://archive.apache.org/dist/hadoop/core/hadoop-${HADOOP_VERSION}/hadoop-${HADOOP_VERSION}.tar.gz
   tar xvfz hadoop-${HADOOP_VERSION}.tar.gz
@@ -152,6 +153,7 @@ if $SKIP_HIVE ; then
 else
   # Do we need to setup the Hive warehouse directory.
   HIVE_WAREHOUSE=./hive-warehouse
+  rm -rf $HIVE_WAREHOUSE
   mkdir -p $HIVE_WAREHOUSE
   chmod 0777 $HIVE_WAREHOUSE
 
@@ -185,6 +187,8 @@ pushd $SHARK_PROJ_DIR
 
 # Compile and run the Shark tests.
 sbt/sbt test
+
+rm -rf $WORKSPACE/hive/build/test/junit_metastore_db
 
 # Hive CLI Tests
 bin/dev/test
