@@ -104,7 +104,6 @@ else
   rm -rf ./spark
   rm -rf ~/.ivy2/local/org.spark*
   rm -rf ~/.ivy2/cache/org.spark*
-
   # Download and build Spark.
   git clone https://github.com/mesos/spark.git
   pushd spark
@@ -168,7 +167,6 @@ fi
 pushd hive
 { ant test -Dtestcase=TestCliDriver | tee output; } &
 ant_pid=$!
-
 # We expect grep to return non-0 for a while here so disable -e sh flag.
 set +e
 # Keep checking the test output while ant is still running.
@@ -178,18 +176,21 @@ while kill -0 $ant_pid && sleep 2; do
     kill -s SIGKILL $ant_pid
   fi
 done
+# Wait till the ant process actually is done.
+wait
+# Turn verbose output back on.
 set -e
 popd
 
-rm -rf $WORKSPACE/hive/build/test/junit_metastore_db
+clean_up_hive_metastore() { rm -rf $WORKSPACE/hive/build/test/junit_metastore_db; }
 
 pushd $SHARK_PROJ_DIR
 
+clean_up_hive_metastore
 # Compile and run the Shark tests.
 sbt/sbt test
 
-rm -rf $WORKSPACE/hive/build/test/junit_metastore_db
-
+clean_up_hive_metastore
 # Hive CLI Tests
 bin/dev/test
 
