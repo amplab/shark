@@ -86,6 +86,7 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
             colsName += columnDesc.getColumn
           case genericFuncDesc: ExprNodeGenericFuncDesc =>
             colsName ++= getGenericFuncColumnName(genericFuncDesc)
+          case _ => 
         }
       }
       colsName
@@ -97,6 +98,7 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
           partColsName += columnDesc.getColumn
         case genericFuncDesc: ExprNodeGenericFuncDesc =>
           partColsName ++= getGenericFuncColumnName(genericFuncDesc)
+        case _ =>
       }
     }
     partColsName
@@ -129,9 +131,10 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
       case copart: CoPartitioner => 
         val partCols = copart.partitionColumns
         val keySet = partColInternalName.toSet
-        if(partColInternalName.size == partCols.size){
+        if(partColInternalName.size == partCols.size) {
           keepPartitioning = partCols.forall(keySet.contains(_))
         }
+      case _ =>
       }
     }
     rdd
