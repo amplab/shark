@@ -17,7 +17,6 @@
 
 package shark.api;
 
-import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -61,24 +60,6 @@ public class DataTypes {
   static {
     for (DataType type: types) {
       hiveTypes.put(type.hiveName, type);
-    }
-  }
-
-  static class DataType implements Serializable {
-
-    public final String name;
-    public final String hiveName;
-    public final boolean isPrimitive;
-
-    private DataType(String name, String hiveName, boolean isPrimitive) {
-      this.name = name;
-      this.hiveName = hiveName;
-      this.isPrimitive = isPrimitive;
-    }
-
-    @Override
-    public String toString() {
-      return name;
     }
   }
 

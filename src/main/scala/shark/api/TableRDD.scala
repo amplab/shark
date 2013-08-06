@@ -29,14 +29,14 @@ import spark.{Partition, RDD, TaskContext}
 
 class TableRDD(
     prev: RDD[Any],
-    val tableDesc: TableDesc,
+    val schema: Array[ColumnDesc],
     @transient oi: ObjectInspector,
     val limit: Int = -1)
   extends RDD[Row](prev) {
 
   private[shark]
   def this(prev: RDD[Any], schema: JList[FieldSchema], oi: ObjectInspector, limit: Int) {
-    this(prev, new TableDesc(schema), oi, limit)
+    this(prev, ColumnDesc.createSchema(schema), oi, limit)
   }
 
   override def getPartitions = firstParent[Any].partitions
@@ -59,7 +59,7 @@ class TableRDD(
    * Maps the column name to column index.
    */
   private val colname2indexMap: Map[String, Int] =
-    collection.immutable.Map() ++ tableDesc.columns.zipWithIndex.map { case(column, index) =>
+    collection.immutable.Map() ++ schema.zipWithIndex.map { case(column, index) =>
       (column.name, index)
     }
 

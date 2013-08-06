@@ -18,7 +18,7 @@
 package shark
 
 import java.io.PrintStream
-import java.util.ArrayList
+import java.util.{ArrayList => JArrayList}
 
 import scala.collection.Map
 import scala.collection.JavaConversions._
@@ -32,7 +32,7 @@ import org.apache.hadoop.hive.ql.processors.CommandProcessorFactory
 import org.apache.hadoop.hive.ql.processors.CommandProcessorResponse
 import org.apache.hadoop.hive.ql.session.SessionState
 
-import shark.api.{ColumnDesc, Row, TableRDD, QueryExecutionException}
+import shark.api._
 import spark.{SparkContext, SparkEnv}
 
 
@@ -53,6 +53,7 @@ class SharkContext(
    * Execute the command and return the results as a sequence. Each element
    * in the sequence is one row.
    */
+  @deprecated("use runSql instead", "0.8")
   def sql(cmd: String, maxRows: Int = 1000): Seq[String] = {
     SparkEnv.set(sparkEnv)
     val cmd_trimmed: String = cmd.trim()
@@ -71,10 +72,10 @@ class SharkContext(
         }
       driver.init()
 
-      val results = new ArrayList[String]()
+      val results = new JArrayList[String]
       val response: CommandProcessorResponse = driver.run(cmd)
       // Throw an exception if there is an error in query processing.
-      if (response.getResponseCode() != 0) {
+      if (response.getResponseCode != 0) {
         driver.destroy()
         throw new QueryExecutionException(response.getErrorMessage)
       }
@@ -84,12 +85,13 @@ class SharkContext(
       results
     } else {
       sessionState.out.println(tokens(0) + " " + cmd_1)
-      Seq(proc.run(cmd_1).getResponseCode().toString)
+      Seq(proc.run(cmd_1).getResponseCode.toString)
     }
   }
 
   /**
-   * Execute the command and return the results as a TableRDD.
+   * Execute a SQL command and return the results as a TableRDD. The SQL command must be
+   * a SELECT statement.
    */
   def sql2rdd(cmd: String): TableRDD = {
     SparkEnv.set(sparkEnv)
@@ -97,32 +99,65 @@ class SharkContext(
     val driver = new SharkDriver(hiveconf)
     try {
       driver.init()
-      driver.tableRdd(cmd)
+      driver.tableRdd(cmd).get
     } finally {
       driver.destroy()
     }
   }
 
-  def executeSql(cmd: String, maxRows: Int = 1000): (Array[ColumnDesc], Seq[Array[Object]]) = {
+  /**
+   * Execute a SQL command and collect the results locally.
+   *
+   * @param cmd The SQL command to be executed.
+   * @param maxRows The max number of rows to retrieve for the result set.
+   * @return A ResultSet object with both the schema and the query results.
+   */
+  def runSql(cmd: String, maxRows: Int = 1000): ResultSet = {
     SparkEnv.set(sparkEnv)
-    SessionState.start(sessionState)
-    val driver = new SharkDriver(hiveconf)
-    try {
-      driver.init()
-      val rdd: TableRDD = driver.tableRdd(cmd)
-      val numCols = rdd.tableDesc.columns.length
-      val data = rdd.map { row: Row =>
-        Array.tabulate(numCols) { i => row.get(i) }
-      }
 
-      val schema = rdd.tableDesc.columns
-      if (rdd.limit < 0) {
-        (schema, data.collect())
-      } else {
-        (schema, data.take(math.min(maxRows, rdd.limit)).toSeq)
+    val cmd_trimmed: String = cmd.trim()
+    val tokens: Array[String] = cmd_trimmed.split("\\s+")
+    val cmd_1: String = cmd_trimmed.substring(tokens(0).length()).trim()
+    val proc: CommandProcessor = CommandProcessorFactory.get(tokens(0), hiveconf)
+
+    SessionState.start(sessionState)
+
+    if (proc.isInstanceOf[Driver]) {
+      val driver = new SharkDriver(hiveconf)
+      try {
+        driver.init()
+
+        driver.tableRdd(cmd) match {
+          case Some(rdd) =>
+            // If this is a select statement, we will get a TableRDD back. Collect
+            // results using that.
+            val numCols = rdd.schema.length
+            val data = rdd.map { row: Row =>
+              Array.tabulate(numCols) { i => row.get(i) }
+            }
+
+            val schema = rdd.schema
+            if (rdd.limit < 0) {
+              new ResultSet(schema, data.collect())
+            } else {
+              new ResultSet(schema, data.take(math.min(maxRows, rdd.limit)))
+            }
+          case None =>
+            // If this is not a select statement, we use the Driver's getResults function
+            // to fetch the results back.
+            val schema = ColumnDesc.createSchema(driver.getSchema)
+            val results = new JArrayList[String]
+            driver.getResults(results)
+            new ResultSet(schema, results.map(_.split("\t").asInstanceOf[Array[Object]]).toArray)
+        }
+      } finally {
+        driver.destroy()
       }
-    } finally {
-      driver.destroy()
+    } else {
+      sessionState.out.println(tokens(0) + " " + cmd_1)
+      val response = proc.run(cmd_1)
+      new ResultSet(ColumnDesc.createSchema(response.getSchema),
+        Array(Array(response.toString : Object)))
     }
   }
 

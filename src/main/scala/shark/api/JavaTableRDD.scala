@@ -23,10 +23,10 @@ import spark.RDD
 import spark.storage.StorageLevel
 
 
-class JavaTableRDD(val rdd: RDD[Row], val tableDesc: TableDesc)
+class JavaTableRDD(val rdd: RDD[Row], val schema: Array[ColumnDesc])
   extends JavaRDDLike[Row, JavaTableRDD] {
 
-  override def wrapRDD(rdd: RDD[Row]): JavaTableRDD = new JavaTableRDD(rdd, tableDesc)
+  override def wrapRDD(rdd: RDD[Row]): JavaTableRDD = new JavaTableRDD(rdd, schema)
 
   // Common RDD functions
   override val classManifest: ClassManifest[Row] = implicitly[ClassManifest[Row]]

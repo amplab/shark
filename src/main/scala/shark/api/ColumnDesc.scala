@@ -17,14 +17,31 @@
 
 package shark.api
 
+import java.util.{List => JList}
+
+import scala.collection.JavaConversions._
+
 import org.apache.hadoop.hive.metastore.api.FieldSchema
+import org.apache.hadoop.hive.metastore.api.Schema
 
 
-class ColumnDesc(val name: String, val dataType: DataTypes.DataType) extends Serializable {
+class ColumnDesc(val name: String, val dataType: DataType) extends Serializable {
 
-  private[api] def this(hiveSchema: FieldSchema) {
+  private[shark] def this(hiveSchema: FieldSchema) {
     this(hiveSchema.getName, DataTypes.fromHiveType(hiveSchema.getType))
   }
 
   override def toString = "ColumnDesc(name: %s, type: %s)".format(name, dataType.name)
+}
+
+
+object ColumnDesc {
+
+  def createSchema(fieldSchemas: JList[FieldSchema]): Array[ColumnDesc] = {
+    if (fieldSchemas == null) Array.empty else fieldSchemas.map(new ColumnDesc(_)).toArray
+  }
+
+  def createSchema(schema: Schema): Array[ColumnDesc] = {
+    if (schema == null) Array.empty else createSchema(schema.getFieldSchemas)
+  }
 }
