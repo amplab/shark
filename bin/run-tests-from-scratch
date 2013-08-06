@@ -6,6 +6,9 @@
 # are passing with each new commit, but is also helpful as a reference document
 # for new users of Shark to see all of the necessary steps to get up and running.
 
+# The version of Scala that SCALA_HOME is required to be.
+export SCALA_VERSION=2.9.3
+
 usage()
 {
 cat << EOF
@@ -64,8 +67,6 @@ WORKSPACE="$SHARK_PROJ_DIR/jenkins-test-workspace"
 mkdir -p $WORKSPACE
 pushd $WORKSPACE
 
-export SCALA_VERSION=2.9.3
-
 if [ "x$JAVA_HOME" == "x" ] ; then
   echo "ERROR: You must set JAVA_HOME."
   exit -1
@@ -83,6 +84,13 @@ fi
 
 if [ "x$SCALA_HOME" == "x" ] ; then
   echo "ERROR: You must set SCALA_HOME env var."
+  exit -1
+fi
+
+# Make sure the correct version of Scala installed.
+SCALA_HOME_VERSION=`${SCALA_HOME}/bin/scala -version|awk '{print $5}'`
+if [ "$SCALA_HOME_VERSION" != "$SCALA_VERSION" ] ; then
+  echo "Your SCALA_HOME is version ${SCALA_HOME_VERSION}, but ${SCALA_VERSION} is required."
   exit -1
 fi
 
