@@ -31,16 +31,12 @@ import shark.util.BloomFilter
 sealed trait ColumnStats[@specialized(Boolean, Byte, Short, Int, Long, Float, Double) T]
   extends Serializable {
 
-  var _nullCount = 0
-
   def append(v: T)
 
   protected def _min: T
   protected def _max: T
 
-  def appendNull() { _nullCount += 1 }
 
-  def nullCount: Int = _nullCount
   def min: T = _min
   def max: T = _max
 
@@ -59,6 +55,15 @@ sealed trait ColumnStats[@specialized(Boolean, Byte, Short, Int, Long, Float, Do
 // For int columns, we try to do more since int is more common. Examples include
 // ordering of the column and max deltas (max difference between two cells).
 object ColumnStats {
+
+  class NoOp[T] extends ColumnStats[T] {
+    protected var _max = null.asInstanceOf[T]
+    protected var _min = null.asInstanceOf[T]
+    override def append(v: T) {}
+    override def :=(v: Any): Boolean = true
+    override def :>(v: Any): Boolean = true
+    override def :<(v: Any): Boolean = true
+  }
 
   class BooleanColumnStats extends ColumnStats[Boolean] {
     protected var _max = false

@@ -21,7 +21,6 @@ import java.io.{Externalizable, ObjectInput, ObjectOutput}
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-import shark.memstore2.buffer.ByteBufferReader
 import shark.memstore2.column.ColumnIterator
 
 
@@ -68,10 +67,9 @@ class TablePartition(private var _numRows: Long, private var _columns: Array[Byt
    */
   def iterator: TablePartitionIterator = {
     val columnIterators: Array[ColumnIterator] = _columns.map { case buffer: ByteBuffer =>
-      val bufReader = ByteBufferReader.createUnsafeReader(buffer)
-      val columnType = bufReader.getLong()
-      val factory = ColumnIterator.getFactory(columnType)
-      val iter = factory.createIterator(bufReader)
+      val b = buffer.duplicate().order(ByteOrder.nativeOrder())
+      val columnType = b.getInt()
+      val iter = ColumnIterator.newIterator(columnType, b)
       iter
     }
     new TablePartitionIterator(_numRows, columnIterators)
