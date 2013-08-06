@@ -177,10 +177,14 @@ else
   popd
 fi
 
+clean_up_hive_metastore() { rm -rf $WORKSPACE/hive/build/test/junit_metastore_db; }
+
 if $SKIP_TESTS ; then
   echo "Compiling Shark and not running any tests..."
+  pushd $SHARK_PROJ_DIR
   # Compile Shark
   sbt/sbt compile
+  popd
 else
   echo "Compiling Shark and parts of Hive necessary for testing, then running tests..."
   # Run Hive tests in the background using ant as a background process.
@@ -202,8 +206,6 @@ else
   # Turn verbose output back on.
   set -e
   popd
-
-  clean_up_hive_metastore() { rm -rf $WORKSPACE/hive/build/test/junit_metastore_db; }
 
   pushd $SHARK_PROJ_DIR
 
