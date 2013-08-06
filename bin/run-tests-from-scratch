@@ -28,6 +28,7 @@ exit
 SKIP_SPARK=false
 SKIP_HIVE=false
 SKIP_HADOOP=false
+SKIP_TESTS=false
 
 while getopts "hsed" opt; do
   case $opt in
