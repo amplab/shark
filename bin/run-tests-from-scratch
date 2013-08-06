@@ -6,8 +6,6 @@
 # are passing with each new commit, but is also helpful as a reference document
 # for new users of Shark to see all of the necessary steps to get up and running.
 
-# The version of Scala that SCALA_HOME is required to be.
-export SCALA_VERSION=2.9.3
 
 usage()
 {
@@ -22,6 +20,7 @@ OPTIONS:
    -s      Skip Spark (downloading and building)
    -e      Skip Hive (downloading and building)
    -d      Skip Hadoop (downloading and buildling)
+   -t      Compile Shark but skip compiling and running Tests.
 EOF
 exit
 }
@@ -46,6 +45,10 @@ while getopts "hsed" opt; do
     d)
       echo SKIP HADOOP
       SKIP_HADOOP=true
+      ;;
+    t)
+      echo SKIP TESTS
+      SKIP_TESTS=true
       ;;
     \?)
       echo "Invalid option: -$OPTARG" >&2
@@ -86,6 +89,9 @@ if [ "x$SCALA_HOME" == "x" ] ; then
   echo "ERROR: You must set SCALA_HOME env var."
   exit -1
 fi
+
+# The version of Scala that the downloaded version of Shark requires SCALA_HOME to be.
+export SCALA_VERSION=`awk '/val SCALA_VERSION/ {print $4}' < ${SHARK_PROJ_DIR}/project/SharkBuild.scala |sed -e "s/\"\(.*\)\"/\1/"`
 
 # Make sure the correct version of Scala installed.
 SCALA_HOME_VERSION=`${SCALA_HOME}/bin/scala -version|awk '{print $5}'`
@@ -158,7 +164,7 @@ if $SKIP_HIVE ; then
     exit -1
   fi
 else
-  # Do we need to setup the Hive warehouse directory.
+  # Setup the Hive warehouse directory.
   HIVE_WAREHOUSE=./hive-warehouse
   rm -rf $HIVE_WAREHOUSE
   mkdir -p $HIVE_WAREHOUSE
@@ -171,36 +177,43 @@ else
   popd
 fi
 
-# Run Hive tests in the background using ant as a background process.
-pushd hive
-{ ant test -Dtestcase=TestCliDriver | tee output; } &
-ant_pid=$!
-# We expect grep to return non-0 for a while here so disable -e sh flag.
-set +e
-# Keep checking the test output while ant is still running.
-while kill -0 $ant_pid; do
-  # Kill ant if we found the string indicating we are far enough along in tests.
-  if grep --silent "^\s*\[junit\]" output ; then
-    kill -s SIGKILL $ant_pid
-  fi
-  sleep 2
-done
-# Wait till the ant process actually is done.
-wait
-# Turn verbose output back on.
-set -e
-popd
+if $SKIP_TESTS ; then
+  echo "Compiling Shark and not running any tests..."
+  # Compile Shark
+  sbt/sbt compile
+else
+  echo "Compiling Shark and parts of Hive necessary for testing, then running tests..."
+  # Run Hive tests in the background using ant as a background process.
+  pushd hive
+  { ant test -Dtestcase=TestCliDriver | tee output; } &
+  ant_pid=$!
+  # We expect grep to return non-0 for a while here so disable -e sh flag.
+  set +e
+  # Keep checking the test output while ant is still running.
+  while kill -0 $ant_pid; do
+    # Kill ant if we found the string indicating we are far enough along in tests.
+    if grep --silent "^\s*\[junit\]" output ; then
+      kill -s SIGKILL $ant_pid
+    fi
+    sleep 2
+  done
+  # Wait till the ant process actually is done.
+  wait
+  # Turn verbose output back on.
+  set -e
+  popd
 
-clean_up_hive_metastore() { rm -rf $WORKSPACE/hive/build/test/junit_metastore_db; }
+  clean_up_hive_metastore() { rm -rf $WORKSPACE/hive/build/test/junit_metastore_db; }
 
-pushd $SHARK_PROJ_DIR
+  pushd $SHARK_PROJ_DIR
 
-clean_up_hive_metastore
-# Compile and run the Shark tests.
-sbt/sbt test
+  clean_up_hive_metastore
+  # Compile and run the Shark tests.
+  sbt/sbt test
 
-clean_up_hive_metastore
-# Hive CLI Tests
-TEST_FILE=src/test/tests_pass.txt ./bin/dev/test
+  clean_up_hive_metastore
+  # Hive CLI Tests
+  TEST_FILE=src/test/tests_pass.txt ./bin/dev/test
 
-popd
+  popd
+fi
