@@ -55,7 +55,7 @@ set -xe
 
 if [ "x$SHARK_PROJ_DIR" == "x" ] ; then
   pushd `dirname $0` > /dev/null
-  SHARK_PROJ_DIR=`pwd`
+  SHARK_PROJ_DIR=`pwd`/..
   popd > /dev/null
 fi
 
@@ -170,11 +170,12 @@ ant_pid=$!
 # We expect grep to return non-0 for a while here so disable -e sh flag.
 set +e
 # Keep checking the test output while ant is still running.
-while kill -0 $ant_pid && sleep 2; do
+while kill -0 $ant_pid; do
   # Kill ant if we found the string indicating we are far enough along in tests.
   if grep --silent "^\s*\[junit\]" output ; then
     kill -s SIGKILL $ant_pid
   fi
+  sleep 2
 done
 # Wait till the ant process actually is done.
 wait
