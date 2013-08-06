@@ -67,7 +67,7 @@ if [ "x$SHARK_PROJ_DIR" == "x" ] ; then
 fi
 
 # Since this script downloads a lot of stuff, keep it in a subdir workspace.
-WORKSPACE="$SHARK_PROJ_DIR/jenkins-test-workspace"
+WORKSPACE="$SHARK_PROJ_DIR/run-tests-from-scratch-workspace"
 mkdir -p $WORKSPACE
 pushd $WORKSPACE
 
@@ -190,14 +190,17 @@ else
   echo "Compiling Shark and parts of Hive necessary for testing, then running tests..."
   # Run Hive tests in the background using ant as a background process.
   pushd hive
-  { ant test -Dtestcase=TestCliDriver | tee output; } &
+  # Use a name unlikely to be used by anything else.
+  HIVE_OUTPUT_TO_GREP=hiveoutput98237389
+  rm -rf $HIVE_OUTPUT_TO_GREP
+  { ant test -Dtestcase=TestCliDriver | tee $HIVE_OUTPUT_TO_GREP; } &
   ant_pid=$!
   # We expect grep to return non-0 for a while here so disable -e sh flag.
   set +e
   # Keep checking the test output while ant is still running.
   while kill -0 $ant_pid; do
     # Kill ant if we found the string indicating we are far enough along in tests.
-    if grep --silent "^\s*\[junit\]" output ; then
+    if grep --silent "^\s*\[junit\]" $HIVE_OUTPUT_TO_GREP ; then
       kill -s SIGKILL $ant_pid
     fi
     sleep 2
@@ -211,12 +214,14 @@ else
   pushd $SHARK_PROJ_DIR
 
   clean_up_hive_metastore
-  # Compile and run the Shark tests.
+  echo "Running Shark sbt/sbt test..."
   sbt/sbt test
 
   clean_up_hive_metastore
-  # Hive CLI Tests
+  echo "Running Hive CLI tests..."
   TEST_FILE=src/test/tests_pass.txt ./bin/dev/test
 
   popd
 fi
+
+echo "All Done."

@@ -5,7 +5,7 @@ project/boot
 lib_managed/
 TempStatsStore
 work/
-jenkins-test-workspace/
+run-tests-from-scratch-workspace/
 
 conf/shark-env.sh
 
