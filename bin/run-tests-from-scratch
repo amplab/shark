@@ -65,11 +65,22 @@ if [ "x$SHARK_PROJ_DIR" == "x" ] ; then
   popd > /dev/null
 fi
 
+# Kill this whole process group when Control-C is pressed. This ensures any child processes
+# aren't left running (this was happening before with Ant/Java processes).
+this_pgid=`ps -o pid -o pgid | grep $$ | awk '{print $2}'`
+trap "echo 'Killing all processes in this group with SIGKILL'; kill -KILL -$this_pgid; " SIGINT SIGTERM SIGKILL
+
 if [ -e "${SHARK_PROJ_DIR}/conf/shark-env.sh" ] ; then
   echo "WARNING: ${SHARK_PROJ_DIR}/conf/shark-env.sh exists but we don't want it to get in the way when running these scripts."
   echo "To rename that file to ${SHARK_PROJ_DIR}/conf/shark-env.sh-OLD and proceed, press enter."
   echo "To leave the file where it is and abort this script, press Control-C."
   read -s
+  if [ -e "${SHARK_PROJ_DIR}/conf/shark-env.sh-OLD" ] ; then
+    echo "ERROR: ${SHARK_PROJ_DIR}/conf/shark-env.sh-OLD already exists, remove or rename it and try again. Aborting."
+    exit -1
+  else
+    mv ${SHARK_PROJ_DIR}/conf/shark-env.sh ${SHARK_PROJ_DIR}/conf/shark-env.sh-OLD
+  fi
 fi
 
 # Since this script downloads a lot of stuff, keep it in a subdir workspace.
