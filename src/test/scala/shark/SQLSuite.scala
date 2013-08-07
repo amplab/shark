@@ -139,7 +139,8 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   //////////////////////////////////////////////////////////////////////////////
   // sorting
   //////////////////////////////////////////////////////////////////////////////
-  test("full order by") {
+
+  ignore("full order by") {
     expectSql("select * from users order by id", Array("1\tA", "2\tB", "3\tA"), sort = false)
     expectSql("select * from users order by id desc", Array("3\tA", "2\tB", "1\tA"), sort = false)
     expectSql("select * from users order by name, id", Array("1\tA", "3\tA", "2\tB"), sort = false)
