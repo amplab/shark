@@ -57,13 +57,19 @@ while getopts "hsed" opt; do
   esac
 done
 
-
 set -xe
 
 if [ "x$SHARK_PROJ_DIR" == "x" ] ; then
   pushd `dirname $0` > /dev/null
   SHARK_PROJ_DIR=`pwd`/..
   popd > /dev/null
+fi
+
+if [ -e "${SHARK_PROJ_DIR}/conf/shark-env.sh" ] ; then
+  echo "WARNING: ${SHARK_PROJ_DIR}/conf/shark-env.sh exists but we don't want it to get in the way when running these scripts."
+  echo "To rename that file to ${SHARK_PROJ_DIR}/conf/shark-env.sh-OLD and proceed, press enter."
+  echo "To leave the file where it is and abort this script, press Control-C."
+  read -s
 fi
 
 # Since this script downloads a lot of stuff, keep it in a subdir workspace.
@@ -195,13 +201,17 @@ else
   rm -rf $HIVE_OUTPUT_TO_GREP
   { ant test -Dtestcase=TestCliDriver | tee $HIVE_OUTPUT_TO_GREP; } &
   ant_pid=$!
+  ant_pgid=`ps -o pid -o pgid | grep $ant_pid | awk '{print $2}'`
   # We expect grep to return non-0 for a while here so disable -e sh flag.
   set +e
   # Keep checking the test output while ant is still running.
   while kill -0 $ant_pid; do
-    # Kill ant if we found the string indicating we are far enough along in tests.
+    # Kill ant (and any child processes it has launched) if we found the
+    # string indicating we are far enough along in tests.
     if grep --silent "^\s*\[junit\]" $HIVE_OUTPUT_TO_GREP ; then
-      kill -s SIGKILL $ant_pid
+      for pid in `ps -o pgid -o pid -o comm | grep $ant_pgid | grep java | awk '{print $2}'`; do
+        kill -KILL $pid
+      done
     fi
     sleep 2
   done
