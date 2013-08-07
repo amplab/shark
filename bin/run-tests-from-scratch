@@ -220,7 +220,10 @@ else
     # Kill ant (and any child processes it has launched) if we found the
     # string indicating we are far enough along in tests.
     if grep --silent "^\s*\[junit\]" $HIVE_OUTPUT_TO_GREP ; then
+      ps -o pgid -o pid -o comm  | grep $ant_pgid | grep java
       for pid in `ps -o pgid -o pid -o comm | grep $ant_pgid | grep java | awk '{print $2}'`; do
+        echo "About to kill PID $pid."
+        ps aux|grep $pid
         kill -KILL $pid
       done
     fi
