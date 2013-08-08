@@ -70,7 +70,6 @@ class JavaSharkContext(val sharkCtx: SharkContext) extends JavaSparkContext(shar
    * Execute the command and return the results as a sequence. Each element
    * in the sequence is one row.
    */
-  @deprecated("use runSql instead", "0.8")
   def sql(cmd: String): JList[String] = sharkCtx.sql(cmd)
 
   /**

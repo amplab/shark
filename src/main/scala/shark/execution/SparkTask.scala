@@ -45,10 +45,12 @@ extends java.io.Serializable
 /**
  * SparkTask executes a query plan composed of RDD operators.
  */
+private[shark]
 class SparkTask extends HiveTask[SparkWork] with Serializable with LogHelper {
 
-  private var _tableRdd: TableRDD = null
-  def tableRdd = _tableRdd
+  private var _tableRdd: Option[TableRDD] = None
+
+  def tableRdd: Option[TableRDD] = _tableRdd
 
   override def execute(driverContext: DriverContext): Int = {
     logInfo("Executing " + this.getClass.getName)
@@ -95,7 +97,10 @@ class SparkTask extends HiveTask[SparkWork] with Serializable with LogHelper {
       case _ => -1
     }
 
-    _tableRdd = new TableRDD(sinkRdd, work.resultSchema, terminalOp.objectInspector, limit)
+    if (terminalOp.isInstanceOf[TableRddSinkOperator]) {
+      _tableRdd = Some(new TableRDD(sinkRdd, work.resultSchema, terminalOp.objectInspector, limit))
+    }
+
     0
   }
 

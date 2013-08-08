@@ -150,9 +150,7 @@ private[shark] class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHe
     }
     useTableRddSink = false
     plan.getRootTasks.get(0) match {
-      case sparkTask: SparkTask => {
-        Some(sparkTask.tableRdd)
-      }
+      case sparkTask: SparkTask => sparkTask.tableRdd
       case _ => None
     }
   }

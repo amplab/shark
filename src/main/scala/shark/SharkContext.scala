@@ -53,7 +53,6 @@ class SharkContext(
    * Execute the command and return the results as a sequence. Each element
    * in the sequence is one row.
    */
-  @deprecated("use runSql instead", "0.8")
   def sql(cmd: String, maxRows: Int = 1000): Seq[String] = {
     SparkEnv.set(sparkEnv)
     val cmd_trimmed: String = cmd.trim()
@@ -136,17 +135,17 @@ class SharkContext(
               Array.tabulate(numCols) { i => row.get(i) }
             }
 
-            val schema = rdd.schema
             if (rdd.limit < 0) {
-              new ResultSet(schema, data.collect())
+              new ResultSet(rdd.schema, data.take(maxRows))
             } else {
-              new ResultSet(schema, data.take(math.min(maxRows, rdd.limit)))
+              new ResultSet(rdd.schema, data.take(math.min(maxRows, rdd.limit)))
             }
           case None =>
             // If this is not a select statement, we use the Driver's getResults function
             // to fetch the results back.
             val schema = ColumnDesc.createSchema(driver.getSchema)
             val results = new JArrayList[String]
+            driver.setMaxRows(maxRows)
             driver.getResults(results)
             new ResultSet(schema, results.map(_.split("\t").asInstanceOf[Array[Object]]).toArray)
         }
