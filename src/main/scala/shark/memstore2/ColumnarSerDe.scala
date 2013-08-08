@@ -18,9 +18,7 @@
 package shark.memstore2
 
 import java.util.{List => JList, Properties}
-
 import scala.collection.JavaConversions._
-
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hdfs.DFSConfigKeys
 import org.apache.hadoop.hive.serde2.{ByteStream, SerDe, SerDeStats}
@@ -31,10 +29,10 @@ import org.apache.hadoop.hive.serde2.objectinspector.{ListObjectInspector, MapOb
   UnionObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
 import org.apache.hadoop.io.Writable
-
 import shark.LogHelper
 import shark.SharkConfVars
-import shark.memstore2.column.ColumnIterator
+import shark.memstore2.column.ColumnBuilder._
+import shark.memstore2.column._
 
 
 class ColumnarSerDe extends SerDe with LogHelper {
@@ -132,26 +130,26 @@ object ColumnarSerDe {
     val size = oi.getCategory match {
       case ObjectInspector.Category.PRIMITIVE => {
         oi.asInstanceOf[PrimitiveObjectInspector].getPrimitiveCategory match {
-          case PrimitiveCategory.VOID      => ColumnIterator.NULL_SIZE
-          case PrimitiveCategory.BOOLEAN   => ColumnIterator.BOOLEAN_SIZE
-          case PrimitiveCategory.BYTE      => ColumnIterator.BYTE_SIZE
-          case PrimitiveCategory.SHORT     => ColumnIterator.SHORT_SIZE
-          case PrimitiveCategory.INT       => ColumnIterator.INT_SIZE
-          case PrimitiveCategory.LONG      => ColumnIterator.LONG_SIZE
-          case PrimitiveCategory.FLOAT     => ColumnIterator.FLOAT_SIZE
-          case PrimitiveCategory.DOUBLE    => ColumnIterator.DOUBLE_SIZE
-          case PrimitiveCategory.TIMESTAMP => ColumnIterator.TIMESTAMP_SIZE
-          case PrimitiveCategory.STRING    => ColumnIterator.STRING_SIZE
-          case PrimitiveCategory.BINARY    => ColumnIterator.BINARY_SIZE
+          case PrimitiveCategory.VOID      => VOID.size
+          case PrimitiveCategory.BOOLEAN   => BOOLEAN.size
+          case PrimitiveCategory.BYTE      => BYTE.size
+          case PrimitiveCategory.SHORT     => SHORT.size
+          case PrimitiveCategory.INT       => INT.size
+          case PrimitiveCategory.LONG      => LONG.size
+          case PrimitiveCategory.FLOAT     => FLOAT.size
+          case PrimitiveCategory.DOUBLE    => DOUBLE.size
+          case PrimitiveCategory.TIMESTAMP => TIMESTAMP.size
+          case PrimitiveCategory.STRING    => STRING.size
+          case PrimitiveCategory.BINARY    => BINARY.size
           // TODO: add decimal type.
           case _ => throw new Exception(
             "Invalid primitive object inspector category" + oi + " " +
             oi.asInstanceOf[PrimitiveObjectInspector].getPrimitiveCategory)
         }
       }
-      case ObjectInspector.Category.LIST   => ColumnIterator.COMPLEX_TYPE_SIZE
-      case ObjectInspector.Category.UNION  => ColumnIterator.COMPLEX_TYPE_SIZE
-      case ObjectInspector.Category.MAP    => ColumnIterator.COMPLEX_TYPE_SIZE
+      case ObjectInspector.Category.LIST   => 16
+      case ObjectInspector.Category.UNION  => 16
+      case ObjectInspector.Category.MAP    => 16
       case ObjectInspector.Category.STRUCT => {
         val fieldRefs: JList[_ <: StructField] =
           oi.asInstanceOf[StructObjectInspector].getAllStructFieldRefs
