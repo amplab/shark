@@ -8,6 +8,12 @@
 # Run this file with -h (or see the usage() function below) for details about
 # configuration options.
 
+if [ "x$SHARK_PROJ_DIR" == "x" ] ; then
+  pushd `dirname $0` > /dev/null
+  # This script is in bin/dev so shark proj dir is two levels higher in the hierarchy.
+  SHARK_PROJ_DIR=`pwd`/../..
+  popd > /dev/null
+fi
 
 #####################################################################
 # Set up config vars using env vars or defaults; parse cmd line flags.
@@ -20,22 +26,22 @@ HADOOP_VERSION_DEFAULT="0.20.205.0"
 HADOOP_MAJOR_VERSION_DEFAULT=1
 SPARK_KV_JAVA_OPTS_DEFAULT=("-Dspark.local.dir=/tmp " "-Dspark.kryoserializer.buffer.mb=10 ")
 
+export SCALA_VERSION=`awk '/val SCALA_VERSION/ {print $4}' < ${SHARK_PROJ_DIR}/project/SharkBuild.scala |sed -e "s/\"\(.*\)\"/\1/"`
+SCALA_DOWNLOAD_PATH="http://www.scala-lang.org/files/archive/scala-${SCALA_VERSION}.tgz"
+
+# Validate whether wget exists.
+wget --version > /dev/null
+if [ $? != 0 ]; then
+  echo "ERROR: wget must be installed and on the search path."
+  exit -1
+fi
+
 if [ "x$JAVA_HOME" == "x" ] ; then
   echo "ERROR: You must set JAVA_HOME."
   exit -1
 else
   if [ ! -e "${JAVA_HOME}" ] ; then
     echo "ERROR: your current value of JAVA_HOME (${JAVA_HOME}) is not valid."
-    exit -1
-  fi
-fi
-
-if [ "x$SCALA_HOME" == "x" ] ; then
-  echo "ERROR: You must set SCALA_HOME env var."
-  exit -1
-else
-  if [ ! -e "${SCALA_HOME}/bin/scala" ] ; then
-    echo "ERROR: your current value of SCALA_HOME (${SCALA_HOME}) is not valid."
     exit -1
   fi
 fi
@@ -104,9 +110,9 @@ source it before you run this script in your CI project.
 
 Required Options:
   JAVA_HOME (Required)
-  SCALA_HOME (Required)
 
 Optional configuration environment variables:
+  SCALA_HOME
   SPARK_GIT_URL (default: "$SPARK_GIT_URL_DEFAULT")
   HIVE_GIT_URL (default: "$HIVE_GIT_URL_DEFAULT")
   HADOOP_VERSION (default: $HADOOP_VERSION_DEFAULT)
@@ -153,12 +159,6 @@ done
 
 set -xe
 
-if [ "x$SHARK_PROJ_DIR" == "x" ] ; then
-  pushd `dirname $0` > /dev/null
-  # This script is in bin/dev so shark proj dir is two levels higher in the hierarchy.
-  SHARK_PROJ_DIR=`pwd`/../..
-  popd > /dev/null
-fi
 
 # Since this script downloads a lot of stuff, keep it in a subdir workspace.
 WORKSPACE_DIR_NAME="run-tests-from-scratch-workspace"
@@ -190,14 +190,13 @@ if (($JAVA_MAJOR_VERSION < 6)) ||
   exit -1
 fi
 
-# The version of Scala that the downloaded version of Shark requires SCALA_HOME to be.
-export SCALA_VERSION=`awk '/val SCALA_VERSION/ {print $4}' < ${SHARK_PROJ_DIR}/project/SharkBuild.scala |sed -e "s/\"\(.*\)\"/\1/"`
-
-# Make sure the correct version of Scala installed.
-SCALA_HOME_VERSION=`${SCALA_HOME}/bin/scala -version|awk '{print $5}'`
-if [ "$SCALA_HOME_VERSION" != "$SCALA_VERSION" ] ; then
-  echo "Your SCALA_HOME is version ${SCALA_HOME_VERSION}, but ${SCALA_VERSION} is required."
-  exit -1
+if [ "x$SCALA_HOME" != "x" ] ; then
+  # User already specified SCALA_HOME. Make sure the correct version of Scala installed.
+  SCALA_HOME_VERSION=`${SCALA_HOME}/bin/scala -version|awk '{print $5}'`
+  if [ "$SCALA_HOME_VERSION" != "$SCALA_VERSION" ] ; then
+    echo "Your SCALA_HOME is version ${SCALA_HOME_VERSION}, but ${SCALA_VERSION} is required."
+    exit -1
+  fi
 fi
 
 # Kill this whole process group when Control-C is pressed. This ensures any child processes
@@ -217,6 +216,16 @@ if [ -e "${SHARK_PROJ_DIR}/conf/shark-env.sh" ] ; then
     mv ${SHARK_PROJ_DIR}/conf/shark-env.sh ${SHARK_PROJ_DIR}/conf/shark-env.sh-OLD
   fi
 fi
+
+####################################################################
+# Download Scala if SCALA_HOME is not specified.
+####################################################################
+if [ "x$SCALA_HOME" == "x" ] ; then
+  wget $SCALA_DOWNLOAD_PATH
+  tar xvfz scala*tgz
+  export SCALA_HOME="$WORKSPACE/scala-$SCALA_VERSION"
+fi
+echo "SCALA_HOME is $SCALA_HOME"
 
 ####################################################################
 # Download and build Spark.
