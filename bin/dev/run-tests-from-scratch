@@ -177,10 +177,16 @@ export HIVE_HOME="$HIVE_DEV_HOME/build/dist"
 JAVA_VERSION=`${JAVA_HOME}/bin/java -version 2>&1 |awk -F\" '/version/ { print $2 }'`
 JAVA_MAJOR_VERSION=`echo $JAVA_VERSION | awk -F\_ '{print $1}' | awk -F\. '{print $2}'`
 JAVA_MINOR_VERSION=`echo $JAVA_VERSION | awk -F\_ '{print $1}' | awk -F\. '{print $3}'`
+
+set +e
+${JAVA_HOME}/bin/java -version 2>&1 | grep -i hotspot
+JVM_IS_HOTSPOT=$?
+set -e
+
 JAVA_SUB_VERSION=`echo $JAVA_VERSION | awk -F\_ '{print $2}'`
-if (($JAVA_MAJOR_VERSION < 7)) ||
-   ((($JAVA_MAJOR_VERSION == 7)) && (($JAVA_MINOR_VERSION == 0)) && (($JAVA_SUB_VERSION < 21))); then
-  echo "You are running Java version ${JAVA_VERSION}, please run Java 1.7.0_21 or newer."
+if (($JAVA_MAJOR_VERSION < 6)) ||
+   ((($JAVA_MAJOR_VERSION == 6)) && ((($JAVA_MINOR_VERSION < 23)) || (($JVM_IS_HOTSPOT==0)) )); then
+  echo "You are running Java version ${JAVA_VERSION}, please run Java 7 or HotSpot JDK 6u23 or newer."
   exit -1
 fi
 
