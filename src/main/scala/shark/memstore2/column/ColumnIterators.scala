@@ -19,174 +19,59 @@ import org.apache.hadoop.hive.serde2.`lazy`.LazyFactory
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.`lazy`.ByteArrayRef
 
-class IntColumnIterator(val buffer: ByteBuffer) extends ColumnIterator {
-  private val _writable = new IntWritable
+class IntColumnIterator(buffer: ByteBuffer) 
+  extends DefaultColumnIterator(buffer, INT)
 
-  override def next() {
-    _writable.set(buffer.getInt())
-  }
+class FloatColumnIterator(buffer: ByteBuffer) 
+  extends DefaultColumnIterator(buffer, FLOAT)
 
-  override def current = _writable
-}
+class LongColumnIterator(buffer: ByteBuffer) 
+  extends DefaultColumnIterator(buffer, LONG)
 
-class FloatColumnIterator(val buffer: ByteBuffer) extends ColumnIterator {
-  private val _writable = new FloatWritable
+class DoubleColumnIterator(buffer: ByteBuffer) 
+  extends DefaultColumnIterator(buffer, DOUBLE)
 
-  override def next() {
-    _writable.set(buffer.getFloat())
-  }
+class BooleanColumnIterator(buffer: ByteBuffer) 
+  extends DefaultColumnIterator(buffer, BOOLEAN)
 
-  override def current = _writable
-}
+class ByteColumnIterator(buffer: ByteBuffer) 
+  extends DefaultColumnIterator(buffer, BYTE)
 
-class LongColumnIterator(val buffer: ByteBuffer) extends ColumnIterator {
-  private val _writable = new LongWritable
+class ShortColumnIterator(buffer: ByteBuffer) 
+  extends DefaultColumnIterator(buffer, SHORT)
 
-  override def next() {
-    _writable.set(buffer.getLong())
-  }
+class NullColumnIterator(buffer: ByteBuffer) 
+  extends DefaultColumnIterator(buffer, VOID)
 
-  override def current = _writable
-}
+class TimestampColumnIterator(buffer: ByteBuffer) 
+  extends DefaultColumnIterator(buffer, TIMESTAMP)
 
-class DoubleColumnIterator(val buffer: ByteBuffer) extends ColumnIterator {
-  private val _writable = new DoubleWritable
+class BinaryColumnIterator(buffer: ByteBuffer) 
+  extends DefaultColumnIterator(buffer, BINARY)
 
-  override def next() {
-    _writable.set(buffer.getDouble())
-  }
+class StringColumnIterator(buffer: ByteBuffer) 
+  extends DefaultColumnIterator(buffer, STRING)
 
-  override def current = _writable
-}
-
-class BooleanColumnIterator(val buffer: ByteBuffer) extends ColumnIterator {
-  private val _writable = new BooleanWritable
-
-  override def next() {
-    _writable.set(buffer.get == 1)
-  }
-
-  override def current = _writable
-}
-
-class ByteColumnIterator(val buffer: ByteBuffer) extends ColumnIterator {
-  private val _writable = new ByteWritable
-
-  override def next() {
-    _writable.set(buffer.get)
-  }
-
-  override def current = _writable
-}
-
-class ShortColumnIterator(val buffer: ByteBuffer) extends ColumnIterator {
-  private val _writable = new ShortWritable
-
-  override def next() {
-    _writable.set(buffer.getShort())
-  }
-
-  override def current = _writable
-}
-
-class VoidColumnIterator(val buffer: ByteBuffer) extends ColumnIterator {
-  private val _writable = NullWritable.get()
-  override def next() {}
-  override def current = _writable
-}
-
-class TimestampColumnIterator(val buffer: ByteBuffer) extends ColumnIterator {
-  private val _timestamp = new Timestamp(0)
-  private val _writable = new TimestampWritable(_timestamp)
-
-  override def next() {
-    _timestamp.setTime(buffer.getLong())
-    _timestamp.setNanos(buffer.getInt())
-  }
-
-  override def current = _writable
-}
-
-class BinaryColumnIterator(val buffer: ByteBuffer) extends ColumnIterator {
-  private val _writable = new BytesWritable
-  private var _currentLen = 0
-  private val _bytesFld = {
-    val f = _writable.getClass().getDeclaredField("bytes")
-    f.setAccessible(true)
-    f
-  }
-  private val _lengthFld = {
-    val f = _writable.getClass().getDeclaredField("size")
-    f.setAccessible(true)
-    f
-  }
-  override def next() {
-    // Ideally we want to set the bytes in BytesWritable directly without creating
-    // a new byte array.
-    val _currentLen = buffer.getInt
-    if (_currentLen >= 0) {
-      val newBytes = new Array[Byte](_currentLen)
-      buffer.get(newBytes, 0, _currentLen)
-      _bytesFld.set(_writable, newBytes)
-      _lengthFld.set(_writable, _currentLen)
-    }
-  }
-
-  override def current = if (_currentLen >= 0) _writable else null
-}
-
-class StringColumnIterator(val buffer: ByteBuffer) extends ColumnIterator {
-  private val _writable = new Text
-  private var _currentLen = 0
-  private val _bytesFld = {
-    val f = _writable.getClass().getDeclaredField("bytes")
-    f.setAccessible(true)
-    f
-  }
-  private val _lengthFld = {
-    val f = _writable.getClass().getDeclaredField("length")
-    f.setAccessible(true)
-    f
-  }
-
-  override def next() {
-    _currentLen = buffer.getInt
-    if (_currentLen >= 0) {
-      var b = _bytesFld.get(_writable).asInstanceOf[Array[Byte]]
-      if (b == null || b.length < _currentLen) {
-        b = new Array[Byte](_currentLen)
-        _bytesFld.set(_writable, b)
-      }
-      buffer.get(b, 0, _currentLen)
-      _lengthFld.set(_writable, _currentLen)
-    }
-  }
-
-  override def current: Text = if (_currentLen >= 0) _writable else null
-}
-
-class GenericColumnIterator(val buffer: ByteBuffer) extends ColumnIterator {
-
-  private var _initialized = false
+class GenericColumnIterator(buffer: ByteBuffer) 
+  extends DefaultColumnIterator(buffer, GENERIC) {
+ 
   private var _obj: LazyObject[_] = _
-
-  private val _byteArrayRef = new ByteArrayRef()
-  override def next() = {
-    //the very first record actually represents the serialized OI
-    if (!_initialized) {
-      val oiSize = buffer.getInt()
-      val oiSerialized = new Array[Byte](oiSize)
-      buffer.get(oiSerialized, 0, oiSize)
-      val oi = KryoSerializer.deserialize[ObjectInspector](oiSerialized)
-      _obj = LazyFactory.createLazyObject(oi)
-      _initialized = true
-    }
-    val len = buffer.getInt
-    val bytes = new Array[Byte](len)
-    buffer.get(bytes, 0, len)
-    _byteArrayRef.setData(bytes)
-    _obj.init(_byteArrayRef, 0, len)
+  
+  override def init() {
+    super.init()
+    val oiSize = buffer.getInt()
+    val oiSerialized = new Array[Byte](oiSize)
+    buffer.get(oiSerialized, 0, oiSize)
+    val oi = KryoSerializer.deserialize[ObjectInspector](oiSerialized)
+    _obj = LazyFactory.createLazyObject(oi)
   }
-
-  override def current = _obj
+  
+  override def current() = {
+    val v = super.current.asInstanceOf[ByteArrayRef]
+    _obj.init(v, 0, v.getData().length)
+    _obj
+  }
 }
+
+class VoidColumnIterator(buffer: ByteBuffer) 
+  extends DefaultColumnIterator(buffer, VOID)

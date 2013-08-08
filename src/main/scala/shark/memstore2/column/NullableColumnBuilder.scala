@@ -3,19 +3,24 @@ package shark.memstore2.column
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+
 /**
- * Handles null values.
+ * Builds a nullable column. The byte buffer of a nullable column contains
+ * the column type, followed by the null count and the index of nulls, followed
+ * finally by the non nulls.
  */
 trait NullableColumnBuilder[T] extends ColumnBuilder[T] {
 
   private var _nulls: ByteBuffer = _
-  private var _pos: Int = 0
-  private var _nullCount = 0
-  override def initialize(initialSize: Int) {
-    _nulls = ByteBuffer.allocate(1024)
-    //first 4 bytes indicate the # of nulls to expect.
+  
+  private var _pos: Int = _
+  private var _nullCount:Int = _
+
+  override def initialize(initialSize: Int) = {
+    _nulls =  ByteBuffer.allocate(1024)
     _nulls.order(ByteOrder.nativeOrder())
     _pos = 0
+    _nullCount = 0
     super.initialize(initialSize)
   }
 

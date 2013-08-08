@@ -32,6 +32,7 @@ import org.apache.hadoop.io._
 import org.scalatest.FunSuite
 import shark.memstore2.column._
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
+import shark.memstore2.column.Implicits._
 
 
 class ColumnIteratorSuite extends FunSuite {
@@ -50,13 +51,13 @@ class ColumnIteratorSuite extends FunSuite {
 
     var iter = ColumnIterator.newIterator(columnType, buf)
 
-    iter = new VoidColumnIterator(buf)
     iter.next()
-    assert(iter.current == NullWritable.get())
+
+    assert(iter.current == null)
     iter.next()
-    assert(iter.current == NullWritable.get())
+    assert(iter.current == null)
     iter.next()
-    assert(iter.current == NullWritable.get())
+    assert(iter.current == null)
   }
 
   test("boolean column") {

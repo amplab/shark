@@ -4,7 +4,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectIn
 import org.apache.hadoop.io.Text
 import org.scalatest.FunSuite
 import org.apache.hadoop.io.IntWritable
-
+import shark.memstore2.column.Implicits._
 
 class NullableColumnIteratorSuite extends FunSuite {
 

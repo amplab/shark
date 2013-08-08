@@ -20,8 +20,9 @@ package shark.memstore2
 import java.io.{Externalizable, ObjectInput, ObjectOutput}
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-
+import shark.memstore2.column.Implicits._
 import shark.memstore2.column.ColumnIterator
+import shark.memstore2.column.ColumnType
 
 
 /**
@@ -68,7 +69,7 @@ class TablePartition(private var _numRows: Long, private var _columns: Array[Byt
   def iterator: TablePartitionIterator = {
     val columnIterators: Array[ColumnIterator] = _columns.map { case buffer: ByteBuffer =>
       val b = buffer.duplicate().order(ByteOrder.nativeOrder())
-      val columnType = b.getInt()
+      val columnType: ColumnType[_,_] = b.getInt()
       val iter = ColumnIterator.newIterator(columnType, b)
       iter
     }

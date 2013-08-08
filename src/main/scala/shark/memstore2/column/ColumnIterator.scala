@@ -18,6 +18,7 @@
 package shark.memstore2.column
 
 import java.nio.ByteBuffer
+import org.apache.hadoop.io.Writable
 
 /** Iterator interface for a column. The iterator should be initialized by a
  * byte buffer, and next can be invoked to get the value for each cell.
@@ -44,34 +45,70 @@ import java.nio.ByteBuffer
  * write side see [[shark.memstore2.buffer.ColumnBuilder]].
  * 
  */
-abstract class ColumnIterator {
+trait ColumnIterator {
 
-  def next()
+  private var _initialized = false
+  
+  def init(): Unit = {}
+  def next(): Unit = {
+    if (!_initialized) {
+      init()
+      _initialized = true
+    }
+    computeNext()
+  }
+  def computeNext(): Unit
 
   // Should be implemented as a read-only operation by the ColumnIterator
   // Can be called any number of times
-  def current: Object
+  def current(): Object
+}
+
+abstract class DefaultColumnIterator[T, V](val buffer: ByteBuffer,
+  val columnType: ColumnType[T, V]) extends CompressedColumnIterator{}
+
+object Implicits {
+  implicit def intToCompressionType(i: Int): CompressionType = i match {
+    case -1 => DEFAULT
+    case 0 => RLECompressionType
+    case _ => throw new UnsupportedOperationException("Compression Type " + i)
+  }
+
+  implicit def intToColumnType(i: Int): ColumnType[_, _] = i match {
+    case 0 => INT
+    case 1 => LONG
+    case 2 => FLOAT
+    case 3 => DOUBLE
+    case 4 => BOOLEAN
+    case 5 => BYTE
+    case 6 => SHORT
+    case 7 => VOID
+    case 8 => STRING
+    case 9 => TIMESTAMP
+    case 11 => GENERIC
+  }
 }
 
 object ColumnIterator {
   
   
-  def newIterator(columnType: Int, 
+  def newIterator(columnType: ColumnType[_,_], 
     buffer: ByteBuffer): ColumnIterator = {
     val v = columnType match {
-      case 0 => new IntColumnIterator(buffer)
-      case 1 => new LongColumnIterator(buffer)
-      case 2 => new FloatColumnIterator(buffer)
-      case 3 => new DoubleColumnIterator(buffer)
-      case 4 => new BooleanColumnIterator(buffer)
-      case 5 => new ByteColumnIterator(buffer)
-      case 6 => new ShortColumnIterator(buffer)
-      case 7 => new VoidColumnIterator(buffer)
-      case 8 => new StringColumnIterator(buffer)
-      case 9 => new TimestampColumnIterator(buffer)
-      case 11 => new GenericColumnIterator(buffer)
+      case INT => new IntColumnIterator(buffer)
+      case LONG => new LongColumnIterator(buffer)
+      case FLOAT => new FloatColumnIterator(buffer)
+      case DOUBLE => new DoubleColumnIterator(buffer)
+      case BOOLEAN => new BooleanColumnIterator(buffer)
+      case BYTE => new ByteColumnIterator(buffer)
+      case SHORT => new ShortColumnIterator(buffer)
+      case VOID => new VoidColumnIterator(buffer)
+      case STRING => new StringColumnIterator(buffer)
+      case TIMESTAMP => new TimestampColumnIterator(buffer)
+      case GENERIC => new GenericColumnIterator(buffer)
     }
     new NullableColumnIterator(v, buffer)
   }
   
 }
+
