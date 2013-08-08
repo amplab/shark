@@ -22,8 +22,8 @@ import java.util.{List => JList}
 
 import scala.collection.JavaConversions._
 
-import spark.api.java.JavaSparkContext
 import shark.SharkContext
+import spark.api.java.JavaSparkContext
 
 class JavaSharkContext(val sharkCtx: SharkContext) extends JavaSparkContext(sharkCtx) {
 
@@ -31,7 +31,8 @@ class JavaSharkContext(val sharkCtx: SharkContext) extends JavaSparkContext(shar
    * @param master Cluster URL to connect to (e.g. mesos://host:port, spark://host:port, local[4]).
    * @param jobName A name for your job, to display on the cluster web UI
    */
-  def this(master: String, jobName: String) = this(new SharkContext(master, jobName, null, Nil, Map.empty))
+  def this(master: String, jobName: String) =
+    this(new SharkContext(master, jobName, null, Nil, Map.empty))
 
   /**
    * @param master Cluster URL to connect to (e.g. mesos://host:port, spark://host:port, local[4]).
@@ -78,6 +79,25 @@ class JavaSharkContext(val sharkCtx: SharkContext) extends JavaSparkContext(shar
     val rdd = sharkCtx.sql2rdd(cmd)
     new JavaTableRDD(rdd, rdd.schema)
   }
+
+
+  /**
+   * Execute a SQL command and collect the results locally. This function returns a maximum of
+   * 1000 rows. To fetch a larger result set, use runSql with maxRows specified.
+   *
+   * @param cmd The SQL command to be executed.
+   * @return A ResultSet object with both the schema and the query results.
+   */
+  def runSql(cmd: String): ResultSet = sharkCtx.runSql(cmd)
+
+  /**
+   * Execute a SQL command and collect the results locally.
+   *
+   * @param cmd The SQL command to be executed.
+   * @param maxRows The max number of rows to retrieve for the result set.
+   * @return A ResultSet object with both the schema and the query results.
+   */
+  def runSql(cmd: String, maxRows: Int) = sharkCtx.runSql(cmd, maxRows)
 
   /**
    * Execute the command and print the results to the console.
