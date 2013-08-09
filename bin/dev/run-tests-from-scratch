@@ -8,13 +8,6 @@
 # Run this file with -h (or see the usage() function below) for details about
 # configuration options.
 
-if [ "x$SHARK_PROJ_DIR" == "x" ] ; then
-  pushd `dirname $0` > /dev/null
-  # This script is in bin/dev so shark proj dir is two levels higher in the hierarchy.
-  SHARK_PROJ_DIR=`pwd`/../..
-  popd > /dev/null
-fi
-
 #####################################################################
 # Set up config vars using env vars or defaults; parse cmd line flags.
 #####################################################################
@@ -26,6 +19,16 @@ HADOOP_VERSION_DEFAULT="0.20.205.0"
 HADOOP_MAJOR_VERSION_DEFAULT=1
 SPARK_KV_JAVA_OPTS_DEFAULT=("-Dspark.local.dir=/tmp " "-Dspark.kryoserializer.buffer.mb=10 ")
 
+
+# Setup the Shark project directory.
+if [ "x$SHARK_PROJ_DIR" == "x" ] ; then
+  pushd `dirname $0` > /dev/null
+  # This script is in bin/dev so shark proj dir is two levels higher in the hierarchy.
+  SHARK_PROJ_DIR=`pwd`/../..
+  popd > /dev/null
+fi
+
+# Find Scala version automatically from the build file, and generate the download url.
 export SCALA_VERSION=`awk '/val SCALA_VERSION/ {print $4}' < ${SHARK_PROJ_DIR}/project/SharkBuild.scala |sed -e "s/\"\(.*\)\"/\1/"`
 SCALA_DOWNLOAD_PATH="http://www.scala-lang.org/files/archive/scala-${SCALA_VERSION}.tgz"
 
