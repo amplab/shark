@@ -13,7 +13,7 @@
 #####################################################################
 SHARK_PROJ_DIR_DEFAULT="$(cd `dirname $0`/../../; pwd)"
 SPARK_MEM_DEFAULT=4g
-SPARK_MASTER_MEM_DEFAULT=4g
+SHARK_MASTER_MEM_DEFAULT=4g
 SPARK_KV_JAVA_OPTS_DEFAULT=("-Dspark.local.dir=/tmp " "-Dspark.kryoserializer.buffer.mb=10 ")
 SPARK_GIT_URL_DEFAULT="https://github.com/mesos/spark.git"
 HIVE_GIT_URL_DEFAULT="https://github.com/amplab/hive.git -b shark-0.9"
@@ -55,7 +55,7 @@ if [ "x$SPARK_MEM" == "x" ] ; then
 fi
 
 if [ "x$SHARK_MASTER_MEM" == "x" ] ; then
-  export SHARK_MASTER_MEM=$SPARK_MASTER_MEM_DEFAULT
+  export SHARK_MASTER_MEM=$SHARK_MASTER_MEM_DEFAULT
 fi
 
 # For each of these Java opts, add it to SPARK_JAVA_OPTS if this opt isn't already set.
@@ -118,8 +118,8 @@ Required Options:
 Optional configuration environment variables:
   SHARK_PROJ_DIR (default: "$SHARK_PROJ_DIR_DEFAULT")
   SCALA_HOME (default: Scala version ${SCALA_VERSION} will be downloaded and used)
-  SPARK_MEM (default: $SPARK_MEM)
-  SHARK_MASTER_MEM (default: $SHARK_MASTER_MEM)
+  SPARK_MEM (default: $SPARK_MEM_DEFAULT)
+  SHARK_MASTER_MEM (default: $SHARK_MASTER_MEM_DEFAULT)
   SPARK_JAVA_OPTS (default: "${SPARK_KV_JAVA_OPTS_DEFAULT[@]}")
   SPARK_GIT_URL (default: "$SPARK_GIT_URL_DEFAULT")
   HIVE_GIT_URL (default: "$HIVE_GIT_URL_DEFAULT")
