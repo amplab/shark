@@ -11,8 +11,8 @@
 #####################################################################
 # Set up config vars using env vars or defaults; parse cmd line flags.
 #####################################################################
-SPARK_MEM_DEFAULT=8g
-SPARK_MASTER_MEM_DEFAULT=8g
+SPARK_MEM_DEFAULT=4g
+SPARK_MASTER_MEM_DEFAULT=4g
 SPARK_GIT_URL_DEFAULT="https://github.com/mesos/spark.git"
 HIVE_GIT_URL_DEFAULT="https://github.com/amplab/hive.git -b shark-0.9"
 HADOOP_VERSION_DEFAULT="0.20.205.0"
