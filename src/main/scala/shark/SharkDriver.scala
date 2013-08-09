@@ -17,15 +17,14 @@
 
 package shark
 
-import java.util.{ArrayList => JavaArrayList, List => JavaList, Date}
+import java.util.{List => JavaList}
 
 import scala.collection.JavaConversions._
 
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.Schema
-import org.apache.hadoop.hive.ql.{Context, Driver, QueryPlan}
+import org.apache.hadoop.hive.ql.{Driver, QueryPlan}
 import org.apache.hadoop.hive.ql.exec._
-import org.apache.hadoop.hive.ql.exec.OperatorFactory.OpTuple
 import org.apache.hadoop.hive.ql.log.PerfLogger
 import org.apache.hadoop.hive.ql.metadata.AuthorizationException
 import org.apache.hadoop.hive.ql.parse._
@@ -48,7 +47,7 @@ import shark.parse.{QueryContext, SharkSemanticAnalyzerFactory}
  *
  * See below for the SharkDriver class.
  */
-object SharkDriver extends LogHelper {
+private[shark] object SharkDriver extends LogHelper {
 
   // A dummy static method so we can make sure the following static code are executed.
   def runStaticCode() {
@@ -115,7 +114,7 @@ object SharkDriver extends LogHelper {
 /**
  * The driver to execute queries in Shark.
  */
-class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
+private[shark] class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
 
   // Helper methods to access the private members made accessible using reflection.
   def plan = getPlan
@@ -142,7 +141,7 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
     super.init()
   }
 
-  def tableRdd(cmd:String): TableRDD = {
+  def tableRdd(cmd: String): Option[TableRDD] = {
     useTableRddSink = true
     val response = run(cmd)
     // Throw an exception if there is an error in query processing.
@@ -151,10 +150,8 @@ class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHelper {
     }
     useTableRddSink = false
     plan.getRootTasks.get(0) match {
-      case sparkTask: SparkTask => {
-        sparkTask.tableRdd
-      }
-      case _ => null
+      case sparkTask: SparkTask => sparkTask.tableRdd
+      case _ => None
     }
   }
 
