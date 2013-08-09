@@ -18,13 +18,14 @@ HIVE_GIT_URL_DEFAULT="https://github.com/amplab/hive.git -b shark-0.9"
 HADOOP_VERSION_DEFAULT="0.20.205.0"
 HADOOP_MAJOR_VERSION_DEFAULT=1
 SPARK_KV_JAVA_OPTS_DEFAULT=("-Dspark.local.dir=/tmp " "-Dspark.kryoserializer.buffer.mb=10 ")
+SHARK_PROJ_DIR_DEFAULT="$(cd `dirname $0`/../../; pwd)"
 
 
 # Setup the Shark project directory.
 if [ "x$SHARK_PROJ_DIR" == "x" ] ; then
   pushd `dirname $0` > /dev/null
   # This script is in bin/dev so shark proj dir is two levels higher in the hierarchy.
-  SHARK_PROJ_DIR=`pwd`/../..
+  SHARK_PROJ_DIR=$SHARK_PROJ_DIR_DEFAULT
   popd > /dev/null
 fi
 
@@ -115,7 +116,8 @@ Required Options:
   JAVA_HOME (Required)
 
 Optional configuration environment variables:
-  SCALA_HOME
+  SHARK_PROJ_DIR (default: "$SHARK_PROJ_DIR_DEFAULT")
+  SCALA_HOME (default: Scala version ${SCALA_VERSION} will be downloaded and used)
   SPARK_GIT_URL (default: "$SPARK_GIT_URL_DEFAULT")
   HIVE_GIT_URL (default: "$HIVE_GIT_URL_DEFAULT")
   HADOOP_VERSION (default: $HADOOP_VERSION_DEFAULT)
