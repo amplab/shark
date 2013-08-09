@@ -11,14 +11,14 @@
 #####################################################################
 # Set up config vars using env vars or defaults; parse cmd line flags.
 #####################################################################
+SHARK_PROJ_DIR_DEFAULT="$(cd `dirname $0`/../../; pwd)"
 SPARK_MEM_DEFAULT=4g
 SPARK_MASTER_MEM_DEFAULT=4g
+SPARK_KV_JAVA_OPTS_DEFAULT=("-Dspark.local.dir=/tmp " "-Dspark.kryoserializer.buffer.mb=10 ")
 SPARK_GIT_URL_DEFAULT="https://github.com/mesos/spark.git"
 HIVE_GIT_URL_DEFAULT="https://github.com/amplab/hive.git -b shark-0.9"
 HADOOP_VERSION_DEFAULT="0.20.205.0"
 HADOOP_MAJOR_VERSION_DEFAULT=1
-SPARK_KV_JAVA_OPTS_DEFAULT=("-Dspark.local.dir=/tmp " "-Dspark.kryoserializer.buffer.mb=10 ")
-SHARK_PROJ_DIR_DEFAULT="$(cd `dirname $0`/../../; pwd)"
 
 
 # Setup the Shark project directory.
@@ -50,6 +50,23 @@ else
   fi
 fi
 
+if [ "x$SPARK_MEM" == "x" ] ; then
+  export SPARK_MEM=$SPARK_MEM_DEFAULT
+fi
+
+if [ "x$SHARK_MASTER_MEM" == "x" ] ; then
+  export SHARK_MASTER_MEM=$SPARK_MASTER_MEM_DEFAULT
+fi
+
+# For each of these Java opts, add it to SPARK_JAVA_OPTS if this opt isn't already set.
+for i in ${SPARK_KV_JAVA_OPTS_DEFAULT[@]} ; do
+  if [[ ! $SPARK_JAVA_OPTS =~ ${i%%=*} ]] ; then
+    SPARK_JAVA_OPTS+="$i "
+  fi
+done
+SPARK_JAVA_OPTS+="-verbose:gc -XX:-PrintGCDetails -XX:+PrintGCTimeStamps "
+export SPARK_JAVA_OPTS
+
 if [ "x$SPARK_GIT_URL" == "x" ] ; then
   SPARK_GIT_URL=$SPARK_GIT_URL_DEFAULT
 fi
@@ -68,23 +85,6 @@ fi
 if [ "x$HADOOP_MAJOR_VERSION" == "x" ] ; then
   HADOOP_MAJOR_VERSION=$HADOOP_MAJOR_VERSION_DEFAULT
 fi
-
-if [ "x$SPARK_MEM" == "x" ] ; then
-  export SPARK_MEM=$SPARK_MEM_DEFAULT
-fi
-
-if [ "x$SHARK_MASTER_MEM" == "x" ] ; then
-  export SHARK_MASTER_MEM=$SPARK_MASTER_MEM_DEFAULT
-fi
-
-# For each of these Java opts, add it to SPARK_JAVA_OPTS if this opt isn't already set.
-for i in ${SPARK_KV_JAVA_OPTS_DEFAULT[@]} ; do
-  if [[ ! $SPARK_JAVA_OPTS =~ ${i%%=*} ]] ; then
-    SPARK_JAVA_OPTS+="$i "
-  fi
-done
-SPARK_JAVA_OPTS+="-verbose:gc -XX:-PrintGCDetails -XX:+PrintGCTimeStamps "
-export SPARK_JAVA_OPTS
 
 usage()
 {
@@ -118,13 +118,13 @@ Required Options:
 Optional configuration environment variables:
   SHARK_PROJ_DIR (default: "$SHARK_PROJ_DIR_DEFAULT")
   SCALA_HOME (default: Scala version ${SCALA_VERSION} will be downloaded and used)
+  SPARK_MEM (default: $SPARK_MEM)
+  SHARK_MASTER_MEM (default: $SHARK_MASTER_MEM)
+  SPARK_JAVA_OPTS (default: "${SPARK_KV_JAVA_OPTS_DEFAULT[@]}")
   SPARK_GIT_URL (default: "$SPARK_GIT_URL_DEFAULT")
   HIVE_GIT_URL (default: "$HIVE_GIT_URL_DEFAULT")
   HADOOP_VERSION (default: $HADOOP_VERSION_DEFAULT)
   HADOOP_MAJOR_VERSION (default: $HADOOP_MAJOR_VERSION_DEFAULT)
-  SPARK_MEM (default: $SPARK_MEM)
-  SHARK_MASTER_MEM (default: $SHARK_MASTER_MEM)
-  SPARK_JAVA_OPTS (default: "${SPARK_KV_JAVA_OPTS_DEFAULT[@]}")
 EOF
 exit
 }
