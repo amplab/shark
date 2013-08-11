@@ -192,7 +192,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                   val storageLevel = RDDUtils.getStorageLevelOfCachedTable(rdd)
                   OperatorFactory.createSharkMemoryStoreOutputPlan(
                     hiveSinkOp,
-                    tableProperties,
+                    cachedTableName,
                     storageLevel,
                     _resSchema.size,                // numColumns
                     cacheMode == CacheType.tachyon, // use tachyon
@@ -224,7 +224,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
 
             OperatorFactory.createSharkMemoryStoreOutputPlan(
               hiveSinkOps.head,
-              tableProperties,
+              qb.getTableDesc.getTableName,
               storageLevel,
               _resSchema.size,                // numColumns
               cacheMode == CacheType.tachyon, // use tachyon

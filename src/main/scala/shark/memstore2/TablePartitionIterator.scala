@@ -20,7 +20,6 @@ package shark.memstore2
 import java.nio.ByteBuffer
 import java.util.BitSet
 import shark.memstore2.column.ColumnIterator
-import shark.memstore2.column.ColumnIteratorFactory
 
 
 /**
