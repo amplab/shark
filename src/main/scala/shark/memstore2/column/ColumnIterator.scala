@@ -17,105 +17,103 @@
 
 package shark.memstore2.column
 
-import shark.memstore2.buffer.ByteBufferReader
+import java.nio.ByteBuffer
+import org.apache.hadoop.io.Writable
+import java.nio.ByteOrder
 
-
-/**
- * Iterator interface for a column. The iterator should be initialized by a byte
- * buffer, and next can be invoked to get the value for each cell.
+/** Iterator interface for a column. The iterator should be initialized by a
+ * byte buffer, and next can be invoked to get the value for each cell.
+ *
+ * Adding a new compression/encoding scheme to the code requires several
+ * things. First among them is an addition to the list of iterators here. An
+ * iterator that knows how to iterate through an encoding-specific ByteBuffer is
+ * required. This ByteBuffer would have been created by the one of the concrete
+ * [[shark.memstore2.buffer.ColumnBuilder]] classes.  
+ * 
+ * 
+ * The relationship/composition possibilities between the new
+ * encoding/compression and existing schemes dictates how the new iterator is
+ * implemented.  Null Encoding and RLE Encoding working as generic wrappers that
+ * can be wrapped around any data type.  Dictionary Encoding does not work in a
+ * hierarchial manner instead requiring the creation of a separate
+ * DictionaryEncoded Iterator per Data type.
+ * 
+ * The changes required for the LZF encoding's Builder/Iterator might be the
+ * easiest to look to get a feel for what is required -
+ * [[shark.memstore2.buffer.LZFColumnIterator]]. See SHA 225f4d90d8721a9d9e8f
+ * 
+ * The base class ColumnIterator is the read side of this equation. For the
+ * write side see [[shark.memstore2.buffer.ColumnBuilder]].
+ * 
  */
-abstract class ColumnIterator {
+trait ColumnIterator {
 
-  def next()
+  private var _initialized = false
+  
+  def init(): Unit = {}
+  def next(): Unit = {
+    if (!_initialized) {
+      init()
+      _initialized = true
+    }
+    computeNext()
+  }
+  def computeNext(): Unit
 
-  def current: Object
+  // Should be implemented as a read-only operation by the ColumnIterator
+  // Can be called any number of times
+  def current(): Object
 }
 
+abstract class DefaultColumnIterator[T, V](val buffer: ByteBuffer,
+  val columnType: ColumnType[T, V]) extends CompressedColumnIterator{}
 
-/**
- * A mapping from an integer column type to the respective ColumnIterator class.
- */
+object Implicits {
+  implicit def intToCompressionType(i: Int): CompressionType = i match {
+    case -1 => DEFAULT
+    case 0 => RLECompressionType
+    case _ => throw new UnsupportedOperationException("Compression Type " + i)
+  }
+
+  implicit def intToColumnType(i: Int): ColumnType[_, _] = i match {
+    case 0 => INT
+    case 1 => LONG
+    case 2 => FLOAT
+    case 3 => DOUBLE
+    case 4 => BOOLEAN
+    case 5 => BYTE
+    case 6 => SHORT
+    case 7 => VOID
+    case 8 => STRING
+    case 9 => TIMESTAMP
+    case 10 => BINARY
+    case 11 => GENERIC
+  }
+}
+
 object ColumnIterator {
+  
+  import shark.memstore2.column.Implicits._
 
-  // TODO: Implement Decimal data type.
-
-  val COLUMN_TYPE_LENGTH = 8
-
-  // A mapping between column type to the column iterator factory.
-  private val _iteratorFactory = new Array[ColumnIteratorFactory](32)
-
-  def getFactory(columnType: Long): ColumnIteratorFactory = {
-    _iteratorFactory(columnType.toInt)
+  def newIterator(b: ByteBuffer): ColumnIterator = {
+    val buffer = b.duplicate().order(ByteOrder.nativeOrder())
+    val columnType: ColumnType[_, _] = buffer.getInt()
+    val v = columnType match {
+      case INT => new IntColumnIterator(buffer)
+      case LONG => new LongColumnIterator(buffer)
+      case FLOAT => new FloatColumnIterator(buffer)
+      case DOUBLE => new DoubleColumnIterator(buffer)
+      case BOOLEAN => new BooleanColumnIterator(buffer)
+      case BYTE => new ByteColumnIterator(buffer)
+      case SHORT => new ShortColumnIterator(buffer)
+      case VOID => new VoidColumnIterator(buffer)
+      case STRING => new StringColumnIterator(buffer)
+      case BINARY => new BinaryColumnIterator(buffer)
+      case TIMESTAMP => new TimestampColumnIterator(buffer)
+      case GENERIC => new GenericColumnIterator(buffer)
+    }
+    new NullableColumnIterator(v, buffer)
   }
-
-  /////////////////////////////////////////////////////////////////////////////
-  // List of data type sizes.
-  /////////////////////////////////////////////////////////////////////////////
-  val BOOLEAN_SIZE = 1
-  val BYTE_SIZE = 1
-  val SHORT_SIZE = 2
-  val INT_SIZE = 4
-  val LONG_SIZE = 8
-  val FLOAT_SIZE = 4
-  val DOUBLE_SIZE = 8
-  val TIMESTAMP_SIZE = 12
-
-  // Strings, binary types, and complex types (map, list) are assumed to be 16 bytes on average.
-  val BINARY_SIZE = 16
-  val STRING_SIZE = 8
-  val COMPLEX_TYPE_SIZE = 16
-
-  // Void columns are represented by NullWritable, which is a singleton.
-  val NULL_SIZE = 0
-
-  /////////////////////////////////////////////////////////////////////////////
-  // List of column iterators.
-  /////////////////////////////////////////////////////////////////////////////
-  val BOOLEAN = 0
-  _iteratorFactory(BOOLEAN) = createFactoryWithEWAH(classOf[BooleanColumnIterator.Default])
-
-  val BYTE = 1
-  _iteratorFactory(BYTE) = createFactoryWithEWAH(classOf[ByteColumnIterator.Default])
-
-  val SHORT = 2
-  _iteratorFactory(SHORT) = createFactoryWithEWAH(classOf[ShortColumnIterator.Default])
-
-  val INT = 3
-  _iteratorFactory(INT) = createFactoryWithEWAH(classOf[IntColumnIterator.Default])
-
-  val LONG = 4
-  _iteratorFactory(LONG) = createFactoryWithEWAH(classOf[LongColumnIterator.Default])
-
-  val FLOAT = 5
-  _iteratorFactory(FLOAT) = createFactoryWithEWAH(classOf[FloatColumnIterator.Default])
-
-  val DOUBLE = 6
-  _iteratorFactory(DOUBLE) = createFactoryWithEWAH(classOf[DoubleColumnIterator.Default])
-
-  val VOID = 7
-  _iteratorFactory(VOID) = createFactory(classOf[VoidColumnIterator.Default])
-
-  val TIMESTAMP = 8
-  _iteratorFactory(TIMESTAMP) = createFactoryWithEWAH(classOf[TimestampColumnIterator.Default])
-
-  // TODO: Add decimal data type.
-
-  val STRING = 10
-  _iteratorFactory(STRING) = createFactory(classOf[StringColumnIterator.Default])
-
-  val COMPLEX = 11
-  _iteratorFactory(COMPLEX) = createFactory(classOf[ComplexColumnIterator.Default])
-
-  val BINARY = 12
-  _iteratorFactory(BINARY) = createFactory(classOf[BinaryColumnIterator.Default])
-
-  // Helper methods so we don't need to write the whole thing up there.
-  def createFactory[T <: ColumnIterator](c: Class[T]) = {
-    ColumnIteratorFactory.create(c)
-  }
-
-  def createFactoryWithEWAH[T <: ColumnIterator](c: Class[T]) = {
-    ColumnIteratorFactory.createWithEWAH(c)
-  }
-
+  
 }
+
