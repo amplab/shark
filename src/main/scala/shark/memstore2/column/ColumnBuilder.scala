@@ -390,6 +390,16 @@ object TIMESTAMP extends ColumnType[Timestamp, TimestampWritable](9, 12) {
 
 object BINARY extends ColumnType[BytesWritable, BytesWritable](10, 16) {
 
+  private val _bytesFld = {
+    val f = classOf[BytesWritable].getDeclaredField("bytes")
+    f.setAccessible(true)
+    f
+  }
+  private val _lengthFld = {
+    val f = classOf[BytesWritable].getDeclaredField("size")
+    f.setAccessible(true)
+    f
+  }
   override def append(v: BytesWritable, buffer: ByteBuffer) = {
     val length = v.getLength()
     buffer.putInt(length)
@@ -412,9 +422,13 @@ object BINARY extends ColumnType[BytesWritable, BytesWritable](10, 16) {
 
   def extractInto(currentPos: Int, buffer: ByteBuffer, writable: BytesWritable) = {
     val length = buffer.getInt()
-    val a = new Array[Byte](length)
-    buffer.get(a, 0, length)
-    writable.set(a, 0, length)
+    var b = _bytesFld.get(writable).asInstanceOf[Array[Byte]]
+    if (b == null || b.length < length) {
+      b = new Array[Byte](length)
+      _bytesFld.set(writable, b)
+    }
+    buffer.get(b, 0, length)
+    _lengthFld.set(writable, length)
   }
 
   def newWritable() = new BytesWritable

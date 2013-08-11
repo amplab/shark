@@ -22,8 +22,7 @@ class NullableColumnIteratorSuite extends FunSuite {
       t => c.append(t, oi)
     }
     val b = c.build
-    val columnType = b.getInt()
-    val i = ColumnIterator.newIterator(columnType, b)
+    val i = ColumnIterator.newIterator(b)
     Range(0, a.length).foreach { x =>
       i.next()
       val v = i.current
@@ -45,8 +44,7 @@ class NullableColumnIteratorSuite extends FunSuite {
     c.append(new Text("Abcdz"), oi)
     c.append(null, oi)
     val b = c.build
-    val columnType = b.getInt()
-    val i = ColumnIterator.newIterator(columnType, b)
+    val i = ColumnIterator.newIterator(b)
     i.next()
     assert(i.current.toString() == "a")
     i.next()
@@ -70,8 +68,7 @@ class NullableColumnIteratorSuite extends FunSuite {
     c.append(null, oi)
     c.append(56.asInstanceOf[Object], oi)
     val b = c.build
-    val columnType = b.getInt()
-    val i = ColumnIterator.newIterator(columnType, b)
+    val i = ColumnIterator.newIterator(b)
     i.next()
     assert(i.current.asInstanceOf[IntWritable].get() == 123)
     i.next()

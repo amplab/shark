@@ -19,6 +19,7 @@ package shark.memstore2.column
 
 import java.nio.ByteBuffer
 import org.apache.hadoop.io.Writable
+import java.nio.ByteOrder
 
 /** Iterator interface for a column. The iterator should be initialized by a
  * byte buffer, and next can be invoked to get the value for each cell.
@@ -85,15 +86,18 @@ object Implicits {
     case 7 => VOID
     case 8 => STRING
     case 9 => TIMESTAMP
+    case 10 => BINARY
     case 11 => GENERIC
   }
 }
 
 object ColumnIterator {
   
-  
-  def newIterator(columnType: ColumnType[_,_], 
-    buffer: ByteBuffer): ColumnIterator = {
+  import shark.memstore2.column.Implicits._
+
+  def newIterator(b: ByteBuffer): ColumnIterator = {
+    val buffer = b.duplicate().order(ByteOrder.nativeOrder())
+    val columnType: ColumnType[_, _] = buffer.getInt()
     val v = columnType match {
       case INT => new IntColumnIterator(buffer)
       case LONG => new LongColumnIterator(buffer)
@@ -104,6 +108,7 @@ object ColumnIterator {
       case SHORT => new ShortColumnIterator(buffer)
       case VOID => new VoidColumnIterator(buffer)
       case STRING => new StringColumnIterator(buffer)
+      case BINARY => new BinaryColumnIterator(buffer)
       case TIMESTAMP => new TimestampColumnIterator(buffer)
       case GENERIC => new GenericColumnIterator(buffer)
     }

@@ -16,9 +16,7 @@ class NullableColumnBuilderSuite extends FunSuite {
       c.append(new Text("00000000000000000000000000000000" + i), oi)
     }
     val b = c.build
-    val colType = b.getInt()
-    assert(colType == STRING.typeID)
-    val i = ColumnIterator.newIterator(colType, b)
+    val i = ColumnIterator.newIterator(b)
     Range(0, 1000000).foreach { x =>
       i.next()
       i.current

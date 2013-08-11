@@ -33,11 +33,12 @@ import org.scalatest.FunSuite
 import shark.memstore2.column._
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import shark.memstore2.column.Implicits._
+import java.nio.ByteOrder
 
 
 class ColumnIteratorSuite extends FunSuite {
 
-  val PARALLEL_MODE = false
+  val PARALLEL_MODE = true
 
   test("void column") {
     val builder = new VoidColumnBuilder
@@ -47,9 +48,7 @@ class ColumnIteratorSuite extends FunSuite {
     builder.append(null, null)
     val buf = builder.build
 
-    val columnType = buf.getInt
-
-    var iter = ColumnIterator.newIterator(columnType, buf)
+    var iter = ColumnIterator.newIterator(buf)
 
     iter.next()
 
@@ -294,9 +293,7 @@ class ColumnIteratorSuite extends FunSuite {
     val buf = builder.build
 
     def executeOneTest() {
-      val columnType = buf.getInt()
-
-      val iter = ColumnIterator.newIterator(columnType, buf)
+      val iter = ColumnIterator.newIterator(buf)
 
       (0 until testData.size).foreach { i =>
         iter.next()
