@@ -18,7 +18,7 @@ SRCDIRS = ..
 
 PACKAGE_OS_SPECIFIC = no
 YINST requires pkg yjava_jdk 1.7.0 *
-YINST requires pkg miners_spark 0.7.2.1 0.7.2.1
+YINST requires pkg miners_spark 0.7.2.1 *
 YINST requires pkg miners_scala 2.9.2 *
 YINST requires pkg miners_hive 0.9.0.4 *
 # YINST requires pkg hadoop 0.20.205 *
@@ -36,7 +36,15 @@ YINST set SPARK_MASTER_PORT $(DEFAULT_PORT)
 YINST set MASTER spark://$(DEFAULT_MASTER):$(DEFAULT_PORT)
 YINST set SPARK_MEM 10g
 YINST set SHARK_MASTER_MEM 10g
-
+YINST set JAVA_HOME /home/y/libexec64/jdk1.7.0/
+YINST set AKKA_FRAME_SIZE 100
+YINST set STORAGE_FRACTION 0.9
+YINST set BLOCKMANAGER_HEARTBEAT 40000
+YINST set SERIALIZER spark.KryoSerializer
+YINST set DEBUG_OPTS '-Dsun.security.jgss.debug=true -Dsun.security.krb5.debug=true'
+YINST set GC_OPTS '-verbose:gc -XX:-PrintGCDetails -XX:+PrintGCTimeStamps'
+YINST set LOCAL_DIR /home/greyreef/
+YINST set KRYO_BUFFER_SIZE 10
 PERM  = 0755
 OWNER = root
 GROUP = wheel
