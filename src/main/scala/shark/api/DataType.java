@@ -3,7 +3,7 @@ package shark.api;
 import java.io.Serializable;
 
 
-class DataType implements Serializable {
+public class DataType implements Serializable {
 
   public final String name;
   public final String hiveName;
