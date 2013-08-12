@@ -42,7 +42,7 @@ class TachyonUtilImpl(val master: String, val warehousePath: String) extends Tac
 
   def getPath(tableName: String): String = warehousePath + "/" + tableName
 
-  override def tachyonEnabled(): Boolean = true
+  override def tachyonEnabled(): Boolean = (master != null && warehousePath != null)
 
   override def tableExists(tableName: String): Boolean = {
     client.exist(getPath(tableName))
