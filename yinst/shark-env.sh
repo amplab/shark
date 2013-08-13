@@ -47,7 +47,7 @@ export SPARK_MASTER_PORT=$(miners_shark__SPARK_MASTER_PORT)
 
 # (Optional) Extra classpath
 #export SPARK_LIBRARY_PATH=""
-
+SPARK_CLASSPATH=$SPARK_CLASSPATH:$(miners_spark__CLASSPATH)
 # Java options
 # On EC2, change the local.dir to /mnt/tmp
 export GC_OPTS="-verbose:gc -XX:-PrintGCDetails -XX:+PrintGCTimeStamps"
