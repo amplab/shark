@@ -117,7 +117,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         throw(new QueryExecutionException("Cached table not found"))
       }
       logInfo("Loading table " + tableKey + " from Spark block manager")
-      loadRddFromSpark(tableKey, rdd)
+      loadPartitionPrunedRdd(tableKey, rdd)
     } else if (cacheMode == CacheType.tachyon) {
       // Table is in Tachyon.
       if (!SharkEnv.tachyonUtil.tableExists(tableKey)) {
@@ -134,14 +134,14 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
           statsByteBuffer.array())
         SharkEnv.memoryMetadataManager.putStats(tableKey, indexToStats)
       }
-      SharkEnv.tachyonUtil.createRDD(tableKey)
+      loadPartitionPrunedRdd(tableKey, SharkEnv.tachyonUtil.createRDD(tableKey))
     } else {
       // Table is a Hive table on HDFS (or other Hadoop storage).
       super.execute()
     }
   }
 
-  private def loadRddFromSpark(tableKey: String, rdd: RDD[_]): RDD[_] = {
+  private def loadPartitionPrunedRdd(tableKey: String, rdd: RDD[_]): RDD[_] = {
     // Stats used for map pruning.
     val indexToStats: collection.Map[Int, TablePartitionStats] =
       SharkEnv.memoryMetadataManager.getStats(tableKey).get
@@ -168,9 +168,11 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
           }
           // Only test for pruning if we have stats on the column.
           val partitionStats = indexToStats(index)
-          if (partitionStats != null && partitionStats.stats != null)
+          if (partitionStats != null && partitionStats.stats != null) {
             MapSplitPruning.test(partitionStats, filterOp.conditionEvaluator)
-          else true
+          } else {
+            true
+          }
         }
 
         // Do the pruning.
