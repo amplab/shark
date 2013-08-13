@@ -75,7 +75,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     var rdd: RDD[TablePartition] = inputRdd.mapPartitionsWithIndex { case(partitionIndex, iter) =>
       op.initializeOnSlave()
       val serde = new ColumnarSerDe
-      serde.initialize(op.hconf, op.localHiveOp.getConf.getTableInfo.getProperties())
+      serde.initialize(op.localHconf, op.localHiveOp.getConf.getTableInfo.getProperties())
 
       // Serialize each row into the builder object.
       // ColumnarSerDe will return a TablePartitionBuilder.

@@ -11,8 +11,8 @@ import java.sql.Timestamp
 
 class GenericColumnBuilder(oi: ObjectInspector) 
   extends DefaultColumnBuilder[ByteStream.Output](new NoOp(), GENERIC) {
-  override def initialize(initialSize: Int):ByteBuffer = {
-    val buffer = super.initialize(initialSize)
+  override def initialize(numRows: Int):ByteBuffer = {
+    val buffer = super.initialize(numRows)
     val objectInspectorSerialized = KryoSerializer.serialize(oi)
     buffer.putInt(objectInspectorSerialized.size)
     buffer.put(objectInspectorSerialized)

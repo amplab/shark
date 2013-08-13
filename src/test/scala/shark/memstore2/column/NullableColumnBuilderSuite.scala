@@ -105,14 +105,44 @@ class NullableColumnBuilderSuite extends FunSuite {
   }
   
   test("Trigger RLE") {
-    val c = new IntColumnBuilder()
+    var c = new IntColumnBuilder()
     c.initialize(4)
     val oi = PrimitiveObjectInspectorFactory.javaIntObjectInspector
     Range(1,1000).foreach { x =>
       c.append(x.asInstanceOf[Object], oi)
     }
-    val b = c.build
+    var b = c.build
     assert(b.getInt() == INT.typeID)
-    assert(b.getInt() == RLECompressionType.typeID)
+    //next come the nulls.
+    assert(b.getInt() == 0)
+    assert(b.getInt() == DEFAULT.typeID) 
+    
+    //now trigger RLE
+    c = new IntColumnBuilder()
+    c.initialize(4)
+    Range(0,1000).foreach { x =>
+      if (x < 600)
+      c.append(1.asInstanceOf[Object], oi)
+      else if (x < 700) c.append(x.asInstanceOf[Object], oi)
+      else c.append(2.asInstanceOf[Object], oi)
+    }
+    
+    b = c.build
+    assert(b.getInt() == INT.typeID)
+    //next come the nulls.
+    assert(b.getInt() == 0)
+    assert(b.getInt() == RLECompressionType.typeID) 
+    //expect 1, followed by a count of 600
+    assert(b.getInt() == 1)
+    assert(b.getInt() == 600)
+   
+    //skip 200
+    Range(600,700).foreach {x =>
+      assert(b.getInt() == x)
+      assert(b.getInt() == 1)
+    }
+    assert(b.getInt() == 2)
+    assert(b.getInt() == 300)
+    
   }
 }

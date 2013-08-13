@@ -76,9 +76,9 @@ trait ColumnBuilder[T] {
    * Initialize with an approximate lower bound on the expected number
    * of elements in this column.
    */
-  def initialize(initialSize: Int):ByteBuffer = {
-    _initialSize = if(initialSize == 0) 1024*1024*10 else initialSize
-    _buffer = ByteBuffer.allocate(_initialSize*t.size + 4 + 4)
+  def initialize(numRows: Int):ByteBuffer = {
+    _initialSize = if(numRows == 0) 1024*1024*10 else numRows*t.size
+    _buffer = ByteBuffer.allocate(_initialSize + 4 + 4)
     _buffer.order(ByteOrder.nativeOrder())
     _buffer.putInt(t.typeID)
   }
@@ -87,7 +87,7 @@ trait ColumnBuilder[T] {
     val capacity = orig.capacity()
     if (orig.remaining() < (1 - loadFactor) * capacity) {
       //grow in steps of initial size 
-      val s = orig.capacity() + _initialSize
+      val s = orig.capacity() + _initialSize/2
       val pos = orig.position()
       orig.clear()
       val b = ByteBuffer.allocate(s)
@@ -109,8 +109,8 @@ trait CompressedColumnBuilder[T] extends ColumnBuilder[T] {
   var compressionSchemes:Seq[CompressionAlgorithm] = _
   private var _default = new NoCompression()
 
-  override def initialize(initialSize: Int) = {
-    val v = super.initialize(initialSize)
+  override def initialize(numRows: Int) = {
+    val v = super.initialize(numRows)
     compressionSchemes = Seq(new RLE())
     v
   }
