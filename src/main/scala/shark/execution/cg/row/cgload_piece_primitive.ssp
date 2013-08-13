@@ -1,0 +1,4 @@
+<% escapeMarkup = false %>
+#import(shark.execution.cg.row.CGPrimitive)
+<%@ import var obj: CGPrimitive %>
+me.${name} = ${getValue("sf.getFieldObjectInspector()", "obj")};

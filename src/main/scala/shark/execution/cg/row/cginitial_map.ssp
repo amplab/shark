@@ -1,0 +1,18 @@
+<% escapeMarkup = false %>
+#import(shark.execution.cg.row.CGMap)
+<%@ import var obj: CGMap %>
+public static synchronized java.util.HashMap<${key.clazz}, ${value.clazz}> INITIAL_${name}() {
+  java.util.HashMap<${key.clazz}, ${value.clazz}> objs = null;
+  byte[] content = ${bytes};
+
+  if (content != null) {
+    Input input = new Input(new ByteArrayInputStream(content));
+    StandardConstantMapObjectInspector oi = new Kryo().readObject(input, StandardConstantMapObjectInspector.class);
+    input.close();
+
+    java.util.Map<?, ?> map = oi.getWritableConstantValue();
+    if (map != null) objs = ${getValue("oi", "map")}
+  }
+
+  return objs;
+}

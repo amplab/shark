@@ -1,0 +1,24 @@
+<% escapeMarkup = false %>
+#import(shark.execution.cg.row.CGMap)
+<%@ import val obj: CGMap %>
+public static java.util.HashMap<${key.clazz}, ${value.clazz}> BUILD_${name}(org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector oi, Object data) { 
+	org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector koi = ((org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector)oi).getMapKeyObjectInspector();
+	org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector voi = ((org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector)oi).getMapValueObjectInspector();
+	
+	java.util.Map<?, ?> mobj = ((org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector)oi).getMap(data);
+	java.util.HashMap<${key.clazz}, ${value.clazz}> result = null;
+	
+	if (mobj != null) {
+	  result = new java.util.HashMap<${key.clazz}, ${value.clazz}>(mobj.size());
+	  for(Object key : mobj.keySet()) {
+	    if(key != null) {
+	      result.put(${key.getValue("koi", "key")}, ${value.getValue("voi", "(mobj.get(key))")});
+	    }
+	  }
+	}
+	
+	return result;
+}
+
+${key.defStaticBlocks()}
+${value.defStaticBlocks()}

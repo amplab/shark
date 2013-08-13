@@ -1,0 +1,18 @@
+<% escapeMarkup = false %>
+#import(shark.execution.cg.row.CGList)
+<%@ import val obj: CGList %>
+public static java.util.ArrayList<${field.clazz}> BUILD_${name}(org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector oi, Object data) { 
+	java.util.List<?> list = ((org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector)oi).getList(data);
+	java.util.ArrayList<${field.clazz}> result = null;
+	
+	if (list != null) {
+	  result = new java.util.ArrayList<${field.clazz}>(list.size());
+	  org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector tmpoi = ((org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector)oi).getListElementObjectInspector();
+	  for(Object l : list) {
+	    result.add(${field.getValue("tmpoi", "l")});
+	  }
+	}
+	
+	return result;
+}
+${field.defStaticBlocks()}

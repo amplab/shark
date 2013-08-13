@@ -1,0 +1,18 @@
+<% escapeMarkup = false %>
+#import(shark.execution.cg.row.CGList)
+<%@ import var obj: CGList %>
+public static synchronized java.util.ArrayList<${field.clazz}> INITIAL_${field.name}() {
+  java.util.ArrayList<${field.clazz}> objs = null;
+  byte[] content = ${bytes};
+
+  if (content != null) {
+    Input input = new Input(new ByteArrayInputStream(content));
+    StandardConstantListObjectInspector oi = new Kryo().readObject(input, StandardConstantListObjectInspector.class);
+    input.close();
+
+    java.util.List<?> list = oi.getWritableConstantValue();
+    if (list != null) objs = ${field.getValue("oi", list)}
+  }
+
+  return objs;
+}

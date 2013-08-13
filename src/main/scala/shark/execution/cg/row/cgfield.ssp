@@ -1,0 +1,10 @@
+<% escapeMarkup = false %>
+#import(shark.execution.cg.row.CGField)
+<%@ import val field: CGField[_] %>
+#if(constantNull)
+public static final transient ${primitive} ${name};
+#elseif(constant)
+public static final transient ${primitive} ${name} = ${fieldValue};
+#else
+public ${primitive} ${name};
+#end

@@ -1,0 +1,100 @@
+<% escapeMarkup = false %>
+
+#import(shark.execution.cg.row.CGRow)
+#import(shark.execution.cg.row.CGField)
+#import(shark.execution.cg.row.CGStruct)
+#import(shark.execution.cg.row.CGUnion)
+#import(shark.execution.cg.row.CGPrimitive)
+#import(shark.execution.cg.row.CGRowContext)
+
+<%@ import var obj: CGUnion %>
+
+public static class ${clazz} implements KryoSerializable {
+<%-- sub type definitions --%>
+// this is the sub type definition
+#for(f <- fields)
+   ${f._2.defStaticBlocks()}
+#end
+// end of sub type definition
+
+   public int tag = -1;
+<%-- field definitions  --%>
+
+<%-- fields is Array[(Int, CGField[_])] --%>
+#for(f <- fields) 
+    ${f._2.defField()}
+#end
+	
+	@Override
+    public void read(Kryo kryo, Input input) {
+      tag = input.read();
+#for(i <- 0 to fields.length - 1; if (!fields(i)._2.constant))    
+      if (tag == ${fields(i)._1}) {
+        ${fields(i)._2.defRead()}
+      } else 
+#end
+        {throw new RuntimeException("cant find the tag:" + tag);}
+    }
+
+    @Override
+    public void write(Kryo kryo, Output output) {
+      output.write(tag);
+#for(i <- 0 to fields.length - 1; if (!fields(i)._2.constant))    
+      if (tag == ${fields(i)._1}) {
+        ${fields(i)._2.defWrite()}
+      } else 
+#end 
+        {throw new RuntimeException("can't find the tag:" + tag);}
+    }
+    
+    public static ${clazz} BUILD(ObjectInspector oi, Object o) {
+      if (o == null) return null;
+      ${clazz} me = new ${clazz}();
+      org.apache.hadoop.hive.serde2.objectinspector.UnionObjectInspector uoi = (org.apache.hadoop.hive.serde2.objectinspector.UnionObjectInspector)oi;
+      Object uobj = uoi.getField(o);
+      if(uobj == null) {
+        me.tag = -1;
+      } else {
+        me.tag = uoi.getTag(o);
+        java.util.List<org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector> ois = uoi.getObjectInspectors();
+<%-- fields is Array[(Int, CGField[_])] --%>
+#for(i <- 0 to fields.length - 1)  
+        if (me.tag == ${fields(i)._1}) {
+          me.${fields(i)._2.name} = ${fields(i)._2.getValue("ois.get(%d)".format(fields(i)._1), "uobj")};
+        } else 
+#end 
+        {throw new RuntimeException("can't find the tag:" + me.tag);}
+      }
+      return me;
+    }
+    
+
+#for(f<-fields; if (f._2.constant && !f._2.constantNull && !f._2.isInstanceOf[CGPrimitive]))
+  public static synchronized ${f._2.clazz} INITIAL_${f._2.name}() {
+    ${f._2.clazz} objs = null;
+#if(f.isInstanceOf[CGMap])
+    byte[] content = ${f._2.asInstanceOf[CGMap].bytes};
+#elseif(f.isInstanceOf[CGList])
+    byte[] content = ${f._2.asInstanceOf[CGList].bytes};
+#else
+    #{throw new RuntimeException("Only should be Map/List")}#
+#end
+    if (content != null) {
+      Input input = new Input(new java.io.ByteArrayInputStream(content));
+#if(f.isInstanceOf[CGList])      
+      org.apache.hadoop.hive.serde2.objectinspector.StandardConstantListObjectInspector oi = new Kryo().readObject(input, org.apache.hadoop.hive.serde2.objectinspector.StandardConstantListObjectInspector.class);
+#elseif(f.isInstanceOf[CGMap])
+	  org.apache.hadoop.hive.serde2.objectinspector.StandardConstantMapObjectInspector  oi = new Kryo().readObject(input, org.apache.hadoop.hive.serde2.objectinspector.StandardConstantMapObjectInspector.class);
+#else
+      #{throw new RuntimeException("Only should be Map/List")}#
+#end
+      input.close();
+      Object obj = oi.getWritableConstantValue();
+      
+      objs = ${f._2.getValue("oi", "obj")};
+    }
+
+    return objs;
+  }
+#end
+}

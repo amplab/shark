@@ -1,0 +1,4 @@
+<% escapeMarkup = false %>
+#import(shark.execution.cg.row.CGStruct)
+<%@ import var obj: CGStruct %>
+me.${name} = ${getValue("sf.getFieldObjectInspector()", "obj")}; 

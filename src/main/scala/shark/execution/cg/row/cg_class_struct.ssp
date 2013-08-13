@@ -1,0 +1,109 @@
+<% escapeMarkup = false %>
+
+#import(shark.execution.cg.row.CGRow)
+#import(shark.execution.cg.row.CGField)
+#import(shark.execution.cg.row.CGStruct)
+#import(shark.execution.cg.row.CGPrimitive)
+#import(shark.execution.cg.row.CGRowContext)
+
+<%@ import val obj: CGRowContext %>
+
+#if (true==isOutter)
+package ${packageName};
+
+import java.util.BitSet;
+
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.KryoSerializable;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+
+public class ${className} implements KryoSerializable {
+#else
+public static class ${className} implements KryoSerializable {
+#end
+<%-- MASK definitions  --%>
+#for (i <- 0 to fieldTypes.length - 1)
+	public static final transient int ${fieldTypes(i).maskName} = ${i};
+#end
+
+<%-- sub type definitions --%>
+#for(f <- fieldTypes)
+   ${f.defStaticBlocks()}
+#end
+   public BitSet mask = new BitSet(<%=fieldTypes.length%>);
+<%-- field definitions  --%>
+#for(i <- 0 to fieldTypes.length - 1)
+    ${fieldTypes(i).defField()}
+#end
+	
+	@Override
+    public void read(Kryo kryo, Input input) {
+      mask = BitSet.valueOf(input.readBytes(input.read()));
+#for(f <- fieldTypes; if (!f.constant))
+	   if (mask.get(${f.maskName})) { ${f.defRead()} }
+#end
+    }
+
+    @Override
+    public void write(Kryo kryo, Output output) {
+      byte[] bytes = mask.toByteArray();
+      output.write(bytes.length);
+      output.write(bytes);
+#for(f <- fieldTypes; if (!f.constant))
+	   if (mask.get(${f.maskName})) { ${f.defWrite()} }
+#end
+    }
+    
+    public static ${className} BUILD(ObjectInspector _oi, Object o) {
+      if (o == null) return null;
+      ${className} me = new ${className}();
+      StructObjectInspector oi = (StructObjectInspector)_oi;
+      #for(f<-fieldTypes; if (!f.constant))
+      {
+		  org.apache.hadoop.hive.serde2.objectinspector.StructField sf = oi.getStructFieldRef("${f.name}");
+		  Object obj = oi.getStructFieldData(o, sf);
+		  
+		  if(obj == null) {
+		    me.mask.set(${f.maskName}, false);
+		  } else {
+		    me.mask.set(${f.maskName}, true);
+            ${f.loadPiece()}
+          }
+      }
+      #end
+      
+      return me;
+    }
+    
+#for(f<-fieldTypes; if (f.constant && !f.constantNull && !f.isInstanceOf[CGPrimitive]))
+  public static synchronized ${f.clazz} INITIAL_${f.name}() {
+    ${f.clazz} objs = null;
+#if(f.isInstanceOf[CGMap])
+    byte[] content = ${f.asInstanceOf[CGMap].bytes};
+#elseif(f.isInstanceOf[CGList])
+    byte[] content = ${f.asInstanceOf[CGList].bytes};
+#else
+    #{throw new RuntimeException("Only should be Map/List")}#
+#end
+    if (content != null) {
+      Input input = new Input(new java.io.ByteArrayInputStream(content));
+#if(f.isInstanceOf[CGList])      
+      org.apache.hadoop.hive.serde2.objectinspector.StandardConstantListObjectInspector oi = new Kryo().readObject(input, org.apache.hadoop.hive.serde2.objectinspector.StandardConstantListObjectInspector.class);
+#elseif(f.isInstanceOf[CGMap])
+	  org.apache.hadoop.hive.serde2.objectinspector.StandardConstantMapObjectInspector  oi = new Kryo().readObject(input, org.apache.hadoop.hive.serde2.objectinspector.StandardConstantMapObjectInspector.class);
+#else
+      #{throw new RuntimeException("Only should be Map/List")}#
+#end
+      input.close();
+      Object obj = oi.getWritableConstantValue();
+      
+      objs = ${f.getValue("oi", "obj")};
+    }
+
+    return objs;
+  }
+#end
+}

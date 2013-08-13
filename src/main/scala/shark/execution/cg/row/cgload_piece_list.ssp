@@ -1,0 +1,12 @@
+<% escapeMarkup = false %>
+#import(shark.execution.cg.row.CGList)
+<%@ import var obj: CGList %>
+org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector loi = ((org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector)(sf.getFieldObjectInspector()));
+java.util.List<?> lobj = loi.getList(obj);
+me.${name} = new java.util.ArrayList<${field.clazz}>(lobj.size());
+for(Object lo : lobj) {
+  if(lo == null) 
+     me.${name}.add(null);
+  else
+     me.${name}.add(${field.getValue("loi.getListElementObjectInspector()", "lo")});
+}
