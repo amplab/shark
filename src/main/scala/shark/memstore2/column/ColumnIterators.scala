@@ -1,59 +1,37 @@
 package shark.memstore2.column
 
 import java.nio.ByteBuffer
-import java.sql.Timestamp
-import org.apache.hadoop.hive.serde2.io.ByteWritable
-import org.apache.hadoop.hive.serde2.io.DoubleWritable
-import org.apache.hadoop.hive.serde2.io.ShortWritable
-import org.apache.hadoop.hive.serde2.io.TimestampWritable
-import org.apache.hadoop.io.BooleanWritable
-import org.apache.hadoop.io.BytesWritable
-import org.apache.hadoop.io.FloatWritable
-import org.apache.hadoop.io.IntWritable
-import org.apache.hadoop.io.LongWritable
-import org.apache.hadoop.io.NullWritable
-import org.apache.hadoop.io.Text
 import org.apache.hadoop.hive.serde2.`lazy`.LazyObject
-import shark.execution.serialization.KryoSerializer
 import org.apache.hadoop.hive.serde2.`lazy`.LazyFactory
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.`lazy`.ByteArrayRef
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 
-class IntColumnIterator(buffer: ByteBuffer) 
-  extends DefaultColumnIterator(buffer, INT)
+import shark.execution.serialization.KryoSerializer
 
-class FloatColumnIterator(buffer: ByteBuffer) 
-  extends DefaultColumnIterator(buffer, FLOAT)
 
-class LongColumnIterator(buffer: ByteBuffer) 
-  extends DefaultColumnIterator(buffer, LONG)
+class IntColumnIterator(buffer: ByteBuffer) extends DefaultColumnIterator(buffer, INT)
 
-class DoubleColumnIterator(buffer: ByteBuffer) 
-  extends DefaultColumnIterator(buffer, DOUBLE)
+class FloatColumnIterator(buffer: ByteBuffer) extends DefaultColumnIterator(buffer, FLOAT)
 
-class BooleanColumnIterator(buffer: ByteBuffer) 
-  extends DefaultColumnIterator(buffer, BOOLEAN)
+class LongColumnIterator(buffer: ByteBuffer) extends DefaultColumnIterator(buffer, LONG)
 
-class ByteColumnIterator(buffer: ByteBuffer) 
-  extends DefaultColumnIterator(buffer, BYTE)
+class DoubleColumnIterator(buffer: ByteBuffer) extends DefaultColumnIterator(buffer, DOUBLE)
 
-class ShortColumnIterator(buffer: ByteBuffer) 
-  extends DefaultColumnIterator(buffer, SHORT)
+class BooleanColumnIterator(buffer: ByteBuffer) extends DefaultColumnIterator(buffer, BOOLEAN)
 
-class NullColumnIterator(buffer: ByteBuffer) 
-  extends DefaultColumnIterator(buffer, VOID)
+class ByteColumnIterator(buffer: ByteBuffer) extends DefaultColumnIterator(buffer, BYTE)
 
-class TimestampColumnIterator(buffer: ByteBuffer) 
-  extends DefaultColumnIterator(buffer, TIMESTAMP)
+class ShortColumnIterator(buffer: ByteBuffer) extends DefaultColumnIterator(buffer, SHORT)
 
-class BinaryColumnIterator(buffer: ByteBuffer) 
-  extends DefaultColumnIterator(buffer, BINARY)
+class NullColumnIterator(buffer: ByteBuffer) extends DefaultColumnIterator(buffer, VOID)
 
-class StringColumnIterator(buffer: ByteBuffer) 
-  extends DefaultColumnIterator(buffer, STRING)
+class TimestampColumnIterator(buffer: ByteBuffer) extends DefaultColumnIterator(buffer, TIMESTAMP)
 
-class GenericColumnIterator(buffer: ByteBuffer) 
-  extends DefaultColumnIterator(buffer, GENERIC) {
+class BinaryColumnIterator(buffer: ByteBuffer) extends DefaultColumnIterator(buffer, BINARY)
+
+class StringColumnIterator(buffer: ByteBuffer) extends DefaultColumnIterator(buffer, STRING)
+
+class GenericColumnIterator(buffer: ByteBuffer) extends DefaultColumnIterator(buffer, GENERIC) {
  
   private var _obj: LazyObject[_] = _
   
@@ -73,5 +51,4 @@ class GenericColumnIterator(buffer: ByteBuffer)
   }
 }
 
-class VoidColumnIterator(buffer: ByteBuffer) 
-  extends DefaultColumnIterator(buffer, VOID)
+class VoidColumnIterator(buffer: ByteBuffer) extends DefaultColumnIterator(buffer, VOID)

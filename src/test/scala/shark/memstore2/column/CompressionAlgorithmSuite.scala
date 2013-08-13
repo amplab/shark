@@ -1,12 +1,13 @@
 package shark.memstore2.column
 
-import org.scalatest.FunSuite
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
-import org.apache.hadoop.io.Text
-import shark.memstore2.column._
-import shark.memstore2.column.ColumnStats._
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import org.scalatest.FunSuite
+
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
+import org.apache.hadoop.io.Text
+
+import shark.memstore2.column.ColumnStats._
 
 class CompressionAlgorithmSuite extends FunSuite {
 
@@ -31,6 +32,7 @@ class CompressionAlgorithmSuite extends FunSuite {
     assert(compressedBuffer.getInt() == 2)
     
   }
+
   test("RLE Strings") {
     val b = ByteBuffer.allocate(1024)
     b.order(ByteOrder.nativeOrder())
@@ -41,7 +43,7 @@ class CompressionAlgorithmSuite extends FunSuite {
         new Text("efg"),
         new Text("abc")).foreach { text =>
       STRING.append(text, b)
-      rle.gatherStatsForCompressability(text, STRING)
+      rle.gatherStatsForCompressibility(text, STRING)
     }
     b.limit(b.position())
     b.rewind()
@@ -53,6 +55,7 @@ class CompressionAlgorithmSuite extends FunSuite {
     assert(STRING.extract(compressedBuffer.position(), compressedBuffer).equals (new Text("efg")))
     assert(compressedBuffer.getInt() == 1)
   }
+
   test("RLE no encoding") {
     val b = ByteBuffer.allocate(16)
     b.order(ByteOrder.nativeOrder())
@@ -62,8 +65,8 @@ class CompressionAlgorithmSuite extends FunSuite {
     b.limit(b.position())
     b.rewind()
     val rle = new RLE()
-    rle.gatherStatsForCompressability(123, INT)
-    rle.gatherStatsForCompressability(56, INT)
+    rle.gatherStatsForCompressibility(123, INT)
+    rle.gatherStatsForCompressibility(56, INT)
     val compressedBuffer = rle.compress(b, INT)
     assert(compressedBuffer.getInt() == INT.typeID)
     assert(compressedBuffer.getInt() == RLECompressionType.typeID)
@@ -80,7 +83,7 @@ class CompressionAlgorithmSuite extends FunSuite {
     val rle = new RLE()
     Range(0,1000).foreach { x => 
       b.putInt(6)
-      rle.gatherStatsForCompressability(6, INT)
+      rle.gatherStatsForCompressibility(6, INT)
     }
     b.limit(b.position())
     b.rewind()
@@ -89,7 +92,6 @@ class CompressionAlgorithmSuite extends FunSuite {
     assert(compressedBuffer.getInt() == RLECompressionType.typeID)
     assert(compressedBuffer.getInt() == 6)
     assert(compressedBuffer.getInt() == 1000)
-    
   }
   
   test("RLE mixture") {
@@ -100,9 +102,9 @@ class CompressionAlgorithmSuite extends FunSuite {
     val rle = new RLE()
 
     Range(0,1000).foreach { x => 
-     val v = if (x < 100) items(0) else if (x < 500) items(1) else items(2)  
-     b.putInt(v)
-     rle.gatherStatsForCompressability(v, INT)
+      val v = if (x < 100) items(0) else if (x < 500) items(1) else items(2)
+      b.putInt(v)
+      rle.gatherStatsForCompressibility(v, INT)
     }
     b.limit(b.position())
     b.rewind()
@@ -123,7 +125,7 @@ class CompressionAlgorithmSuite extends FunSuite {
 
     Range(0,1000000).foreach { x => 
       b.putInt(6)
-      rle.gatherStatsForCompressability(6, INT)
+      rle.gatherStatsForCompressibility(6, INT)
     }
     b.limit(b.position())
     b.rewind()
@@ -133,6 +135,5 @@ class CompressionAlgorithmSuite extends FunSuite {
     assert(compressedBuffer.getInt() == INT.typeID)
     assert(compressedBuffer.getInt() == 6)
     assert(compressedBuffer.getInt() == 1000000)
-    
   }
 }

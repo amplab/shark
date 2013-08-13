@@ -9,8 +9,7 @@ import java.nio.ByteOrder
  * Reading of non nulls is delegated by setting the buffer position to the first
  * non null.
  */
-class NullableColumnIterator(delegate: ColumnIterator, buffer: ByteBuffer)
-  extends ColumnIterator{
+class NullableColumnIterator(delegate: ColumnIterator, buffer: ByteBuffer) extends ColumnIterator {
   private var _d: ByteBuffer = _
   private var _nullCount: Int = _
   private var _nulls = 0

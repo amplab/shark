@@ -18,46 +18,23 @@
 package shark.memstore2.column
 
 import java.nio.ByteBuffer
-import org.apache.hadoop.io.Writable
 import java.nio.ByteOrder
 
-/** Iterator interface for a column. The iterator should be initialized by a
- * byte buffer, and next can be invoked to get the value for each cell.
- *
- * Adding a new compression/encoding scheme to the code requires several
- * things. First among them is an addition to the list of iterators here. An
- * iterator that knows how to iterate through an encoding-specific ByteBuffer is
- * required. This ByteBuffer would have been created by the one of the concrete
- * [[shark.memstore2.buffer.ColumnBuilder]] classes.  
- * 
- * 
- * The relationship/composition possibilities between the new
- * encoding/compression and existing schemes dictates how the new iterator is
- * implemented.  Null Encoding and RLE Encoding working as generic wrappers that
- * can be wrapped around any data type.  Dictionary Encoding does not work in a
- * hierarchial manner instead requiring the creation of a separate
- * DictionaryEncoded Iterator per Data type.
- * 
- * The changes required for the LZF encoding's Builder/Iterator might be the
- * easiest to look to get a feel for what is required -
- * [[shark.memstore2.buffer.LZFColumnIterator]]. See SHA 225f4d90d8721a9d9e8f
- * 
- * The base class ColumnIterator is the read side of this equation. For the
- * write side see [[shark.memstore2.buffer.ColumnBuilder]].
- * 
- */
+
 trait ColumnIterator {
 
   private var _initialized = false
   
-  def init(): Unit = {}
-  def next(): Unit = {
+  def init() {}
+
+  def next() {
     if (!_initialized) {
       init()
       _initialized = true
     }
     computeNext()
   }
+
   def computeNext(): Unit
 
   // Should be implemented as a read-only operation by the ColumnIterator
@@ -65,12 +42,14 @@ trait ColumnIterator {
   def current(): Object
 }
 
-abstract class DefaultColumnIterator[T, V](val buffer: ByteBuffer,
-  val columnType: ColumnType[T, V]) extends CompressedColumnIterator{}
+
+abstract class DefaultColumnIterator[T, V](val buffer: ByteBuffer, val columnType: ColumnType[T, V])
+  extends CompressedColumnIterator
+
 
 object Implicits {
   implicit def intToCompressionType(i: Int): CompressionType = i match {
-    case -1 => DEFAULT
+    case -1 => DefaultCompressionType
     case 0 => RLECompressionType
     case _ => throw new UnsupportedOperationException("Compression Type " + i)
   }
@@ -92,7 +71,7 @@ object Implicits {
 }
 
 object ColumnIterator {
-  
+
   import shark.memstore2.column.Implicits._
 
   def newIterator(b: ByteBuffer): ColumnIterator = {
@@ -114,6 +93,4 @@ object ColumnIterator {
     }
     new NullableColumnIterator(v, buffer)
   }
-  
 }
-
