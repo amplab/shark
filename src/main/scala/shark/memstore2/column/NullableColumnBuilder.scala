@@ -1,8 +1,10 @@
 package shark.memstore2.column
 
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
+
 
 /**
  * Builds a nullable column. The byte buffer of a nullable column contains
@@ -16,7 +18,7 @@ trait NullableColumnBuilder[T] extends ColumnBuilder[T] {
   private var _pos: Int = _
   private var _nullCount:Int = _
 
-  override def initialize(initialSize: Int) = {
+  override def initialize(initialSize: Int): ByteBuffer = {
     _nulls =  ByteBuffer.allocate(1024)
     _nulls.order(ByteOrder.nativeOrder())
     _pos = 0
@@ -24,7 +26,7 @@ trait NullableColumnBuilder[T] extends ColumnBuilder[T] {
     super.initialize(initialSize)
   }
 
-  override def append(o: Object, oi: ObjectInspector): Unit = {
+  override def append(o: Object, oi: ObjectInspector) {
     if (o == null) {
       _nulls = growIfNeeded(_nulls)
       _nulls.putInt(_pos)
@@ -35,8 +37,8 @@ trait NullableColumnBuilder[T] extends ColumnBuilder[T] {
     _pos += 1
   }
 
-  override def build: ByteBuffer = {
-    val b = super.build
+  override def build(): ByteBuffer = {
+    val b = super.build()
     if (_pos == 0) {
       b
     } else {

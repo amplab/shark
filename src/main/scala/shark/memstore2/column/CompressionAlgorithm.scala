@@ -1,8 +1,9 @@
 package shark.memstore2.column
 
 import java.nio.ByteBuffer
-import scala.annotation.tailrec
 import java.nio.ByteOrder
+import scala.annotation.tailrec
+
 
 /**
  * API for Compression
@@ -10,24 +11,36 @@ import java.nio.ByteOrder
 trait CompressionAlgorithm  {
 
   def compressionType: CompressionType
+
   def supportsType(t: ColumnType[_, _]): Boolean
-  def gatherStatsForCompressability[T](v: T, t: ColumnType[T, _])
+
+  def gatherStatsForCompressibility[T](v: T, t: ColumnType[T, _])
+
   /**
-   * return score between 0 and 1, smaller score imply higher compressability.
+   * Return compression ratio between 0 and 1, smaller score imply higher compressibility.
    */
-  def compressibilityScore: Double
+  def compressionRatio: Double
+
   def compress[T](b: ByteBuffer, t: ColumnType[T, _]): ByteBuffer
 }
 
-case class CompressionType(typeID: Int) {}
-object DEFAULT extends CompressionType(-1)
+
+case class CompressionType(typeID: Int)
+
+object DefaultCompressionType extends CompressionType(-1)
+
 object RLECompressionType extends CompressionType(0)
 
+
 class NoCompression extends CompressionAlgorithm {
-  override def compressionType = DEFAULT
+  override def compressionType = DefaultCompressionType
+
   override def supportsType(t: ColumnType[_,_]) = true
-  override def gatherStatsForCompressability[T](v: T, t: ColumnType[T,_]) = {}
-  override def compressibilityScore: Double = 1.0
+
+  override def gatherStatsForCompressibility[T](v: T, t: ColumnType[T,_]) = {}
+
+  override def compressionRatio: Double = 1.0
+
   override def compress[T](b: ByteBuffer, t: ColumnType[T, _]) = {
     val len = b.limit()
     val newBuffer = ByteBuffer.allocate(len + 4)
@@ -45,21 +58,21 @@ class NoCompression extends CompressionAlgorithm {
  * Implements Run Length Encoding
  */
 class RLE extends CompressionAlgorithm {
-  private var _count: Int = 0
   private var _total: Int = 0
   private var _prev: Any = _
   private var _run: Int = 0
   private var _size: Int = 0
-  
+
   override def compressionType = RLECompressionType
 
-  override def supportsType(t: ColumnType[_,_]) = {
+  override def supportsType(t: ColumnType[_, _]) = {
     t match {
       case INT | STRING | SHORT | BYTE | BOOLEAN => true
       case _ => false
     }
   }
-  override def gatherStatsForCompressability[T](v: T, t: ColumnType[T,_]) = {
+
+  override def gatherStatsForCompressibility[T](v: T, t: ColumnType[T,_]) = {
     val s = t.actualSize(v)
     if (_prev == null) {
       _prev = t.clone(v)
@@ -68,7 +81,7 @@ class RLE extends CompressionAlgorithm {
       if (_prev.equals(v)) {
         _run += 1
       } else {
-       //flush run into size
+        // flush run into size
         _size += (s + 4)
         _prev = t.clone(v)
         _run = 1
@@ -77,15 +90,17 @@ class RLE extends CompressionAlgorithm {
     _total += s
   }
 
-  override def compressibilityScore = (_size / (_total + 0.0))
+  // Note that we don't actually track the size of the last run into account to simplify the
+  // logic a little bit.
+  override def compressionRatio = _size / (_total + 0.0)
 
   override def compress[T](b: ByteBuffer, t: ColumnType[T,_]) = {
-    val sizeOnCompression = if (_prev == null) {
-      _size
-    } else {
-      _size + t.actualSize(_prev.asInstanceOf[T]) + 4
+    // Add the size of the last run to the _size
+    if (_prev != null) {
+      _size += t.actualSize(_prev.asInstanceOf[T]) + 4
     }
-    val compressedBuffer = ByteBuffer.allocate(sizeOnCompression + 4 + 4)
+
+    val compressedBuffer = ByteBuffer.allocate(_size + 4 + 4)
     compressedBuffer.order(ByteOrder.nativeOrder())
     compressedBuffer.putInt(b.getInt())
     compressedBuffer.putInt(compressionType.typeID)
@@ -96,25 +111,26 @@ class RLE extends CompressionAlgorithm {
 
   @tailrec private def encode[T](currentBuffer: ByteBuffer,
     compressedBuffer: ByteBuffer, currentRun: (T, Int), t: ColumnType[T,_]) {
-    def writeOutRun() = {
+    def writeOutRun() {
       t.append(currentRun._1, compressedBuffer)
       compressedBuffer.putInt(currentRun._2)
     }
     if (!currentBuffer.hasRemaining()) {
-      writeOutRun
+      writeOutRun()
       return
     }
     val elem = t.extract(currentBuffer.position(), currentBuffer)
-    val newRun = if (currentRun == null) {
-      (elem, 1)
-    } else if (currentRun._1.equals(elem)) {
-      //update length
-      (currentRun._1, currentRun._2 + 1)
-    } else {
-      //write out the current run to compressed buffer
-      writeOutRun()
-      (elem, 1)
-    }
+    val newRun =
+      if (currentRun == null) {
+        (elem, 1)
+      } else if (currentRun._1.equals(elem)) {
+        //update length
+        (currentRun._1, currentRun._2 + 1)
+      } else {
+        //write out the current run to compressed buffer
+        writeOutRun()
+        (elem, 1)
+      }
     encode(currentBuffer, compressedBuffer, newRun, t)
   }
 }
