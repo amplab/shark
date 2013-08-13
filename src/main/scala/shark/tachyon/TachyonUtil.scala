@@ -30,8 +30,11 @@ import spark.RDD
  * even without Tachyon jars.
  */
 abstract class TachyonUtil {
+  def tachyonEnabled(): Boolean
 
   def tableExists(tableName: String): Boolean
+
+  def dropTable(tableName: String): Boolean
 
   def getTableMetadata(tableName: String): ByteBuffer
 
