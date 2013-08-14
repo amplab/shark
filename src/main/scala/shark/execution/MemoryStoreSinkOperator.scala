@@ -24,13 +24,12 @@ import scala.reflect.BeanProperty
 
 import org.apache.hadoop.io.Writable
 
-import shark.{SharkConfVars, SharkEnv, SharkEnvSlave, Utils}
+import shark.{SharkConfVars, SharkEnv}
 import shark.execution.serialization.{OperatorSerializationWrapper, JavaSerializer}
 import shark.memstore2._
 import shark.tachyon.TachyonTableWriter
 
-import spark.{RDD, TaskContext}
-import spark.SparkContext._
+import spark.RDD
 import spark.storage.StorageLevel
 
 
@@ -75,7 +74,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     var rdd: RDD[TablePartition] = inputRdd.mapPartitionsWithIndex { case(partitionIndex, iter) =>
       op.initializeOnSlave()
       val serde = new ColumnarSerDe
-      serde.initialize(op.localHconf, op.localHiveOp.getConf.getTableInfo.getProperties())
+      serde.initialize(op.localHconf, op.localHiveOp.getConf.getTableInfo.getProperties)
 
       // Serialize each row into the builder object.
       // ColumnarSerDe will return a TablePartitionBuilder.
@@ -109,7 +108,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         Iterator(partition)
       }
       // Force evaluate so the data gets put into Tachyon.
-      rdd.foreach(_ => Unit)
+      rdd.context.runJob(rdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
     } else {
       // Put the table in Spark block manager.
       op.logInfo("Putting %sRDD for %s in Spark block manager, %s %s %s %s".format(
@@ -122,7 +121,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
       // Force evaluate so the data gets put into Spark block manager.
       rdd.persist(storageLevel)
-      rdd.foreach(_ => Unit)
+      rdd.context.runJob(rdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
 
       if (useUnionRDD) {
         rdd = rdd.union(
@@ -145,7 +144,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       Utils.memoryBytesToString(remainingMems.map(_._2._1).sum)))
     */
 
-    var columnStats =
+    val columnStats =
       if (useUnionRDD) {
         // Combine stats for the two tables being combined.
         val numPartitions = statsAcc.value.toMap.size
