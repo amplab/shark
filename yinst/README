@@ -8,6 +8,8 @@ Z is yahoo-specific versioning.
 
 Release Notes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Version 0.7.2.1.0
+        Compression,Hadoop 23 Packaged from branch-0.1 @ commit https://git.corp.yahoo.com/bdas/shark/commit/3b0d5eac563b678a1ddea529db3541e54b02a4b1
 Version 0.7.2.1
 	Bump version
 Version 0.2.1.8
