@@ -19,7 +19,7 @@ package shark.tachyon
 
 import java.nio.ByteBuffer
 
-import shark.memstore2.ColumnarStruct
+import shark.memstore2.TablePartition
 
 import spark.RDD
 
@@ -38,7 +38,7 @@ abstract class TachyonUtil {
 
   def getTableMetadata(tableName: String): ByteBuffer
 
-  def createRDD(tableName: String): RDD[ColumnarStruct]
+  def createRDD(tableName: String): RDD[TablePartition]
 
   def createTableWriter(tableName: String, numColumns: Int): TachyonTableWriter
 }

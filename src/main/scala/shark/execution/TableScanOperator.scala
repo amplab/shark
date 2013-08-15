@@ -123,7 +123,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
       if (!SharkEnv.tachyonUtil.tableExists(tableKey)) {
         throw new TachyonException("Table " + tableKey + " does not exist in Tachyon")
       }
-      logInfo("Loading table " + tableKey + " from Tachyon")
+      logInfo("Loading table " + tableKey + " from Tachyon.")
 
       var indexToStats: collection.Map[Int, TablePartitionStats] =
         SharkEnv.memoryMetadataManager.getStats(tableKey).getOrElse(null)
@@ -132,6 +132,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         val statsByteBuffer = SharkEnv.tachyonUtil.getTableMetadata(tableKey)
         indexToStats = JavaSerializer.deserialize[collection.Map[Int, TablePartitionStats]](
           statsByteBuffer.array())
+        logInfo("Loading table " + tableKey + " stats from Tachyon.")
         SharkEnv.memoryMetadataManager.putStats(tableKey, indexToStats)
       }
       createPrunedRdd(tableKey, SharkEnv.tachyonUtil.createRDD(tableKey))

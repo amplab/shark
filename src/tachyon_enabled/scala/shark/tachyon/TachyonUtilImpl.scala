@@ -22,7 +22,7 @@ import java.nio.ByteBuffer
 import scala.collection.JavaConverters._
 
 import shark.SharkEnv
-import shark.memstore2.ColumnarStruct
+import shark.memstore2.TablePartition
 
 import spark.RDD
 
@@ -60,7 +60,7 @@ class TachyonUtilImpl(val master: String, val warehousePath: String) extends Tac
     client.getRawTable(getPath(tableName)).getMetadata()
   }
 
-  override def createRDD(tableName: String): RDD[ColumnarStruct] = {
+  override def createRDD(tableName: String): RDD[TablePartition] = {
     new TachyonTableRDD(getPath(tableName), SharkEnv.sc)
   }
 
