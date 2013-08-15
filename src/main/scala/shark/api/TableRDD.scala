@@ -17,22 +17,27 @@
 
 package shark.api
 
-import java.util.{List => JavaList}
-
-import scala.collection.JavaConversions._
+import java.util.{List => JList}
 
 import org.apache.hadoop.hive.metastore.api.FieldSchema
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, StructObjectInspector}
-import org.apache.hadoop.hive.serde2.objectinspector.primitive._
-import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
 
 import shark.execution.serialization.KryoSerializer
 
-import spark.{OneToOneDependency, Partition, RDD, TaskContext}
+import spark.{Partition, RDD, TaskContext}
 
 
-class TableRDD(prev: RDD[Any], val schema: JavaList[FieldSchema], @transient oi: ObjectInspector)
+class TableRDD(
+    prev: RDD[Any],
+    val schema: Array[ColumnDesc],
+    @transient oi: ObjectInspector,
+    val limit: Int = -1)
   extends RDD[Row](prev) {
+
+  private[shark]
+  def this(prev: RDD[Any], schema: JList[FieldSchema], oi: ObjectInspector, limit: Int) {
+    this(prev, ColumnDesc.createSchema(schema), oi, limit)
+  }
 
   override def getPartitions = firstParent[Any].partitions
 
@@ -54,8 +59,8 @@ class TableRDD(prev: RDD[Any], val schema: JavaList[FieldSchema], @transient oi:
    * Maps the column name to column index.
    */
   private val colname2indexMap: Map[String, Int] =
-    collection.immutable.Map() ++ schema.zipWithIndex.map {
-      case(field, index) => (field.getName(), index)
+    collection.immutable.Map() ++ schema.zipWithIndex.map { case(column, index) =>
+      (column.name, index)
     }
 
   /**

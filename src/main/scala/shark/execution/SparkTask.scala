@@ -18,19 +18,17 @@
 package shark.execution
 
 import java.util.{HashMap => JHashMap, List => JavaList}
-import java.io.File
 
 import org.apache.hadoop.hive.metastore.api.FieldSchema
 import org.apache.hadoop.hive.ql.{Context, DriverContext}
 import org.apache.hadoop.hive.ql.exec.{TableScanOperator => HiveTableScanOperator, Utilities}
+import org.apache.hadoop.hive.ql.exec.{Task => HiveTask}
 import org.apache.hadoop.hive.ql.metadata.{Partition, Table}
 import org.apache.hadoop.hive.ql.optimizer.ppr.PartitionPruner
 import org.apache.hadoop.hive.ql.parse._
-import org.apache.hadoop.hive.ql.plan.{PlanUtils, CreateTableDesc, PartitionDesc}
+import org.apache.hadoop.hive.ql.plan.{PlanUtils, PartitionDesc}
 import org.apache.hadoop.hive.ql.plan.api.StageType
 import org.apache.hadoop.hive.ql.session.SessionState
-
-import scala.collection.JavaConversions._
 
 import shark.api.TableRDD
 import shark.{LogHelper, SharkEnv}
@@ -47,11 +45,12 @@ extends java.io.Serializable
 /**
  * SparkTask executes a query plan composed of RDD operators.
  */
-class SparkTask extends org.apache.hadoop.hive.ql.exec.Task[SparkWork]
-with java.io.Serializable with LogHelper {
+private[shark]
+class SparkTask extends HiveTask[SparkWork] with Serializable with LogHelper {
 
-  private var _tableRdd: TableRDD = null
-  def tableRdd = _tableRdd
+  private var _tableRdd: Option[TableRDD] = None
+
+  def tableRdd: Option[TableRDD] = _tableRdd
 
   override def execute(driverContext: DriverContext): Int = {
     logInfo("Executing " + this.getClass.getName)
@@ -91,9 +90,24 @@ with java.io.Serializable with LogHelper {
 
     terminalOp.initializeMasterOnAll()
 
+    // Set Spark's job description to be this query.
+    SharkEnv.sc.setJobDescription(work.pctx.getContext.getCmd)
+
+    // Set the fair scheduler's pool.
+    SharkEnv.sc.setLocalProperty("spark.scheduler.cluster.fair.pool",
+      conf.get("mapred.fairscheduler.pool"))
+
     val sinkRdd = terminalOp.execute().asInstanceOf[RDD[Any]]
 
-    _tableRdd = new TableRDD(sinkRdd, work.resultSchema, terminalOp.objectInspector)
+    val limit = terminalOp.parentOperators.head match {
+      case op: LimitOperator => op.limit
+      case _ => -1
+    }
+
+    if (terminalOp.isInstanceOf[TableRddSinkOperator]) {
+      _tableRdd = Some(new TableRDD(sinkRdd, work.resultSchema, terminalOp.objectInspector, limit))
+    }
+
     0
   }
 
