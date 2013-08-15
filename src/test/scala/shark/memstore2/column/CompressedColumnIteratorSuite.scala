@@ -17,10 +17,13 @@ class CompressedColumnIteratorSuite extends FunSuite {
     val rle = new RLE()
 
     
-    Array[Text](new Text("abc"),
+    val a = Array[Text](
+        new Text("abc"),
         new Text("abc"),
         new Text("efg"),
-        new Text("abc")).foreach { text =>
+        new Text("abc"))
+
+    a.foreach { text =>
       STRING.append(text, b)
       rle.gatherStatsForCompressability(text, STRING)
     }
@@ -29,8 +32,9 @@ class CompressedColumnIteratorSuite extends FunSuite {
     val compressedBuffer = rle.compress(b, STRING)
     
     val iter = new TestIterator(compressedBuffer, compressedBuffer.getInt())
-    iter.next()
-    println(iter.current)
+    a.foreach { x =>
+      iter.next
+      assert(iter.current.equals(x))
+    }
   }
-
 }

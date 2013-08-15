@@ -17,33 +17,33 @@
 
 package shark.memstore2.column
 
+import java.lang.reflect.Proxy
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.sql.Timestamp
+import org.apache.hadoop.hive.serde2.ByteStream
+import org.apache.hadoop.hive.serde2.`lazy`.ByteArrayRef
+import org.apache.hadoop.hive.serde2.`lazy`.LazyBinary
+import org.apache.hadoop.hive.serde2.io.ByteWritable
+import org.apache.hadoop.hive.serde2.io.DoubleWritable
+import org.apache.hadoop.hive.serde2.io.ShortWritable
+import org.apache.hadoop.hive.serde2.io.TimestampWritable
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
-import org.apache.hadoop.io.BytesWritable
-import java.sql.Timestamp
-import org.apache.hadoop.io.Text
-import org.apache.hadoop.hive.serde2.ByteStream
 import org.apache.hadoop.hive.serde2.objectinspector.primitive._
-import org.apache.hadoop.hive.serde2.`lazy`.LazyBinary
-import shark.execution.serialization.KryoSerializer
-import shark.memstore2.column._
-import shark.memstore2.column.ColumnStats._
-import org.apache.hadoop.io.Writable
-import org.apache.hadoop.hive.serde2.io.TimestampWritable
-import org.apache.hadoop.hive.serde2.`lazy`.LazyObject
-import org.apache.hadoop.hive.serde2.`lazy`.ByteArrayRef
-import org.apache.hadoop.io.IntWritable
-import org.apache.hadoop.io.FloatWritable
 import org.apache.hadoop.io.BooleanWritable
+import org.apache.hadoop.io.BytesWritable
+import org.apache.hadoop.io.FloatWritable
+import org.apache.hadoop.io.IntWritable
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.io.NullWritable
-import org.apache.hadoop.hive.serde2.io.ByteWritable
-import org.apache.hadoop.hive.serde2.io.DoubleWritable
-import org.apache.hadoop.hive.serde2.io.ShortWritable
+import org.apache.hadoop.io.Text
+import shark.memstore2.column._
+import shark.memstore2.column.ColumnStats._
+import java.lang.reflect.InvocationHandler
+import java.lang.reflect.Method
 
 
 
@@ -77,7 +77,7 @@ trait ColumnBuilder[T] {
    * of elements in this column.
    */
   def initialize(numRows: Int):ByteBuffer = {
-    _initialSize = if(numRows == 0) 1024*1024*10 else numRows*t.size
+    _initialSize = if(numRows <= 0) 1024*1024 else numRows*t.size
     _buffer = ByteBuffer.allocate(_initialSize + 4 + 4)
     _buffer.order(ByteOrder.nativeOrder())
     _buffer.putInt(t.typeID)
@@ -100,20 +100,14 @@ trait ColumnBuilder[T] {
 
 }
 
-class DefaultColumnBuilder[T](val stats: ColumnStats[T], val t: ColumnType[T, _]) 
+class DefaultColumnBuilder[T](val stats: ColumnStats[T], val t: ColumnType[T, _])
   extends CompressedColumnBuilder[T] with NullableColumnBuilder[T]{}
 
 
 trait CompressedColumnBuilder[T] extends ColumnBuilder[T] {
 
-  var compressionSchemes:Seq[CompressionAlgorithm] = _
+  var compressionSchemes:Seq[CompressionAlgorithm] = Seq()
   private var _default = new NoCompression()
-
-  override def initialize(numRows: Int) = {
-    val v = super.initialize(numRows)
-    compressionSchemes = Seq(new RLE())
-    v
-  }
 
   def shouldApply(scheme: CompressionAlgorithm): Boolean = {
     scheme.compressibilityScore < 0.8
@@ -143,6 +137,7 @@ trait CompressedColumnBuilder[T] extends ColumnBuilder[T] {
     }
   }
 }
+
 
 abstract class ColumnType[T, V](val typeID: Int, val size: Int) {
   def extract(currentPos: Int, buffer: ByteBuffer): T
@@ -462,7 +457,7 @@ object GENERIC extends ColumnType[ByteStream.Output, ByteArrayRef](11, 16) {
 
 object ColumnBuilder {
 
-  def create(columnOi: ObjectInspector): ColumnBuilder[_] = {
+  def create(columnOi: ObjectInspector, shouldCompress: Boolean = true): ColumnBuilder[_] = {
     val v = columnOi.getCategory match {
       case ObjectInspector.Category.PRIMITIVE => {
         columnOi.asInstanceOf[PrimitiveObjectInspector].getPrimitiveCategory match {
@@ -483,6 +478,9 @@ object ColumnBuilder {
         }
       }
       case _ => new GenericColumnBuilder(columnOi)
+    }
+    if (shouldCompress) {
+      v.compressionSchemes = Seq(new RLE())
     }
     v
   }

@@ -105,9 +105,9 @@ class NullableColumnBuilderSuite extends FunSuite {
   }
   
   test("Trigger RLE") {
-    var c = new IntColumnBuilder()
-    c.initialize(4)
     val oi = PrimitiveObjectInspectorFactory.javaIntObjectInspector
+    var c = ColumnBuilder.create(oi)
+    c.initialize(4)
     Range(1,1000).foreach { x =>
       c.append(x.asInstanceOf[Object], oi)
     }
@@ -118,7 +118,7 @@ class NullableColumnBuilderSuite extends FunSuite {
     assert(b.getInt() == DEFAULT.typeID) 
     
     //now trigger RLE
-    c = new IntColumnBuilder()
+    c = ColumnBuilder.create(oi)
     c.initialize(4)
     Range(0,1000).foreach { x =>
       if (x < 600)
