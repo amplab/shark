@@ -1,0 +1,22 @@
+<% escapeMarkup = false %>
+#import(shark.execution.cg.row.CGPrimitive)
+<%@ import val obj: CGPrimitive %>
+<%@ val classname: String %>
+  public static final class ${classname} extends CGStructField<${parentFullClass()}, ${writableClass()}> {
+    public CGStructField${name}(int idx) {
+      super("${name}", ${createOI()}, null, idx);
+      cache = new ${writableClass()}();
+    }
+#{var tuple = java2Writable("data." + name, "cache")}#
+    @Override
+    public ${writableClass()} get(${parentFullClass()} data) {
+      if(data == null) return null;
+      if(data.mask.get(idx)) {
+        ${tuple._1}
+        return cache;
+      } else {
+        return null;
+      }
+    }
+    ${tuple._2}
+  }

@@ -1,0 +1,23 @@
+<% escapeMarkup = false %>
+#import(shark.execution.cg.row.CGMap)
+<%@ import val obj: CGMap %>
+<%@ val classname: String %>
+  public static final class ${classname} extends CGStructField<${parentFullClass()}, java.util.HashMap<${key.writableClass()}, ${value.writableClass()}>> {
+    public CGStructField${name}(int idx) {
+      super("${name}", ${createOI()}, null, idx);
+    }
+
+    #{var tuple = java2Writable("map", null)}#
+    @Override
+    public ${writableClass()} get(${parentFullClass()} data) {
+      if(data == null) return null;
+      if(data.mask.get(idx)) {
+        java.util.HashMap<${key.clazz}, ${value.clazz}> map=data.${name};
+        return ${tuple._1};
+      } else {
+        return null;
+      }
+    }
+
+    ${tuple._2()}
+  }

@@ -3,7 +3,8 @@ package shark.execution.cg.row.helper;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 
-public class CGStructField implements StructField {
+public abstract class CGStructField<StructT, CacheT> implements StructField {
+  public CacheT cache;
   public transient int idx = -1;
   protected transient String fieldName = null;
   protected transient ObjectInspector fieldObjectInspector = null;
@@ -30,4 +31,6 @@ public class CGStructField implements StructField {
   public String getFieldComment() {
     return fieldComment;
   }
+  
+  public abstract CacheT get(StructT data);
 }

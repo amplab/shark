@@ -1,0 +1,66 @@
+<% escapeMarkup = false %>
+#import(shark.execution.cg.row.CGUnion)
+#import(shark.execution.cg.row.CGStruct)
+<%@ import val obj: CGUnion %>
+  public static class ${oiClassName} implements UnionObjectInspector {
+    private static final List<ObjectInspector> list = Lists.newArrayList(new ObjectInspector[]{
+      ${fields.map(f=>f._2.createOI()).reduce(_+","+_)}
+    });
+    
+    #for(f <- fields)
+    private ${f._2.writableClass()} cache_${name}${f._1} = new ${f._2.writableClass()}();
+    #end
+    
+    @Override
+    public String getTypeName() {
+      return ObjectInspectorUtils.getStandardUnionTypeName(this);
+    }
+
+    @Override
+    public Category getCategory() {
+      return Category.UNION;
+    }
+
+    @Override
+    public List<ObjectInspector> getObjectInspectors() {
+      return list;
+    }
+
+    @Override
+    public byte getTag(Object o) {
+      ${cgClassName()} a = (${cgClassName()})o;
+      if (a == null || a.tag < 0) {
+        return 0;
+      } else {
+        return (byte)(a.tag);
+      }
+    }
+    #{var vf = fields.map(f=>(f._1, f._2.java2Writable("a." + name+"_"+f._1, "cache_%s%d".format(name, f._1))))}#
+    @Override
+    public Object getField(Object o) {
+      ${cgClassName()} a = (${cgClassName()})o;
+      if (a == null || a.tag < 0) {
+        return null;
+      } else {
+      #for(f <- vf)
+        if (a.tag == ${f._1}) {
+          ${f._2._1}
+          return cache_${name}${f._1};
+        }
+      #end
+        else {
+          throw new RuntimeException("couldn't find the tag " + a.tag);
+        }
+      }
+    }
+    // generate the tranform functions
+    #for(f <- vf)
+       ${f._2._2()}
+    #end
+    
+#for(f<- fields)
+#if(f._2.isInstanceOf[CGStruct] || f._2.isInstanceOf[CGUnion])
+   ${f._2.oiClass()}
+#end
+#end
+  }

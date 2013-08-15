@@ -4,9 +4,9 @@
 #import(shark.execution.cg.row.CGField)
 #import(shark.execution.cg.row.CGStruct)
 #import(shark.execution.cg.row.CGPrimitive)
-#import(shark.execution.cg.row.CGRowContext)
 
-<%@ import val obj: CGRowContext %>
+<%@ import val struct: CGStruct %>
+<%@ import val isOutter: Boolean = false %>
 
 #if (true==isOutter)
 package ${packageName};
@@ -20,29 +20,29 @@ import com.esotericsoftware.kryo.io.Output;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 
-public class ${className} implements KryoSerializable {
+public class ${clazz} implements KryoSerializable {
 #else
-public static class ${className} implements KryoSerializable {
+public static class ${clazz} implements KryoSerializable {
 #end
 <%-- MASK definitions  --%>
-#for (i <- 0 to fieldTypes.length - 1)
-	public static final transient int ${fieldTypes(i).maskName} = ${i};
+#for (i <- 0 to fields.length - 1)
+	public static final transient int ${fields(i).maskName} = ${i};
 #end
 
 <%-- sub type definitions --%>
-#for(f <- fieldTypes)
+#for(f <- fields)
    ${f.defStaticBlocks()}
 #end
-   public BitSet mask = new BitSet(<%=fieldTypes.length%>);
+   public BitSet mask = new BitSet(<%=fields.length%>);
 <%-- field definitions  --%>
-#for(i <- 0 to fieldTypes.length - 1)
-    ${fieldTypes(i).defField()}
+#for(i <- 0 to fields.length - 1)
+    ${fields(i).defField()}
 #end
 	
 	@Override
     public void read(Kryo kryo, Input input) {
       mask = BitSet.valueOf(input.readBytes(input.read()));
-#for(f <- fieldTypes; if (!f.constant))
+#for(f <- fields; if (!f.constant))
 	   if (mask.get(${f.maskName})) { ${f.defRead()} }
 #end
     }
@@ -52,16 +52,16 @@ public static class ${className} implements KryoSerializable {
       byte[] bytes = mask.toByteArray();
       output.write(bytes.length);
       output.write(bytes);
-#for(f <- fieldTypes; if (!f.constant))
+#for(f <- fields; if (!f.constant))
 	   if (mask.get(${f.maskName})) { ${f.defWrite()} }
 #end
     }
     
-    public static ${className} BUILD(ObjectInspector _oi, Object o) {
+    public static ${clazz} BUILD(ObjectInspector _oi, Object o) {
       if (o == null) return null;
-      ${className} me = new ${className}();
+      ${clazz} me = new ${clazz}();
       StructObjectInspector oi = (StructObjectInspector)_oi;
-      #for(f<-fieldTypes; if (!f.constant))
+      #for(f<-fields; if (!f.constant))
       {
 		  org.apache.hadoop.hive.serde2.objectinspector.StructField sf = oi.getStructFieldRef("${f.name}");
 		  Object obj = oi.getStructFieldData(o, sf);
@@ -78,7 +78,7 @@ public static class ${className} implements KryoSerializable {
       return me;
     }
     
-#for(f<-fieldTypes; if (f.constant && !f.constantNull && !f.isInstanceOf[CGPrimitive]))
+#for(f<-fields; if (f.constant && !f.constantNull && !f.isInstanceOf[CGPrimitive]))
   public static synchronized ${f.clazz} INITIAL_${f.name}() {
     ${f.clazz} objs = null;
 #if(f.isInstanceOf[CGMap])

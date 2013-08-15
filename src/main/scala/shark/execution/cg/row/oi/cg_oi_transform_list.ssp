@@ -1,0 +1,16 @@
+<% escapeMarkup = false %>
+#import(shark.execution.cg.row.CGList)
+<%@ import val obj: CGList %>
+<%@ var methodName: String %>
+#{
+   var tuple = field.java2Writable("entry", null)
+}#
+public java.util.ArrayList<${field.writableClass()}> ${methodName}(java.util.ArrayList<${field.clazz}> list) {
+  java.util.ArrayList<${field.writableClass()}> result = new java.util.ArrayList<${field.writableClass()}>(list.size());
+  for(${field.clazz} entry : list) {
+    result.add(${tuple._1});
+  }
+
+  return result;
+}
+${tuple._2()}

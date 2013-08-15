@@ -5,7 +5,6 @@
 #import(shark.execution.cg.row.CGStruct)
 #import(shark.execution.cg.row.CGUnion)
 #import(shark.execution.cg.row.CGPrimitive)
-#import(shark.execution.cg.row.CGRowContext)
 
 <%@ import var obj: CGUnion %>
 

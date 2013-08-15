@@ -39,7 +39,7 @@
 		#case(a:StringObjectInspector)
 			((String)${varname})
 		#case(a:DateObjectInspector)
-			((java.util.Date)${varname})
+			((java.sql.Date)${varname})
 		#case(a:BinaryObjectInspector)
 			((byte[])${varname})
 		#case(a:BooleanObjectInspector)

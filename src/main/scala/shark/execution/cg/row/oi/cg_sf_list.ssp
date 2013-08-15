@@ -1,0 +1,23 @@
+<% escapeMarkup = false %>
+#import(shark.execution.cg.row.CGList)
+<%@ import val obj: CGList %>
+<%@ val classname: String %>
+  public static final class ${classname} extends CGStructField<${parentFullClass()}, ${writableClass()}> {
+    public CGStructField${name}(int idx) {
+      super("${name}", ${createOI()}, null, idx);
+    }
+    
+    #{var tuple = java2Writable("list", null)}#
+    @Override
+    public ${writableClass()} get(${parentFullClass()} data) {
+      if(data == null) return null;
+      if(data.mask.get(idx)) {
+        ${clazz} list=data.${name};
+        return ${tuple._1};
+      } else {
+        return null;
+      }
+    }
+
+    ${tuple._2()}
+  }

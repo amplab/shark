@@ -1,0 +1,21 @@
+<% escapeMarkup = false %>
+#import(shark.execution.cg.row.CGUnion)
+<%@ import val obj: CGUnion %>
+<%@ val classname: String %>
+  public static final class ${classname} extends CGStructField<${parentFullClass()}, ${cgClassName()}> {
+    public CGStructField${name}(int idx) {
+      super("${name}", ${createOI()}, null, idx);
+      cache = new ${cgClassName()}();
+    }
+#{var tuple = java2Writable("data." + name, null)}#
+    @Override
+    public ${cgClassName()} get(${parentFullClass()} data) {
+      if(data == null) return null;
+      if(data.mask.get(idx)) {
+        return ${tuple._1};
+      } else {
+        return null;
+      }
+    }
+${tuple._2}    
+  }
