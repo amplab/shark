@@ -90,9 +90,12 @@ class SparkTask extends HiveTask[SparkWork] with Serializable with LogHelper {
 
     terminalOp.initializeMasterOnAll()
 
+    // Set Spark's job description to be this query.
+    SharkEnv.sc.setJobDescription(work.pctx.getContext.getCmd)
+
     // Set the fair scheduler's pool.
-    val fairSchedulerPool = Option(conf.get("mapred.fairscheduler.pool")).getOrElse("")
-    SharkEnv.sc.addLocalProperty("spark.scheduler.cluster.fair.pool", fairSchedulerPool)
+    SharkEnv.sc.setLocalProperty("spark.scheduler.cluster.fair.pool",
+      conf.get("mapred.fairscheduler.pool"))
 
     val sinkRdd = terminalOp.execute().asInstanceOf[RDD[Any]]
 
