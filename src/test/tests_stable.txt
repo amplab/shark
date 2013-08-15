@@ -473,7 +473,6 @@ testCliDriver_udf_stddev_pop
 testCliDriver_udf_stddev_samp
 testCliDriver_udf_string
 testCliDriver_udf_struct
-#unstable: testCliDriver_udf_substr
 testCliDriver_udf_substring
 testCliDriver_udf_subtract
 testCliDriver_udf_sum
@@ -485,7 +484,7 @@ testCliDriver_udf_to_date
 testCliDriver_udf_trim
 testCliDriver_udf_ucase
 testCliDriver_udf_unhex
-#unstable: testCliDriver_udf_union
+testCliDriver_udf_union
 testCliDriver_udf_unix_timestamp
 testCliDriver_udf_upper
 testCliDriver_udf_var_pop
