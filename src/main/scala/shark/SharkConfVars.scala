@@ -32,6 +32,8 @@ object SharkConfVars {
   // If true, keys that are NULL are equal. For strict SQL standard, set this to true.
   val JOIN_CHECK_NULL = new ConfVar("shark.join.checknull", true)
 
+  val COLUMNAR_COMPRESSION = new ConfVar("shark.columnar.compression", true)
+
   // Specify the initial capacity for ArrayLists used to represent columns in columnar
   // cache. The default -1 for non-local mode means that Shark will try to estimate
   // the number of rows by using: partition_size / (num_columns * avg_field_size).
@@ -62,6 +64,8 @@ object SharkConfVars {
       conf.set(EXPLAIN_MODE.varname, EXPLAIN_MODE.defaultVal)
     if (conf.get(COLUMN_INITIALSIZE.varname) == null)
       conf.setInt(COLUMN_INITIALSIZE.varname, COLUMN_INITIALSIZE.defaultIntVal)
+    if (conf.get(COLUMNAR_COMPRESSION.varname) == null)
+      conf.setInt(COLUMNAR_COMPRESSION.varname, COLUMNAR_COMPRESSION.defaultIntVal)
     if (conf.get(CHECK_TABLENAME_FLAG.varname) == null)
       conf.setBoolean(CHECK_TABLENAME_FLAG.varname, CHECK_TABLENAME_FLAG.defaultBoolVal)
     if (conf.get(COMPRESS_QUERY_PLAN.varname) == null)

@@ -9,9 +9,9 @@ import shark.memstore2.column.Implicits._
 class NullableColumnIteratorSuite extends FunSuite {
 
   test("String Growth") {
-    val c = new StringColumnBuilder()
-    c.initialize(4)
     val oi = PrimitiveObjectInspectorFactory.writableStringObjectInspector
+    val c = ColumnBuilder.create(oi)
+    c.initialize(4)
     val a = Array[Text](
         new Text("a"), null,
         new Text("b"), null,
@@ -34,9 +34,9 @@ class NullableColumnIteratorSuite extends FunSuite {
     }
   }
   test("Iterate Strings") {
-    val c = new StringColumnBuilder()
-    c.initialize(4)
     val oi = PrimitiveObjectInspectorFactory.writableStringObjectInspector
+    val c = ColumnBuilder.create(oi)
+    c.initialize(4)
     c.append(new Text("a"), oi)
     c.append(new Text(""), oi)
     c.append(null, oi)
@@ -60,9 +60,9 @@ class NullableColumnIteratorSuite extends FunSuite {
   }
   
   test("Iterate Ints") {
-    val c = new IntColumnBuilder()
-    c.initialize(4)
     val oi = PrimitiveObjectInspectorFactory.javaIntObjectInspector
+    val c = ColumnBuilder.create(oi)
+    c.initialize(4)
     c.append(123.asInstanceOf[Object],oi)
     c.append(null, oi)
     c.append(null, oi)

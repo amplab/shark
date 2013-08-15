@@ -2,7 +2,7 @@ package shark.memstore2.column
 
 import java.nio.ByteBuffer
 import shark.memstore2.column.Implicits._
-
+import scala.collection.mutable.{Map, HashMap}
 
 /**
  * Iterates through a byte buffer containing compressed data.
@@ -24,6 +24,7 @@ trait CompressedColumnIterator extends ColumnIterator{
     _decoder = _compressionType match {
       case DefaultCompressionType => new DefaultDecoder(buffer, columnType)
       case RLECompressionType => new RLDecoder(buffer, columnType)
+      case DictionaryCompressionType => new DictDecoder(buffer, columnType)
       case _ => throw new UnsupportedOperationException()
     }
   }
@@ -74,4 +75,29 @@ class RLDecoder[V](buffer: ByteBuffer, columnType: ColumnType[_, V]) extends Ite
     }
     _current
   }
+}
+
+class DictDecoder[V] (buffer:ByteBuffer, columnType: ColumnType[_, V]) extends Iterator[V] {
+  
+  private var _current: V = columnType.newWritable
+  private val _dictionary: Map[Int, V] =  {
+    val size = buffer.getInt()
+    val d = new HashMap[Int, V]()
+    val count = 0
+    while (count < size) {
+      //read text, followed by index
+      val text = columnType.extract(buffer.position(), buffer)
+      val index = buffer.getInt()
+      d.put(index, text.asInstanceOf[V])
+    }
+    d
+  }
+
+  override def hasNext() = buffer.hasRemaining()
+  
+  override def next(): V = {
+    val index = buffer.getInt()
+    _dictionary.get(index).get
+  }
+
 }

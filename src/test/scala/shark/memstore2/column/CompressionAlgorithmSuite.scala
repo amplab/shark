@@ -2,6 +2,7 @@ package shark.memstore2.column
 
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import scala.collection.mutable.HashMap
 import org.scalatest.FunSuite
 
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
@@ -135,5 +136,60 @@ class CompressionAlgorithmSuite extends FunSuite {
     assert(compressedBuffer.getInt() == INT.typeID)
     assert(compressedBuffer.getInt() == 6)
     assert(compressedBuffer.getInt() == 1000000)
+  }
+  
+  test("Dictionary Encoding") {
+    val b = ByteBuffer.allocate(1024)
+    b.order(ByteOrder.nativeOrder())
+    b.putInt(STRING.typeID)
+    val de = new DictionaryEncoding()
+    Array[Text](new Text("abc"),
+      new Text("abc"),
+      new Text("efg"),
+      new Text("abc")).foreach { text =>
+        STRING.append(text, b)
+        de.gatherStatsForCompressibility(text, STRING)
+      }
+    b.limit(b.position())
+    b.rewind()
+    val compressedBuffer = de.compress(b, STRING)
+    assert(compressedBuffer.getInt() == STRING.typeID)
+    assert(compressedBuffer.getInt() == DictionaryCompressionType.typeID)
+    assert(compressedBuffer.getInt() == 2) //dictionary size
+    val dictionary = new HashMap[Int, Text]()
+    var count = 0
+    while (count < 2) {
+      val v = STRING.extract(compressedBuffer.position(), compressedBuffer)
+      val index = compressedBuffer.getInt()
+      dictionary.put(index, v)
+      count += 1
+    }
+    assert(dictionary.get(0).get.equals(new Text("abc")))
+    assert(dictionary.get(1).get.equals(new Text("efg")))
+    //read the next 4 items
+    assert(compressedBuffer.getInt() == 0)
+    assert(compressedBuffer.getInt() == 0)
+    assert(compressedBuffer.getInt() == 1)
+    assert(compressedBuffer.getInt() == 0)
+  }
+  
+  test("RLE region") {
+    val b = new StringColumnBuilder
+    b.initialize(0)
+    val oi = PrimitiveObjectInspectorFactory.javaStringObjectInspector
+
+    val lines = Array[String]("lar deposits. blithely final packages cajole. regular waters are final requests. regular accounts are according to",
+      "hs use ironic, even requests. s",
+      "ges. thinly even pinto beans ca",
+      "ly final courts cajole furiously final excuse",
+      "uickly special accounts cajole carefully blithely close requests. carefully final asymptotes haggle furiousl"
+    )
+    lines.foreach { line =>
+      b.append(line, oi)
+    }
+    val newBuffer = b.build
+    assert(newBuffer.getInt() == STRING.typeID)
+    assert(newBuffer.getInt() == RLECompressionType.typeID)
+    
   }
 }

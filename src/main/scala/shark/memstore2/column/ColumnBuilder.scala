@@ -123,7 +123,7 @@ trait CompressedColumnBuilder[T] extends ColumnBuilder[T] {
 
 object ColumnBuilder {
 
-  def create(columnOi: ObjectInspector): ColumnBuilder[_] = {
+  def create(columnOi: ObjectInspector, shouldCompress: Boolean = true): ColumnBuilder[_] = {
     val v = columnOi.getCategory match {
       case ObjectInspector.Category.PRIMITIVE => {
         columnOi.asInstanceOf[PrimitiveObjectInspector].getPrimitiveCategory match {
@@ -144,6 +144,9 @@ object ColumnBuilder {
         }
       }
       case _ => new GenericColumnBuilder(columnOi)
+    }
+    if (shouldCompress) {
+      v.compressionSchemes = Seq(new RLE())
     }
     v
   }

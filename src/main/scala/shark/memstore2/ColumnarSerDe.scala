@@ -40,7 +40,8 @@ class ColumnarSerDe extends SerDe with LogHelper {
   var objectInspector: StructObjectInspector = _
   var tablePartitionBuilder: TablePartitionBuilder = _
   var serDeParams: SerDeParameters = _
-  var initialColumnSize: Int = _
+  var numRows: Int = _
+  var shouldCompress: Boolean = _
   val serializeStream = new ByteStream.Output
 
   override def initialize(conf: Configuration, tbl: Properties) {
@@ -52,24 +53,10 @@ class ColumnarSerDe extends SerDe with LogHelper {
     // an instance of the table's StructObjectInspector by creating an instance SerDe, which
     // it initializes by passing a 'null' argument for 'conf'.
     if (conf != null) {
-      initialColumnSize = SharkConfVars.getIntVar(conf, SharkConfVars.COLUMN_INITIALSIZE)
-
-      if (initialColumnSize == - 1) {
-        // Approximate the size of a partition by using the HDFS "dfs.block.size" config.
-        // Try both "dfs.block.size" and "dfs.blocksize" (from DFS_BLOCK_SIZE_KEY), which
-        // is the new name since Hadoop 0.21.0
-        val partitionSize = conf.getLong(DFSConfigKeys.DFS_BLOCK_SIZE_KEY,
-          conf.getLong("dfs.block.size", DFSConfigKeys.DFS_BLOCK_SIZE_DEFAULT))
-
-        logInfo("Estimated size of partition to cache is " + partitionSize)
-
-        // Estimate the initial capacity for ArrayList columns using:
-        // partition_size / (num_columns * avg_field_size).
-        val rowSize = ColumnarSerDe.getFieldSize(objectInspector).toLong
-        initialColumnSize = (partitionSize / rowSize).toInt
-
-        logInfo("Estimated size of each row is: " + rowSize)
-      }
+      numRows = SharkConfVars.getIntVar(conf, SharkConfVars.COLUMN_INITIALSIZE)
+      shouldCompress = SharkConfVars.getBoolVar(conf, SharkConfVars.COLUMNAR_COMPRESSION)
+      logInfo("should compress " + shouldCompress)
+      logInfo("num rows " + numRows)
     }
   }
 
@@ -87,7 +74,9 @@ class ColumnarSerDe extends SerDe with LogHelper {
 
   override def serialize(obj: Object, objInspector: ObjectInspector): Writable = {
     if (tablePartitionBuilder == null) {
-      tablePartitionBuilder = new TablePartitionBuilder(objectInspector, initialColumnSize)
+      logInfo("should compress " + shouldCompress)
+      logInfo("num rows " + numRows)
+      tablePartitionBuilder = new TablePartitionBuilder(objectInspector, numRows, shouldCompress)
     }
 
     tablePartitionBuilder.incrementRowCount()
