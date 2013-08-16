@@ -1,93 +1,84 @@
 package shark.execution.optimization
 
 import java.util.BitSet
-import scala.collection.JavaConversions.asScalaBuffer
-import scala.collection.JavaConversions.bufferAsJavaList
-import scala.collection.JavaConversions.collectionAsScalaIterable
+import scala.collection.JavaConversions.{asScalaBuffer, 
+  bufferAsJavaList, collectionAsScalaIterable} 
+import scala.collection.mutable.{Set, HashSet}
 
 import org.apache.hadoop.hive.ql.exec.GroupByPreShuffleOperator
 import org.apache.hadoop.hive.ql.metadata.Table
 import org.apache.hadoop.hive.ql.plan.SelectDesc
 
-import shark.execution.FilterOperator
-import shark.execution.JoinOperator
-import shark.execution.MapJoinOperator
-import shark.execution.Operator
-import shark.execution.ReduceSinkOperator
-import shark.execution.SelectOperator
-import shark.execution.TopOperator
-import shark.memstore2.ColumnarStruct
-import shark.memstore2.TablePartitionIterator
+import shark.execution.{FilterOperator, JoinOperator, 
+  MapJoinOperator, Operator, ReduceSinkOperator,
+  SelectOperator, TopOperator}
 
-class ColumnPruner(@transient op: TopOperator[_], @transient tbl: Table) extends Serializable{
-  
-  val tuple = computeColumnsToKeep
-  val skip = tuple._1 && tuple._2.isEmpty
-  val columnsUsed = {
+import shark.memstore2.{ColumnarStruct, TablePartitionIterator}
+
+class ColumnPruner(@transient op: TopOperator[_], @transient tbl: Table) extends Serializable {
+
+  private val _columnsUsed = {
+    val colsToKeep = computeColumnsToKeep()
     val allColumns = tbl.getAllCols().map(x => x.getName())
     var b = new BitSet()
-    for (i <- Range(0, allColumns.size()) if (tuple._2.contains(allColumns(i)))) {
+    for (i <- Range(0, allColumns.size()) if (colsToKeep.contains(allColumns(i)))) {
       b.set(i, true)
     }
     b
   }
 
-  def getColumnsUsed() : BitSet = {
-    columnsUsed
+  def getColumnsUsed(): BitSet = {
+    _columnsUsed
   }
 
-  private def computeColumnsToKeep(): Tuple2[Boolean, Seq[String]] = {
-    val cols = scala.collection.mutable.ArrayBuffer[String]()
-    val selStar = computeColumnsToKeep(op, cols)
-    (selStar, cols)
+  private def computeColumnsToKeep(): Set[String] = {
+    val cols = HashSet[String]()
+    computeColumnsToKeep(op, cols)
+    cols
   }
-  
-  private def computeColumnsToKeep(op: Operator[_], cols: scala.collection.mutable.ArrayBuffer[String], parentOp: Operator[_] = null): Boolean = {
-    val selStar = if (op.isInstanceOf[SelectOperator]) {
-      val selOp = op.asInstanceOf[SelectOperator]
-      val cnf = selOp.getConf
-      Option[SelectDesc](cnf) match {
-        case Some(_) => {
-          cols ++= cnf.getColList
-            .flatMap(x => x.getCols)
 
-          cnf.isSelectStar()
+  /**
+   * Computes the column names that are referenced in the Query
+   */
+  private def computeColumnsToKeep(op: Operator[_],
+    cols: HashSet[String], parentOp: Operator[_] = null): Unit = {
+    op match {
+      case selOp: SelectOperator => {
+        val cnf = selOp.getConf
+        //Select Descriptor contains SelectConf, which holds the list of columns
+        //referenced by the select op
+        if (cnf != null) {
+          cols ++= (HashSet() ++ cnf.getColList).flatMap(_.getCols)
         }
-        case None => true
       }
-    } else if (op.isInstanceOf[FilterOperator]){
-      val filterOp = op.asInstanceOf[FilterOperator]
-      val cnf = filterOp.getConf
-      cols ++= cnf.getPredicate.getCols
-      
-      false
-    } else if (op.isInstanceOf[JoinOperator]) {
-      val joinOp = op.asInstanceOf[JoinOperator]
-      val cnf = parentOp.asInstanceOf[ReduceSinkOperator].getConf
-      cols ++= (List() ++ cnf.getKeyCols ++ cnf.getValueCols)
-      .flatMap(e =>e.getCols)
-      true
-    } else if (op.isInstanceOf[MapJoinOperator]) {
-      val joinOp = op.asInstanceOf[MapJoinOperator]
-      val cnf = joinOp.getConf
-      cols ++= (List() ++ cnf.getKeys.values ++ cnf.getExprs.values)
-       .flatMap(x =>x)
-       .flatMap(e => e.getCols)
-      true
-    } else if (op.isInstanceOf[GroupByPreShuffleOperator]){
-      val groupBy = op.asInstanceOf[GroupByPreShuffleOperator]
-      val keys = groupBy.getConf.getKeys
-      cols ++= keys.flatMap { k =>
-        val c = k.getCols
-        if (c == null) Seq() else c
+      case filterOp: FilterOperator => {
+        val cnf = filterOp.getConf
+        //FilterDesc has predicates, which are the columns involved in predicate operations
+        cols ++= (HashSet() ++ cnf.getPredicate.getCols)
       }
-      true
-    } else {
-      true
+      case joinOp: JoinOperator => {
+        val cnf = parentOp.asInstanceOf[ReduceSinkOperator].getConf
+        //before a regular join operation, the reduce sink operator is always present.
+        //the key and value columns need to be examined for the input to the join
+        cols ++= (HashSet() ++ cnf.getKeyCols ++ cnf.getValueCols).flatMap(_.getCols)
+      }
+      case joinOp: MapJoinOperator => {
+        val cnf = joinOp.getConf
+        val evals = (HashSet() ++ cnf.getKeys.values ++ cnf.getExprs.values)
+        cols ++= evals.flatMap(x => x).flatMap(_.getCols)
+      }
+      case groupBy: GroupByPreShuffleOperator => {
+        val keys = groupBy.getConf.getKeys
+        cols ++= (HashSet() ++ keys).flatMap { k =>
+          val c = k.getCols
+          if (c == null) Seq() else c
+        }
+      }
+      case _ =>
     }
-     op.childOperators.foldLeft(selStar)((x, y) => {
-       val s = computeColumnsToKeep(y, cols, op)
-       s && x
-     })
+    //recurse on the subtree
+    op.childOperators.foreach(y => {
+      computeColumnsToKeep(y, cols, op)
+    })
   }
 }

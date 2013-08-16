@@ -156,13 +156,13 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   // map join
   //////////////////////////////////////////////////////////////////////////////
   test("map join") {
-    expect("""select u.name, count(c.click) from clicks c join users u on (c.id = u.id)
+    expect("""select /*+ MapJoin(clicks) */ u.name, count(c.click) from clicks c join users u on (c.id = u.id)
       group by u.name having u.name='A'""",
       "A\t3")
   }
 
   test("map join2") {
-    expect("select count(*) from clicks join users on (clicks.id = users.id)", "5")
+    expect("select /*+ MapJoin(clicks) */ count(*) from clicks join users on (clicks.id = users.id)", "5")
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -266,6 +266,18 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       select cast(key as int) as k, val from test""")
     expect("select count(k) from adw where val='val_487' group by 1 having count(1) > 0","1")
   }
+  
+   //////////////////////////////////////////////////////////////////////////////
+  // Sel Star
+  //////////////////////////////////////////////////////////////////////////////
+  
+  test("sel star pruning") {
+    sc.sql("drop table if exists selstar")
+    sc.sql("""create table selstar TBLPROPERTIES ("shark.cache" = "true") as
+      select * from test""")
+    expect("select * from selstar where val='val_487'","487	val_487")
+  }
+  
   //////////////////////////////////////////////////////////////////////////////
   // SharkContext APIs (e.g. sql2rdd, sql)
   //////////////////////////////////////////////////////////////////////////////

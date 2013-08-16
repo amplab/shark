@@ -98,6 +98,7 @@ object SharkBuild extends Build {
       "net.java.dev.jets3t" %"jets3t" % "0.7.1" ,
       "org.scalatest" %% "scalatest" % "1.9.1" % "test",
       "junit" % "junit" % "4.10" % "test",
+      "org.mockito" % "mockito-all" % "1.8.4" % "test",
       "com.novocode" % "junit-interface" % "0.8" % "test") ++
       (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.3.0-SNAPSHOT") else None).toSeq
 
