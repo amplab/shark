@@ -125,13 +125,13 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
       // Force evaluate so the data gets put into Spark block manager.
       rdd.persist(storageLevel)
-
+      val origRdd = rdd
       if (useUnionRDD) {
         rdd = rdd.union(
           SharkEnv.memoryMetadataManager.get(tableName).get.asInstanceOf[RDD[TablePartition]])
       }
       SharkEnv.memoryMetadataManager.put(tableName, rdd)
-      rdd.foreach(_ => Unit)
+      origRdd.foreach(_ => Unit)
     }
 
     // Report remaining memory.
