@@ -1,12 +1,12 @@
 <% escapeMarkup = false %>
-#import(shark.execution.cg.row.CGStruct)
-<%@ import val obj: CGStruct %>
+#import(shark.execution.cg.row.CGOIStruct)
+<%@ import val obj: CGOIStruct %>
 <%@ val classname: String %>
   public static final class ${classname} extends CGStructField<${parentFullClass()}, ${cgClassName()}> {
-    public CGStructField${name}(int idx) {
-      super("${name}", ${createOI()}, null, idx);
+    public CGStructField${delegate.name}(int idx) {
+      super("${delegate.name}", ${createOI()}, null, idx);
     }
-#{var tuple = java2Writable("data." + name, null)}#
+#{var tuple = java2Writable("data." + delegate.name, null)}#
     @Override
     public ${writableClass()} get(${parentFullClass()} data) {
       if(data == null) return null;

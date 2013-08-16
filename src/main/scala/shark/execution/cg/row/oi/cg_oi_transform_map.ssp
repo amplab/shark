@@ -1,16 +1,16 @@
 <% escapeMarkup = false %>
-#import(shark.execution.cg.row.CGMap)
-<%@ import val obj: CGMap %>
+#import(shark.execution.cg.row.CGOIMap)
+<%@ import val obj: CGOIMap %>
 <%@ var methodName: String %>
 #{
    var tupleKey = key.java2Writable("key", null)
    var tupleValue = value.java2Writable("value", null)
 }#
-public java.util.HashMap<${key.writableClass()}, ${value.writableClass()}> ${methodName}(java.util.HashMap<${key.clazz}, ${value.clazz}> map) {
+public java.util.HashMap<${key.writableClass()}, ${value.writableClass()}> ${methodName}(java.util.HashMap<${key.delegate.clazz}, ${value.delegate.clazz}> map) {
   java.util.HashMap<${key.writableClass()}, ${value.writableClass()}> result = new java.util.HashMap<${key.writableClass()}, ${value.writableClass()}>();
-  for(java.util.Map.Entry<${key.clazz}, ${value.clazz}> entry : map.entrySet()) {
-    ${key.clazz} key = entry.getKey();
-    ${value.clazz} value = entry.getValue();
+  for(java.util.Map.Entry<${key.delegate.clazz}, ${value.delegate.clazz}> entry : map.entrySet()) {
+    ${key.delegate.clazz} key = entry.getKey();
+    ${value.delegate.clazz} value = entry.getValue();
     result.put(${tupleKey._1}, ${tupleValue._1});
   }
 

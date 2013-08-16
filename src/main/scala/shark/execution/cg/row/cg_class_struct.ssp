@@ -70,7 +70,7 @@ public static class ${clazz} implements KryoSerializable {
 		    me.mask.set(${f.maskName}, false);
 		  } else {
 		    me.mask.set(${f.maskName}, true);
-            ${f.loadPiece()}
+            ${f.getValue("me." + f.name, "sf.getFieldObjectInspector()", "obj")}
           }
       }
       #end
@@ -100,7 +100,7 @@ public static class ${clazz} implements KryoSerializable {
       input.close();
       Object obj = oi.getWritableConstantValue();
       
-      objs = ${f.getValue("oi", "obj")};
+      ${f.getValue("objs", "oi", "obj")};
     }
 
     return objs;

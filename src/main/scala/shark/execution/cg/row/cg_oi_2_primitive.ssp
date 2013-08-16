@@ -5,57 +5,58 @@
 <%@ import var obj: CGField[_] %>
 <%@ var varname: String %>
 <%@ var varoi: String %>
+<%@ var result: String %>
 #{if(oi.isInstanceOf[PrimitiveObjectInspector]) {if(oi.asInstanceOf[PrimitiveObjectInspector].preferWritable()) { }#
 		#match (oi)
 		#case(a:TimestampObjectInspector)
-			((org.apache.hadoop.hive.serde2.io.TimestampWritable)${varname}).getTimestamp()
+			${result} = ((org.apache.hadoop.hive.serde2.io.TimestampWritable)${varname}).getTimestamp();
 		#case(a:StringObjectInspector)
-			((org.apache.hadoop.io.Text)${varname}).toString()
+			${result} = ((org.apache.hadoop.io.Text)${varname}).toString();
 		#case(a:DateObjectInspector)
-			((org.apache.hadoop.hive.serde2.io.DateWritable)${varname}).get()
+			${result} = ((org.apache.hadoop.hive.serde2.io.DateWritable)${varname}).get();
 		#case(a:BinaryObjectInspector)
-			((org.apache.hadoop.io.BytesWritable)${varname}).get()
+			${result} = ((org.apache.hadoop.io.BytesWritable)${varname}).get();
 		#case(a:BooleanObjectInspector)
-			((org.apache.hadoop.io.BooleanWritable)${varname}).get()
+			${result} = ((org.apache.hadoop.io.BooleanWritable)${varname}).get();
 		#case(a:ByteObjectInspector)
-			((org.apache.hadoop.hive.serde2.io.ByteWritable)${varname}).get()
+			${result} = ((org.apache.hadoop.hive.serde2.io.ByteWritable)${varname}).get();
 		#case(a:ShortObjectInspector)
-			((org.apache.hadoop.hive.serde2.io.ShortWritable)${varname}).get()
+			${result} = ((org.apache.hadoop.hive.serde2.io.ShortWritable)${varname}).get();
 		#case(a:FloatObjectInspector)
-			((org.apache.hadoop.io.FloatWritable)${varname}).get()
+			${result} = ((org.apache.hadoop.io.FloatWritable)${varname}).get();
 		#case(a:IntObjectInspector)
-			((org.apache.hadoop.io.IntWritable)${varname}).get()
+			${result} = ((org.apache.hadoop.io.IntWritable)${varname}).get();
 		#case(a:LongObjectInspector)
-			((org.apache.hadoop.io.LongWritable)${varname}).get()
+			${result} = ((org.apache.hadoop.io.LongWritable)${varname}).get();
 		#case(a:DoubleObjectInspector)
-			((org.apache.hadoop.hive.serde2.io.DoubleWritable)${varname}).get()
+			${result} = ((org.apache.hadoop.hive.serde2.io.DoubleWritable)${varname}).get();
 		#otherwise
 		    {throw new RuntimeException("${oi.getClass().getCanonicalName()} need to be added in the primitive template.");}
 		#end
 	#{ } else { }#
 		#match (oi)
 		#case (a:TimestampObjectInspector)
-			((java.sql.Timestamp)${varname})
+			${result} = ((java.sql.Timestamp)${varname});
 		#case(a:StringObjectInspector)
-			((String)${varname})
+			${result} = ((String)${varname});
 		#case(a:DateObjectInspector)
-			((java.sql.Date)${varname})
+			${result} = ((java.sql.Date)${varname});
 		#case(a:BinaryObjectInspector)
-			((byte[])${varname})
+			${result} = ((byte[])${varname});
 		#case(a:BooleanObjectInspector)
-			((Boolean)${varname})
+			${result} = ((Boolean)${varname});
 		#case(a:ByteObjectInspector)
-			((Byte)${varname})
+			${result} = ((Byte)${varname});
 		#case(a:ShortObjectInspector)
-			((Short)${varname})
+			${result} = ((Short)${varname});
 		#case(a:FloatObjectInspector)
-			((Float)${varname})
+			${result} = ((Float)${varname});
 		#case(a:IntObjectInspector)
-			((Integer)${varname})
+			${result} = ((Integer)${varname});
 		#case(a:LongObjectInspector)
-			((Long)${varname})
+			${result} = ((Long)${varname});
 		#case(a:DoubleObjectInspector)
-			((Double)${varname})
+			${result} = ((Double)${varname});
 		#otherwise
 		    {throw new RuntimeException("${oi.getClass().getCanonicalName()} need to be added in the primitive template.");}
 		#end
@@ -65,9 +66,9 @@
 }#
 	#match(oi)
 	#case (a:org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector)
-		${clazz}.BUILD(${varoi}, ${varname})
+		${result} = ${clazz}.BUILD(${varoi}, ${varname});
 	#case (a:org.apache.hadoop.hive.serde2.objectinspector.UnionObjectInspector)
-		${clazz}.BUILD(${varoi}, ${varname})
+		${result} = ${clazz}.BUILD(${varoi}, ${varname});
 	#otherwise
 		{throw new RuntimeException("${oi.getClass().getCanonicalName()} need to be added in the primitive template.");}
 	#end

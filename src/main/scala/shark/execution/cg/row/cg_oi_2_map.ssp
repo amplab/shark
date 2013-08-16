@@ -12,7 +12,9 @@ public static java.util.HashMap<${key.clazz}, ${value.clazz}> BUILD_${name}(org.
 	  result = new java.util.HashMap<${key.clazz}, ${value.clazz}>(mobj.size());
 	  for(Object key : mobj.keySet()) {
 	    if(key != null) {
-	      result.put(${key.getValue("koi", "key")}, ${value.getValue("voi", "(mobj.get(key))")});
+          ${key.clazz} ${key.getValue("k_t", "koi", "key")}
+          ${value.clazz} ${value.getValue("v_t", "voi", "(mobj.get(key))")}
+	      result.put(k_t, v_t);
 	    }
 	  }
 	}

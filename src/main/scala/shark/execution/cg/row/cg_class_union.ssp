@@ -12,24 +12,24 @@ public static class ${clazz} implements KryoSerializable {
 <%-- sub type definitions --%>
 // this is the sub type definition
 #for(f <- fields)
-   ${f._2.defStaticBlocks()}
+   ${f.defStaticBlocks()}
 #end
 // end of sub type definition
 
    public int tag = -1;
 <%-- field definitions  --%>
 
-<%-- fields is Array[(Int, CGField[_])] --%>
+<%-- fields is Array[CGField[_]] --%>
 #for(f <- fields) 
-    ${f._2.defField()}
+    ${f.defField()}
 #end
 	
 	@Override
     public void read(Kryo kryo, Input input) {
       tag = input.read();
-#for(i <- 0 to fields.length - 1; if (!fields(i)._2.constant))    
-      if (tag == ${fields(i)._1}) {
-        ${fields(i)._2.defRead()}
+#for(i <- 0 to fields.length - 1; if (!fields(i).constant))    
+      if (tag == ${i}) {
+        ${fields(i).defRead()}
       } else 
 #end
         {throw new RuntimeException("cant find the tag:" + tag);}
@@ -38,9 +38,9 @@ public static class ${clazz} implements KryoSerializable {
     @Override
     public void write(Kryo kryo, Output output) {
       output.write(tag);
-#for(i <- 0 to fields.length - 1; if (!fields(i)._2.constant))    
-      if (tag == ${fields(i)._1}) {
-        ${fields(i)._2.defWrite()}
+#for(i <- 0 to fields.length - 1; if (!fields(i).constant))    
+      if (tag == ${i}) {
+        ${fields(i).defWrite()}
       } else 
 #end 
         {throw new RuntimeException("can't find the tag:" + tag);}
@@ -56,10 +56,10 @@ public static class ${clazz} implements KryoSerializable {
       } else {
         me.tag = uoi.getTag(o);
         java.util.List<org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector> ois = uoi.getObjectInspectors();
-<%-- fields is Array[(Int, CGField[_])] --%>
+<%-- fields is Array[CGField[_]] --%>
 #for(i <- 0 to fields.length - 1)  
-        if (me.tag == ${fields(i)._1}) {
-          me.${fields(i)._2.name} = ${fields(i)._2.getValue("ois.get(%d)".format(fields(i)._1), "uobj")};
+        if (me.tag == ${i}) {
+          ${fields(i).getValue("me." + fields(i).name, "ois.get(" +i + ")", "uobj")};
         } else 
 #end 
         {throw new RuntimeException("can't find the tag:" + me.tag);}
@@ -68,13 +68,13 @@ public static class ${clazz} implements KryoSerializable {
     }
     
 
-#for(f<-fields; if (f._2.constant && !f._2.constantNull && !f._2.isInstanceOf[CGPrimitive]))
-  public static synchronized ${f._2.clazz} INITIAL_${f._2.name}() {
-    ${f._2.clazz} objs = null;
+#for(f<-fields; if (f.constant && !f.constantNull && !f.isInstanceOf[CGPrimitive]))
+  public static synchronized ${f.clazz} INITIAL_${f.name}() {
+    ${f.clazz} objs = null;
 #if(f.isInstanceOf[CGMap])
-    byte[] content = ${f._2.asInstanceOf[CGMap].bytes};
+    byte[] content = ${f.asInstanceOf[CGMap].bytes};
 #elseif(f.isInstanceOf[CGList])
-    byte[] content = ${f._2.asInstanceOf[CGList].bytes};
+    byte[] content = ${f.asInstanceOf[CGList].bytes};
 #else
     #{throw new RuntimeException("Only should be Map/List")}#
 #end
@@ -90,7 +90,7 @@ public static class ${clazz} implements KryoSerializable {
       input.close();
       Object obj = oi.getWritableConstantValue();
       
-      objs = ${f._2.getValue("oi", "obj")};
+      ${f.getValue("objs", "oi", "obj")};
     }
 
     return objs;

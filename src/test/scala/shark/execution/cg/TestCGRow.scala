@@ -19,6 +19,13 @@ import org.apache.hadoop.io.IntWritable
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils
 import java.util.ArrayList
+import shark.execution.cg.row.CGRowUtil
+import org.apache.commons.io.FileUtils
+import java.io.File
+import shark.execution.cg.row.CGField
+import shark.execution.cg.row.CGOI
+import shark.execution.cg.row.CGOIField
+import shark.execution.cg.row.CGOIStruct
 
 class TestCGRow extends FunSuite with BeforeAndAfterEach {
   import collection.JavaConversions._
@@ -112,22 +119,26 @@ class TestCGRow extends FunSuite with BeforeAndAfterEach {
 
   @Before
   override def beforeEach() {
-    cachedLazyStruct.init(ref, 0, ref.getData().length)
-    cachedLazyStruct1.init(ref1, 0, ref1.getData().length)
-    cachedLazyStruct2.init(ref2, 0, ref2.getData().length)
-    
-    cgcachedLazyStruct.init(cgref, 0, cgref.getData().length)
-    cgcachedLazyStruct1.init(cgref1, 0, cgref1.getData().length)
-    cgcachedLazyStruct2.init(cgref2, 0, cgref2.getData().length)    
+//    cachedLazyStruct.init(ref, 0, ref.getData().length)
+//    cachedLazyStruct1.init(ref1, 0, ref1.getData().length)
+//    cachedLazyStruct2.init(ref2, 0, ref2.getData().length)
+//    
+//    cgcachedLazyStruct.init(cgref, 0, cgref.getData().length)
+//    cgcachedLazyStruct1.init(cgref1, 0, cgref1.getData().length)
+//    cgcachedLazyStruct2.init(cgref2, 0, cgref2.getData().length)    
+    CGRowUtil.s = 0;
+    CGRowUtil.u = 0;
   }
   
   @Test
   def testRowComplicated() {
-    println(CGRow.generate(oi.asInstanceOf[StructObjectInspector]))
+    var struct = CGField.create(oi.asInstanceOf[StructObjectInspector]).asInstanceOf[CGStruct]
+    
+    FileUtils.writeStringToFile(new File("/home/hcheng/git/sotc_cloud-shark/src/test/java/shark/execution/cg/row/SStruct2.java"), CGRow.generate(struct, true));
+    FileUtils.writeStringToFile(new File("/home/hcheng/git/sotc_cloud-shark/src/test/java/shark/execution/cg/row/SStruct2StructObjectInspector.java"), CGOI.generateOI(CGOIField.create(struct).asInstanceOf[CGOIStruct], true));
   }
   
-  @Test
-  def testRowConstant() {
+  def generateStruct() = {
     var v = new HashMap[Text, java.util.List[IntWritable]]()
     var l1 = new ArrayList[IntWritable]()
     l1.add(new IntWritable(1))
@@ -146,7 +157,7 @@ class TestCGRow extends FunSuite with BeforeAndAfterEach {
     l3.add(2l)
     l3.add(3l)
     
-    var struct = ObjectInspectorFactory.getStandardStructObjectInspector(
+    ObjectInspectorFactory.getStandardStructObjectInspector(
         Array("test_long", "test_string", "test_union", "test_map", "test_list", "test_date", "test_timestamp").toList,
         Array(
             TypeInfoUtils.getStandardWritableObjectInspectorFromTypeInfo(TypeInfoFactory.longTypeInfo), 
@@ -165,7 +176,12 @@ class TestCGRow extends FunSuite with BeforeAndAfterEach {
             TypeInfoUtils.getStandardWritableObjectInspectorFromTypeInfo(TypeInfoFactory.timestampTypeInfo)
             ).toList
         )
-    
-    println(CGRow.generate(struct))
+  }
+  @Test
+  def testRowConstant() {
+    var struct = CGField.create(generateStruct()).asInstanceOf[CGStruct]
+ 
+    FileUtils.writeStringToFile(new File("/home/hcheng/git/sotc_cloud-shark/src/test/java/shark/execution/cg/row/SStruct1.java"), CGRow.generate(struct, true));
+    FileUtils.writeStringToFile(new File("/home/hcheng/git/sotc_cloud-shark/src/test/java/shark/execution/cg/row/SStruct1StructObjectInspector.java"), CGOI.generateOI(CGOIField.create(struct).asInstanceOf[CGOIStruct], true));
   }
 }

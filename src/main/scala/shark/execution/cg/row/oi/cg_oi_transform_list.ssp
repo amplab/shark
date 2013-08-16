@@ -1,13 +1,13 @@
 <% escapeMarkup = false %>
-#import(shark.execution.cg.row.CGList)
-<%@ import val obj: CGList %>
+#import(shark.execution.cg.row.CGOIList)
+<%@ import val obj: CGOIList %>
 <%@ var methodName: String %>
 #{
    var tuple = field.java2Writable("entry", null)
 }#
-public java.util.ArrayList<${field.writableClass()}> ${methodName}(java.util.ArrayList<${field.clazz}> list) {
+public java.util.ArrayList<${field.writableClass()}> ${methodName}(java.util.ArrayList<${field.delegate.clazz}> list) {
   java.util.ArrayList<${field.writableClass()}> result = new java.util.ArrayList<${field.writableClass()}>(list.size());
-  for(${field.clazz} entry : list) {
+  for(${field.delegate.clazz} entry : list) {
     result.add(${tuple._1});
   }
 

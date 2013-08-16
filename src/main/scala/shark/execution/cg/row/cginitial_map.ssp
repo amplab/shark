@@ -11,7 +11,7 @@ public static synchronized java.util.HashMap<${key.clazz}, ${value.clazz}> INITI
     input.close();
 
     java.util.Map<?, ?> map = oi.getWritableConstantValue();
-    if (map != null) objs = ${getValue("oi", "map")}
+    if (map != null) ${getValue("objs", "oi", "map")}
   }
 
   return objs;

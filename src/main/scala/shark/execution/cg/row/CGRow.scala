@@ -81,18 +81,12 @@ object CGRowUtil {
       case _ => throw new CGAssertRuntimeException("couldn't find the primitive category")
     }
   }
-  
-  def extractHashMapClass(key: CGField[_], value: CGField[_]) = "java.util.HashMap<%s,%s>".format(key.clazz, value.clazz)
-  
-  def extractListClass(value: CGField[_]) = "java.util.ArrayList<%s>".format(value.clazz)
     
   var u: Int = 0
   def extractUnionClass() = if(u==0) {u=1; "UUnion"} else {u+=1;"UUnion%d".format(u)} // randomClassName()
   
   var s: Int = 0
   def randomClassName() = if(s==0) {s=1; "SStruct"} else {s+=1;"SStruct%d".format(s)} // "GEN" + UUID.randomUUID().toString().replaceAll("\\-", "_")
-  
-  def unionName(name: String, tag: Int) = "%s_%d".format(name, tag)
   
   def serialize(o: Object): Array[Byte] = {
     var array = new ByteArrayOutputStream()
@@ -118,14 +112,16 @@ abstract class CGField[+T<:ObjectInspector](val oi: T,
     this(oi, name, clz, clz)
   }
   
-  var parent: CGField[_] = _
   def parentFullClass(): String = if (parent != null) parent.cgClassName() else null
-  def cgClassName(): String = throw new CGAssertRuntimeException("ONLY the CGStruct / CGUnion has the full class name")
+  
+  def cgClassName(): String = null
+  
+  var parent: CGField[_] = _
 
   //def the static classes / blocks / methods
   def defStaticBlocks(): String = null
 
-  def defField() = CGRow.layout(CGRow.CG_ROW_FIELD, Map("field" -> this))
+  def defField() = CGTE.layout(CGRow.CG_ROW_FIELD, Map("field" -> this))
   
   // field de-serialization in the KryoSerializable.read
   def defRead():String = readString(name)
@@ -138,25 +134,13 @@ abstract class CGField[+T<:ObjectInspector](val oi: T,
   def writeString(name: String): String
   
   // factory method to create instances of (struct / union)
-  def getValue(oi: String, data: String): String = "%s.BUILD_%s()".format(clazz, name)
-  
-  // used by CGStruct, which is just code snippet for loading the non-constant field value from ObjectInspector/data
-  def loadPiece(): String = null
+  def getValue(obj: String, oi: String, data: String): String = "%s = %s.BUILD_%s();".format(obj, clazz, name)
   
   // used by CGStruct / CGUnion, which initializing the constant field (Map/List only)
   def fieldValue() = "INITIAL_%s()".format(name)
   
   def isConstantNull(): Boolean = constantNull
   def markValidity(valid: Boolean) = "mask.set(%s, %s)".format(maskName, valid)
-  
-  
-  // the following methods are used for ObjectInspector generation
-  def oiClassName(): String = throw new CGAssertRuntimeException("")
-  def createOI(): String
-  def writableClass(): String
-  def java2Writable(javaVarName: String, writableVarName: String): (String, ()=>String) // (code snippet for the conversion, code block (functions) for extra)
-  def defStructField(): (String, String, String) // (field name, class name, struct field class definition)
-  def oiClass(): String
 }
 
 class CGPrimitive(oi: PrimitiveObjectInspector, name: String) 
@@ -195,95 +179,24 @@ class CGPrimitive(oi: PrimitiveObjectInspector, name: String)
     }
   }
   
-  override def getValue(oi: String, data: String): String = 
-    CGRow.layout(
+  override def getValue(obj: String, oi: String, data: String): String = 
+    CGTE.layout(
         CGRow.CG_ROW_OI_2_PRIMITIVE, 
         Map("obj"->this, 
+            "result" -> obj,
             "varoi"->oi, 
             "varname"->data))
-            
-  override def loadPiece(): String = CGRow.layout(CGRow.CG_ROW_LOAD_PIECE_PRIMITIVE, Map("obj"->this))
-
-  // the following methods are used for ObjectInspector generation
-  override def createOI(): String = oi.getPrimitiveCategory() match {
-    case PrimitiveCategory.BINARY    => "TypeInfoUtils.getStandardWritableObjectInspectorFromTypeInfo(TypeInfoFactory.binaryTypeInfo)"
-    case PrimitiveCategory.BOOLEAN   => "TypeInfoUtils.getStandardWritableObjectInspectorFromTypeInfo(TypeInfoFactory.booleanTypeInfo)"
-    case PrimitiveCategory.BYTE      => "TypeInfoUtils.getStandardWritableObjectInspectorFromTypeInfo(TypeInfoFactory.byteTypeInfo)"
-    case PrimitiveCategory.DATE      => "TypeInfoUtils.getStandardWritableObjectInspectorFromTypeInfo(TypeInfoFactory.dateTypeInfo)"
-    case PrimitiveCategory.DOUBLE    => "TypeInfoUtils.getStandardWritableObjectInspectorFromTypeInfo(TypeInfoFactory.doubleTypeInfo)"
-    case PrimitiveCategory.FLOAT     => "TypeInfoUtils.getStandardWritableObjectInspectorFromTypeInfo(TypeInfoFactory.floatTypeInfo)"
-    case PrimitiveCategory.INT       => "TypeInfoUtils.getStandardWritableObjectInspectorFromTypeInfo(TypeInfoFactory.intTypeInfo)"
-    case PrimitiveCategory.LONG      => "TypeInfoUtils.getStandardWritableObjectInspectorFromTypeInfo(TypeInfoFactory.longTypeInfo)"
-    case PrimitiveCategory.SHORT     => "TypeInfoUtils.getStandardWritableObjectInspectorFromTypeInfo(TypeInfoFactory.shortTypeInfo)"
-    case PrimitiveCategory.STRING    => "TypeInfoUtils.getStandardWritableObjectInspectorFromTypeInfo(TypeInfoFactory.stringTypeInfo)"
-    case PrimitiveCategory.TIMESTAMP => "TypeInfoUtils.getStandardWritableObjectInspectorFromTypeInfo(TypeInfoFactory.timestampTypeInfo)"
-    case _                           => throw new CGAssertRuntimeException("couldn't find the primitive category")
-  }
-  override def writableClass(): String = oi.getPrimitiveCategory() match {
-    case PrimitiveCategory.BINARY    => "org.apache.hadoop.io.BytesWritable"
-    case PrimitiveCategory.BOOLEAN   => "org.apache.hadoop.io.BooleanWritable"
-    case PrimitiveCategory.BYTE      => "org.apache.hadoop.hive.serde2.io.ByteWritable"
-    case PrimitiveCategory.DATE      => "org.apache.hadoop.hive.serde2.io.DateWritable"
-    case PrimitiveCategory.DOUBLE    => "org.apache.hadoop.hive.serde2.io.DoubleWritable"
-    case PrimitiveCategory.FLOAT     => "org.apache.hadoop.io.FloatWritable"
-    case PrimitiveCategory.INT       => "org.apache.hadoop.io.IntWritable"
-    case PrimitiveCategory.LONG      => "org.apache.hadoop.io.LongWritable"
-    case PrimitiveCategory.SHORT     => "org.apache.hadoop.hive.serde2.io.ShortWritable"
-    case PrimitiveCategory.STRING    => "org.apache.hadoop.io.Text"
-    case PrimitiveCategory.TIMESTAMP => "org.apache.hadoop.hive.serde2.io.TimestampWritable"
-    case _                           => throw new CGAssertRuntimeException("couldn't find the primitive category")
-  }
-  
-  override def java2Writable(javaVarName: String, writableVarName: String) = 
-    if (writableVarName == null)
-      oi.getPrimitiveCategory() match {
-        case PrimitiveCategory.BINARY    => ("new org.apache.hadoop.io.BytesWritable(%s)".format(javaVarName), () => null)
-        case PrimitiveCategory.BOOLEAN   => ("new org.apache.hadoop.io.BooleanWritable(%s)".format(javaVarName), () => null)
-        case PrimitiveCategory.BYTE      => ("new org.apache.hadoop.hive.serde2.io.ByteWritable(%s)".format(javaVarName), () => null)
-        case PrimitiveCategory.DATE      => ("new org.apache.hadoop.hive.serde2.io.DateWritable(%s)".format(javaVarName), () => null)
-        case PrimitiveCategory.DOUBLE    => ("new org.apache.hadoop.hive.serde2.io.DoubleWritable(%s)".format(javaVarName), () => null)
-        case PrimitiveCategory.FLOAT     => ("new org.apache.hadoop.io.FloatWritable(%s)".format(javaVarName), () => null)
-        case PrimitiveCategory.INT       => ("new org.apache.hadoop.io.IntWritable(%s)".format(javaVarName), () => null)
-        case PrimitiveCategory.LONG      => ("new org.apache.hadoop.io.LongWritable(%s)".format(javaVarName), () => null)
-        case PrimitiveCategory.SHORT     => ("new org.apache.hadoop.hive.serde2.io.ShortWritable(%s)".format(javaVarName), () => null)
-        case PrimitiveCategory.STRING    => ("new org.apache.hadoop.io.Text(%s)".format(javaVarName), () => null)
-        case PrimitiveCategory.TIMESTAMP => ("new org.apache.hadoop.hive.serde2.io.TimestampWritable(%s)".format(javaVarName), () => null)
-        case _                           => throw new CGAssertRuntimeException("couldn't find the primitive category")
-      }
-    else
-      oi.getPrimitiveCategory() match {
-        case PrimitiveCategory.BINARY    => ("%s.set(%s, 0, %s.length);".format(writableVarName, javaVarName, javaVarName), () => null)
-        case PrimitiveCategory.BOOLEAN   => ("%s.set(%s);".format(writableVarName, javaVarName), ()=>null)
-        case PrimitiveCategory.BYTE      => ("%s.set(%s);".format(writableVarName, javaVarName), ()=>null)
-        case PrimitiveCategory.DATE      => ("%s.set(%s);".format(writableVarName, javaVarName), ()=>null)
-        case PrimitiveCategory.DOUBLE    => ("%s.set(%s);".format(writableVarName, javaVarName), ()=>null)
-        case PrimitiveCategory.FLOAT     => ("%s.set(%s);".format(writableVarName, javaVarName), ()=>null)
-        case PrimitiveCategory.INT       => ("%s.set(%s);".format(writableVarName, javaVarName), ()=>null)
-        case PrimitiveCategory.LONG      => ("%s.set(%s);".format(writableVarName, javaVarName), ()=>null)
-        case PrimitiveCategory.SHORT     => ("%s.set(%s);".format(writableVarName, javaVarName), ()=>null)
-        case PrimitiveCategory.STRING    => ("%s.set(%s);".format(writableVarName, javaVarName), ()=>null)
-        case PrimitiveCategory.TIMESTAMP => ("%s.set(%s);".format(writableVarName, javaVarName), ()=>null)
-        case _                           => throw new CGAssertRuntimeException("couldn't find the primitive category")
-      }
-      
-  
-  override def defStructField(): (String, String, String) = {
-    var classname = "CGStructField%s".format(name)
-    (name, classname, CGRow.layout(CGRow.CG_SF_PRIMITIVE, Map("obj"->this, "classname"->classname)))
-  }
-  
-  override def oiClass(): String = null
 }
 
 class CGMap(oi: MapObjectInspector, name: String, val key: CGField[_<:ObjectInspector], val value: CGField[_<:ObjectInspector]) 
-  extends CGField[MapObjectInspector](oi, name, CGRowUtil.extractHashMapClass(key, value)) {
+  extends CGField[MapObjectInspector](oi, name, "java.util.HashMap<%s,%s>".format(key.clazz, value.clazz)) {
   lazy val bytes: String = 
     if (constant) 
       CGRowUtil.serialize(oi.asInstanceOf[ConstantObjectInspector].getWritableConstantValue()) 
     else 
       null
   
-  override def defStaticBlocks(): String = CGRow.generate(this)
+  override def defStaticBlocks(): String = CGTE.layout(CGRow.CG_ROW_OI_2_MAP, Map("obj" -> this))
   
   override def readString(name: String): String = {
     "%s = kryo.readObject(input, java.util.HashMap.class);".format(name)
@@ -293,42 +206,18 @@ class CGMap(oi: MapObjectInspector, name: String, val key: CGField[_<:ObjectInsp
     "kryo.writeObjectOrNull(output, %s, java.util.HashMap.class);".format(name)
   }
 
-  override def getValue(oi: String, data: String): String = "BUILD_%s(%s, %s)".format(name, oi, data)
-
-  override def loadPiece(): String = CGRow.layout(CGRow.CG_ROW_LOAD_PIECE_MAP, Map("obj"->this))
-  
-  // the following methods are used for ObjectInspector generation
-  override def createOI(): String = "ObjectInspectorFactory.getStandardMapObjectInspector(%s,%s)".format(key.createOI(), value.createOI())
-  override def writableClass(): String = "java.util.HashMap<%s, %s>".format(key.writableClass(), value.writableClass())
-    
-  override def java2Writable(javaVarName: String, writableVarName: String) = {
-    var methodName = "%s_%s_transform".format(name, javaVarName)
-    (if (writableVarName!= null) 
-      "%s=%s(%s);".format(writableVarName, methodName, javaVarName)
-     else
-      "%s(%s)".format(methodName, javaVarName), ()=>{
-      CGRow.layout(CGRow.CG_OI_TRANSFORM_MAP, 
-        Map("obj" -> this, "methodName" -> methodName))
-    })
-  }
-  
-  override def defStructField(): (String, String, String) = {
-    var classname = "CGStructField%s".format(name)
-    (name, classname, CGRow.layout(CGRow.CG_SF_MAP, Map("obj"->this, "classname"->classname)))
-  }
-  
-  override def oiClass(): String = null
+  override def getValue(obj: String, oi: String, data: String): String = "%s = BUILD_%s(%s, %s);".format(obj, name, oi, data)
 }
 
 class CGList(oi: ListObjectInspector, name: String, val field: CGField[_<:ObjectInspector]) 
-  extends CGField(oi, name, CGRowUtil.extractListClass(field)) {
+  extends CGField(oi, name, "java.util.ArrayList<%s>".format(field.clazz)) {
   lazy val bytes: String = 
     if (constant) 
       CGRowUtil.serialize(oi.asInstanceOf[ConstantObjectInspector].getWritableConstantValue()) 
     else 
       null
   
-  override def defStaticBlocks(): String = CGRow.generate(this)
+  override def defStaticBlocks(): String = CGTE.layout(CGRow.CG_ROW_OI_2_LIST, Map("obj" -> this))
 
   override def readString(name: String): String = {
     if (field.isInstanceOf[CGStruct]) {
@@ -346,34 +235,7 @@ class CGList(oi: ListObjectInspector, name: String, val field: CGField[_<:Object
     }
   }
 
-  override def getValue(oi: String, data: String): String = "BUILD_%s(%s, %s)".format(name, oi, data)
-
-  override def loadPiece(): String = CGRow.layout(CGRow.CG_ROW_LOAD_PIECE_LIST, Map("obj"->this))
-  // the following methods are used for ObjectInspector generation
-  override def createOI(): String = "ObjectInspectorFactory.getStandardListObjectInspector(%s)".format(field.createOI())
-  
-  override def writableClass(): String = "java.util.ArrayList<%s>".format(field.writableClass())
-      
-  override def java2Writable(javaVarName: String, writableVarName: String) = {
-    var methodName = if(javaVarName == null) 
-                        "%s_transform".format(name)
-                     else
-                        "%s_%s_transform".format(name, javaVarName)
-    (if (writableVarName!=null)
-      "%s = %s(%s);".format(writableVarName, methodName, javaVarName)
-     else
-      "%s(%s)".format(methodName, javaVarName), ()=>{
-      CGRow.layout(CGRow.CG_OI_TRANSFORM_LIST, 
-        Map("obj" -> this, "methodName" -> methodName))
-    })
-  }
-  
-  override def defStructField(): (String, String, String) = {
-    var classname = "CGStructField%s".format(name)
-    (name, classname, CGRow.layout(CGRow.CG_SF_LIST, Map("obj"->this, "classname"->classname)))
-  }
-  
-  override def oiClass(): String = null
+  override def getValue(obj: String, oi: String, data: String): String = "%s = BUILD_%s(%s, %s);".format(obj, name, oi, data)
 }
 
 class CGStruct(oi: StructObjectInspector, name: String, val fields: Array[CGField[_]]) 
@@ -391,24 +253,7 @@ class CGStruct(oi: StructObjectInspector, name: String, val fields: Array[CGFiel
   }
   override def defStaticBlocks(): String = CGRow.generate(this)
   
-  override def getValue(oi: String, data: String): String = "%s.BUILD(%s, %s)".format(clazz, oi, data)
-  override def loadPiece(): String = CGRow.layout(CGRow.CG_ROW_LOAD_PIECE_STRUCT, Map("obj"->this))
-  
-  // the following methods are used for ObjectInspector generation
-  override def oiClassName(): String = "%sStructObjectInspector".format(clazz)
-  override def createOI(): String = "new %s()".format(oiClassName())
-  override def writableClass(): String = cgClassName()
-  override def java2Writable(javaVarName: String, writableVarName: String) = 
-    (if(writableVarName!=null)
-      "%s=%s;".format(writableVarName, javaVarName)
-     else
-       javaVarName, ()=>null)
-  override def defStructField(): (String, String, String) = {
-    var classname = "CGStructField%s".format(name)
-    (name, classname, CGRow.layout(CGRow.CG_SF_STRUCT, Map("obj"->this, "classname"->classname)))
-  }
-  
-  override def oiClass(): String = {CGRow.layout(CGRow.CG_OI_STRUCT, Map("struct"->this))}
+  override def getValue(obj:String, oi: String, data: String): String = "%s = %s.BUILD(%s, %s);".format(obj, clazz, oi, data)
   
   override def cgClassName(): String = {
     var parentClass = parentFullClass()
@@ -420,12 +265,10 @@ class CGStruct(oi: StructObjectInspector, name: String, val fields: Array[CGFiel
   }
 }
 
-class CGUnion(oi:UnionObjectInspector, name: String, val fields: Array[(Int, CGField[_])])
+class CGUnion(oi:UnionObjectInspector, name: String, val fields: Array[CGField[_]])
   extends CGField(oi, name, CGRowUtil.extractUnionClass()) {
   
-  { fields.foreach(f=>f._2.parent=this) }
-  
-  def unionName(tag: Int) = CGRowUtil.unionName(name, tag)
+  { fields.foreach(_.parent=this) }
   
   override def readString(name: String): String = {
     "%s = kryo.readObject(input, %s.class);".format(name, clazz)
@@ -435,26 +278,9 @@ class CGUnion(oi:UnionObjectInspector, name: String, val fields: Array[(Int, CGF
     "kryo.writeObjectOrNull(output, %s, %s.class);".format(name, clazz)
   }
   
-  override def defStaticBlocks(): String = CGRow.generate(this)
+  override def defStaticBlocks(): String = CGTE.layout(CGRow.CG_ROW_CLASS_UNION, Map("obj" -> this))
   
-  override def getValue(oi: String, data: String): String = "%s.BUILD(%s, %s)".format(clazz, oi, data)
-
-  override def loadPiece(): String = CGRow.layout(CGRow.CG_ROW_LOAD_PIECE_UNION, Map("obj"->this))
-  
-  // the following methods are used for ObjectInspector generation
-  override def oiClassName(): String = "%sUnionObjectInspector".format(clazz)
-  override def createOI(): String = "new %s()".format(oiClassName())
-  override def writableClass(): String = cgClassName()
-  override def java2Writable(javaVarName: String, writableVarName: String) = 
-    (if(writableVarName!=null)
-      "%s=%s;".format(writableVarName, javaVarName)
-     else
-       javaVarName, ()=>null)
-  override def defStructField(): (String, String, String) = {
-    var classname = "CGStructField%s".format(name)
-    (name, classname, CGRow.layout(CGRow.CG_SF_UNION, Map("obj"->this, "classname"->classname)))
-  }  
-  override def oiClass(): String = {CGRow.layout(CGRow.CG_OI_UNION, Map("obj"->this))}
+  override def getValue(obj: String, oi: String, data: String): String = "%s = %s.BUILD(%s, %s);".format(obj, clazz, oi, data)
   
   override def cgClassName(): String = {
     var parentClass = parentFullClass()
@@ -466,80 +292,20 @@ class CGUnion(oi:UnionObjectInspector, name: String, val fields: Array[(Int, CGF
   }
 }
 
-object CGRow {
-  val CG_ROW_CLASS_STRUCT = "shark/execution/cg/row/cg_class_struct.ssp"
-  val CG_ROW_CLASS_UNION  = "shark/execution/cg/row/cg_class_union.ssp"
-  val CG_ROW_OI_2_LIST = "shark/execution/cg/row/cg_oi_2_list.ssp"
-  val CG_ROW_OI_2_MAP  = "shark/execution/cg/row/cg_oi_2_map.ssp"
-  val CG_ROW_OI_2_PRIMITIVE = "shark/execution/cg/row/cg_oi_2_primitive.ssp"
-  val CG_ROW_FIELD = "shark/execution/cg/row/cgfield.ssp"
-  val CG_ROW_INITIAL_LIST = "shark/execution/cg/row/cginitial_list.ssp"
-  val CG_ROW_INITIAL_MAP = "shark/execution/cg/row/cginitial_map.ssp"
-  val CG_ROW_LOAD_PIECE_LIST = "shark/execution/cg/row/cgload_piece_list.ssp"
-  val CG_ROW_LOAD_PIECE_MAP = "shark/execution/cg/row/cgload_piece_map.ssp"
-  val CG_ROW_LOAD_PIECE_PRIMITIVE = "shark/execution/cg/row/cgload_piece_primitive.ssp"
-  val CG_ROW_LOAD_PIECE_STRUCT = "shark/execution/cg/row/cgload_piece_struct.ssp"
-  val CG_ROW_LOAD_PIECE_UNION = "shark/execution/cg/row/cgload_piece_union.ssp"
-    
-  val CG_OI_TRANSFORM_MAP = "shark/execution/cg/row/oi/cg_oi_transform_map.ssp"  
-  val CG_OI_TRANSFORM_LIST= "shark/execution/cg/row/oi/cg_oi_transform_list.ssp"
-  val CG_OI_STRUCT = "shark/execution/cg/row/oi/cg_oi_struct.ssp"  
-  val CG_OI_UNION = "shark/execution/cg/row/oi/cg_oi_union.ssp"
-  val CG_SF_LIST = "shark/execution/cg/row/oi/cg_sf_list.ssp"
-  val CG_SF_MAP = "shark/execution/cg/row/oi/cg_sf_map.ssp"
-  val CG_SF_PRIMITIVE = "shark/execution/cg/row/oi/cg_sf_primitive.ssp"
-  val CG_SF_STRUCT = "shark/execution/cg/row/oi/cg_sf_struct.ssp"
-  val CG_SF_UNION = "shark/execution/cg/row/oi/cg_sf_union.ssp"
+object CGField {
+  def unionName(name: String, tag: Int) = "%s_%d".format(name, tag)
   
-  val engine = new TemplateEngine
-  engine.allowReload  = false
-  engine.allowCaching = true
-
-  def layout(ssp: String, map: Map[String, Any]) = {
-    engine.layout(ssp, map)
-  }
-  
-  def generate(struct: CGStruct, isOutter: Boolean = false, packageName: String = null): String = {
-    CGRow.layout(CGRow.CG_ROW_CLASS_STRUCT, Map("isOutter"->isOutter, "struct" -> struct))
-  }
-  
-  def generate(union: CGUnion): String = {
-    CGRow.layout(CGRow.CG_ROW_CLASS_UNION, Map("obj" -> union))
-  }
-  
-  def generate(list: CGList): String = {
-    CGRow.layout(CGRow.CG_ROW_OI_2_LIST, Map("obj" -> list))
-  }
-  
-  def generate(map: CGMap): String = {
-    CGRow.layout(CGRow.CG_ROW_OI_2_MAP, Map("obj" -> map))
-  }
-  
-  def generate(oi: StructObjectInspector): String = {
-    var struct = create(oi, "AA").asInstanceOf[CGStruct]
-    struct.packageName = "shark.execution.cg.row"
-    
-    generate(struct, true, "shark.execution.cg.row")
-  }
-  
-  def generateOI(oi: StructObjectInspector): String = {
-    var struct = create(oi, "AA").asInstanceOf[CGStruct]
-    struct.packageName = "shark.execution.cg.row"
-    
-    generateOI(struct, true, "shark.execution.cg.row")
-  }
-  def generateOI(struct: CGStruct, isOutter: Boolean = false, packageName: String = null): String = {
-    CGRow.layout(CGRow.CG_OI_STRUCT, Map("isOutter" -> isOutter, "struct"->struct))
-  }
-    
   def create(oi: ObjectInspector, name: String): CGField[_<:ObjectInspector] = {
     import collection.JavaConversions._
     oi match {
       case a: StructObjectInspector=> 
         new CGStruct(a,
-            name,
-            a.getAllStructFieldRefs().map(f => {create(f.getFieldObjectInspector(), f.getFieldName())}).toArray
-            )
+          name,
+          Array.tabulate[CGField[_]](a.getAllStructFieldRefs().size()) { i =>
+            var foi = a.getAllStructFieldRefs()(i)
+            create(foi.getFieldObjectInspector(), foi.getFieldName())
+          }
+        )
       case a: ListObjectInspector=>
         new CGList(a,
             name,
@@ -553,9 +319,36 @@ object CGRow {
               )
       case a: PrimitiveObjectInspector=> new CGPrimitive(a, name)
       case a: UnionObjectInspector=>
-        new CGUnion(a,name,
-            a.getObjectInspectors().zipWithIndex.map(f=>(f._2, create(f._1, CGRowUtil.unionName(name, f._2)))).toArray 
-            )
+        new CGUnion(a, name,
+          Array.tabulate[CGField[_]](a.getObjectInspectors().size()) { i =>
+            create(a.getObjectInspectors()(i), unionName(name, i))
+          }
+        )
     }
+  }
+}
+
+object CGTE {
+  val engine = new TemplateEngine
+  engine.allowReload = false
+  engine.allowCaching = true
+
+  def layout(ssp: String, map: Map[String, Any]) = {
+    engine.layout(ssp, map)
+  }
+}
+
+object CGRow {
+  val CG_ROW_CLASS_STRUCT = "shark/execution/cg/row/cg_class_struct.ssp"
+  val CG_ROW_CLASS_UNION  = "shark/execution/cg/row/cg_class_union.ssp"
+  val CG_ROW_OI_2_LIST = "shark/execution/cg/row/cg_oi_2_list.ssp"
+  val CG_ROW_OI_2_MAP  = "shark/execution/cg/row/cg_oi_2_map.ssp"
+  val CG_ROW_OI_2_PRIMITIVE = "shark/execution/cg/row/cg_oi_2_primitive.ssp"
+  val CG_ROW_FIELD = "shark/execution/cg/row/cgfield.ssp"
+  val CG_ROW_INITIAL_LIST = "shark/execution/cg/row/cginitial_list.ssp"
+  val CG_ROW_INITIAL_MAP = "shark/execution/cg/row/cginitial_map.ssp"
+  
+  def generate(struct: CGStruct, isOutter: Boolean = false): String = {
+    CGTE.layout(CGRow.CG_ROW_CLASS_STRUCT, Map("isOutter"->isOutter, "struct" -> struct))
   }
 }

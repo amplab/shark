@@ -325,7 +325,7 @@ class TestExprNodeCodeGen extends FunSuite with BeforeAndAfterEach {
     assert(eval.evaluate(cachedLazyStruct1)== cgeval.evaluate(cgcachedLazyStruct1))
     assert(eval.evaluate(cachedLazyStruct2)== cgeval.evaluate(cgcachedLazyStruct2))
   }
-
+  
   test("logical expression & udf") {
     var id = new ExprNodeColumnDesc(TypeInfoFactory.longTypeInfo, "id", "a", false)
     var name = new ExprNodeColumnDesc(TypeInfoFactory.stringTypeInfo, "name", "a", false)
@@ -1111,7 +1111,26 @@ class TestExprNodeCodeGen extends FunSuite with BeforeAndAfterEach {
       cgeval.initialize(oi)
     }
   }
+  
+//  test("date comparison") {
+  @Test
+  def test2() {
+    var jointime = new ExprNodeColumnDesc(TypeInfoFactory.timestampTypeInfo, "jointime", "a", false)
+
+    var desc = TypeCheckProcFactory.DefaultExprProcessor.getFuncExprNodeDesc(">",
+      jointime, new ExprNodeConstantDesc("2010-08-24"))
     
+    var eval = ExprNodeEvaluatorFactory.get(desc)
+    var cgeval = CGEvaluatorFactory.getEvaluator(desc)
+    
+    eval.initialize(oi)
+    cgeval.initialize(oi)
+    
+    assert(eval.evaluate(cachedLazyStruct)== cgeval.evaluate(cgcachedLazyStruct))
+    assert(eval.evaluate(cachedLazyStruct1)== cgeval.evaluate(cgcachedLazyStruct1))
+    assert(eval.evaluate(cachedLazyStruct2)== cgeval.evaluate(cgcachedLazyStruct2))
+  }
+  
   test("common sub expression 1") {
     //concat(year(date_add(jointime,7),'/',month(date_add(jointime,7),'/',day(date_add(jointime,7)))
     var jointime = new ExprNodeColumnDesc(TypeInfoFactory.timestampTypeInfo, "jointime", "a", false)

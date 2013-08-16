@@ -1,16 +1,16 @@
 <% escapeMarkup = false %>
 
-#import(shark.execution.cg.row.CGRow)
-#import(shark.execution.cg.row.CGField)
-#import(shark.execution.cg.row.CGStruct)
-#import(shark.execution.cg.row.CGUnion)
-#import(shark.execution.cg.row.CGPrimitive)
+#import(shark.execution.cg.row.CGOI)
+#import(shark.execution.cg.row.CGOIField)
+#import(shark.execution.cg.row.CGOIStruct)
+#import(shark.execution.cg.row.CGOIUnion)
+#import(shark.execution.cg.row.CGOIPrimitive)
 
 <%@ import val isOutter: Boolean = false %>
-<%@ import val struct: CGStruct %>
+<%@ import val struct: CGOIStruct %>
 
 #if (true==isOutter)
-package ${packageName};
+package ${delegate.packageName};
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -62,9 +62,7 @@ var sfs = fields.map(f=>f.defStructField())
   }
 
 #for(f<- fields)
-#if(f.isInstanceOf[CGStruct] || f.isInstanceOf[CGUnion])
    ${f.oiClass()}
-#end
 #end
   
   protected ArrayList<Object> writables = initial_writables();

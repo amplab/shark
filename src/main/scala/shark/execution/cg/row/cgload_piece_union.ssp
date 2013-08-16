@@ -1,4 +1,0 @@
-<% escapeMarkup = false %>
-#import(shark.execution.cg.row.CGUnion)
-<%@ import val obj: CGUnion %>
-me.${name} = ${getValue("sf.getFieldObjectInspector()", "obj")};

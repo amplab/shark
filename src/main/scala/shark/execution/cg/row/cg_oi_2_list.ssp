@@ -9,7 +9,9 @@ public static java.util.ArrayList<${field.clazz}> BUILD_${name}(org.apache.hadoo
 	  result = new java.util.ArrayList<${field.clazz}>(list.size());
 	  org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector tmpoi = ((org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector)oi).getListElementObjectInspector();
 	  for(Object l : list) {
-	    result.add(${field.getValue("tmpoi", "l")});
+	    ${field.clazz} tmp = null;
+	    ${field.getValue("tmp", "tmpoi", "l")}
+	    result.add(tmp);
 	  }
 	}
 	

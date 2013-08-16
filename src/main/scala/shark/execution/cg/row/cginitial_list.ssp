@@ -11,7 +11,7 @@ public static synchronized java.util.ArrayList<${field.clazz}> INITIAL_${field.n
     input.close();
 
     java.util.List<?> list = oi.getWritableConstantValue();
-    if (list != null) objs = ${field.getValue("oi", list)}
+    if (list != null) ${field.getValue("objs", "oi", list)}
   }
 
   return objs;
