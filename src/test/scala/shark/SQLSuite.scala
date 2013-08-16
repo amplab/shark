@@ -264,7 +264,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.sql("drop table if exists adw")
     sc.sql("""create table adw TBLPROPERTIES ("shark.cache" = "true") as
       select cast(key as int) as k, val from test""")
-    sc.sql("select count(k) from adw where val='val_487' group by 1 having count(1) > 0")
+    expect("select count(k) from adw where val='val_487' group by 1 having count(1) > 0","1")
   }
   //////////////////////////////////////////////////////////////////////////////
   // SharkContext APIs (e.g. sql2rdd, sql)
