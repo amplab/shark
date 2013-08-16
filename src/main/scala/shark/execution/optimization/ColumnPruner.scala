@@ -1,23 +1,23 @@
 package shark.execution.optimization
 
 import java.util.BitSet
+import java.util.{List => JList}
 import scala.collection.JavaConversions.{asScalaBuffer, 
-  bufferAsJavaList, collectionAsScalaIterable} 
+  bufferAsJavaList, collectionAsScalaIterable}
 import scala.collection.mutable.{Set, HashSet}
-
 import org.apache.hadoop.hive.ql.exec.GroupByPreShuffleOperator
 import org.apache.hadoop.hive.ql.metadata.Table
 import org.apache.hadoop.hive.ql.plan.SelectDesc
-
 import shark.execution.{FilterOperator, JoinOperator, 
   MapJoinOperator, Operator, ReduceSinkOperator,
   SelectOperator, TopOperator}
-
 import shark.memstore2.{ColumnarStruct, TablePartitionIterator}
+import org.apache.hadoop.hive.ql.plan.{FilterDesc, MapJoinDesc, ReduceSinkDesc}
+
 
 class ColumnPruner(@transient op: TopOperator[_], @transient tbl: Table) extends Serializable {
 
-  private val _columnsUsed = {
+  val columnsUsed: BitSet = {
     val colsToKeep = computeColumnsToKeep()
     val allColumns = tbl.getAllCols().map(x => x.getName())
     var b = new BitSet()
@@ -25,10 +25,6 @@ class ColumnPruner(@transient op: TopOperator[_], @transient tbl: Table) extends
       b.set(i, true)
     }
     b
-  }
-
-  def getColumnsUsed(): BitSet = {
-    _columnsUsed
   }
 
   private def computeColumnsToKeep(): Set[String] = {
@@ -42,43 +38,58 @@ class ColumnPruner(@transient op: TopOperator[_], @transient tbl: Table) extends
    */
   private def computeColumnsToKeep(op: Operator[_],
     cols: HashSet[String], parentOp: Operator[_] = null): Unit = {
+    def nullGuard[T](s: JList[T]): Seq[T] = {
+      if (s == null) Seq[T]() else s
+    }
     op match {
       case selOp: SelectOperator => {
-        val cnf = selOp.getConf
+        val cnf:SelectDesc = selOp.getConf
         //Select Descriptor contains SelectConf, which holds the list of columns
         //referenced by the select op
         if (cnf != null) {
-          cols ++= (HashSet() ++ cnf.getColList).flatMap(_.getCols)
+          val evals = nullGuard(cnf.getColList)
+          cols ++= (HashSet() ++ evals).flatMap(x => nullGuard(x.getCols))
         }
       }
       case filterOp: FilterOperator => {
-        val cnf = filterOp.getConf
+        val cnf:FilterDesc = filterOp.getConf
         //FilterDesc has predicates, which are the columns involved in predicate operations
-        cols ++= (HashSet() ++ cnf.getPredicate.getCols)
+        if (cnf != null) {
+          cols ++= (HashSet() ++ nullGuard(cnf.getPredicate.getCols))
+        }
       }
       case joinOp: JoinOperator => {
-        val cnf = parentOp.asInstanceOf[ReduceSinkOperator].getConf
+        val cnf:ReduceSinkDesc = parentOp.asInstanceOf[ReduceSinkOperator].getConf
         //before a regular join operation, the reduce sink operator is always present.
         //the key and value columns need to be examined for the input to the join
-        cols ++= (HashSet() ++ cnf.getKeyCols ++ cnf.getValueCols).flatMap(_.getCols)
+        if (cnf != null) {
+          val keyEvals = nullGuard(cnf.getKeyCols)
+          val valEvals = nullGuard(cnf.getValueCols)
+          val evals = (HashSet() ++ keyEvals ++ valEvals)
+          cols ++= evals.flatMap(x => nullGuard(x.getCols))
+        }
       }
       case joinOp: MapJoinOperator => {
-        val cnf = joinOp.getConf
-        val evals = (HashSet() ++ cnf.getKeys.values ++ cnf.getExprs.values)
-        cols ++= evals.flatMap(x => x).flatMap(_.getCols)
+        val cnf:MapJoinDesc = joinOp.getConf
+        if (cnf != null) {
+          val keyEvals = cnf.getKeys.values
+          val valEvals = cnf.getExprs.values
+          val evals = (HashSet() ++ keyEvals ++ valEvals)
+          cols ++= evals.flatMap(x => x).flatMap(x => nullGuard(x.getCols))
+        }
       }
       case groupBy: GroupByPreShuffleOperator => {
-        val keys = groupBy.getConf.getKeys
-        cols ++= (HashSet() ++ keys).flatMap { k =>
-          val c = k.getCols
-          if (c == null) Seq() else c
+        val cnf = groupBy.getConf
+        if (cnf != null) {
+          val keys = nullGuard(groupBy.getConf.getKeys)
+          cols ++= (HashSet() ++ keys).flatMap(x => nullGuard(x.getCols))
         }
       }
       case _ =>
     }
     //recurse on the subtree
-    op.childOperators.foreach(y => {
+    op.childOperators.foreach { y =>
       computeColumnsToKeep(y, cols, op)
-    })
+    }
   }
 }
