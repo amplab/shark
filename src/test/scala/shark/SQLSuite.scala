@@ -77,7 +77,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.sql("drop table if exists users_cached")
     sc.sql("create table users_cached as select * from users")
     sc.sql("drop table if exists users_copart_cached")
-    sc.sql("""create table users_copart_cached TBLPROPERTIES("shark.partition.col"="_col0", 
+    sc.sql("""create table users_copart_cached TBLPROPERTIES("shark.partition.col"="id", 
            "shark.copartition.table"="clicks_copart_cached") as select * from users""")
   }
 

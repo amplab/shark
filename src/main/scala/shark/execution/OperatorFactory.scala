@@ -50,7 +50,7 @@ object OperatorFactory extends LogHelper {
       useTachyon: Boolean,
       useUnionRDD: Boolean,
       coPartitionTableName: String,
-      partitionCol: String): TerminalOperator = {
+      partColInternalName: Array[String]): TerminalOperator = {
     val sinkOp = _newOperatorInstance(
       classOf[MemoryStoreSinkOperator], hiveTerminalOp).asInstanceOf[MemoryStoreSinkOperator]
     sinkOp.tableName = tableName
@@ -59,7 +59,7 @@ object OperatorFactory extends LogHelper {
     sinkOp.useTachyon = useTachyon
     sinkOp.useUnionRDD = useUnionRDD
     sinkOp.coPartitionTableName = coPartitionTableName
-    sinkOp.partitionCol = partitionCol
+    sinkOp.partColInternalName = partColInternalName
     _createAndSetParents(sinkOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }
 

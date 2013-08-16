@@ -50,7 +50,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
   @transient var useUnionRDD: Boolean = _
   @transient var numColumns: Int = _
   @BeanProperty var coPartitionTableName: String = _
-  @BeanProperty var partitionCol: String = _
+  @BeanProperty var partColInternalName: Array[String] = _
 
   override def initializeOnMaster() {
     super.initializeOnMaster()
@@ -64,10 +64,10 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
   override def execute(): RDD[_] = {
     val inputRdd = if (parentOperators.size == 1) executeParents().head._2 else null
-
     val statsAcc = SharkEnv.sc.accumulableCollection(ArrayBuffer[(Int, TablePartitionStats)]())
     val op = OperatorSerializationWrapper(this)
-    val shouldPartition = partitionCol != ""
+    val shouldPartition = partColInternalName.size != 0
+    val partCols = partColInternalName
  
     def getCacheLocations(rdd: RDD[_]): Array[Seq[String]] = {
       val blockIds = rdd.partitions.indices.map(index=> "rdd_%d_%d".format(rdd.id, index)).toArray
@@ -96,7 +96,6 @@ class MemoryStoreSinkOperator extends TerminalOperator {
               (new CoPartitioner(partNum), null)
           }
         }
-        val partCols = partitionCol.split("\\,").map(_.trim())
         partCols.foreach(partitioner.addPartitionCol(_))
         val kvRdd = inputRdd.mapPartitions { rowIter => 
           op.initializeOnSlave()
@@ -114,7 +113,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
             (reduceKey, value)
           }
         }
-        logInfo("kvRdd generated for table with copartitionCol " + partitionCol + " " + partitioner)
+        logInfo("kvRdd generated for table with copartitionCol " + partColInternalName + " " + partitioner)
         new ShuffledWithLocationsRDD[Any, Any](kvRdd.asInstanceOf[RDD[(Any, Any)]], 
             partitioner, locations).mapPartitions(iter => {
               iter.map { case (k: ReduceKeyReduceSide, v: Array[Byte]) => v }
