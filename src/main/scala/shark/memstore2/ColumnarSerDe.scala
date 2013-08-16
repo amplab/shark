@@ -54,6 +54,12 @@ class ColumnarSerDe extends SerDe with LogHelper {
     // it initializes by passing a 'null' argument for 'conf'.
     if (conf != null) {
       numRows = SharkConfVars.getIntVar(conf, SharkConfVars.COLUMN_INITIALSIZE)
+      if (numRows == -1) {
+        val partitionSize = conf.getLong(DFSConfigKeys.DFS_BLOCK_SIZE_KEY, 
+          conf.getLong("dfs.block.size", DFSConfigKeys.DFS_BLOCK_SIZE_DEFAULT))
+        val rowSize = ColumnarSerDe.getFieldSize(objectInspector).toLong
+        numRows = (partitionSize / rowSize).toInt
+      }
       shouldCompress = SharkConfVars.getBoolVar(conf, SharkConfVars.COLUMNAR_COMPRESSION)
       logInfo("should compress " + shouldCompress)
       logInfo("num rows " + numRows)
