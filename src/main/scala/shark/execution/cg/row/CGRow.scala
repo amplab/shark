@@ -83,10 +83,10 @@ object CGRowUtil {
   }
     
   var u: Int = 0
-  def extractUnionClass() = if(u==0) {u=1; "UUnion"} else {u+=1;"UUnion%d".format(u)} // randomClassName()
+  def unionClassName() = {u+=1;"UUnion"+u}
   
   var s: Int = 0
-  def randomClassName() = if(s==0) {s=1; "SStruct"} else {s+=1;"SStruct%d".format(s)} // "GEN" + UUID.randomUUID().toString().replaceAll("\\-", "_")
+  def structClassName() = {s+=1;"SStruct"+s} 
   
   def serialize(o: Object): Array[Byte] = {
     var array = new ByteArrayOutputStream()
@@ -239,7 +239,7 @@ class CGList(oi: ListObjectInspector, name: String, val field: CGField[_<:Object
 }
 
 class CGStruct(oi: StructObjectInspector, name: String, val fields: Array[CGField[_]]) 
-  extends CGField(oi, name, CGRowUtil.randomClassName()) {
+  extends CGField(oi, name, CGRowUtil.structClassName()) {
 
   var packageName: String = _
   
@@ -266,7 +266,7 @@ class CGStruct(oi: StructObjectInspector, name: String, val fields: Array[CGFiel
 }
 
 class CGUnion(oi:UnionObjectInspector, name: String, val fields: Array[CGField[_]])
-  extends CGField(oi, name, CGRowUtil.extractUnionClass()) {
+  extends CGField(oi, name, CGRowUtil.unionClassName()) {
   
   { fields.foreach(_.parent=this) }
   
@@ -293,9 +293,17 @@ class CGUnion(oi:UnionObjectInspector, name: String, val fields: Array[CGField[_
 }
 
 object CGField {
+  val PACKAGE_NAME: String = "shark.execution.cg.row"
   def unionName(name: String, tag: Int) = "%s_%d".format(name, tag)
   
-  def create(oi: ObjectInspector, name: String): CGField[_<:ObjectInspector] = {
+  def create(oi: StructObjectInspector): CGStruct = {
+    var struct = create(oi, "AA").asInstanceOf[CGStruct]
+    struct.packageName = PACKAGE_NAME
+    
+    struct
+  }
+  
+  private def create(oi: ObjectInspector, name: String): CGField[_<:ObjectInspector] = {
     import collection.JavaConversions._
     oi match {
       case a: StructObjectInspector=> 

@@ -149,7 +149,7 @@ class CGOIStruct(delegate: CGStruct, val fields:Array[CGOIField[_<:CGField[_]]])
        javaVarName, ()=>null)
   override def defStructField(): (String, String, String) = {
     var classname = "CGStructField%s".format(delegate.name)
-    (delegate.name, classname, CGTE.layout(CGOI.CG_SF_STRUCT, Map("obj"->this, "classname"->classname)))
+    (delegate.name, classname, CGOI.generateOI(this, false))
   }
   
   override def oiClass(): String = {CGTE.layout(CGOI.CG_OI_STRUCT, Map("struct"->this))}
@@ -169,24 +169,6 @@ class CGOIUnion(delegate: CGUnion, val fields: Array[CGOIField[_<:CGField[_]]]) 
     (delegate.name, classname, CGTE.layout(CGOI.CG_SF_UNION, Map("obj"->this, "classname"->classname)))
   }  
   override def oiClass(): String = {CGTE.layout(CGOI.CG_OI_UNION, Map("obj"->this))}
-}
-
-object CGOI {
-  val CG_OI_TRANSFORM_MAP = "shark/execution/cg/row/oi/cg_oi_transform_map.ssp"  
-  val CG_OI_TRANSFORM_LIST= "shark/execution/cg/row/oi/cg_oi_transform_list.ssp"
-  val CG_OI_STRUCT = "shark/execution/cg/row/oi/cg_oi_struct.ssp"  
-  val CG_OI_UNION = "shark/execution/cg/row/oi/cg_oi_union.ssp"
-  val CG_SF_LIST = "shark/execution/cg/row/oi/cg_sf_list.ssp"
-  val CG_SF_MAP = "shark/execution/cg/row/oi/cg_sf_map.ssp"
-  val CG_SF_PRIMITIVE = "shark/execution/cg/row/oi/cg_sf_primitive.ssp"
-  val CG_SF_STRUCT = "shark/execution/cg/row/oi/cg_sf_struct.ssp"
-  val CG_SF_UNION = "shark/execution/cg/row/oi/cg_sf_union.ssp"
-
-  def generateOI(struct: CGStruct): String = generateOI(CGOIField.create(struct).asInstanceOf[CGOIStruct], true)
-  
-  def generateOI(struct: CGOIStruct, isOutter: Boolean = false): String = {
-    CGTE.layout(CGOI.CG_OI_STRUCT, Map("isOutter" -> isOutter, "struct"->struct))
-  }
 }
 
 object CGOIField {
@@ -209,5 +191,21 @@ object CGOIField {
           }
         )
     }
+  }
+}
+
+object CGOI {
+  val CG_OI_TRANSFORM_MAP = "shark/execution/cg/row/oi/cg_oi_transform_map.ssp"  
+  val CG_OI_TRANSFORM_LIST= "shark/execution/cg/row/oi/cg_oi_transform_list.ssp"
+  val CG_OI_STRUCT = "shark/execution/cg/row/oi/cg_oi_struct.ssp"  
+  val CG_OI_UNION = "shark/execution/cg/row/oi/cg_oi_union.ssp"
+  val CG_SF_LIST = "shark/execution/cg/row/oi/cg_sf_list.ssp"
+  val CG_SF_MAP = "shark/execution/cg/row/oi/cg_sf_map.ssp"
+  val CG_SF_PRIMITIVE = "shark/execution/cg/row/oi/cg_sf_primitive.ssp"
+  val CG_SF_STRUCT = "shark/execution/cg/row/oi/cg_sf_struct.ssp"
+  val CG_SF_UNION = "shark/execution/cg/row/oi/cg_sf_union.ssp"
+
+  def generateOI(struct: CGOIStruct, isOutter: Boolean = false): String = {
+    CGTE.layout(CGOI.CG_OI_STRUCT, Map("isOutter" -> isOutter, "struct"->struct))
   }
 }
