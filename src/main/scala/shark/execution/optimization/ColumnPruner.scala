@@ -76,7 +76,11 @@ class ColumnPruner(@transient op: TopOperator[_], @transient tbl: Table) extends
       true
     } else if (op.isInstanceOf[GroupByPreShuffleOperator]){
       val groupBy = op.asInstanceOf[GroupByPreShuffleOperator]
-      cols ++= groupBy.getConf.getKeys.flatMap(k => k.getCols)
+      val keys = groupBy.getConf.getKeys
+      cols ++= keys.flatMap { k =>
+        val c = k.getCols
+        if (c == null) Seq() else c
+      }
       true
     } else {
       true
