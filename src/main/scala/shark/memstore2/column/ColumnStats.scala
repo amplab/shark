@@ -24,7 +24,6 @@ import java.sql.Timestamp
 import org.apache.hadoop.io.Text
 
 
-
 /**
  * Column level statistics, including range (min, max).
  */
@@ -56,7 +55,7 @@ sealed trait ColumnStats[@specialized(Boolean, Byte, Short, Int, Long, Float, Do
 // ordering of the column and max deltas (max difference between two cells).
 object ColumnStats {
 
-  class NoOp[T] extends ColumnStats[T] {
+  class NoOpStats[T] extends ColumnStats[T] {
     protected var _max = null.asInstanceOf[T]
     protected var _min = null.asInstanceOf[T]
     override def append(v: T) {}
@@ -349,17 +348,16 @@ object ColumnStats {
     
     def :=(v: Any): Boolean = {
       v match {
-        case u:Text => _min.compareTo(u) <= 0 &&
-        			   _max.compareTo(u) >= 0
-        case u: String => this:=(new Text(u))
+        case u: Text => _min.compareTo(u) <= 0 && _max.compareTo(u) >= 0
+        case u: String => this := new Text(u)
         case _ => true
       }
     }
 
     def :>(v: Any): Boolean = {
       v match {
-        case u:Text => _max.compareTo(u) > 0
-        case u: String => this:>(new Text(u))
+        case u: Text => _max.compareTo(u) > 0
+        case u: String => this :> new Text(u)
         case _ => true
       }
     }
@@ -367,7 +365,7 @@ object ColumnStats {
     def :<(v: Any): Boolean = {
       v match {
         case u:Text => _min.compareTo(u) < 0
-        case u: String => this:<(new Text(u))
+        case u: String => this :< new Text(u)
         case _ => true
       }
     }
@@ -375,12 +373,14 @@ object ColumnStats {
     override def append(v: Text) {
       // Need to make a copy of Text since Text is not immutable and we reuse
       // the same Text object in serializer to mitigate frequent GC.
-      if (_max == null) _max = new Text(v)
-      else if (v.compareTo(_max) > 0) {
+      if (_max == null) {
+        _max = new Text(v)
+      } else if (v.compareTo(_max) > 0) {
         _max.set(v.getBytes(), 0, v.getLength())
       }
-      if (_min == null) _min = new Text(v)
-      else if (v.compareTo(_min) < 0) {
+      if (_min == null) {
+        _min = new Text(v)
+      } else if (v.compareTo(_min) < 0) {
         _min.set(v.getBytes(), 0, v.getLength())
       } 
     }

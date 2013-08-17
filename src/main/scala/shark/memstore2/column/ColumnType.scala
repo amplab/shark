@@ -28,7 +28,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive._
 import org.apache.hadoop.io._
 
 
-abstract class ColumnType[T, V](val typeID: Int, val size: Int) {
+abstract class ColumnType[T, V](val typeID: Int, val defaultSize: Int) {
 
   def extract(currentPos: Int, buffer: ByteBuffer): T
 
@@ -36,7 +36,7 @@ abstract class ColumnType[T, V](val typeID: Int, val size: Int) {
 
   def get(o: Object, oi: ObjectInspector): T
 
-  def actualSize(v: T) = size
+  def actualSize(v: T) = defaultSize
 
   def extractInto(currentPos: Int, buffer: ByteBuffer, writable: V)
 
@@ -91,6 +91,7 @@ object LONG extends ColumnType[Long, LongWritable](1, 8) {
 
 
 object FLOAT extends ColumnType[Float, FloatWritable](2, 4) {
+
   override def append(v: Float, buffer: ByteBuffer) = {
     buffer.putFloat(v)
   }
@@ -133,6 +134,7 @@ object DOUBLE extends ColumnType[Double, DoubleWritable](3, 8) {
 
 
 object BOOLEAN extends ColumnType[Boolean, BooleanWritable](4, 1) {
+
   override def append(v: Boolean, buffer: ByteBuffer) = {
     buffer.put(if (v) 1.toByte else 0.toByte)
   }
@@ -297,11 +299,13 @@ object BINARY extends ColumnType[BytesWritable, BytesWritable](10, 16) {
     f.setAccessible(true)
     f
   }
+
   private val _lengthFld = {
     val f = classOf[BytesWritable].getDeclaredField("size")
     f.setAccessible(true)
     f
   }
+
   override def append(v: BytesWritable, buffer: ByteBuffer) = {
     val length = v.getLength()
     buffer.putInt(length)

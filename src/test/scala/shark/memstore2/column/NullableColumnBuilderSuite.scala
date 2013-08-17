@@ -3,7 +3,6 @@ package shark.memstore2.column
 import org.scalatest.FunSuite
 import org.apache.hadoop.io.Text
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
-import shark.memstore2.column.Implicits._
 
 
 class NullableColumnBuilderSuite extends FunSuite {
@@ -15,13 +14,14 @@ class NullableColumnBuilderSuite extends FunSuite {
     Range(0, 1000000).foreach { i =>
       c.append(new Text("00000000000000000000000000000000" + i), oi)
     }
-    val b = c.build
+    val b = c.build()
     val i = ColumnIterator.newIterator(b)
     Range(0, 1000000).foreach { x =>
       i.next()
       i.current
     }
   }
+
   test("Grow") {
     val c = new StringColumnBuilder()
     c.initialize(4)
@@ -34,11 +34,11 @@ class NullableColumnBuilderSuite extends FunSuite {
     c.append(null, oi)
     c.append(null, oi)
     c.append(new Text("efg"), oi)
-    val b = c.build
+    val b = c.build()
     val colType = b.getInt()
     assert(colType == STRING.typeID)
-    
   }
+
   test("Null Strings") {
     val c = new StringColumnBuilder()
     c.initialize(4)
@@ -47,7 +47,7 @@ class NullableColumnBuilderSuite extends FunSuite {
     c.append(null, oi)
     c.append(new Text("b"), oi)
     c.append(null, oi)
-    val b = c.build
+    val b = c.build()
     //expect first element is col type
     assert(b.getInt() == STRING.typeID)
     //next comes # of nulls
@@ -72,7 +72,7 @@ class NullableColumnBuilderSuite extends FunSuite {
     c.append(null, oi)
     c.append(null, oi)
     c.append(56.asInstanceOf[Object], oi)
-    val b = c.build
+    val b = c.build()
     //expect first element is col type
     assert(b.getInt() == INT.typeID)
     //next comes # of nulls
@@ -92,7 +92,7 @@ class NullableColumnBuilderSuite extends FunSuite {
     c.append(null, oi)
     c.append(null, oi)
     c.append(56L.asInstanceOf[Object], oi)
-    val b = c.build
+    val b = c.build()
     //expect first element is col type
     assert(b.getInt() == LONG.typeID)
     //next comes # of nulls
@@ -111,7 +111,7 @@ class NullableColumnBuilderSuite extends FunSuite {
     Range(1,1000).foreach { x =>
       c.append(x.asInstanceOf[Object], oi)
     }
-    val b = c.build
+    val b = c.build()
     assert(b.getInt() == INT.typeID)
     assert(b.getInt() == RLECompressionType.typeID)
   }

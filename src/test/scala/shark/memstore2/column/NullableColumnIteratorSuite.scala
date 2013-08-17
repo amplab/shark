@@ -2,9 +2,10 @@ package shark.memstore2.column
 
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.io.Text
-import org.scalatest.FunSuite
 import org.apache.hadoop.io.IntWritable
-import shark.memstore2.column.Implicits._
+
+import org.scalatest.FunSuite
+
 
 class NullableColumnIteratorSuite extends FunSuite {
 
@@ -21,7 +22,7 @@ class NullableColumnIteratorSuite extends FunSuite {
     a.foreach {
       t => c.append(t, oi)
     }
-    val b = c.build
+    val b = c.build()
     val i = ColumnIterator.newIterator(b)
     Range(0, a.length).foreach { x =>
       i.next()
@@ -43,7 +44,7 @@ class NullableColumnIteratorSuite extends FunSuite {
     c.append(new Text("b"), oi)
     c.append(new Text("Abcdz"), oi)
     c.append(null, oi)
-    val b = c.build
+    val b = c.build()
     val i = ColumnIterator.newIterator(b)
     i.next()
     assert(i.current.toString() == "a")
@@ -67,7 +68,7 @@ class NullableColumnIteratorSuite extends FunSuite {
     c.append(null, oi)
     c.append(null, oi)
     c.append(56.asInstanceOf[Object], oi)
-    val b = c.build
+    val b = c.build()
     val i = ColumnIterator.newIterator(b)
     i.next()
     assert(i.current.asInstanceOf[IntWritable].get() == 123)

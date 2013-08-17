@@ -17,8 +17,6 @@
 
 package shark.memstore2
 
-import java.nio.ByteBuffer
-
 import scala.collection.immutable.BitSet
 
 import shark.memstore2.column.ColumnIterator
@@ -42,7 +40,7 @@ class TablePartitionIterator(
 
   private var _position: Long = 0
 
-  def hasNext(): Boolean = _position < numRows
+  def hasNext: Boolean = _position < numRows
 
   def next(): ColumnarStruct = {
     _position += 1

@@ -1,8 +1,10 @@
 package shark.memstore2.column
 
 import java.nio.ByteBuffer
-import shark.memstore2.column.Implicits._
+
 import scala.collection.mutable.{Map, HashMap}
+
+import shark.memstore2.column.Implicits._
 
 /**
  * Iterates through a byte buffer containing compressed data.
@@ -31,7 +33,7 @@ trait CompressedColumnIterator extends ColumnIterator{
 
   override def computeNext() {
     if (_decoder.hasNext) {
-      _current = _decoder.next
+      _current = _decoder.next()
     }
   }
   
@@ -45,7 +47,7 @@ trait CompressedColumnIterator extends ColumnIterator{
 class DefaultDecoder[V](buffer: ByteBuffer, columnType: ColumnType[_, V]) extends Iterator[V] {
   private val _current: V = columnType.newWritable()
 
-  override def hasNext() = buffer.hasRemaining()
+  override def hasNext = buffer.hasRemaining()
 
   override def next(): V = {
     columnType.extractInto(buffer.position(), buffer, _current)
@@ -62,7 +64,7 @@ class RLDecoder[V](buffer: ByteBuffer, columnType: ColumnType[_, V]) extends Ite
   private var _count: Int = 0
   private val _current: V = columnType.newWritable()
 
-  override def hasNext() = buffer.hasRemaining()
+  override def hasNext = buffer.hasRemaining()
   
   override def next(): V = {
     if (_count == _run) {
@@ -78,8 +80,7 @@ class RLDecoder[V](buffer: ByteBuffer, columnType: ColumnType[_, V]) extends Ite
 }
 
 class DictDecoder[V] (buffer:ByteBuffer, columnType: ColumnType[_, V]) extends Iterator[V] {
-  
-  private var _current: V = columnType.newWritable
+
   private val _dictionary: Map[Int, V] =  {
     val size = buffer.getInt()
     val d = new HashMap[Int, V]()
@@ -93,11 +94,10 @@ class DictDecoder[V] (buffer:ByteBuffer, columnType: ColumnType[_, V]) extends I
     d
   }
 
-  override def hasNext() = buffer.hasRemaining()
+  override def hasNext = buffer.hasRemaining()
   
   override def next(): V = {
     val index = buffer.getInt()
     _dictionary.get(index).get
   }
-
 }

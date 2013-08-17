@@ -13,16 +13,16 @@ class NullableColumnIterator(delegate: ColumnIterator, buffer: ByteBuffer) exten
   private var _d: ByteBuffer = _
   private var _nullCount: Int = _
   private var _nulls = 0
- 
+
   private var _isNull = false
   private var _currentNullIndex:Int = _
   private var _pos = 0
-  
+
   override def init() {
     _d = buffer.duplicate()
     _d.order(ByteOrder.nativeOrder())
     _nullCount = _d.getInt()
-    buffer.position(buffer.position() + _nullCount*4 + 4)
+    buffer.position(buffer.position() + _nullCount * 4 + 4)
     _currentNullIndex = if (_nullCount > 0) _d.getInt() else Integer.MAX_VALUE
     _pos = 0
     delegate.init()
@@ -42,7 +42,7 @@ class NullableColumnIterator(delegate: ColumnIterator, buffer: ByteBuffer) exten
     _pos += 1
   }
   
-  def current(): Object = {
+  def current: Object = {
     if (_isNull) null else delegate.current
   }
 }

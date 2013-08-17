@@ -44,7 +44,7 @@ class GenericColumnIterator(buffer: ByteBuffer) extends DefaultColumnIterator(bu
     _obj = LazyFactory.createLazyObject(oi)
   }
   
-  override def current() = {
+  override def current = {
     val v = super.current.asInstanceOf[ByteArrayRef]
     _obj.init(v, 0, v.getData().length)
     _obj

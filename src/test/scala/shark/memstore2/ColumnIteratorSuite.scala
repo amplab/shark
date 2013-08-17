@@ -17,23 +17,13 @@
 
 package shark.memstore2
 
-import java.sql.Timestamp
-import org.apache.hadoop.hive.serde2.io.ByteWritable
-import org.apache.hadoop.hive.serde2.io.DoubleWritable
-import org.apache.hadoop.hive.serde2.io.ShortWritable
-import org.apache.hadoop.hive.serde2.`lazy`.ByteArrayRef
-import org.apache.hadoop.hive.serde2.`lazy`.LazyBinary
-import org.apache.hadoop.hive.serde2.`lazy`.LazyFactory
-import org.apache.hadoop.hive.serde2.`lazy`.objectinspector.primitive.LazyPrimitiveObjectInspectorFactory
-import org.apache.hadoop.hive.serde2.lazybinary.LazyBinaryBinary
-import org.apache.hadoop.hive.serde2.objectinspector.ConstantObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive._
 import org.apache.hadoop.io._
-import org.scalatest.FunSuite
-import shark.memstore2.column._
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
-import shark.memstore2.column.Implicits._
-import java.nio.ByteOrder
+
+import org.scalatest.FunSuite
+
+import shark.memstore2.column._
 
 
 class ColumnIteratorSuite extends FunSuite {
@@ -46,9 +36,9 @@ class ColumnIteratorSuite extends FunSuite {
     builder.append(null, null)
     builder.append(null, null)
     builder.append(null, null)
-    val buf = builder.build
+    val buf = builder.build()
 
-    var iter = ColumnIterator.newIterator(buf)
+    val iter = ColumnIterator.newIterator(buf)
 
     iter.next()
 
@@ -290,7 +280,7 @@ class ColumnIteratorSuite extends FunSuite {
 
     builder.initialize(testData.size)
     testData.foreach { x => builder.append(x, oi)}
-    val buf = builder.build
+    val buf = builder.build()
 
     def executeOneTest() {
       val iter = ColumnIterator.newIterator(buf)

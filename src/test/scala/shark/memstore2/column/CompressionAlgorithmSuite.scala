@@ -18,14 +18,14 @@ class CompressionAlgorithmSuite extends FunSuite {
       compressionSchemes = Seq(new RLE())
       override def shouldApply(scheme: CompressionAlgorithm) = true
     }
-    val b = new TestColumnBuilder(new NoOp, INT)
+    val b = new TestColumnBuilder(new NoOpStats, INT)
     b.initialize(100)
     val oi = PrimitiveObjectInspectorFactory.javaIntObjectInspector
     b.append(123.asInstanceOf[Object], oi)
     b.append(123.asInstanceOf[Object], oi)
     b.append(56.asInstanceOf[Object], oi)
     b.append(56.asInstanceOf[Object], oi)
-    val compressedBuffer = b.build
+    val compressedBuffer = b.build()
     assert(compressedBuffer.getInt() == INT.typeID)
     assert(compressedBuffer.getInt() == RLECompressionType.typeID)
 
@@ -187,7 +187,7 @@ class CompressionAlgorithmSuite extends FunSuite {
     lines.foreach { line =>
       b.append(line, oi)
     }
-    val newBuffer = b.build
+    val newBuffer = b.build()
     assert(newBuffer.getInt() == STRING.typeID)
     assert(newBuffer.getInt() == RLECompressionType.typeID)
     

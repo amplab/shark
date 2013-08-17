@@ -39,7 +39,7 @@ trait ColumnIterator {
 
   // Should be implemented as a read-only operation by the ColumnIterator
   // Can be called any number of times
-  def current(): Object
+  def current: Object
 }
 
 

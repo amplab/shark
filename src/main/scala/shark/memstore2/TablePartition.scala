@@ -21,7 +21,6 @@ import java.io.{Externalizable, ObjectInput, ObjectOutput}
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import shark.memstore2.column.ColumnIterator
-import shark.memstore2.column.ColumnType
 
 
 /**

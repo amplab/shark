@@ -19,6 +19,7 @@ package shark.memstore2.column
 
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
@@ -26,10 +27,12 @@ import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.Pr
 
 trait ColumnBuilder[T] {
 
-  def t: ColumnType[T, _]
+  private[column] def t: ColumnType[T, _]
+
+  private[memstore2] def stats: ColumnStats[T]
+
   private var _buffer: ByteBuffer = _
   private var _initialSize: Int = _
-  def stats: ColumnStats[T]
 
   def append(o: Object, oi: ObjectInspector) {
     val v = t.get(o, oi)
@@ -54,16 +57,15 @@ trait ColumnBuilder[T] {
    */
   def initialize(initialSize: Int): ByteBuffer = {
     _initialSize = if(initialSize == 0) 1024*1024*10 else initialSize
-    _buffer = ByteBuffer.allocate(_initialSize*t.size + 4 + 4)
+    _buffer = ByteBuffer.allocate(_initialSize*t.defaultSize + 4 + 4)
     _buffer.order(ByteOrder.nativeOrder())
     _buffer.putInt(t.typeID)
   }
   
   protected def growIfNeeded(orig: ByteBuffer, size: Int): ByteBuffer = {
-    val capacity = orig.capacity()
     if (orig.remaining() < size) {
       //grow in steps of initial size 
-      var s = (3*orig.capacity())/2 + 1
+      var s = (3 * orig.capacity()) / 2 + 1
       if (s  < size) {
         s = size
       }

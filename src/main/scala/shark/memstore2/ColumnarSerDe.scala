@@ -18,20 +18,21 @@
 package shark.memstore2
 
 import java.util.{List => JList, Properties}
+
 import scala.collection.JavaConversions._
+
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hdfs.DFSConfigKeys
 import org.apache.hadoop.hive.serde2.{ByteStream, SerDe, SerDeStats}
-import org.apache.hadoop.hive.serde2.`lazy`.{LazyFactory, LazySimpleSerDe}
+import org.apache.hadoop.hive.serde2.`lazy`.LazySimpleSerDe
 import org.apache.hadoop.hive.serde2.`lazy`.LazySimpleSerDe.SerDeParameters
-import org.apache.hadoop.hive.serde2.objectinspector.{ListObjectInspector, MapObjectInspector,
-  ObjectInspector, PrimitiveObjectInspector, StructField, StructObjectInspector,
-  UnionObjectInspector}
+import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, PrimitiveObjectInspector,
+  StructField, StructObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
 import org.apache.hadoop.io.Writable
+
 import shark.LogHelper
 import shark.SharkConfVars
-import shark.memstore2.column.ColumnBuilder._
 import shark.memstore2.column._
 
 
@@ -40,7 +41,7 @@ class ColumnarSerDe extends SerDe with LogHelper {
   var objectInspector: StructObjectInspector = _
   var tablePartitionBuilder: TablePartitionBuilder = _
   var serDeParams: SerDeParameters = _
-  var numRows: Int = _
+  var estimatedNumRows: Int = _
   var shouldCompress: Boolean = _
   val serializeStream = new ByteStream.Output
 
@@ -53,16 +54,19 @@ class ColumnarSerDe extends SerDe with LogHelper {
     // an instance of the table's StructObjectInspector by creating an instance SerDe, which
     // it initializes by passing a 'null' argument for 'conf'.
     if (conf != null) {
-      numRows = SharkConfVars.getIntVar(conf, SharkConfVars.COLUMN_INITIALSIZE)
-      if (numRows == -1) {
-        val partitionSize = conf.getLong(DFSConfigKeys.DFS_BLOCK_SIZE_KEY, 
+      var partitionSize = {
+        SharkConfVars.getIntVar(conf, SharkConfVars.COLUMN_BUILDER_PARTITION_SIZE) * 1024 * 1024
+      }.toLong
+      if (partitionSize < 0) {
+        partitionSize = conf.getLong(DFSConfigKeys.DFS_BLOCK_SIZE_KEY,
           conf.getLong("dfs.block.size", DFSConfigKeys.DFS_BLOCK_SIZE_DEFAULT))
-        val rowSize = ColumnarSerDe.getFieldSize(objectInspector).toLong
-        numRows = (partitionSize / rowSize).toInt
       }
+      val rowSize = ColumnarSerDe.getFieldSize(objectInspector).toLong
+      estimatedNumRows = (partitionSize / rowSize).toInt
       shouldCompress = SharkConfVars.getBoolVar(conf, SharkConfVars.COLUMNAR_COMPRESSION)
-      logInfo("should compress " + shouldCompress)
-      logInfo("num rows " + numRows)
+      logInfo("Initializing column serde " +
+        "with compression %s. Estimated partition size: %d; number of rows: %d"
+        .format(if (shouldCompress) "on" else "off", partitionSize, estimatedNumRows))
     }
   }
 
@@ -80,9 +84,8 @@ class ColumnarSerDe extends SerDe with LogHelper {
 
   override def serialize(obj: Object, objInspector: ObjectInspector): Writable = {
     if (tablePartitionBuilder == null) {
-      logInfo("should compress " + shouldCompress)
-      logInfo("num rows " + numRows)
-      tablePartitionBuilder = new TablePartitionBuilder(objectInspector, numRows, shouldCompress)
+      tablePartitionBuilder = new TablePartitionBuilder(objectInspector, estimatedNumRows,
+        shouldCompress)
     }
 
     tablePartitionBuilder.incrementRowCount()
@@ -125,17 +128,17 @@ object ColumnarSerDe {
     val size = oi.getCategory match {
       case ObjectInspector.Category.PRIMITIVE => {
         oi.asInstanceOf[PrimitiveObjectInspector].getPrimitiveCategory match {
-          case PrimitiveCategory.VOID      => VOID.size
-          case PrimitiveCategory.BOOLEAN   => BOOLEAN.size
-          case PrimitiveCategory.BYTE      => BYTE.size
-          case PrimitiveCategory.SHORT     => SHORT.size
-          case PrimitiveCategory.INT       => INT.size
-          case PrimitiveCategory.LONG      => LONG.size
-          case PrimitiveCategory.FLOAT     => FLOAT.size
-          case PrimitiveCategory.DOUBLE    => DOUBLE.size
-          case PrimitiveCategory.TIMESTAMP => TIMESTAMP.size
-          case PrimitiveCategory.STRING    => STRING.size
-          case PrimitiveCategory.BINARY    => BINARY.size
+          case PrimitiveCategory.VOID      => VOID.defaultSize
+          case PrimitiveCategory.BOOLEAN   => BOOLEAN.defaultSize
+          case PrimitiveCategory.BYTE      => BYTE.defaultSize
+          case PrimitiveCategory.SHORT     => SHORT.defaultSize
+          case PrimitiveCategory.INT       => INT.defaultSize
+          case PrimitiveCategory.LONG      => LONG.defaultSize
+          case PrimitiveCategory.FLOAT     => FLOAT.defaultSize
+          case PrimitiveCategory.DOUBLE    => DOUBLE.defaultSize
+          case PrimitiveCategory.TIMESTAMP => TIMESTAMP.defaultSize
+          case PrimitiveCategory.STRING    => STRING.defaultSize
+          case PrimitiveCategory.BINARY    => BINARY.defaultSize
           // TODO: add decimal type.
           case _ => throw new Exception(
             "Invalid primitive object inspector category" + oi + " " +
