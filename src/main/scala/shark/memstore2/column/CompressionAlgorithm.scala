@@ -84,7 +84,7 @@ class RLE extends CompressionAlgorithm {
         _run += 1
       } else {
         // flush run into size
-        _size += (s + 4)
+        _size += (t.actualSize(_prev.asInstanceOf[T]) + 4)
         _prev = t.clone(v)
         _run = 1
       }

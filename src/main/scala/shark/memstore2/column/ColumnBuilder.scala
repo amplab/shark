@@ -84,13 +84,7 @@ class DefaultColumnBuilder[T](val stats: ColumnStats[T], val t: ColumnType[T, _]
 
 trait CompressedColumnBuilder[T] extends ColumnBuilder[T] {
 
-  var compressionSchemes: Seq[CompressionAlgorithm] = _
-
-  override def initialize(initialSize: Int) = {
-    val v = super.initialize(initialSize)
-    compressionSchemes = Seq(new RLE())
-    v
-  }
+  var compressionSchemes: Seq[CompressionAlgorithm] = Seq()
 
   def shouldApply(scheme: CompressionAlgorithm): Boolean = {
     scheme.compressionRatio < 0.8
