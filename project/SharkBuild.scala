@@ -64,6 +64,7 @@ object SharkBuild extends Build {
     fork := true,
     javaOptions += "-XX:MaxPermSize=512m",
     javaOptions += "-Xmx2g",
+    testOptions in Test += Tests.Argument("-oF"), // Full stack trace on test failures
 
     testListeners <<= target.map(
       t => Seq(new eu.henkelmann.sbt.JUnitXmlTestsListener(t.getAbsolutePath))),
@@ -96,6 +97,7 @@ object SharkBuild extends Build {
       "org.apache.hadoop" % "hadoop-core" % HADOOP_VERSION,
       // See https://code.google.com/p/guava-libraries/issues/detail?id=1095
       "com.google.code.findbugs" % "jsr305" % "1.3.+",
+      "com.ning" % "compress-lzf" % "0.9.7",
       "it.unimi.dsi" % "fastutil" % "6.4.2",
       "org.scalatest" %% "scalatest" % "1.9.1" % "test",
       "junit" % "junit" % "4.10" % "test",

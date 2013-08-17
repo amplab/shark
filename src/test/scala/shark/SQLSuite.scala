@@ -37,7 +37,6 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.runSql("set javax.jdo.option.ConnectionURL=jdbc:derby:;databaseName=" +
         METASTORE_PATH + ";create=true")
     sc.runSql("set hive.metastore.warehouse.dir=" + WAREHOUSE_PATH)
-
     sc.runSql("set shark.test.data.path=" + TestUtils.dataFilePath)
 
     // test
@@ -295,6 +294,75 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       select * from test""")
     sc.runSql("drop table sharkTest5Cached")
     assert(!SharkEnv.memoryMetadataManager.contains("sharkTest5Cached"))
+  }
+
+  test("creating cache tables with in-memory column compression") {
+    List("AuTo", "NoNe", "LZf", "RLe", "DiCt").foreach { intScheme =>
+      List("AuTo", "NoNe", "LZf", "RLe").foreach { strScheme =>
+        List((x: String) => x, // mixed case
+             (x: String) => x.toUpperCase(),
+             (x: String) => x.toLowerCase(),
+             (x: String) => x.toLowerCase().capitalize).foreach { caseManipulator =>
+
+          // test case insensitivity
+          var intSchemeMod = caseManipulator(intScheme)
+          var strSchemeMod = caseManipulator(strScheme)
+          sc.sql("drop table if exists compr_cached")
+          info("scheme overrides from SQL int[" + intSchemeMod + "] string[" + strSchemeMod + "]")
+          val tblProperties = """TBLPROPERTIES ("shark.column.compress.int"="""" +
+          intSchemeMod +
+          """", "shark.column.compress.string"="""" +
+          strSchemeMod +
+          """")"""
+          val query = "create table compr_cached " + tblProperties + " as select * from test"
+          // test that scheme names/combinations are correct
+          try {
+            sc.sql(query)
+          } catch {
+            case _ => {
+              info("test failed at " + query)   // print so that it is clear which combination fails
+                                                // propogate exception further to get the full trace
+            }
+          }
+          // test contents
+          expect("select count(*) from compr_cached", "500")
+          expect("select val from compr_cached where key = 407", "val_407")
+        }
+      }
+    }
+  }
+
+  test("creating cache tables with unsupported compression scheme") {
+    val e = intercept[QueryExecutionException] {
+      sc.sql("drop table if exists compr_cached")
+      val intSchemeMod = "BADPROPS"
+      val strSchemeMod = "BADPROPS"
+      info("scheme overrides from SQL int[" + intSchemeMod + "] string[" + strSchemeMod + "]")
+      val tblProperties = """TBLPROPERTIES ("shark.column.compress.int"="""" +
+      intSchemeMod +
+      """", "shark.column.compress.string"="""" +
+      strSchemeMod +
+      """")"""
+      val query = "create table compr_cached " + tblProperties + " as select * from test"
+      info(query)
+      sc.sql(query)
+    }
+    e.getMessage.contains("Bad compression scheme")
+  }
+
+  test("requests to compress unsupported column types is ignored like other unused TBLPROPERTIES") {
+    sc.sql("DROP TABLE if exists compr_test")
+    sc.sql("CREATE TABLE compr_test (key BIGINT, val STRING)")
+    sc.sql("LOAD DATA LOCAL INPATH '${hiveconf:shark.test.data.path}/kv1.txt' INTO TABLE compr_test")
+
+    sc.sql("DROP TABLE if exists compr_test_cached")
+    sc.sql("""CREATE TABLE compr_test_cached TBLPROPERTIES("shark.column.compress.long"="RLE")
+           AS SELECT * FROM compr_test""")
+
+    sc.sql("DROP TABLE if exists compr_test_cached")
+    sc.sql("""CREATE TABLE compr_test_cached TBLPROPERTIES("shark.column.compress.NOSUCHTYPE"="RLE")
+           AS SELECT * FROM compr_test""")
+    // no errors reported. no compression used
   }
 
   //////////////////////////////////////////////////////////////////////////////

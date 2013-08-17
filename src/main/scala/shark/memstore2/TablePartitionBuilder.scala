@@ -20,22 +20,18 @@ package shark.memstore2
 import java.io.{DataInput, DataOutput}
 import java.nio.ByteBuffer
 import java.util.{List => JList}
-
+import org.apache.hadoop.hive.serde2.objectinspector.{StructField, StructObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
-import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
-import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
-import org.apache.hadoop.hive.serde2.objectinspector.StructField
-import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 import org.apache.hadoop.io.Writable
-
-import shark.memstore2.column.ColumnBuilder
+import shark.memstore2.column._
 
 
 /**
  * Used to build a TablePartition. This is used in the serializer to convert a
  * partition of data into columnar format and to generate a TablePartition.
  */
-class TablePartitionBuilder(oi: StructObjectInspector, initialColumnSize: Int)
+class TablePartitionBuilder(oi: StructObjectInspector, initialColumnSize: Int,
+                            columnarComprString: String, columnarComprInt: String)
   extends Writable {
 
   var numRows: Long = 0
@@ -43,6 +39,21 @@ class TablePartitionBuilder(oi: StructObjectInspector, initialColumnSize: Int)
 
   val columnBuilders = Array.tabulate[ColumnBuilder[_]](fields.size) { i =>
     val columnBuilder = ColumnBuilder.create(fields.get(i).getFieldObjectInspector)
+
+    try {
+      columnBuilder match {
+        case _: StringColumnBuilder =>
+          columnBuilder.scheme = CompressionScheme.withName(columnarComprString.toLowerCase.capitalize)
+        case _: IntColumnBuilder    =>
+          columnBuilder.scheme = CompressionScheme.withName(columnarComprInt.toLowerCase.capitalize)
+        case _ => // Do nothing - "Column type does not support compression - TablePartitionBuilder"
+      }
+    } catch {
+      case ex: NoSuchElementException => throw new
+          NoSuchElementException("Bad compression scheme requested - int [" + columnarComprInt + 
+            "] - string [" + columnarComprString + "]");
+    }
+
     columnBuilder.initialize(initialColumnSize)
     columnBuilder
   }

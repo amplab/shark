@@ -53,6 +53,10 @@ object SharkConfVars {
   // If true, then query plans are compressed before being sent
   val COMPRESS_QUERY_PLAN = new ConfVar("shark.compressQueryPlan", true)
 
+  // Various compression schemes possible for storing data in memory
+  val COLUMN_COMPRESS_STRING = new ConfVar("shark.column.compress.string", "auto")
+  val COLUMN_COMPRESS_INT = new ConfVar("shark.column.compress.int", "auto")
+
   // Add Shark configuration variables and their default values to the given conf,
   // so default values show up in 'set'.
   def initializeWithDefaults(conf: Configuration) {
@@ -70,6 +74,10 @@ object SharkConfVars {
       conf.setBoolean(MAP_PRUNING.varname, MAP_PRUNING.defaultBoolVal)
     if (conf.get(MAP_PRUNING_PRINT_DEBUG.varname) == null)
       conf.setBoolean(MAP_PRUNING_PRINT_DEBUG.varname, MAP_PRUNING_PRINT_DEBUG.defaultBoolVal)
+    if (conf.get(COLUMN_COMPRESS_INT.varname) == null)
+      conf.set(COLUMN_COMPRESS_INT.varname, COLUMN_COMPRESS_INT.defaultVal)
+    if (conf.get(COLUMN_COMPRESS_STRING.varname) == null)
+      conf.set(COLUMN_COMPRESS_STRING.varname, COLUMN_COMPRESS_STRING.defaultVal)
   }
 
   def getIntVar(conf: Configuration, variable: ConfVar): Int = {

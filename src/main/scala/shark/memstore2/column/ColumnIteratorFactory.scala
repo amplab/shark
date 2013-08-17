@@ -18,7 +18,7 @@
 package shark.memstore2.column
 
 import shark.memstore2.buffer.ByteBufferReader
-
+import shark.LogHelper
 
 /**
  * Factory class used to create column iterators for a given data type.
@@ -26,7 +26,7 @@ import shark.memstore2.buffer.ByteBufferReader
  * of the column iterator to create depending on metadata embedded in the
  * buffer. For example, it can choose whether to handle null values or not.
  */
-trait ColumnIteratorFactory {
+trait ColumnIteratorFactory extends LogHelper {
   def createIterator(buf: ByteBufferReader): ColumnIterator
 }
 
@@ -53,6 +53,7 @@ object ColumnIteratorFactory {
       override def createIterator(buf: ByteBufferReader): ColumnIterator = {
         val nullable = buf.getLong() == 1L
         if (nullable) {
+          logDebug("baseIterClass " + baseIterClass + " created with EWAH")
           new EWAHNullableColumnIterator[T](baseIterClass, buf)
         } else {
           val ctor = baseIterClass.getConstructor(classOf[ByteBufferReader])
@@ -61,4 +62,73 @@ object ColumnIteratorFactory {
       }
     }
   }
+
+
+  /**
+   * Create a factory for a column iterator wrapped by Run Length encoding 
+   */
+  def createWithRLE[T <: ColumnIterator](baseIterClass: Class[T]): ColumnIteratorFactory = {
+    new ColumnIteratorFactory {
+      override def createIterator(buf: ByteBufferReader): ColumnIterator = {
+          logDebug("baseIterClass " + baseIterClass + " created with RLE")
+          new RLEColumnIterator[T](baseIterClass, buf)
+      }
+    }
+  }
+
+  /**
+   * Create a factory for an int column iterator wrapped by RLE first and then EWAH
+   */
+  def createIntWithEwahRLE: ColumnIteratorFactory = {
+    new ColumnIteratorFactory {
+      override def createIterator(buf: ByteBufferReader): ColumnIterator = {
+        logDebug("IntColumnIterator " + " created with RLE & EWAH")
+        val nullable = (buf.getLong() == 1L)
+        if (nullable) {
+          // funky 3 layer construction required because bytebuffer advances automatically
+          val iter = new RLEColumnIterator(classOf[IntColumnIterator.Default])
+          val ret = new EWAHNullableColumnIterator(iter, buf)
+          iter.initialize(buf)
+          ret
+        } else {
+          new RLEColumnIterator(classOf[IntColumnIterator.Default], buf)
+        }
+      }
+    }
+  }
+
+  /**
+   * Create a factory for a column iterator wrapped by LZF compression
+   */
+  def createWithLZF[T <: ColumnIterator](baseIterClass: Class[T]): ColumnIteratorFactory = {
+    new ColumnIteratorFactory {
+      override def createIterator(buf: ByteBufferReader): ColumnIterator = {
+          logDebug("baseIterClass " + baseIterClass + " created with LZF")
+          new LZFBlockColumnIterator[T](baseIterClass, buf) // uses chunks 
+//        new LZFColumnIterator[T](baseIterClass, buf)      // no chunks - single shot decompress
+      }
+    }
+  }
+
+  /**
+   * Create a factory for an int column iterator wrapped by LZF first and then EWAH
+   */
+  def createIntWithEwahLZF: ColumnIteratorFactory = {
+    new ColumnIteratorFactory {
+      override def createIterator(buf: ByteBufferReader): ColumnIterator = {
+        logDebug("IntColumnIterator " + " created with LZF & EWAH")
+        val nullable = (buf.getLong() == 1L)
+        if (nullable) {
+          // funky 3 layer construction required because bytebuffer advances automatically
+          val iter = new LZFBlockColumnIterator(classOf[IntColumnIterator.Default])
+          val ret = new EWAHNullableColumnIterator(iter, buf)
+          iter.initialize(buf)
+          ret
+        } else {
+          new LZFBlockColumnIterator(classOf[IntColumnIterator.Default], buf)
+        }
+      }
+    }
+  }
+ 
 }
