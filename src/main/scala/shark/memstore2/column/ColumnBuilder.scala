@@ -32,9 +32,8 @@ trait ColumnBuilder[T] {
   def stats: ColumnStats[T]
 
   def append(o: Object, oi: ObjectInspector) {
-    _buffer = growIfNeeded(_buffer)
     val v = t.get(o, oi)
-    
+    _buffer = growIfNeeded(_buffer, t.actualSize(v))
     t.append(v, _buffer)
     gatherStats(v)
   }
@@ -60,11 +59,14 @@ trait ColumnBuilder[T] {
     _buffer.putInt(t.typeID)
   }
   
-  protected def growIfNeeded(orig: ByteBuffer, loadFactor: Double = 0.75): ByteBuffer = {
+  protected def growIfNeeded(orig: ByteBuffer, size: Int): ByteBuffer = {
     val capacity = orig.capacity()
-    if (orig.remaining() < (1 - loadFactor) * capacity) {
+    if (orig.remaining() < size) {
       //grow in steps of initial size 
-      val s = orig.capacity() + _initialSize
+      var s = (3*orig.capacity())/2 + 1
+      if (s  < size) {
+        s = size
+      }
       val pos = orig.position()
       orig.clear()
       val b = ByteBuffer.allocate(s)
@@ -74,7 +76,6 @@ trait ColumnBuilder[T] {
       orig
     }
   }
-
 }
 
 class DefaultColumnBuilder[T](val stats: ColumnStats[T], val t: ColumnType[T, _]) 

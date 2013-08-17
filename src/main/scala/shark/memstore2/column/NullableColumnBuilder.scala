@@ -28,7 +28,7 @@ trait NullableColumnBuilder[T] extends ColumnBuilder[T] {
 
   override def append(o: Object, oi: ObjectInspector) {
     if (o == null) {
-      _nulls = growIfNeeded(_nulls)
+      _nulls = growIfNeeded(_nulls, 4)
       _nulls.putInt(_pos)
       _nullCount += 1
     } else {
