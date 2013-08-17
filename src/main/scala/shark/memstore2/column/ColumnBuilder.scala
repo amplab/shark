@@ -86,13 +86,14 @@ trait ColumnBuilder[T] {
     val capacity = orig.capacity()
     if (orig.remaining() < size) {
       //grow in steps of initial size 
-      var s = (3*orig.capacity())/2 + 1
-      if (s  < size) {
-        s = size
+      var additionalSize = capacity/8 + 1
+      var newSize = capacity + additionalSize
+      if (additionalSize  < size) {
+        newSize = capacity + size
       }
       val pos = orig.position()
       orig.clear()
-      val b = ByteBuffer.allocate(s)
+      val b = ByteBuffer.allocate(newSize)
       b.order(ByteOrder.nativeOrder())
       b.put(orig.array(), 0, pos)
     } else {

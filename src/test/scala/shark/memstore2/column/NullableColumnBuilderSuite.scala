@@ -10,9 +10,9 @@ class NullableColumnBuilderSuite extends FunSuite {
 
   test("Perf") {
     val c = new StringColumnBuilder()
-    c.initialize(1024*1024*8)
+    c.initialize(1) //initialize to some low value
     val oi = PrimitiveObjectInspectorFactory.writableStringObjectInspector
-    Range(0, 1000000).foreach { i =>
+    Range(0, 10000000).foreach { i =>
       c.append(new Text("00000000000000000000000000000000" + i), oi)
     }
     val b = c.build
