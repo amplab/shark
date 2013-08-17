@@ -18,7 +18,6 @@
 package shark.execution
 
 import java.nio.ByteBuffer
-import java.util.Properties
 
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.BeanProperty
@@ -31,14 +30,8 @@ import shark.memstore2._
 import shark.tachyon.TachyonTableWriter
 
 import spark.RDD
-import shark.{ SharkConfVars, SharkEnv, SharkEnvSlave, Utils }
-import shark.execution.serialization.{ OperatorSerializationWrapper, JavaSerializer }
-import shark.memstore2._
-import shark.tachyon.TachyonTableWriter
-
-import spark.{ RDD, TaskContext }
-import spark.SparkContext._
 import spark.storage.StorageLevel
+
 
 /**
  * Cache the RDD and force evaluate it (so the cache is filled).
@@ -47,7 +40,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
   @BeanProperty var initialColumnSize: Int = _
   @BeanProperty var storageLevel: StorageLevel = _
-  @BeanProperty var createTableProperties: Properties = new Properties
+  @BeanProperty var tableName: String = _
   @transient var useTachyon: Boolean = _
   @transient var useUnionRDD: Boolean = _
   @transient var numColumns: Int = _
@@ -68,11 +61,6 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     val statsAcc = SharkEnv.sc.accumulableCollection(ArrayBuffer[(Int, TablePartitionStats)]())
     val op = OperatorSerializationWrapper(this)
 
-    val tableName = createTableProperties.getProperty("name")
-    if (tableName == null) {
-      throw new RuntimeException("Table name is NULL - table properties - " + createTableProperties)
-    }
-
     val tachyonWriter: TachyonTableWriter =
       if (useTachyon) {
         // Use an additional row to store metadata (e.g. number of rows in each partition).
@@ -81,23 +69,12 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         null
       }
 
-    var tableProperties = op.localHiveOp.getConf.getTableInfo.getProperties()
-    if (createTableProperties.get(SharkConfVars.COLUMN_COMPRESS_STRING.varname) != null) {
-      tableProperties.setProperty(SharkConfVars.COLUMN_COMPRESS_STRING.varname,
-        createTableProperties.get(SharkConfVars.COLUMN_COMPRESS_STRING.varname).toString)
-    }
-    if (createTableProperties.get(SharkConfVars.COLUMN_COMPRESS_INT.varname) != null) {
-      tableProperties.setProperty(SharkConfVars.COLUMN_COMPRESS_INT.varname,
-        createTableProperties.get(SharkConfVars.COLUMN_COMPRESS_INT.varname).toString)
-    }
-    op.logInfo("Creating table with properties (TBLPROPERTY) - " + tableProperties)
-
     // Put all rows of the table into a set of TablePartition's. Each partition contains
     // only one TablePartition object.
-    var rdd: RDD[TablePartition] = inputRdd.mapPartitionsWithIndex { case (partitionIndex, iter) =>
+    var rdd: RDD[TablePartition] = inputRdd.mapPartitionsWithIndex { case(partitionIndex, iter) =>
       op.initializeOnSlave()
       val serde = new ColumnarSerDe
-      serde.initialize(op.localHconf, tableProperties)
+      serde.initialize(op.localHconf, op.localHiveOp.getConf.getTableInfo.getProperties)
 
       // Serialize each row into the builder object.
       // ColumnarSerDe will return a TablePartitionBuilder.
@@ -123,11 +100,10 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       SharkEnv.memoryMetadataManager.put(tableName, rdd)
 
       tachyonWriter.createTable(ByteBuffer.allocate(0))
-      rdd = rdd.mapPartitionsWithIndex { case (partitionIndex, iter) =>
+      rdd = rdd.mapPartitionsWithIndex { case(partitionIndex, iter) =>
         val partition = iter.next()
-        partition.toTachyon.zipWithIndex.foreach {
-          case (buf, column) =>
-            tachyonWriter.writeColumnPartition(column, partitionIndex, buf)
+        partition.toTachyon.zipWithIndex.foreach { case(buf, column) =>
+          tachyonWriter.writeColumnPartition(column, partitionIndex, buf)
         }
         Iterator(partition)
       }
@@ -196,7 +172,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     }
 
     if (SharkConfVars.getBoolVar(localHconf, SharkConfVars.MAP_PRUNING_PRINT_DEBUG)) {
-      columnStats.foreach { case (index, tableStats) =>
+      columnStats.foreach { case(index, tableStats) =>
         println("Partition " + index + " " + tableStats.toString)
       }
     }

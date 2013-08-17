@@ -49,7 +49,7 @@ class TablePartitionIterator(
     _position += 1
     var i = 0
     while (i < _columnIteratorsToAdvance.size) {
-      _columnIteratorsToAdvance(i).next()
+      _columnIteratorsToAdvance(i).next
       i += 1
     }
     _struct

@@ -29,10 +29,10 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.BooleanObjectInsp
 class BooleanColumnBuilder extends ColumnBuilder[Boolean] {
 
   private var _stats: ColumnStats.BooleanColumnStats = null
-  private var _nonNulls: BooleanArrayList = null
+  private var _arr: BooleanArrayList = null
 
   override def initialize(initialSize: Int) {
-    _nonNulls = new BooleanArrayList(initialSize)
+    _arr = new BooleanArrayList(initialSize)
     _stats = new ColumnStats.BooleanColumnStats
     super.initialize(initialSize)
   }
@@ -47,27 +47,28 @@ class BooleanColumnBuilder extends ColumnBuilder[Boolean] {
   }
 
   override def append(v: Boolean) {
-    _nonNulls.add(v)
+    _arr.add(v)
     _stats.append(v)
   }
 
   override def appendNull() {
-    _nullBitmap.set(_nonNulls.size + _stats.nullCount)
+    _nullBitmap.set(_arr.size)
+    _arr.add(false)
     _stats.appendNull()
   }
 
   override def stats = _stats
 
   override def build: ByteBuffer = {
-    val buf = ByteBuffer.allocate(_nonNulls.size + ColumnIterator.COLUMN_TYPE_LENGTH + sizeOfNullBitmap)
+    val buf = ByteBuffer.allocate(_arr.size + ColumnIterator.COLUMN_TYPE_LENGTH + sizeOfNullBitmap)
     buf.order(ByteOrder.nativeOrder())
     buf.putLong(ColumnIterator.BOOLEAN)
 
     writeNullBitmap(buf)
 
     var i = 0
-    while (i < _nonNulls.size) {
-      buf.put(if (_nonNulls.get(i)) 1.toByte else 0.toByte)
+    while (i < _arr.size) {
+      buf.put(if (_arr.get(i)) 1.toByte else 0.toByte)
       i += 1
     }
     buf.rewind()

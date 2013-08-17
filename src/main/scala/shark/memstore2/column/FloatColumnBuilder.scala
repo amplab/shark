@@ -29,10 +29,10 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.FloatObjectInspec
 class FloatColumnBuilder extends ColumnBuilder[Float] {
 
   private var _stats: ColumnStats.FloatColumnStats = null
-  private var _nonNulls: FloatArrayList = null
+  private var _arr: FloatArrayList = null
 
   override def initialize(initialSize: Int) {
-    _nonNulls = new FloatArrayList(initialSize)
+    _arr = new FloatArrayList(initialSize)
     _stats = new ColumnStats.FloatColumnStats
     super.initialize(initialSize)
   }
@@ -47,12 +47,13 @@ class FloatColumnBuilder extends ColumnBuilder[Float] {
   }
 
   override def append(v: Float) {
-    _nonNulls.add(v)
+    _arr.add(v)
     _stats.append(v)
   }
 
   override def appendNull() {
-    _nullBitmap.set(_nonNulls.size + _stats.nullCount)
+    _nullBitmap.set(_arr.size)
+    _arr.add(0)
     _stats.appendNull()
   }
 
@@ -60,15 +61,15 @@ class FloatColumnBuilder extends ColumnBuilder[Float] {
 
   override def build: ByteBuffer = {
     val buf = ByteBuffer.allocate(
-      _nonNulls.size * 4 + ColumnIterator.COLUMN_TYPE_LENGTH + sizeOfNullBitmap)
+      _arr.size * 4 + ColumnIterator.COLUMN_TYPE_LENGTH + sizeOfNullBitmap)
     buf.order(ByteOrder.nativeOrder())
     buf.putLong(ColumnIterator.FLOAT)
 
     writeNullBitmap(buf)
 
     var i = 0
-    while (i < _nonNulls.size) {
-      buf.putFloat(_nonNulls.get(i))
+    while (i < _arr.size) {
+      buf.putFloat(_arr.get(i))
       i += 1
     }
     buf.rewind()
