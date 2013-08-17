@@ -22,7 +22,6 @@ import java.nio.ByteBuffer
 import scala.collection.immutable.BitSet
 
 import shark.memstore2.column.ColumnIterator
-import shark.memstore2.column.ColumnIteratorFactory
 
 
 /**
