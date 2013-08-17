@@ -123,11 +123,17 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       rdd.persist(storageLevel)
       rdd.context.runJob(rdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
 
+      val origRdd = rdd
       if (useUnionRDD) {
+        // If this is an insert, find the existing RDD and create a union of the two, and then
+        // put the union into the meta data tracker.
         rdd = rdd.union(
           SharkEnv.memoryMetadataManager.get(tableName).get.asInstanceOf[RDD[TablePartition]])
       }
       SharkEnv.memoryMetadataManager.put(tableName, rdd)
+
+      // Run a job on the original RDD to force it to go into cache.
+      origRdd.context.runJob(origRdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
     }
 
     // Report remaining memory.

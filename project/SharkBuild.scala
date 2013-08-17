@@ -62,8 +62,8 @@ object SharkBuild extends Build {
     ),
 
     fork := true,
-    javaOptions in test += "-XX:MaxPermSize=512m",
-    javaOptions in test += "-Xmx2g",
+    javaOptions += "-XX:MaxPermSize=512m",
+    javaOptions += "-Xmx2g",
 
     testListeners <<= target.map(
       t => Seq(new eu.henkelmann.sbt.JUnitXmlTestsListener(t.getAbsolutePath))),
