@@ -21,7 +21,6 @@ import java.io.ObjectInput
 import java.io.ObjectOutput
 import java.io.Externalizable
 import java.sql.Timestamp
-
 import org.apache.hadoop.io.Text
 
 
@@ -45,8 +44,10 @@ sealed trait ColumnStats[@specialized(Boolean, Byte, Short, Int, Long, Float, Do
   def max: T = _max
 
   override def toString = "[" + min + ", " + max + "]"
-  def :<=(v: Any): Boolean = (this:=v) || (this:<v)
-  def :>=(v: Any): Boolean = (this:=v) || (this:>v)
+  
+  def :><(l: Any, r: Any): Boolean = (this :>= l) && (this :<= r)
+  def :<=(v: Any): Boolean = (this := v) || (this :< v)
+  def :>=(v: Any): Boolean = (this := v) || (this :> v)
   def  :=(v: Any): Boolean
   def  :>(v: Any): Boolean
   def  :<(v: Any): Boolean
@@ -342,7 +343,8 @@ object ColumnStats {
 
     def :=(v: Any): Boolean = {
       v match {
-        case u:Text => _min.compareTo(u) <= 0 && _max.compareTo(u) >= 0
+        case u:Text => _min.compareTo(u) <= 0 &&
+        			   _max.compareTo(u) >= 0
         case u: String => this:=(new Text(u))
         case _ => true
       }
@@ -367,8 +369,14 @@ object ColumnStats {
     override def append(v: Text) {
       // Need to make a copy of Text since Text is not immutable and we reuse
       // the same Text object in serializer to mitigate frequent GC.
-      if (_max == null || v.compareTo(_max) > 0) _max = new Text(v)
-      if (_min == null || v.compareTo(_min) < 0) _min = new Text(v)
+      if (_max == null) _max = new Text(v)
+      else if (v.compareTo(_max) > 0) {
+        _max.set(v.getBytes(), 0, v.getLength())
+      }
+      if (_min == null) _min = new Text(v)
+      else if (v.compareTo(_min) < 0) {
+        _min.set(v.getBytes(), 0, v.getLength())
+      }
     }
 
     override def readExternal(in: ObjectInput) {
