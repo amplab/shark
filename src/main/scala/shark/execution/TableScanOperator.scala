@@ -18,9 +18,7 @@
 package shark.execution
 
 import java.util.{ArrayList, Arrays}
-
 import scala.reflect.BeanProperty
-
 import org.apache.hadoop.mapred.{FileInputFormat, InputFormat, JobConf}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_PARTITION_COLUMNS
@@ -35,6 +33,7 @@ import org.apache.hadoop.io.Writable
 
 import shark.{SharkConfVars, SharkEnv, Utils}
 import shark.api.QueryExecutionException
+import shark.execution.optimization.ColumnPruner
 import shark.execution.serialization.{XmlSerializer, JavaSerializer}
 import shark.memstore2.{CacheType, TablePartition, TablePartitionStats}
 import shark.tachyon.TachyonException
@@ -183,10 +182,12 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         rdd
       }
 
+    val columnsUsed = new ColumnPruner(this, table).columnsUsed;
     prunedRdd.mapPartitions { iter =>
       if (iter.hasNext) {
         val tablePartition = iter.next.asInstanceOf[TablePartition]
-        tablePartition.iterator
+        tablePartition.prunedIterator(columnsUsed)
+        //tablePartition.iterator
       } else {
         Iterator()
       }
