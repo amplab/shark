@@ -30,16 +30,12 @@ import org.apache.hadoop.io.Text
 sealed trait ColumnStats[@specialized(Boolean, Byte, Short, Int, Long, Float, Double) T]
   extends Serializable {
 
-  var _nullCount = 0
-
   def append(v: T)
 
   protected def _min: T
   protected def _max: T
 
-  def appendNull() { _nullCount += 1 }
 
-  def nullCount: Int = _nullCount
   def min: T = _min
   def max: T = _max
 
@@ -58,6 +54,15 @@ sealed trait ColumnStats[@specialized(Boolean, Byte, Short, Int, Long, Float, Do
 // For int columns, we try to do more since int is more common. Examples include
 // ordering of the column and max deltas (max difference between two cells).
 object ColumnStats {
+
+  class NoOpStats[T] extends ColumnStats[T] {
+    protected var _max = null.asInstanceOf[T]
+    protected var _min = null.asInstanceOf[T]
+    override def append(v: T) {}
+    override def :=(v: Any): Boolean = true
+    override def :>(v: Any): Boolean = true
+    override def :<(v: Any): Boolean = true
+  }
 
   class BooleanColumnStats extends ColumnStats[Boolean] {
     protected var _max = false
@@ -340,20 +345,19 @@ object ColumnStats {
     // Note: this is not Java serializable because Text is not Java serializable.
     protected var _max: Text = null
     protected var _min: Text = null
-
+    
     def :=(v: Any): Boolean = {
       v match {
-        case u:Text => _min.compareTo(u) <= 0 &&
-        			   _max.compareTo(u) >= 0
-        case u: String => this:=(new Text(u))
+        case u: Text => _min.compareTo(u) <= 0 && _max.compareTo(u) >= 0
+        case u: String => this := new Text(u)
         case _ => true
       }
     }
 
     def :>(v: Any): Boolean = {
       v match {
-        case u:Text => _max.compareTo(u) > 0
-        case u: String => this:>(new Text(u))
+        case u: Text => _max.compareTo(u) > 0
+        case u: String => this :> new Text(u)
         case _ => true
       }
     }
@@ -361,7 +365,7 @@ object ColumnStats {
     def :<(v: Any): Boolean = {
       v match {
         case u:Text => _min.compareTo(u) < 0
-        case u: String => this:<(new Text(u))
+        case u: String => this :< new Text(u)
         case _ => true
       }
     }
@@ -369,14 +373,16 @@ object ColumnStats {
     override def append(v: Text) {
       // Need to make a copy of Text since Text is not immutable and we reuse
       // the same Text object in serializer to mitigate frequent GC.
-      if (_max == null) _max = new Text(v)
-      else if (v.compareTo(_max) > 0) {
+      if (_max == null) {
+        _max = new Text(v)
+      } else if (v.compareTo(_max) > 0) {
         _max.set(v.getBytes(), 0, v.getLength())
       }
-      if (_min == null) _min = new Text(v)
-      else if (v.compareTo(_min) < 0) {
+      if (_min == null) {
+        _min = new Text(v)
+      } else if (v.compareTo(_min) < 0) {
         _min.set(v.getBytes(), 0, v.getLength())
-      }
+      } 
     }
 
     override def readExternal(in: ObjectInput) {

@@ -135,7 +135,7 @@ SKIP_HIVE=false
 SKIP_HADOOP=false
 SKIP_TESTS=false
 
-while getopts "hsed" opt; do
+while getopts "hsedt" opt; do
   case $opt in
     h)
       usage
@@ -302,7 +302,7 @@ if $SKIP_TESTS ; then
   echo "Compiling Shark and not running any tests..."
   pushd $SHARK_PROJ_DIR
   # Compile Shark
-  sbt/sbt compile
+  sbt/sbt publish-local
   popd
 else
   echo "Compiling Shark and parts of Hive necessary for testing, then running tests..."

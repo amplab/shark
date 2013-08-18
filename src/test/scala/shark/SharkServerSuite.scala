@@ -10,6 +10,7 @@ import scala.collection.JavaConversions._
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 import org.scalatest.matchers.ShouldMatchers
 
+import scala.concurrent.ops._
 
 /**
  * Test for the Shark server.
@@ -23,6 +24,9 @@ class SharkServerSuite extends FunSuite with BeforeAndAfterAll with ShouldMatche
   // use a different port, than the hive standard 10000,
   // for tests to avoid issues with the port being taken on some machines
   val PORT = "9011"
+
+  // If verbose is true, the testing program will print all outputs coming from the shark server.
+  val VERBOSE = Option(System.getenv("SHARK_TEST_VERBOSE")).getOrElse("false").toBoolean
 
   Class.forName(DRIVER_NAME)
 
@@ -49,6 +53,23 @@ class SharkServerSuite extends FunSuite with BeforeAndAfterAll with ShouldMatche
     inputReader = new BufferedReader(new InputStreamReader(process.getInputStream))
     errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream))
     waitForOutput(inputReader, "Starting Shark server")
+
+    // Spawn a thread to read the output from the forked process.
+    // Note that this is necessary since in some configurations, log4j could be blocked
+    // if its output to stderr are not read, and eventually blocking the entire test suite.
+    spawn {
+      while (true) {
+        val stdout = readFrom(inputReader)
+        val stderr = readFrom(errorReader)
+        if (VERBOSE && stdout.length > 0) {
+          println(stdout)
+        }
+        if (VERBOSE && stderr.length > 0) {
+          println(stderr)
+        }
+        Thread.sleep(50)
+      }
+    }
   }
 
   private def stopServer() {
