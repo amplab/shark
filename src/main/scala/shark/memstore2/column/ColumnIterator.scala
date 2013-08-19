@@ -72,6 +72,7 @@ object Implicits {
   implicit def intToCompressionType(i: Int): CompressionType = i match {
     case -1 => DEFAULT
     case 0 => RLECompressionType
+    case 1 => DictionaryCompressionType
     case _ => throw new UnsupportedOperationException("Compression Type " + i)
   }
 
