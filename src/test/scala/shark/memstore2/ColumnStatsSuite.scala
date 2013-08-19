@@ -42,6 +42,15 @@ class ColumnStatsSuite extends FunSuite {
     assert(c.min == true && c.max == true)
     c.append(false)
     assert(c.min == false && c.max == true)
+    assert(c:=(true) == true)
+    assert(c:=(false) == true)
+    c = new ColumnStats.BooleanColumnStats
+    c.append(true)
+    assert(c:=true == true)
+    assert(c:=false == false)
+    assert(c:>=false == true)
+    assert(c:<=false == false)
+    assert(c:>=true == true)
   }
 
   test("ByteColumnStats") {
@@ -56,6 +65,10 @@ class ColumnStatsSuite extends FunSuite {
     assert(c.min == -1 && c.max == 2)
     c.append(-2)
     assert(c.min == -2 && c.max == 2)
+    assert(c:=0 == true)
+    assert(c:>0 == true)
+    assert(c:<=(-1) == true)
+    assert(c:<=(-3) == false)
   }
 
   test("ShortColumnStats") {
@@ -121,6 +134,9 @@ class ColumnStatsSuite extends FunSuite {
     assert(c.min == -1 && c.max == Int.MaxValue.toLong + 1L)
     c.append(Int.MinValue.toLong - 1L)
     assert(c.min == Int.MinValue.toLong - 1L && c.max == Int.MaxValue.toLong + 1L)
+    assert(c:=0 == true)
+    assert(c:>(-2) == true)
+    assert(c:<0 == true)
   }
 
   test("FloatColumnStats") {
@@ -135,6 +151,9 @@ class ColumnStatsSuite extends FunSuite {
     assert(c.min == -1 && c.max == 20.5445F)
     c.append(-20.5445F)
     assert(c.min == -20.5445F && c.max == 20.5445F)
+    assert(c:=20.5F == true)
+    assert(c:<20.6F == true)
+    assert(c:>(-20.6F) == true)
   }
 
   test("DoubleColumnStats") {
@@ -149,6 +168,9 @@ class ColumnStatsSuite extends FunSuite {
     assert(c.min == -1 && c.max == 20.5445)
     c.append(-20.5445)
     assert(c.min == -20.5445 && c.max == 20.5445)
+    assert(c:=20.5 == true)
+    assert(c:>20.6 == false)
+    assert(c:<20.6 == true)
   }
 
   test("TimestampColumnStats") {
