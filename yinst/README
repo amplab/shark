@@ -8,6 +8,13 @@ Z is yahoo-specific versioning.
 
 Release Notes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Version 0.7.2.100.1
+        1. Run length encoding
+        2. bug fix for group by const , affects Tableau queries
+        3. bug fix for dealing with cases where we overrun memory while loading cached tables. Ability to subsequently release partially cached data
+        4. ability to turn on and off compression: set shark.columnar.compression=false/true
+        5. upgrade from Shark ADP to Shark branch-0.1 , more recent Shark code using memstore 2.
+        Packaged from branch-0.1 @ commit https://git.corp.yahoo.com/bdas/shark/commit/f872c325bcd5c48ce06591de1545e6ba99e138de
 Version 0.7.2.100.0
         Compression,Hadoop 23 Packaged from branch-0.1 @ commit https://git.corp.yahoo.com/bdas/shark/commit/3b0d5eac563b678a1ddea529db3541e54b02a4b1
 Version 0.7.2.1
