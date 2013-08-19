@@ -34,6 +34,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectIn
 import org.apache.hadoop.io.Writable
 
 import shark.{SharkConfVars, SharkEnv, Utils}
+import shark.api.QueryExecutionException
 import shark.execution.serialization.{XmlSerializer, JavaSerializer}
 import shark.memstore2.{CacheType, TablePartition, TablePartitionStats}
 import shark.tachyon.TachyonException
@@ -111,8 +112,13 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     val cacheMode = CacheType.fromString(
       tableDesc.getProperties().get("shark.cache").asInstanceOf[String])
     if (cacheMode == CacheType.heap) {
-      // Table is in Spark heap (block manager).
-      val rdd = SharkEnv.memoryMetadataManager.get(tableKey).get
+      // Table should be in Spark heap (block manager).
+      val rdd = SharkEnv.memoryMetadataManager.get(tableKey).getOrElse {
+        logError("""|Table %s not found in block manager.
+                    |Are you trying to access a cached table from a Shark session other than
+                    |the one in which it was created?""".stripMargin.format(tableKey))
+        throw(new QueryExecutionException("Cached table not found"))
+      }
       logInfo("Loading table " + tableKey + " from Spark block manager")
       loadRddFromSpark(tableKey, rdd)
     } else if (cacheMode == CacheType.tachyon) {

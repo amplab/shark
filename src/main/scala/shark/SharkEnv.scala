@@ -22,7 +22,7 @@ import scala.collection.mutable.{HashMap, HashSet}
 import shark.api.JavaSharkContext
 import shark.memstore2.MemoryMetadataManager
 import shark.tachyon.TachyonUtilImpl
-import spark.SparkContext
+import spark.{RDD, SparkContext}
 import spark.scheduler.StatsReportListener
 
 /** A singleton object for the master program. The slaves should not access this. */
@@ -109,6 +109,18 @@ object SharkEnv extends LogHelper {
   val addedFiles = HashSet[String]()
   val addedJars = HashSet[String]()
 
+  def unpersist(key: String): Option[RDD[_]] = {
+    if (SharkEnv.tachyonUtil.tachyonEnabled() && SharkEnv.tachyonUtil.tableExists(key)) {
+      if (SharkEnv.tachyonUtil.dropTable(key)) {
+        logInfo("Table " + key + " was deleted from Tachyon.");
+      } else {
+        logWarning("Failed to remove table " + key + " from Tachyon.");
+      }
+    }
+
+    memoryMetadataManager.unpersist(key)
+  }
+
   /** Cleans up and shuts down the Shark environments. */
   def stop() {
     logInfo("Shutting down Shark Environment")
@@ -126,13 +138,6 @@ object SharkEnv extends LogHelper {
 
 /** A singleton object for the slaves. */
 object SharkEnvSlave {
-  /**
-   * A lock for various operations in ObjectInspectorFactory. Methods in that
-   * class uses a static objectInspectorCache object to cache the creation of
-   * object inspectors. That object is not thread safe so we wrap all calls to
-   * that object in a synchronized lock on this.
-   */
-  val objectInspectorLock: AnyRef = new Object()
 
   val tachyonUtil = new TachyonUtilImpl(
     System.getenv("TACHYON_MASTER"), System.getenv("TACHYON_WAREHOUSE_PATH"))

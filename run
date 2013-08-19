@@ -2,7 +2,6 @@
 
 # This file is used to launch Shark on the master.
 export SCALA_VERSION=2.9.3
-
 SHARK_VERSION=0.8.0-SNAPSHOT
 
 # Figure out where the framework is installed

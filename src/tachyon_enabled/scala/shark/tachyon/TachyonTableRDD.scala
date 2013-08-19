@@ -28,10 +28,8 @@ import shark.memstore2._
 
 import spark.{Dependency, Partition, RDD, SerializableWritable, SparkContext, TaskContext}
 
-import tachyon.client.InStream
-import tachyon.client.OpType
-import tachyon.client.RawTable
-import tachyon.client.TachyonFile
+import tachyon.client.{InStream, ReadType, TachyonFile}
+import tachyon.client.table.RawTable
 
 private class TachyonTablePartition(rddId: Int, idx: Int, val locations: Seq[String])
   extends Partition {
@@ -63,19 +61,24 @@ class TachyonTableRDD(path: String, @transient sc: SparkContext)
     val rawTable: RawTable = SharkEnvSlave.tachyonUtil.client.getRawTable(path)
     val buffers = Array.tabulate[ByteBuffer](rawTable.getColumns()) { columnIndex =>
       val fp = rawTable.getRawColumn(columnIndex).getPartition(theSplit.index, true)
-      var buf: ByteBuffer = fp.readByteBuffer()
-      if (buf == null && fp.recacheData()) {
+      // Try to read data from Tachyon's memory, either local or remote.
+      var buf = fp.readByteBuffer()
+      if (buf == null && fp.recache()) {
+        // The data is not in Tachyon's memory yet, recache succeed.
         buf = fp.readByteBuffer()
       }
       if (buf == null) {
-        // TODO Log this. Reading data from remote is bad.
-        buf = ByteBuffer.allocate(fp.length().toInt)
-        val is = fp.getInStream(OpType.READ_TRY_CACHE)
-        is.read(buf.array)
+        logWarning("Table " + path + " column " + columnIndex + " partition " + theSplit.index
+          + " is not in Tachyon's memory. Streaming it in.")
+        var data = ByteBuffer.allocate(fp.length().toInt)
+        val is = fp.getInStream(ReadType.CACHE)
+        is.read(data.array)
         is.close()
-        buf.limit(fp.length().toInt)
+        data.limit(fp.length().toInt)
+        data
+      } else {
+        buf.DATA
       }
-      buf
     }
     (new TablePartition(buffers)).iterator
   }

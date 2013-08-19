@@ -196,7 +196,7 @@ class GroupByPostShuffleOperator extends GroupByPreShuffleOperator with HiveTopO
     var numReduceTasks = hconf.getIntVar(HiveConf.ConfVars.HADOOPNUMREDUCERS)
     // If we have no keys, it needs a total aggregation with 1 reducer.
     if (numReduceTasks < 1 || conf.getKeys.size == 0) numReduceTasks = 1
-    val partitioner = new HashPartitioner(numReduceTasks)
+    val partitioner = new ReduceKeyPartitioner(numReduceTasks)
 
     val repartitionedRDD = new ShuffledRDD[Any, Any](
       inputRdd, partitioner, SharkEnv.shuffleSerializerName)
@@ -299,15 +299,23 @@ class GroupByPostShuffleOperator extends GroupByPreShuffleOperator with HiveTopO
             row(0) = nextRow(0)
             row(1) = nextRow(1)
 
-            if (row(1) != null) {
-              // Aggregate the non distinct columns from the values.
-              GroupByPostShuffleOperator.super.aggregateExistingKey(row, aggrs)
-            }
-
             assert(unionExprEvaluator != null)
             // union tag is the tag (index) for the distinct column.
             val uo = unionExprEvaluator.evaluate(row).asInstanceOf[UnionObject]
             val unionTag = uo.getTag.toInt
+
+            if (unionTag == 0) {
+              // Aggregate the non distinct columns from the values.
+              for (pos <- nonDistinctAggrs) {
+                val o = new Array[Object](aggregationParameterFields(pos).length)
+                var pi = 0
+                while (pi < aggregationParameterFields(pos).length) {
+                  o(pi) = aggregationParameterFields(pos)(pi).evaluate(row)
+                  pi += 1
+                }
+                aggregationEvals(pos).aggregate(aggrs(pos), o)
+              }
+            }
 
             // update non-distinct aggregations : "KEY._colx:t._coly"
             val nonDistinctKeyAgg: JSet[java.lang.Integer] = nonDistinctKeyAggrs.get(unionTag)

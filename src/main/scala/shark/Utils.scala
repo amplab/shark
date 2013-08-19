@@ -29,28 +29,19 @@ object Utils {
    * Convert a memory quantity in bytes to a human-readable string such as "4.0 MB".
    */
   def memoryBytesToString(size: Long): String = {
+    lazy val TB = 1L << 40
+    lazy val GB = 1L << 30
+    lazy val MB = 1L << 20
+    lazy val KB = 1L << 10
 
-    import java.util.Locale
+    def fmt(value:Double, unit:String) = "%.1f %s".formatLocal(java.util.Locale.US, value, unit)
 
-    val TB = 1L << 40
-    val GB = 1L << 30
-    val MB = 1L << 20
-    val KB = 1L << 10
-
-    val (value, unit) = {
-      if (size >= 2*TB) {
-        (size.asInstanceOf[Double] / TB, "TB")
-      } else if (size >= 2*GB) {
-        (size.asInstanceOf[Double] / GB, "GB")
-      } else if (size >= 2*MB) {
-        (size.asInstanceOf[Double] / MB, "MB")
-      } else if (size >= 2*KB) {
-        (size.asInstanceOf[Double] / KB, "KB")
-      } else {
-        (size.asInstanceOf[Double], "B")
-      }
+    size match {
+      case _:Long if size >= 2*TB => fmt(size.asInstanceOf[Double] / TB, "TB")
+      case _:Long if size >= 2*GB => fmt(size.asInstanceOf[Double] / GB, "GB")
+      case _:Long if size >= 2*MB => fmt(size.asInstanceOf[Double] / MB, "MB")
+      case _:Long if size >= 2*KB => fmt(size.asInstanceOf[Double] / KB, "KB")
     }
-    "%.1f %s".formatLocal(Locale.US, value, unit)
   }
 
   /**

@@ -31,7 +31,7 @@ import shark.memstore2.column.ColumnIteratorFactory
  *
  * @param numRows: total number of rows in this partition.
  * @param columnIterators: iterators for all columns.
- @ @param columnUsed: an optional bitmap indicating whether a column is used.
+ * @param columnUsed: an optional bitmap indicating whether a column is used.
  */
 class TablePartitionIterator(
     val numRows: Long,

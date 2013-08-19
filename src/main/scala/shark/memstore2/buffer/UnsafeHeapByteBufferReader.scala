@@ -30,9 +30,9 @@ class UnsafeHeapByteBufferReader(buf: ByteBuffer) extends ByteBufferReader {
     throw new IllegalArgumentException("buf (" + buf + ") must have a backing array. ")
   }
 
+  private val _arr: Array[Byte] = buf.array()
   private val _base_offset: Long = Unsafe.BYTE_ARRAY_BASE_OFFSET
   private var _offset: Long = _base_offset
-  private var _arr: Array[Byte] = buf.array()
 
   override def getByte(): Byte = {
     val v = Unsafe.unsafe.getByte(_arr, _offset)
@@ -105,6 +105,12 @@ class UnsafeHeapByteBufferReader(buf: ByteBuffer) extends ByteBufferReader {
   }
 
   override def position: Int = (_offset - _base_offset).toInt
+
+  override def duplicate(): ByteBufferReader = {
+    val dup = new UnsafeHeapByteBufferReader(buf)
+    dup._offset = this._offset
+    dup
+  }
 
   override def printDebug() {
     var i = 0

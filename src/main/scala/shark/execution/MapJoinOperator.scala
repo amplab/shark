@@ -17,7 +17,7 @@
 
 package shark.execution
 
-import java.util.{ArrayList, HashMap => JHashMap, List => JList}
+import java.util.{HashMap => JHashMap, List => JList}
 
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
@@ -26,16 +26,12 @@ import scala.reflect.BeanProperty
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, JoinUtil => HiveJoinUtil}
 import org.apache.hadoop.hive.ql.exec.{MapJoinOperator => HiveMapJoinOperator}
 import org.apache.hadoop.hive.ql.plan.MapJoinDesc
-import org.apache.hadoop.hive.ql.plan.{PartitionDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
-import org.apache.hadoop.io.BytesWritable
 
 import shark.SharkEnv
-import shark.SharkEnvSlave
 import shark.execution.serialization.{OperatorSerializationWrapper, SerializableWritable}
-import spark.RDD
-import spark.broadcast.Broadcast
-
+import spark.{RDD, SparkEnv}
+import spark.storage.StorageLevel
 
 /**
  * A join operator optimized for joining a large table with a number of small
@@ -126,7 +122,23 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
 
       // Collect the RDD and build a hash table.
       val startCollect = System.currentTimeMillis()
-      val wrappedRows: Array[(Seq[AnyRef], Seq[Array[AnyRef]])] = rddForHash.collect()
+      val storageLevel = rddForHash.getStorageLevel
+      if(storageLevel == StorageLevel.NONE)
+        rddForHash.persist(StorageLevel.MEMORY_AND_DISK)
+      rddForHash.foreach(_ => Unit)
+      val wrappedRows = rddForHash.partitions.flatMap { part =>
+        val blockId = "rdd_%s_%s".format(rddForHash.id, part.index)
+        val iter = SparkEnv.get.blockManager.get(blockId)
+        val partRows = new ArrayBuffer[(Seq[AnyRef], Seq[Array[AnyRef]])]
+        iter.foreach(_.foreach { row =>
+          partRows += row.asInstanceOf[(Seq[AnyRef], Seq[Array[AnyRef]])]
+        })
+        partRows
+      }
+      if(storageLevel == StorageLevel.NONE)
+        rddForHash.unpersist()
+
+      logInfo("wrappedRows size:" + wrappedRows.size)
       val collectTime = System.currentTimeMillis() - startCollect
       logInfo("HashTable collect took " + collectTime + " ms")
 
@@ -157,7 +169,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
   : Iterator[(Seq[AnyRef], Seq[Array[AnyRef]])] = {
     // MapJoinObjectValue contains a MapJoinRowContainer, which contains a list of
     // rows to be joined.
-    var valueMap = new JHashMap[Seq[AnyRef], Seq[Array[AnyRef]]]
+    val valueMap = new JHashMap[Seq[AnyRef], Seq[Array[AnyRef]]]
     iter.foreach { row =>
       val key = JoinUtil.computeJoinKey(
         row,

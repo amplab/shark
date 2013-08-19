@@ -17,8 +17,9 @@
 
 package shark.execution
 
-import java.util.{ArrayList, List => JList, Random}
 import scala.collection.mutable.ArrayBuffer
+import java.util.{ArrayList, Arrays, List => JList, Random}
+
 import scala.collection.Iterator
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
@@ -161,9 +162,7 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
     ois.add(keySer.getObjectInspector)
     ois.add(valueSer.getObjectInspector)
 
-    val outputObjInspector = SharkEnvSlave.objectInspectorLock.synchronized {
-      ObjectInspectorFactory.getStandardStructObjectInspector(List("KEY","VALUE"), ois)
-    }
+    val outputObjInspector = ObjectInspectorFactory.getStandardStructObjectInspector(List("KEY","VALUE"), ois)
 
     val joinTag = conf.getTag()
 
@@ -204,21 +203,17 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
     valueSer.initialize(null, valueTableDesc.getProperties())
 
     // Initialize object inspector for key columns.
-    keyObjInspector = SharkEnvSlave.objectInspectorLock.synchronized {
-      ReduceSinkOperatorHelper.initEvaluatorsAndReturnStruct(
+    keyObjInspector = ReduceSinkOperatorHelper.initEvaluatorsAndReturnStruct(
         keyEval,
         distinctColIndices,
         conf.getOutputKeyColumnNames,
         numDistributionKeys,
         rowInspector)
-    }
 
     // Initialize object inspector for value columns.
     val valFieldInspectors = valueEval.map(eval => eval.initialize(rowInspector)).toList
-    valObjInspector = SharkEnvSlave.objectInspectorLock.synchronized {
-      ObjectInspectorFactory.getStandardStructObjectInspector(
+    valObjInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
         conf.getOutputValueColumnNames(), valFieldInspectors)
-    }
 
     // Initialize evaluator and object inspector for partition columns.
     partitionEval = conf.getPartitionCols.map(ExprNodeEvaluatorFactory.get(_)).toArray
@@ -377,8 +372,8 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
       System.arraycopy(allKeys, 0, keyBuffer, 0, numDistributionKeys)
       keyBuffer(numDistributionKeys) = null
 
-      // The partition code determins where we are sending the rows.
-      reduceKey.partitionCode = keyBuffer.hashCode()
+      // The partition code determines where we are sending the rows.
+      reduceKey.partitionCode = Arrays.hashCode(keyBuffer)
 
       Iterator.tabulate(distinctColumnIndices.length) { distinctI =>
         var i = 0

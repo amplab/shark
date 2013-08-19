@@ -27,7 +27,7 @@ import org.apache.hadoop.hive.ql.exec.Utilities.EnumDelegate
 import org.apache.hadoop.hive.ql.plan.GroupByDesc
 import org.apache.hadoop.hive.ql.plan.PlanUtils.ExpressionTypes
 
-import shark.{SharkConfVars, SharkEnvSlave}
+import shark.{SharkConfVars}
 
 
 /**
@@ -71,11 +71,13 @@ object XmlSerializer {
 
     // Occasionally an object inspector is created from the decoding.
     // Need to put a lock on the process.
-    val ret = SharkEnvSlave.objectInspectorLock.synchronized {
+    val ret = {
       val d: XMLDecoder = new XMLDecoder(decodedStream, null, null, cl)
-      val ret = d.readObject()
-      d.close()
-      ret
+      classOf[XMLDecoder].synchronized {
+        val ret = d.readObject()
+        d.close()
+        ret
+      }
     }
     ret.asInstanceOf[T]
   }

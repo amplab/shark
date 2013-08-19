@@ -25,8 +25,14 @@ import spark.RDD
 
 
 class TachyonUtilImpl(val master: String, val warehousePath: String) extends TachyonUtil {
+  override def tachyonEnabled(): Boolean = false
 
   override def tableExists(tableName: String): Boolean = {
+    throw new UnsupportedOperationException(
+      "This version of Shark is not compiled with Tachyon support.")
+  }
+
+  override def dropTable(tableName: String): Boolean = {
     throw new UnsupportedOperationException(
       "This version of Shark is not compiled with Tachyon support.")
   }
