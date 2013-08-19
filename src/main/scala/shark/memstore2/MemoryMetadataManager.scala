@@ -36,20 +36,21 @@ class MemoryMetadataManager {
   private val _keyToStats: ConcurrentMap[String, collection.Map[Int, TablePartitionStats]] =
     new ConcurrentHashMap[String, collection.Map[Int, TablePartitionStats]]
 
-  def contains(key: String) = _keyToRdd.contains(key.toLowerCase)
+  def contains(key: String) = if (null == key) false else _keyToRdd.contains(key.toLowerCase)
 
   def put(key: String, rdd: RDD[_]) {
-    _keyToRdd(key.toLowerCase) = rdd
+    if (null != key) _keyToRdd(key.toLowerCase) = rdd
   }
 
-  def get(key: String): Option[RDD[_]] = _keyToRdd.get(key.toLowerCase)
+  def get(key: String): Option[RDD[_]] = 
+    if (null == key) None else _keyToRdd.get(key.toLowerCase)
 
   def putStats(key: String, stats: collection.Map[Int, TablePartitionStats]) {
-    _keyToStats.put(key.toLowerCase, stats)
+    if (null != key) _keyToStats.put(key.toLowerCase, stats)
   }
 
   def getStats(key: String): Option[collection.Map[Int, TablePartitionStats]] = {
-    _keyToStats.get(key.toLowerCase)
+    if (null == key) None else _keyToStats.get(key.toLowerCase)
   }
 
   /**

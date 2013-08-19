@@ -192,7 +192,9 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                     storageLevel,
                     _resSchema.size,                // numColumns
                     cacheMode == CacheType.tachyon, // use tachyon
-                    useUnionRDD)
+                    useUnionRDD,
+                    "",
+                    new Array[String](0))
                 } else {
                   throw new SemanticException(
                     "Shark does not support updating cached table(s) with multiple INSERTs")
@@ -210,13 +212,40 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
             val storageLevel = MemoryMetadataManager.getStorageLevelFromString(
               qb.getTableDesc().getTblProps.get("shark.cache.storageLevel"))
             qb.getTableDesc().getTblProps().put(CachedTableRecovery.QUERY_STRING, ctx.getCmd())
+            val coPartitionTableName = qb.getTableDesc().getTblProps().getOrElse(
+                                         "shark.copartition.table", "").trim
+            val partitionCols = qb.getTableDesc().getTblProps().getOrElse(
+                                  "shark.partition.col", "").trim
+            val colsString = qb.getTableDesc().getCols.map(_.getName())
+            val partColInternalName = 
+              if(partitionCols == "") {
+                new Array[String](0)  
+              } else {
+                val regex = "_col([0-9])*".r
+                partitionCols.split("\\,").map { partCol =>
+                  val partColTrim = partCol.trim
+                  partColTrim match {
+                    case regex(pos) => partColTrim
+                    case _ =>
+                      val idx = colsString.indexOf(partColTrim)
+                      if(idx >= 0) {
+                        "_col" + idx
+                      } else {
+                        throw new SemanticException(
+                          "Error partitionCol name, not exist: " + partColTrim)
+                      }
+                  }
+                }
+              }
             OperatorFactory.createSharkMemoryStoreOutputPlan(
               hiveSinkOps.head,
               qb.getTableDesc.getTableName,
               storageLevel,
               _resSchema.size,                // numColumns
               cacheMode == CacheType.tachyon, // use tachyon
-              false)
+              false,
+              coPartitionTableName,
+              partColInternalName)
           } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink && !qb.isCTAS) {
             OperatorFactory.createSharkRddOutputPlan(hiveSinkOps.head)
           } else {

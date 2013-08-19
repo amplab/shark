@@ -22,14 +22,18 @@ import java.nio.ByteBuffer
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.BeanProperty
 
-import org.apache.hadoop.io.Writable
+import org.apache.hadoop.io.{BytesWritable, Writable}
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
+import org.apache.hadoop.hive.serde2.binarysortable.{BinarySortableSerDe, OutputByteBuffer, 
+  HiveStructPartialSerializer}
 
-import shark.{SharkConfVars, SharkEnv, SharkEnvSlave, Utils}
+import shark.{CoPartitioner, SharkConfVars, SharkEnv, SharkEnvSlave, Utils}
 import shark.execution.serialization.{OperatorSerializationWrapper, JavaSerializer}
 import shark.memstore2._
 import shark.tachyon.TachyonTableWriter
 
-import spark.{RDD, TaskContext}
+import spark.{RDD, SparkEnv, TaskContext}
+import spark.rdd.ShuffledWithLocationsRDD
 import spark.SparkContext._
 import spark.storage.StorageLevel
 
@@ -45,6 +49,8 @@ class MemoryStoreSinkOperator extends TerminalOperator {
   @transient var useTachyon: Boolean = _
   @transient var useUnionRDD: Boolean = _
   @transient var numColumns: Int = _
+  @BeanProperty var coPartitionTableName: String = _
+  @BeanProperty var partColInternalName: Array[String] = _
 
   override def initializeOnMaster() {
     super.initializeOnMaster()
@@ -58,9 +64,17 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
   override def execute(): RDD[_] = {
     val inputRdd = if (parentOperators.size == 1) executeParents().head._2 else null
-
     val statsAcc = SharkEnv.sc.accumulableCollection(ArrayBuffer[(Int, TablePartitionStats)]())
     val op = OperatorSerializationWrapper(this)
+    val shouldPartition = partColInternalName.size != 0
+    val partCols = partColInternalName
+ 
+    def getCacheLocations(rdd: RDD[_]): Array[Seq[String]] = {
+      val blockIds = rdd.partitions.indices.map(index=> "rdd_%d_%d".format(rdd.id, index)).toArray
+      SparkEnv.get.blockManager.master.getLocations(blockIds).map {
+        locations => locations.map(_.hostPort).toSeq
+      }.toArray
+    } 
 
     val tachyonWriter: TachyonTableWriter =
       if (useTachyon) {
@@ -70,18 +84,67 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         null
       }
 
+    val rddToCache = {
+      if (shouldPartition) {
+        val (partitioner, locations) = {
+          val partNum = localHconf.getInt("shark.copartition.partnum", 5)
+          SharkEnv.memoryMetadataManager.get(coPartitionTableName) match {
+            case Some(coRdd) => logInfo("Copartitioning table %s with %s ".
+                                        format(tableName, coPartitionTableName))
+              (new CoPartitioner(partNum), getCacheLocations(coRdd))
+            case _ => logInfo("Copartition table not found in cache:" + coPartitionTableName)
+              (new CoPartitioner(partNum), null)
+          }
+        }
+        partCols.foreach(partitioner.addPartitionCol(_))
+        val kvRdd = inputRdd.mapPartitions { rowIter => 
+          op.initializeOnSlave()
+          val serde = new BinarySortableSerDe()
+          serde.initialize(op.hconf, op.localHiveOp.getConf.getTableInfo.getProperties)
+          val sois = op.objectInspector.asInstanceOf[StructObjectInspector]
+          val fields = partCols.map(sois.getStructFieldRef(_))
+          val bserializer = new HiveStructPartialSerializer(sois, fields)
+          rowIter.map { row =>
+            val key = bserializer.serialize(row.asInstanceOf[AnyRef]).asInstanceOf[BytesWritable]
+            val value = serde.serialize(row, op.objectInspector).asInstanceOf[BytesWritable]
+            val reduceKey = new ReduceKeyMapSide(key)
+            (reduceKey, value)
+          }
+        }
+        logInfo("kvRdd generated for table with copartitionCol " + partColInternalName + " " + partitioner)
+        new ShuffledWithLocationsRDD[Any, Any](kvRdd.asInstanceOf[RDD[(Any, Any)]], 
+            partitioner, locations).mapPartitions(iter => {
+              iter.map { case (k: ReduceKeyReduceSide, v: Array[Byte]) => v }
+            }, true)
+      } else {
+        inputRdd
+      }
+    }
+
     // Put all rows of the table into a set of TablePartition's. Each partition contains
     // only one TablePartition object.
-    var rdd: RDD[TablePartition] = inputRdd.mapPartitionsWithIndex { case(partitionIndex, iter) =>
+    var rdd: RDD[TablePartition] = rddToCache.mapPartitionsWithIndex({ case(partitionIndex, iter) =>
       op.initializeOnSlave()
       val serde = new ColumnarSerDe
       serde.initialize(op.hconf, op.localHiveOp.getConf.getTableInfo.getProperties())
 
+      val (iterToUse, ois) = if (shouldPartition) {
+        val serdeDeserialize = new BinarySortableSerDe()
+        serdeDeserialize.initialize(op.hconf, op.localHiveOp.getConf.getTableInfo.getProperties)
+        val bw = new BytesWritable()
+        val mappedIter = iter.map { x => 
+          bw.set(x.asInstanceOf[Array[Byte]], 0, x.asInstanceOf[Array[Byte]].length)
+          serdeDeserialize.deserialize(bw)
+        }
+        (mappedIter, serdeDeserialize.getObjectInspector)
+      } else
+        (iter, op.objectInspector)
+
       // Serialize each row into the builder object.
       // ColumnarSerDe will return a TablePartitionBuilder.
       var builder: Writable = null
-      iter.foreach { row =>
-        builder = serde.serialize(row.asInstanceOf[AnyRef], op.objectInspector)
+      iterToUse.foreach { row =>
+        builder = serde.serialize(row.asInstanceOf[AnyRef], ois)
       }
 
       if (builder != null) {
@@ -92,7 +155,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         statsAcc += Tuple2(partitionIndex, new TablePartitionStats(Array(), 0))
         Iterator(new TablePartition(0, Array()))
       }
-    }
+    }, preservesPartitioning = true)
 
     if (tachyonWriter != null) {
       // Put the table in Tachyon.

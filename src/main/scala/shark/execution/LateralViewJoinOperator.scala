@@ -80,7 +80,7 @@ class LateralViewJoinOperator extends NaryOperator[HiveLateralViewJoinOperator] 
     // branches (see diagram in Hive's).
     val inputRDD = lvfOp.execute()
 
-    Operator.executeProcessPartition(this, inputRDD)
+    Operator.executeProcessPartition(this, inputRDD, preservesPartitioning)
   }
 
   def combineMultipleRdds(rdds: Seq[(Int, RDD[_])]): RDD[_] = {

@@ -19,10 +19,10 @@ package spark
 
 import java.io.{ObjectOutputStream, IOException}
 import java.util.{HashMap => JHashMap}
-
+import org.apache.hadoop.io.BytesWritable
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ArrayBuffer
-
+import shark.execution.{ReduceKeyMapSide, ReduceKeyReduceSide}
 import shark.SharkEnv
 
 // A version of CoGroupedRDD with the following changes:
@@ -114,7 +114,21 @@ class CoGroupedRDD[K](@transient var rdds: Seq[RDD[(_, _)]], part: Partitioner)
     for ((dep, depNum) <- split.deps.zipWithIndex) dep match {
       case NarrowCoGroupSplitDep(rdd, itsSplitIndex, itsSplit) => {
         // Read them from the parent
-        for ((k, v) <- rdd.iterator(itsSplit, context)) { getSeq(k.asInstanceOf[K])(depNum) += v }
+        rdd match {
+          case rdd: RDD[(ReduceKeyMapSide, BytesWritable)] =>
+            for ((k, v) <- rdd.iterator(itsSplit, context)) {
+              val keyArr = new Array[Byte](k.length)
+              Array.copy(k.byteArray, 0, keyArr, 0, k.length)
+              val k1 = new ReduceKeyReduceSide(keyArr)
+              val v1 = new Array[Byte](v.getLength)
+              Array.copy(v.getBytes, 0, v1, 0, v.getLength)
+              getSeq(k1.asInstanceOf[K])(depNum) += v1
+            }
+          case _ =>
+            for ((k, v) <- rdd.iterator(itsSplit, context)) {
+              getSeq(k.asInstanceOf[K])(depNum) += v
+            }
+        }
       }
       case ShuffleCoGroupSplitDep(shuffleId) => {
         // Read map outputs of shuffle

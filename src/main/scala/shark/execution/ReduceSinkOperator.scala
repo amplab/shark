@@ -17,6 +17,7 @@
 
 package shark.execution
 
+import scala.collection.mutable.ArrayBuffer
 import java.util.{ArrayList, Arrays, List => JList, Random}
 
 import scala.collection.Iterator
@@ -26,13 +27,15 @@ import scala.reflect.BeanProperty
 import org.apache.hadoop.hive.ql.exec.{ReduceSinkOperator => HiveReduceSinkOperator}
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory}
 import org.apache.hadoop.hive.ql.metadata.HiveException
-import org.apache.hadoop.hive.ql.plan.ReduceSinkDesc
+import org.apache.hadoop.hive.ql.plan.{ExprNodeColumnDesc, ExprNodeGenericFuncDesc, ReduceSinkDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.SerDe
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorFactory,
-  ObjectInspectorUtils}
+  ObjectInspectorUtils, StructObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.StandardUnionObjectInspector.StandardUnion
 import org.apache.hadoop.io.BytesWritable
-
+import shark.CoPartitioner
+import shark.SharkEnvSlave
+import spark.RDD
 
 /**
  * Converts a collection of rows into key, value pairs. This is the
@@ -60,6 +63,9 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
   @transient var keyObjInspector: ObjectInspector = _
   @transient var valObjInspector: ObjectInspector = _
   @transient var partitionObjInspectors: Array[ObjectInspector] = _
+  var keepPartitioning = false
+  
+  override def preservesPartitioning = keepPartitioning
 
   override def getTag() = conf.getTag()
 
@@ -69,6 +75,70 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
 
   override def initializeOnSlave() {
     initializeOisAndSers(conf, objectInspector)
+  }
+
+  // Get table's partition column names
+  private def getPartColName: ArrayBuffer[String] = {  
+    def getGenericFuncColumnName(colDesc: ExprNodeGenericFuncDesc): ArrayBuffer[String] = {
+      val colsName = new ArrayBuffer[String]
+      colDesc.getChildren().foreach { child =>
+        child match {
+          case columnDesc: ExprNodeColumnDesc =>
+            colsName += columnDesc.getColumn
+          case genericFuncDesc: ExprNodeGenericFuncDesc =>
+            colsName ++= getGenericFuncColumnName(genericFuncDesc)
+          case _ => 
+        }
+      }
+      colsName
+    }
+    val partColsName = new ArrayBuffer[String]
+    conf.getPartitionCols.foreach { expr =>
+      expr match{
+        case columnDesc: ExprNodeColumnDesc =>
+          partColsName += columnDesc.getColumn
+        case genericFuncDesc: ExprNodeGenericFuncDesc =>
+          partColsName ++= getGenericFuncColumnName(genericFuncDesc)
+        case _ =>
+      }
+    }
+    partColsName
+  }
+  
+  // Get table's column names and convert to internal names eg: _col0 _col1
+  def getPartColInternalName: ArrayBuffer[String] = {
+    val partColsName = getPartColName
+    val tableColsNameToIndex = objectInspector.asInstanceOf[StructObjectInspector].
+          getAllStructFieldRefs.zipWithIndex.map { case (field, index) =>
+          (field.getFieldName() -> index)
+        }.toMap
+    partColsName.map { keyCol =>
+      val regex = "_col([0-9])*".r
+      keyCol match {
+        case regex(pos) => keyCol
+        case _ =>
+          tableColsNameToIndex.get(keyCol) match {
+            case Some(pos) => "_col" + pos
+            case None => logError("Column not found in table:" + keyCol)
+            keyCol
+          }
+      }
+    }
+  }
+  
+  override def preprocessRdd(rdd: RDD[_]) = {
+    val partColInternalName = getPartColInternalName
+    rdd.partitioner.foreach { part => part match {
+      case copart: CoPartitioner => 
+        val partCols = copart.partitionColumns
+        val keySet = partColInternalName.toSet
+        if(partColInternalName.size == partCols.size) {
+          keepPartitioning = partCols.forall(keySet.contains(_))
+        }
+      case _ =>
+      }
+    }
+    rdd
   }
 
   override def processPartition(split: Int, iter: Iterator[_]) = {
