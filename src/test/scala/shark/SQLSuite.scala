@@ -298,6 +298,28 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   //////////////////////////////////////////////////////////////////////////////
+  // Tableau bug
+  //////////////////////////////////////////////////////////////////////////////
+
+  test("tableau bug / adw") {
+    sc.sql("drop table if exists adw")
+    sc.sql("""create table adw TBLPROPERTIES ("shark.cache" = "true") as
+      select cast(key as int) as k, val from test""")
+    expectSql("select count(k) from adw where val='val_487' group by 1 having count(1) > 0","1")
+  }
+  
+   //////////////////////////////////////////////////////////////////////////////
+  // Sel Star
+  //////////////////////////////////////////////////////////////////////////////
+  
+  test("sel star pruning") {
+    sc.sql("drop table if exists selstar")
+    sc.sql("""create table selstar TBLPROPERTIES ("shark.cache" = "true") as
+      select * from test""")
+    expectSql("select * from selstar where val='val_487'","487	val_487")
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
   // SharkContext APIs (e.g. sql2rdd, sql)
   //////////////////////////////////////////////////////////////////////////////
 

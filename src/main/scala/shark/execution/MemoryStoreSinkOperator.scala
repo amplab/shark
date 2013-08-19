@@ -38,7 +38,8 @@ import spark.storage.StorageLevel
  */
 class MemoryStoreSinkOperator extends TerminalOperator {
 
-  @BeanProperty var initialColumnSize: Int = _
+  @BeanProperty var partitionSize: Int = _
+  @BeanProperty var shouldCompress: Boolean = _
   @BeanProperty var storageLevel: StorageLevel = _
   @BeanProperty var tableName: String = _
   @transient var useTachyon: Boolean = _
@@ -47,12 +48,14 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
   override def initializeOnMaster() {
     super.initializeOnMaster()
-    initialColumnSize = SharkConfVars.getIntVar(localHconf, SharkConfVars.COLUMN_INITIALSIZE)
+    partitionSize = SharkConfVars.getIntVar(localHconf, SharkConfVars.COLUMN_BUILDER_PARTITION_SIZE)
+    shouldCompress = SharkConfVars.getBoolVar(localHconf, SharkConfVars.COLUMNAR_COMPRESSION)
   }
 
   override def initializeOnSlave() {
     super.initializeOnSlave()
-    localHconf.setInt(SharkConfVars.COLUMN_INITIALSIZE.varname, initialColumnSize)
+    localHconf.setInt(SharkConfVars.COLUMN_BUILDER_PARTITION_SIZE.varname, partitionSize)
+    localHconf.setBoolean(SharkConfVars.COLUMNAR_COMPRESSION.varname, shouldCompress)
   }
 
   override def execute(): RDD[_] = {
