@@ -100,9 +100,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         val kvRdd = inputRdd.mapPartitions { rowIter => 
           op.initializeOnSlave()
           val serde = new BinarySortableSerDe()
-          shark.SharkEnvSlave.objectInspectorLock.synchronized {
-            serde.initialize(op.hconf, op.localHiveOp.getConf.getTableInfo.getProperties)
-          }
+          serde.initialize(op.hconf, op.localHiveOp.getConf.getTableInfo.getProperties)
           val sois = op.objectInspector.asInstanceOf[StructObjectInspector]
           val fields = partCols.map(sois.getStructFieldRef(_))
           val bserializer = new HiveStructPartialSerializer(sois, fields)
@@ -132,9 +130,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
       val (iterToUse, ois) = if (shouldPartition) {
         val serdeDeserialize = new BinarySortableSerDe()
-        shark.SharkEnvSlave.objectInspectorLock.synchronized {
-          serdeDeserialize.initialize(op.hconf, op.localHiveOp.getConf.getTableInfo.getProperties)
-        }
+        serdeDeserialize.initialize(op.hconf, op.localHiveOp.getConf.getTableInfo.getProperties)
         val bw = new BytesWritable()
         val mappedIter = iter.map { x => 
           bw.set(x.asInstanceOf[Array[Byte]], 0, x.asInstanceOf[Array[Byte]].length)
