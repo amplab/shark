@@ -198,7 +198,7 @@ class GroupByPostShuffleOperator extends GroupByPreShuffleOperator with HiveTopO
     if (numReduceTasks < 1 || conf.getKeys.size == 0) numReduceTasks = 1
     val partitioner = new ReduceKeyPartitioner(numReduceTasks)
 
-    val repartitionedRDD = new ShuffledRDD[Any, Any](inputRdd, partitioner)
+    val repartitionedRDD = new ShuffledRDD[Any, Any, (Any, Any)](inputRdd, partitioner)
       .setSerializer(SharkEnv.shuffleSerializerName)
 
     if (distinctKeyAggrs.size > 0) {
