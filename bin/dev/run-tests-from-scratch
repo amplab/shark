@@ -75,7 +75,8 @@ if [ "x$HIVE_GIT_URL" == "x" ] ; then
 fi
 
 # We will download this version of Hadoop. To do so, we assume it is available at
-# http://archive.apache.org/dist/hadoop/core/hadoop-${HADOOP_VERSION}/hadoop-${HADOOP_VERSION}.tar.gz
+# http://archive.apache.org/dist/hadoop/core/hadoop-${SPARK_HADOOP_VERSION}/hadoop-${SPARK_HADOOP_VERSION}.tar.gz
+# TODO(andyk): This assumption is not true for many versions the user might want to pass in here!
 if [ "x$SPARK_HADOOP_VERSION" == "x" ] ; then
   SPARK_HADOOP_VERSION=$SPARK_HADOOP_VERSION_DEFAULT
 fi
