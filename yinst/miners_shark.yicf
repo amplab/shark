@@ -45,6 +45,7 @@ YINST set DEBUG_OPTS '-Dsun.security.jgss.debug=true -Dsun.security.krb5.debug=t
 YINST set GC_OPTS '-verbose:gc -XX:-PrintGCDetails -XX:+PrintGCTimeStamps'
 YINST set LOCAL_DIR /home/greyreef/
 YINST set KRYO_BUFFER_SIZE 10
+YINST set LOCALITY_WAIT 40000
 PERM  = 0755
 OWNER = root
 GROUP = wheel

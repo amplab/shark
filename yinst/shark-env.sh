@@ -62,6 +62,7 @@ SPARK_JAVA_OPTS+=" -Dspark.storage.memoryFraction=$(miners_shark__STORAGE_FRACTI
 SPARK_JAVA_OPTS+=" -Djava.library.path=$(miners_shark__LIBRARY_PATH)"
 SPARK_JAVA_OPTS+=" -Dspark.local.dir=$(miners_shark__LOCAL_DIR)"
 SPARK_JAVA_OPTS+=" -Dspark.kryoserializer.buffer.mb=$(miners_shark__KRYO_BUFFER_SIZE)"
+SPARK_JAVA_OPTS+=" -Dspark.locality.wait=$(miners_shark__LOCALITY_WAIT) "
 SPARK_JAVA_OPTS+=" "
 SPARK_JAVA_OPTS+=$(miners_shark__ADDITIONAL_CLASSPATH)
 SPARK_JAVA_OPTS+=" "

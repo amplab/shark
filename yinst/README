@@ -8,6 +8,9 @@ Z is yahoo-specific versioning.
 
 Release Notes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Version 0.7.2.100.2
+        1. Pull in Spark without additional ASM dependency
+        2. spark locality wait yinst setting
 Version 0.7.2.100.1
         1. Run length encoding
         2. bug fix for group by const , affects Tableau queries
