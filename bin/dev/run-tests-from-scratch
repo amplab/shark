@@ -17,9 +17,8 @@ SHARK_MASTER_MEM_DEFAULT=4g
 SPARK_KV_JAVA_OPTS_DEFAULT=("-Dspark.local.dir=/tmp " "-Dspark.kryoserializer.buffer.mb=10 ")
 SPARK_GIT_URL_DEFAULT="https://github.com/mesos/spark.git"
 HIVE_GIT_URL_DEFAULT="https://github.com/amplab/hive.git -b shark-0.9"
-HADOOP_VERSION_DEFAULT="0.20.205.0"
-HADOOP_MAJOR_VERSION_DEFAULT=1
-
+SPARK_HADOOP_VERSION_DEFAULT="0.20.205.0"
+SPARK_WITH_YARN_DEFAULT=false
 
 # Setup the Shark project directory.
 if [ "x$SHARK_PROJ_DIR" == "x" ] ; then
@@ -77,13 +76,12 @@ fi
 
 # We will download this version of Hadoop. To do so, we assume it is available at
 # http://archive.apache.org/dist/hadoop/core/hadoop-${HADOOP_VERSION}/hadoop-${HADOOP_VERSION}.tar.gz
-if [ "x$HADOOP_VERSION" == "x" ] ; then
-  HADOOP_VERSION=$HADOOP_VERSION_DEFAULT
+if [ "x$SPARK_HADOOP_VERSION" == "x" ] ; then
+  SPARK_HADOOP_VERSION=$SPARK_HADOOP_VERSION_DEFAULT
 fi
 
-# This should be set according to your choice of HADOO_VERSION above.
-if [ "x$HADOOP_MAJOR_VERSION" == "x" ] ; then
-  HADOOP_MAJOR_VERSION=$HADOOP_MAJOR_VERSION_DEFAULT
+if [ "x$SPARK_WITH_YARN" == "x" ] ; then
+  SPARK_WITH_YARN=$SPARK_WITH_YARN_DEFAULT
 fi
 
 usage()
@@ -123,8 +121,8 @@ Optional configuration environment variables:
   SPARK_JAVA_OPTS (default: "${SPARK_KV_JAVA_OPTS_DEFAULT[@]}")
   SPARK_GIT_URL (default: "$SPARK_GIT_URL_DEFAULT")
   HIVE_GIT_URL (default: "$HIVE_GIT_URL_DEFAULT")
-  HADOOP_VERSION (default: $HADOOP_VERSION_DEFAULT)
-  HADOOP_MAJOR_VERSION (default: $HADOOP_MAJOR_VERSION_DEFAULT)
+  SPARK_HADOOP_VERSION (default: $SPARK_HADOOP_VERSION_DEFAULT)
+  SPARK_WITH_YARN (default: $SPARK_WITH_YARN_DEFAULT)
 EOF
 exit
 }
@@ -248,9 +246,8 @@ else
   # Download and build Spark.
   git clone $SPARK_GIT_URL
   pushd spark
-  # Replace Hadoop1 settings in build file, which are the default, with Hadoop2 settings.
-  sed -i.backup "s/val HADOOP_VERSION = \"1\.0\.4\"/val HADOOP_VERSION = \"$HADOOP_VERSION\"/" project/SparkBuild.scala
-  sed -i.backup "s/val HADOOP_MAJOR_VERSION = \"1\"/val HADOOP_MAJOR_VERSION = \"$HADOOP_MAJOR_VERSION\"/" project/SparkBuild.scala
+  export SPARK_HADOOP_HOME=$SPARK_HADOOP_HOME
+  export DEFAULT_WITH_YARN=$DEFAULT_WITH_YARN
   # Build spark and push the jars to local Ivy/Maven caches.
   sbt/sbt clean publish-local
   popd
@@ -258,18 +255,18 @@ fi
 export SPARK_HOME="$WORKSPACE/spark"
 
 if $SKIP_HADOOP ; then
-  if [ ! -e "hadoop-${HADOOP_VERSION}" ] ; then
-    echo "hadoop-${HADOOP_VERSION} must exist when skipping Hadoop download and build stage."
+  if [ ! -e "hadoop-${SPARK_HADOOP_VERSION}" ] ; then
+    echo "hadoop-${SPARK_HADOOP_VERSION} must exist when skipping Hadoop download and build stage."
     exit -1
   fi
 else
-  rm -rf hadoop-${HADOOP_VERSION}.tar.gz
-  rm -rf hadoop-${HADOOP_VERSION}
+  rm -rf hadoop-${SPARK_HADOOP_VERSION}.tar.gz
+  rm -rf hadoop-${SPARK_HADOOP_VERSION}
   # Download and unpack Hadoop and set env variable.
-  wget http://archive.apache.org/dist/hadoop/core/hadoop-${HADOOP_VERSION}/hadoop-${HADOOP_VERSION}.tar.gz
-  tar xvfz hadoop-${HADOOP_VERSION}.tar.gz
+  wget http://archive.apache.org/dist/hadoop/core/hadoop-${SPARK_HADOOP_VERSION}/hadoop-${SPARK_HADOOP_VERSION}.tar.gz
+  tar xvfz hadoop-${SPARK_HADOOP_VERSION}.tar.gz
 fi
-export HADOOP_HOME="$WORKSPACE/hadoop-${HADOOP_VERSION}"
+export HADOOP_HOME="$WORKSPACE/hadoop-${SPARK_HADOOP_VERSION}"
 
 #####################################################################
 # Download and build Hive.
