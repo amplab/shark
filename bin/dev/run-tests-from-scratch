@@ -247,8 +247,8 @@ else
   # Download and build Spark.
   git clone $SPARK_GIT_URL
   pushd spark
-  export SPARK_HADOOP_HOME=$SPARK_HADOOP_HOME
-  export DEFAULT_WITH_YARN=$DEFAULT_WITH_YARN
+  export SPARK_HADOOP_VERSION=$SPARK_HADOOP_VERSION
+  export SPARK_WITH_YARN=$SPARK_WITH_YARN
   # Build spark and push the jars to local Ivy/Maven caches.
   sbt/sbt clean publish-local
   popd
