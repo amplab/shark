@@ -93,7 +93,9 @@ object SharkBuild extends Build {
       "org.spark-project" %% "spark-core" % SPARK_VERSION,
       "org.spark-project" %% "spark-repl" % SPARK_VERSION,
       "com.google.guava" % "guava" % "14.0.1",
-      "org.apache.hadoop" % "hadoop-core" % HADOOP_VERSION,
+      "org.apache.hadoop" % "hadoop-client" % HADOOP_VERSION,
+      // This is used in the hadoop client
+      "commons-io" % "commons-io" % "2.1",
       // See https://code.google.com/p/guava-libraries/issues/detail?id=1095
       "com.google.code.findbugs" % "jsr305" % "1.3.+",
       "org.scalatest" %% "scalatest" % "1.9.1" % "test",
