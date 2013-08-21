@@ -28,11 +28,11 @@ import org.apache.hadoop.hive.ql.exec.{TableScanOperator => HiveTableScanOperato
 import org.apache.hadoop.hive.ql.exec.{MapSplitPruning, Utilities}
 import org.apache.hadoop.hive.ql.metadata.{Partition, Table}
 import org.apache.hadoop.hive.ql.plan.{PlanUtils, PartitionDesc, TableDesc}
-import org.apache.hadoop.hive.serde2.{Serializer, Deserializer}
-import org.apache.hadoop.hive.serde2.`lazy`.{LazyStruct}
+import org.apache.hadoop.hive.serde2.Serializer
+import org.apache.hadoop.hive.serde2.`lazy`.LazyStruct
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorConverters, 
-  ObjectInspectorFactory, StructObjectInspector }
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorConverters.{Converter, IdentityConverter}
+  ObjectInspectorFactory, StructObjectInspector}
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorConverters.Converter
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.io.Writable
 
