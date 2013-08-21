@@ -116,13 +116,13 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         throw(new QueryExecutionException("Cached table not found"))
       }
       logInfo("Loading table " + tableKey + " from Spark block manager")
-      loadRddFromSpark(tableKey, rdd)
+      createPrunedRdd(tableKey, rdd)
     } else if (cacheMode == CacheType.tachyon) {
       // Table is in Tachyon.
       if (!SharkEnv.tachyonUtil.tableExists(tableKey)) {
         throw new TachyonException("Table " + tableKey + " does not exist in Tachyon")
       }
-      logInfo("Loading table " + tableKey + " from Tachyon")
+      logInfo("Loading table " + tableKey + " from Tachyon.")
 
       var indexToStats: collection.Map[Int, TablePartitionStats] =
         SharkEnv.memoryMetadataManager.getStats(tableKey).getOrElse(null)
@@ -131,16 +131,17 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         val statsByteBuffer = SharkEnv.tachyonUtil.getTableMetadata(tableKey)
         indexToStats = JavaSerializer.deserialize[collection.Map[Int, TablePartitionStats]](
           statsByteBuffer.array())
+        logInfo("Loading table " + tableKey + " stats from Tachyon.")
         SharkEnv.memoryMetadataManager.putStats(tableKey, indexToStats)
       }
-      SharkEnv.tachyonUtil.createRDD(tableKey)
+      createPrunedRdd(tableKey, SharkEnv.tachyonUtil.createRDD(tableKey))
     } else {
       // Table is a Hive table on HDFS (or other Hadoop storage).
       super.execute()
     }
   }
 
-  private def loadRddFromSpark(tableKey: String, rdd: RDD[_]): RDD[_] = {
+  private def createPrunedRdd(tableKey: String, rdd: RDD[_]): RDD[_] = {
     // Stats used for map pruning.
     val indexToStats: collection.Map[Int, TablePartitionStats] =
       SharkEnv.memoryMetadataManager.getStats(tableKey).get
@@ -167,9 +168,11 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
           }
           // Only test for pruning if we have stats on the column.
           val partitionStats = indexToStats(index)
-          if (partitionStats != null && partitionStats.stats != null)
+          if (partitionStats != null && partitionStats.stats != null) {
             MapSplitPruning.test(partitionStats, filterOp.conditionEvaluator)
-          else true
+          } else {
+            true
+          }
         }
 
         // Do the pruning.
