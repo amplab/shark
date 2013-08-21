@@ -98,6 +98,7 @@ object SharkBuild extends Build {
       "com.google.code.findbugs" % "jsr305" % "1.3.+",
       "org.scalatest" %% "scalatest" % "1.9.1" % "test",
       "junit" % "junit" % "4.10" % "test",
+      "net.java.dev.jets3t" % "jets3t" % "0.9.0",
       "com.novocode" % "junit-interface" % "0.8" % "test") ++
       (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.3.0-SNAPSHOT" excludeAll(excludeKyro, excludeHadoop) ) else None).toSeq
   )
