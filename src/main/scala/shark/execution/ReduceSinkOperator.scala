@@ -18,11 +18,9 @@
 package shark.execution
 
 import java.util.{ArrayList, List => JList, Random}
-
 import scala.collection.Iterator
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
-
 import org.apache.hadoop.hive.ql.exec.{ReduceSinkOperator => HiveReduceSinkOperator}
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory}
 import org.apache.hadoop.hive.ql.metadata.HiveException
@@ -32,19 +30,19 @@ import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectIns
   ObjectInspectorUtils}
 import org.apache.hadoop.hive.serde2.objectinspector.StandardUnionObjectInspector.StandardUnion
 import org.apache.hadoop.io.BytesWritable
-
 import shark.SharkEnvSlave
 import shark.SharkConfVars
-import shark.execution.cg.CGEvaluatorFactory
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
+import scala.collection.mutable.ArrayBuffer
+import org.apache.hadoop.hive.conf.HiveConf
 
 
 /**
  * Converts a collection of rows into key, value pairs. This is the
  * upstream operator for joins and groupbys.
  */
-class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
+class ReduceSinkOperator extends UnaryOperator[ReduceSinkDesc] {
 
-  @BeanProperty var useCG = true
   @BeanProperty var conf: ReduceSinkDesc = _
 
   // The evaluator for key columns. Key columns decide the sort/hash order on
@@ -69,8 +67,9 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
   override def getTag() = conf.getTag()
 
   override def initializeOnMaster() {
-    conf = hiveOp.getConf()
-    useCG = SharkConfVars.getBoolVar(super.hconf, SharkConfVars.EXPR_CG)
+    super.initializeOnMaster()
+    
+    conf = desc
   }
 
   override def initializeOnSlave() {
@@ -84,42 +83,22 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
       processPartitionDistinct(iter)
     }
   }
-
-  def initializeDownStreamHiveOperator() {
-
-    conf = hiveOp.getConf()
-
-    // Note that we get input object inspector from hiveOp rather than Shark's
-    // objectInspector because initializeMasterOnAll() hasn't been invoked yet.
-    initializeOisAndSers(conf, hiveOp.getInputObjInspectors().head)
-
-    // Determine output object inspector (a struct of KEY, VALUE).
+  
+  override def outputObjectInspector() = {
+    initializeOisAndSers(conf, objectInspector)
+    
     val ois = new ArrayList[ObjectInspector]
     ois.add(keySer.getObjectInspector)
     ois.add(valueSer.getObjectInspector)
 
-    val outputObjInspector = SharkEnvSlave.objectInspectorLock.synchronized {
+    SharkEnvSlave.objectInspectorLock.synchronized {
       ObjectInspectorFactory.getStandardStructObjectInspector(List("KEY","VALUE"), ois)
-    }
-
-    val joinTag = conf.getTag()
-
-    // Propagate the output object inspector and serde infos to downstream operator.
-    childOperators.foreach { child =>
-      child match {
-        case child: HiveTopOperator => {
-          child.setInputObjectInspector(joinTag, outputObjInspector)
-          child.setKeyValueTableDescs(joinTag,
-              (conf.getKeySerializeInfo, conf.getValueSerializeInfo))
-        }
-        case _ => {
-          throw new HiveException("%s's downstream operator should be %s. %s found.".format(
-            this.getClass.getName, classOf[HiveTopOperator].getName, child.getClass.getName))
-        }
-      }
     }
   }
 
+  // will be used of the children operators (in JoinOperator/Extractor/GroupByPostShuffleOperator
+  def getKeyValueTableDescs() = (conf.getKeySerializeInfo, conf.getValueSerializeInfo)
+  
   /**
    * Initialize the object inspectors, evaluators, and serializers. Used on
    * both the master and the slave.
@@ -142,8 +121,7 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
 
     // Initialize object inspector for key columns.
     keyObjInspector = SharkEnvSlave.objectInspectorLock.synchronized {
-      ReduceSinkOperatorHelper.initEvaluatorsAndReturnStruct(
-        keyEval,
+      initEvaluatorsAndReturnStruct(keyEval,
         distinctColIndices,
         conf.getOutputKeyColumnNames,
         numDistributionKeys,
@@ -158,7 +136,7 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
     }
 
     // Initialize evaluator and object inspector for partition columns.
-    partitionEval = conf.getPartitionCols.map(CGEvaluatorFactory.get(_, useCG)).toArray
+    partitionEval = conf.getPartitionCols.map(ExprNodeEvaluatorFactory.get(_)).toArray
     partitionObjInspectors = partitionEval.map(_.initialize(rowInspector)).toArray
   }
 

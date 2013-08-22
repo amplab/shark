@@ -19,33 +19,39 @@ package org.apache.hadoop.hive.ql.exec
 // Put this file in Hive's exec package to access package level visible fields and methods.
 
 import java.util.{ArrayList => JArrayList, HashMap => JHashMap, HashSet => JHashSet, Set => JSet}
-
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
-
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.plan.{ExprNodeColumnDesc, TableDesc}
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator.AggregationBuffer
-import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorUtils,
-  StandardStructObjectInspector, StructObjectInspector, UnionObject}
+import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorUtils,StandardStructObjectInspector, StructObjectInspector, UnionObject}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption
 import org.apache.hadoop.hive.serde2.Deserializer
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils
 import org.apache.hadoop.io.BytesWritable
-
 import shark.SharkEnv
 import shark.execution._
 import shark.execution.serialization.OperatorSerializationWrapper
-import shark.execution.cg.CGEvaluatorFactory
-
 import spark.{Aggregator, HashPartitioner, RDD}
 import spark.rdd.ShuffledRDD
+import java.util.{ArrayList => JArrayList}
+import java.util.{HashMap => JHashMap}
+import java.util.{HashSet => JHashSet}
+import java.util.{Set => JSet}
+import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator
+import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluatorFactory
+import org.apache.hadoop.hive.ql.exec.KeyWrapper
+import org.apache.hadoop.hive.ql.exec.KeyWrapperFactory
+import org.apache.hadoop.hive.ql.exec.Utilities
+import scala.Array.canBuildFrom
+import scala.reflect.BeanProperty
 
 
 // The final phase of group by.
 // TODO(rxin): For multiple distinct aggregations, use sort-based shuffle.
-class GroupByPostShuffleOperator extends GroupByPreShuffleOperator with HiveTopOperator {
+class GroupByPostShuffleOperator extends GroupByPreShuffleOperator 
+  with ReduceSinkTableDesc {
 
   @BeanProperty var keyTableDesc: TableDesc = _
   @BeanProperty var valueTableDesc: TableDesc = _
@@ -67,8 +73,11 @@ class GroupByPostShuffleOperator extends GroupByPreShuffleOperator with HiveTopO
 
   override def initializeOnMaster() {
     super.initializeOnMaster()
-    keyTableDesc = keyValueTableDescs.values.head._1
-    valueTableDesc = keyValueTableDescs.values.head._2
+
+    var kvd = keyValueDescs()
+    keyTableDesc = kvd.head._2._1
+    valueTableDesc = kvd.head._2._2
+    
     initializeOnSlave()
   }
 
@@ -124,11 +133,11 @@ class GroupByPostShuffleOperator extends GroupByPreShuffleOperator with HiveTopO
           if (keysfs.size() > 0) {
             val sf = keysfs.get(keysfs.size() - 1)
             if (sf.getFieldObjectInspector().getCategory().equals(ObjectInspector.Category.UNION)) {
-              unionExprEval = CGEvaluatorFactory.get(
+              unionExprEval = ExprNodeEvaluatorFactory.get(
                 new ExprNodeColumnDesc(
                   TypeInfoUtils.getTypeInfoFromObjectInspector(sf.getFieldObjectInspector),
                   keyField.getFieldName + "." + sf.getFieldName, null, false
-                ), useCG
+                )
               )
               unionExprEval.initialize(rowInspector)
             }

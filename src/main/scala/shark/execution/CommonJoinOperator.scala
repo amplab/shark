@@ -17,12 +17,10 @@
 
 package shark.execution
 
-import java.util.{HashMap => JavaHashMap, List => JavaList}
-
+import java.util.{HashMap => JavaHashMap, List => JavaList, ArrayList =>JavaArrayList}
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
-
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator
 import org.apache.hadoop.hive.ql.exec.{CommonJoinOperator => HiveCommonJoinOperator}
@@ -30,18 +28,16 @@ import org.apache.hadoop.hive.ql.exec.{JoinUtil => HiveJoinUtil}
 import org.apache.hadoop.hive.ql.plan.{ExprNodeDesc, JoinCondDesc, JoinDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.Deserializer
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, PrimitiveObjectInspector}
-
 import shark.SharkConfVars
-
 import spark.RDD
 import spark.rdd.UnionRDD
 import spark.SparkContext.rddToPairRDDFunctions
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
 
 
-abstract class CommonJoinOperator[JOINDESCTYPE <: JoinDesc, T <: HiveCommonJoinOperator[JOINDESCTYPE]]
-  extends NaryOperator[T] {
+abstract class CommonJoinOperator[T<:JoinDesc] extends NaryOperator[T] {
 
-  @BeanProperty var conf: JOINDESCTYPE = _
+  @BeanProperty var conf: T = _
   // Order in which the results should be output.
   @BeanProperty var order: Array[java.lang.Byte] = _
   // condn determines join property (left, right, outer joins).
@@ -63,8 +59,9 @@ abstract class CommonJoinOperator[JOINDESCTYPE <: JoinDesc, T <: HiveCommonJoinO
   @transient var noOuterJoin: Boolean = _
 
   override def initializeOnMaster() {
-    conf = hiveOp.getConf()
-
+    super.initializeOnMaster()
+    conf = desc
+    
     order = conf.getTagOrder()
     joinConditions = conf.getConds()
     numTables = parentOperators.size
@@ -92,8 +89,22 @@ abstract class CommonJoinOperator[JOINDESCTYPE <: JoinDesc, T <: HiveCommonJoinO
     joinValuesStandardObjectInspectors = HiveJoinUtil.getStandardObjectInspectors(
       joinValuesObjectInspectors, CommonJoinOperator.NOTSKIPBIGTABLE)
   }
+  
+  // copied from the org.apache.hadoop.hive.ql.exec.CommonJoinOperator
+  override def outputObjectInspector() = {
+    var structFieldObjectInspectors = new JavaArrayList[ObjectInspector]()
+    for (alias <- order) {
+      var oiList = joinValuesStandardObjectInspectors.get(alias)
+      structFieldObjectInspectors.addAll(oiList)
+    }
+
+    ObjectInspectorFactory.getStandardStructObjectInspector(
+        conf.getOutputColumnNames(),
+        structFieldObjectInspectors)
+  }
 }
 
+  
 
 class CartesianProduct[T >: Null : ClassManifest](val numTables: Int) {
 

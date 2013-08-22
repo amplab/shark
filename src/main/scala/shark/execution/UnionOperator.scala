@@ -18,11 +18,9 @@
 package shark.execution
 
 import java.util.{ArrayList, List => JavaList}
-
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
-
 import org.apache.hadoop.hive.ql.exec.{UnionOperator => HiveUnionOperator}
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFUtils.ReturnObjectInspectorResolver
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
@@ -30,35 +28,38 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
 import org.apache.hadoop.hive.serde2.objectinspector.StandardStructObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.StructField
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
-
 import shark.SharkEnvSlave
 import shark.execution.serialization.OperatorSerializationWrapper
-
 import spark.RDD
 import spark.rdd.UnionRDD
+import org.apache.hadoop.hive.ql.plan.UnionDesc
 
 
 /**
  * A union operator. If the incoming data are of different type, the union
  * operator transforms the incoming data into the same type.
  */
-class UnionOperator extends NaryOperator[HiveUnionOperator] {
+class UnionOperator extends NaryOperator[UnionDesc] {
 
-  @transient var parentFields: ArrayBuffer[JavaList[_ <: StructField]] = _
-  @transient var parentObjInspectors: ArrayBuffer[StructObjectInspector] = _
+  @transient var parentFields: Array[JavaList[_ <: StructField]] = _
+  @transient var parentObjInspectors: Array[StructObjectInspector] = _
   @transient var columnTypeResolvers: Array[ReturnObjectInspectorResolver] = _
 
   @BeanProperty var needsTransform: Array[Boolean] = _
   @BeanProperty var numParents: Int = _
 
   override def initializeOnMaster() {
+    super.initializeOnMaster()
     numParents = parentOperators.size
 
-    // Use reflection to get the needsTransform boolean array.
-    val needsTransformField = hiveOp.getClass.getDeclaredField("needsTransform")
-    needsTransformField.setAccessible(true)
-    needsTransform = needsTransformField.get(hiveOp).asInstanceOf[Array[Boolean]]
-
+    // whether we need to do transformation for each parent
+    var parents = parentOperators.length
+    var outputOI = outputObjectInspector()
+    needsTransform = Array.tabulate[Boolean](objectInspectors.length) {
+      // TODO chenghao: may need to redefine the equals method of the ObjectInspector
+      i=>objectInspectors(i) != outputOI
+    }
+    
     initializeOnSlave()
   }
 

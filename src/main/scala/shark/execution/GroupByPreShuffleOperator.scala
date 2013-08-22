@@ -19,31 +19,33 @@ package org.apache.hadoop.hive.ql.exec
 // Put this file in Hive's exec package to access package level visible fields and methods.
 
 import java.util.{ArrayList => JArrayList, HashMap => JHashMap}
-
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
-
 import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.hadoop.hive.ql.exec.{GroupByOperator => HiveGroupByOperator}
 import org.apache.hadoop.hive.ql.plan.{AggregationDesc, ExprNodeDesc, GroupByDesc}
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator.AggregationBuffer
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorFactory,
     ObjectInspectorUtils, StructObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption
-
-import shark.SharkConfVars
 import shark.SharkEnvSlave
 import shark.execution.UnaryOperator
-import shark.execution.cg.CGEvaluatorFactory
+import java.util.ArrayList
+import java.util.{ArrayList => JArrayList}
+import java.util.{HashMap => JHashMap}
+import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator
+import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluatorFactory
+import org.apache.hadoop.hive.ql.exec.KeyWrapper
+import org.apache.hadoop.hive.ql.exec.KeyWrapperFactory
+import scala.Array.canBuildFrom
+import scala.reflect.BeanProperty
 
 
 /**
  * The pre-shuffle group by operator responsible for map side aggregations.
  */
-class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
+class GroupByPreShuffleOperator extends UnaryOperator[GroupByDesc] {
 
-  @BeanProperty var useCG = true
   @BeanProperty var conf: GroupByDesc = _
   @BeanProperty var minReductionHashAggr: Float = _
   @BeanProperty var numRowsCompareHashAggr: Int = _
@@ -64,21 +66,15 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
   @transient var aggregationParameterStandardObjectInspectors: Array[Array[ObjectInspector]] = _
 
   @transient var aggregationIsDistinct: Array[Boolean] = _
+  @transient var currentKeyObjectInspectors: Array[ObjectInspector] = _
 
-  override def initializeOnMaster() {
-    conf = hiveOp.getConf()
-    minReductionHashAggr = hconf.get(HiveConf.ConfVars.HIVEMAPAGGRHASHMINREDUCTION.varname).toFloat
-    numRowsCompareHashAggr = hconf.get(HiveConf.ConfVars.HIVEGROUPBYMAPINTERVAL.varname).toInt
-    useCG = SharkConfVars.getBoolVar(super.hconf, SharkConfVars.EXPR_CG)
-  }
-
-  override def initializeOnSlave() {
+  def initialLocals() {
     aggregationEvals = conf.getAggregators.map(_.getGenericUDAFEvaluator).toArray
     aggregationIsDistinct = conf.getAggregators.map(_.getDistinct).toArray
     rowInspector = objectInspector.asInstanceOf[StructObjectInspector]
-    keyFields = conf.getKeys().map(k => CGEvaluatorFactory.get(k, useCG)).toArray
+    keyFields = conf.getKeys().map(k => ExprNodeEvaluatorFactory.get(k)).toArray
     val keyObjectInspectors: Array[ObjectInspector] = keyFields.map(k => k.initialize(rowInspector))
-    val currentKeyObjectInspectors = SharkEnvSlave.objectInspectorLock.synchronized {
+    currentKeyObjectInspectors = SharkEnvSlave.objectInspectorLock.synchronized {
       keyObjectInspectors.map { k =>
         ObjectInspectorUtils.getStandardObjectInspector(k, ObjectInspectorCopyOption.WRITABLE)
       }
@@ -86,7 +82,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
 
     aggregationParameterFields = conf.getAggregators.toArray.map { aggr =>
       aggr.asInstanceOf[AggregationDesc].getParameters.toArray.map { param =>
-        CGEvaluatorFactory.get(param.asInstanceOf[ExprNodeDesc], useCG)
+        ExprNodeEvaluatorFactory.get(param.asInstanceOf[ExprNodeDesc])
       }
     }
     aggregationParameterObjectInspectors = aggregationParameterFields.map { aggr =>
@@ -114,7 +110,38 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
 
     keyFactory = new KeyWrapperFactory(keyFields, keyObjectInspectors, currentKeyObjectInspectors)
   }
+  
+  override def initializeOnMaster() {
+    super.initializeOnMaster()
+    conf = desc
+    minReductionHashAggr = hconf.get(HiveConf.ConfVars.HIVEMAPAGGRHASHMINREDUCTION.varname).toFloat
+    numRowsCompareHashAggr = hconf.get(HiveConf.ConfVars.HIVEGROUPBYMAPINTERVAL.varname).toInt
+    
+    initialLocals()
+  }
 
+  override def initializeOnSlave() {
+    initialLocals()
+  }
+
+  // copied from the org.apache.hadoop.hive.ql.exec.GroupByOperator 
+  override def outputObjectInspector() = {
+    var totalFields = keyFields.length + aggregationEvals.length
+    var ois = Array.tabulate[ObjectInspector](totalFields){i=>
+      if(i < keyFields.length) {
+        currentKeyObjectInspectors(i)
+      } else {
+        var idx = i - keyFields.length
+        aggregationEvals(idx).init(conf.getAggregators()(idx).getMode(), aggregationParameterObjectInspectors(idx))
+      }
+    }
+
+    var fieldNames = conf.getOutputColumnNames()
+
+    import scala.collection.JavaConversions._
+    ObjectInspectorFactory.getStandardStructObjectInspector(fieldNames, ois.toList)
+  }
+  
   override def processPartition(split: Int, iter: Iterator[_]) = {
     logInfo("Running Pre-Shuffle Group-By")
     var numRowsInput = 0

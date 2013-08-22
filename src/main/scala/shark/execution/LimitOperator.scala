@@ -19,21 +19,20 @@ package shark.execution
 
 import scala.collection.Iterator
 import scala.reflect.BeanProperty
-
 import org.apache.hadoop.hive.ql.exec.{LimitOperator => HiveLimitOperator}
-
 import shark.SharkEnv
 import spark.RDD
+import org.apache.hadoop.hive.ql.plan.LimitDesc
 
 
-class LimitOperator extends UnaryOperator[HiveLimitOperator] {
+class LimitOperator extends UnaryOperator[LimitDesc] {
 
   // Only works on the master program.
-  def limit = hiveOp.getConf().getLimit()
+  def limit = desc.getLimit()
 
   override def execute(): RDD[_] = {
 
-    val limitNum = hiveOp.getConf().getLimit()
+    val limitNum = desc.getLimit()
 
     if (limitNum > 0) {
       // Take limit on each partition.

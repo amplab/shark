@@ -18,23 +18,22 @@
 package shark.execution
 
 import java.util.{ArrayList, HashMap => JHashMap, List => JList}
-
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
-
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, JoinUtil => HiveJoinUtil}
 import org.apache.hadoop.hive.ql.exec.{MapJoinOperator => HiveMapJoinOperator}
 import org.apache.hadoop.hive.ql.plan.MapJoinDesc
 import org.apache.hadoop.hive.ql.plan.{PartitionDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.io.BytesWritable
-
 import shark.SharkEnv
 import shark.SharkEnvSlave
 import shark.execution.serialization.{OperatorSerializationWrapper, SerializableWritable}
 import spark.RDD
 import spark.broadcast.Broadcast
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
 
 
 /**
@@ -45,7 +44,7 @@ import spark.broadcast.Broadcast
  * Different from Hive, we don't spill the hash tables to disk. If the "small"
  * tables are too big to fit in memory, the normal join should be used anyway.
  */
-class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperator] {
+class MapJoinOperator extends CommonJoinOperator[MapJoinDesc] {
 
   @BeanProperty var posBigTable: Int = _
   @BeanProperty var bigTableAlias: Int = _
@@ -81,6 +80,29 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
     joinKeysObjectInspectors = HiveJoinUtil.getObjectInspectorsFromEvaluators(
       joinKeys, objectInspectors.toArray, CommonJoinOperator.NOTSKIPBIGTABLE)
 
+  }
+  
+  // copied from the org.apache.hadoop.hive.ql.exec.AbstractMapJoinOperator
+  override def outputObjectInspector() = {
+    var outputObjInspector = super.outputObjectInspector()
+    var structFields = outputObjInspector.asInstanceOf[StructObjectInspector]
+        .getAllStructFieldRefs()
+    if (conf.getOutputColumnNames().size() < structFields.size()) {
+      var structFieldObjectInspectors = new ArrayList[ObjectInspector]()
+      for (alias <- order) {
+        var sz = conf.getExprs().get(alias).size()
+        var retained = conf.getRetainList().get(alias)
+        for (i <- 0 to sz - 1) {
+          var pos = retained.get(i)
+          structFieldObjectInspectors.add(structFields.get(pos).getFieldObjectInspector())
+        }
+      }
+      outputObjInspector = ObjectInspectorFactory
+          .getStandardStructObjectInspector(conf.getOutputColumnNames(),
+          structFieldObjectInspectors)
+    }
+    
+    outputObjInspector
   }
 
   override def execute(): RDD[_] = {

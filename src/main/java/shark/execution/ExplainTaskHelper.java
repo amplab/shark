@@ -58,11 +58,11 @@ public class ExplainTaskHelper {
     // conf and then
     // the children
     if (work instanceof shark.execution.Operator) {
-      shark.execution.Operator<org.apache.hadoop.hive.ql.exec.Operator<?>> operator =
-          (shark.execution.Operator<org.apache.hadoop.hive.ql.exec.Operator<?>>) work;
+      shark.execution.Operator<? extends Serializable> operator =
+          (shark.execution.Operator<? extends Serializable>) work;
       out.println(indentString(indent) + "**" + operator.getClass().getName());
-      if (operator.hiveOp().getConf() != null) {
-        outputPlan(operator.hiveOp().getConf(), out, extended, indent);
+      if (operator.desc() != null) {
+        outputPlan(operator.desc(), out, extended, indent);
       }
       if (operator.parentOperators() != null) {
         for (shark.execution.Operator op : operator.parentOperatorsAsJavaList()) {

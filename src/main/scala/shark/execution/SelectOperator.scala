@@ -17,11 +17,12 @@
 
 package shark.execution
 
-import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
+
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator
-import org.apache.hadoop.hive.ql.exec.{SelectOperator => HiveSelectOperator}
 import org.apache.hadoop.hive.ql.plan.SelectDesc
+
 import shark.execution.cg.CGEvaluatorFactory
 import shark.SharkConfVars
 
@@ -29,22 +30,31 @@ import shark.SharkConfVars
  * An operator that does projection, i.e. selecting certain columns and
  * filtering out others.
  */
-class SelectOperator extends UnaryOperator[HiveSelectOperator] {
+class SelectOperator extends UnaryOperator[SelectDesc] {
 
   @BeanProperty var useCG = true
   @BeanProperty var conf: SelectDesc = _
   @transient var evals: Array[ExprNodeEvaluator] = _
 
+  // TODO to make the evals as initialized only on Master
   override def initializeOnMaster() {
-    conf = hiveOp.getConf()
+    super.initializeOnMaster()
+    conf = desc
     useCG = SharkConfVars.getBoolVar(super.hconf, SharkConfVars.EXPR_CG)
+    initializeEvals(false)
   }
-
-  override def initializeOnSlave() {
+  
+  def initializeEvals(initializeEval: Boolean) {
     if (!conf.isSelStarNoCompute) {
+      import scala.collection.JavaConversions._
       evals = conf.getColList().map(CGEvaluatorFactory.get(_, useCG)).toArray
-      evals.foreach(_.initialize(objectInspector))
+      if (initializeEval) {
+        evals.foreach(_.initialize(objectInspector))
+      }
     }
+  }
+  override def initializeOnSlave() {
+    initializeEvals(true)
   }
 
   override def processPartition(split: Int, iter: Iterator[_]) = {
@@ -61,5 +71,12 @@ class SelectOperator extends UnaryOperator[HiveSelectOperator] {
         reusedRow
       }
     }
+  }
+  
+  override def outputObjectInspector(): ObjectInspector = {
+    if (conf.isSelStarNoCompute()) 
+      super.outputObjectInspector()
+    else
+      initEvaluatorsAndReturnStruct(evals, conf.getOutputColumnNames(), objectInspector)
   }
 }

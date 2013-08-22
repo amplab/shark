@@ -30,7 +30,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.{ ObjectInspector,
   StandardStructObjectInspector, StructField, StructObjectInspector }
 
 
-class UDTFOperator extends UnaryOperator[HiveUDTFOperator] {
+class UDTFOperator extends UnaryOperator[UDTFDesc] {
 
   @BeanProperty var conf: UDTFDesc = _
 
@@ -40,7 +40,8 @@ class UDTFOperator extends UnaryOperator[HiveUDTFOperator] {
   @transient var collector: UDTFCollector = _
 
   override def initializeOnMaster() {
-    conf = hiveOp.getConf()
+    super.initializeOnMaster()
+    conf = desc
   }
 
   override def initializeOnSlave() {

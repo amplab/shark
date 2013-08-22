@@ -29,6 +29,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, StructObj
 import shark.execution.cg.CGEvaluatorFactory
 import spark.RDD
 import shark.SharkConfVars
+import org.apache.hadoop.hive.ql.plan.LateralViewJoinDesc
 
 
 /**
@@ -37,7 +38,7 @@ import shark.SharkConfVars
  * Hive handles this by having two branches in its plan, then joining their output (see diagram in
  * LateralViewJoinOperator.java). We put all the explode logic here instead.
  */
-class LateralViewJoinOperator extends NaryOperator[HiveLateralViewJoinOperator] {
+class LateralViewJoinOperator extends NaryOperator[LateralViewJoinDesc] {
 
   @BeanProperty var conf: SelectDesc = _
   @BeanProperty var lvfOp: LateralViewForwardOperator = _
@@ -50,9 +51,10 @@ class LateralViewJoinOperator extends NaryOperator[HiveLateralViewJoinOperator] 
   @transient var fieldOis: StructObjectInspector = _
 
   override def initializeOnMaster() {
+    super.initializeOnMaster()
     // Get conf from Select operator beyond UDTF Op to get eval()
     conf = parentOperators.filter(_.isInstanceOf[UDTFOperator]).head
-      .parentOperators.head.asInstanceOf[SelectOperator].hiveOp.getConf()
+      .parentOperators.head.asInstanceOf[SelectOperator].desc
 
     udtfOp = parentOperators.filter(_.isInstanceOf[UDTFOperator]).head.asInstanceOf[UDTFOperator]
     udtfOIString = KryoSerializerToString.serialize(udtfOp.objectInspectors)

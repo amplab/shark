@@ -124,9 +124,10 @@ class FileSinkOperator extends TerminalOperator with Serializable {
         // If there is a limit operator, let's only run one partition at a time to avoid
         // launching too many tasks.
         val limit = op.limit
+        val numPartitions = rdd.partitions.length
         var totalRows = 0
         var nextPartition = 0
-        while (totalRows < limit) {
+        while (totalRows < limit && nextPartition < numPartitions) {
           // Run one partition and get back the number of rows processed there.
           totalRows += rdd.context.runJob(
             rdd,
@@ -140,8 +141,7 @@ class FileSinkOperator extends TerminalOperator with Serializable {
         val rows = rdd.context.runJob(rdd, FileSinkOperator.executeProcessFileSinkPartition(this))
         logInfo("Total number of rows written: " + rows.sum)
     }
-
-    hiveOp.jobClose(localHconf, true, new JobCloseFeedBack)
+    localHiveOp.jobClose(localHconf, true, new JobCloseFeedBack)
     rdd
   }
 }

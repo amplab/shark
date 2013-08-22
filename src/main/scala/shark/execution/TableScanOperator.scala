@@ -18,9 +18,7 @@
 package shark.execution
 
 import java.util.{ArrayList, Arrays}
-
 import scala.reflect.BeanProperty
-
 import org.apache.hadoop.mapred.{FileInputFormat, InputFormat, JobConf}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_PARTITION_COLUMNS
@@ -32,70 +30,60 @@ import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectIns
   StructObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.io.Writable
-
 import shark.{SharkConfVars, SharkEnv, Utils}
 import shark.execution.serialization.{XmlSerializer, JavaSerializer}
 import shark.memstore2.{CacheType, TablePartition, TablePartitionStats}
 import shark.tachyon.TachyonException
-
 import spark.RDD
 import spark.rdd.{PartitionPruningRDD, UnionRDD}
 import org.apache.hadoop.hive.ql.io.HiveInputFormat
+import org.apache.hadoop.hive.ql.plan.TableScanDesc
 
 
-class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopOperator {
+class TableScanOperator extends TopOperator[TableScanDesc] {
 
   @transient var table: Table = _
+  @transient var hiveOp: HiveTableScanOperator = _
 
   @transient var parts: Array[Object] = _
   @BeanProperty var firstConfPartDesc: PartitionDesc  = _
   @BeanProperty var tableDesc: TableDesc = _
   @BeanProperty var localHconf: HiveConf = _
 
-  /**
-   * Initialize the hive TableScanOperator. This initialization propagates
-   * downstream. When all Hive TableScanOperators are initialized, the entire
-   * Hive query plan operators are initialized.
-   */
-  override def initializeHiveTopOperator() {
-
-    val rowObjectInspector = {
-      if (parts == null) {
-        val serializer = tableDesc.getDeserializerClass().newInstance()
-        serializer.initialize(hconf, tableDesc.getProperties)
-        serializer.getObjectInspector()
-      } else {
-        val partProps = firstConfPartDesc.getProperties()
-        val tableDeser = firstConfPartDesc.getDeserializerClass().newInstance()
-        tableDeser.initialize(hconf, partProps)
-        val partCols = partProps.getProperty(META_TABLE_PARTITION_COLUMNS)
-        val partNames = new ArrayList[String]
-        val partObjectInspectors = new ArrayList[ObjectInspector]
-        partCols.trim().split("/").foreach{ key =>
-          partNames.add(key)
-          partObjectInspectors.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector)
-        }
-
-        // No need to lock this one (see SharkEnv.objectInspectorLock) because
-        // this is called on the master only.
-        val partObjectInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
-            partNames, partObjectInspectors)
-        val oiList = Arrays.asList(
-            tableDeser.getObjectInspector().asInstanceOf[StructObjectInspector],
-            partObjectInspector.asInstanceOf[StructObjectInspector])
-        // new oi is union of table + partition object inspectors
-        ObjectInspectorFactory.getUnionStructObjectInspector(oiList)
-      }
-    }
-
-    setInputObjectInspector(0, rowObjectInspector)
-    super.initializeHiveTopOperator()
-  }
-
   override def initializeOnMaster() {
+    super.initializeOnMaster()
     localHconf = super.hconf
   }
 
+  override def outputObjectInspector() = {
+    if (parts == null) {
+      val serializer = tableDesc.getDeserializerClass().newInstance()
+      serializer.initialize(hconf, tableDesc.getProperties)
+      serializer.getObjectInspector()
+    } else {
+      val partProps = firstConfPartDesc.getProperties()
+      val tableDeser = firstConfPartDesc.getDeserializerClass().newInstance()
+      tableDeser.initialize(hconf, partProps)
+      val partCols = partProps.getProperty(META_TABLE_PARTITION_COLUMNS)
+      val partNames = new ArrayList[String]
+      val partObjectInspectors = new ArrayList[ObjectInspector]
+      partCols.trim().split("/").foreach{ key =>
+        partNames.add(key)
+        partObjectInspectors.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector)
+      }
+
+      // No need to lock this one (see SharkEnv.objectInspectorLock) because
+      // this is called on the master only.
+      val partObjectInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
+          partNames, partObjectInspectors)
+      val oiList = Arrays.asList(
+          tableDeser.getObjectInspector().asInstanceOf[StructObjectInspector],
+          partObjectInspector.asInstanceOf[StructObjectInspector])
+      // new oi is union of table + partition object inspectors
+      ObjectInspectorFactory.getUnionStructObjectInspector(oiList)
+    }
+  }
+  
   override def execute(): RDD[_] = {
     assert(parentOperators.size == 0)
     val tableKey: String = tableDesc.getTableName.split('.')(1)

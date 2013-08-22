@@ -28,17 +28,18 @@ import shark.execution.cg.CGEvaluatorFactory
 import shark.SharkConfVars
 
 
-class FilterOperator extends UnaryOperator[HiveFilterOperator] {
+class FilterOperator extends UnaryOperator[FilterDesc] {
 
   @transient var conditionEvaluator: ExprNodeEvaluator = _
   @transient var conditionInspector: PrimitiveObjectInspector = _
-
+  
   @BeanProperty var conf: FilterDesc = _
   @BeanProperty var useCG = true
   
   override def initializeOnMaster() {
-    conf = hiveOp.getConf()
+    super.initializeOnMaster()
     useCG = SharkConfVars.getBoolVar(super.hconf, SharkConfVars.EXPR_CG)
+    conf = desc
   }
 
   override def initializeOnSlave() {

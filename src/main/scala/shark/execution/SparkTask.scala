@@ -86,9 +86,6 @@ with java.io.Serializable with LogHelper {
 
     initializeTableScanTableDesc(tableScanOps)
 
-    // Initialize the Hive query plan. This gives us all the object inspectors.
-    initializeAllHiveOperators(terminalOp)
-
     terminalOp.initializeMasterOnAll()
 
     val sinkRdd = terminalOp.execute().asInstanceOf[RDD[Any]]
@@ -120,28 +117,6 @@ with java.io.Serializable with LogHelper {
           op.firstConfPartDesc = Utilities.getPartitionDesc(allParts(0).asInstanceOf[Partition])
         }
       }
-    }
-  }
-
-  def initializeAllHiveOperators(terminalOp: TerminalOperator) {
-    // Need to guarantee all parents are initialized before the child.
-    val topOpList = new scala.collection.mutable.MutableList[HiveTopOperator]
-    val queue = new scala.collection.mutable.Queue[Operator[_]]
-    queue.enqueue(terminalOp)
-
-    while (!queue.isEmpty) {
-      val current = queue.dequeue()
-      current match {
-        case op: HiveTopOperator => topOpList += op
-        case _ => Unit
-      }
-      queue ++= current.parentOperators
-    }
-
-    // Run the initialization. This guarantees that upstream operators are
-    // initialized before downstream ones.
-    topOpList.reverse.foreach { topOp =>
-      topOp.initializeHiveTopOperator()
     }
   }
 
