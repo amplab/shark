@@ -17,24 +17,30 @@
 
 package shark.execution.serialization
 
+import scala.collection.JavaConversions._
+import scala.collection.mutable.ArrayBuffer
+
+import org.apache.commons.lang.ObjectUtils
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
-import scala.collection.JavaConversions._
-import org.scalatest.FunSuite
-import scala.collection.mutable.ArrayBuffer
-import spark.{JavaSerializer => SparkJavaSerializer}
 import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.commons.lang.ObjectUtils
+
+import org.scalatest.FunSuite
+
+import spark.{JavaSerializer => SparkJavaSerializer}
+
 
 object SerializationSuite {
-  val DEPRECATED_HIVECONF_PROPERTIES = List("topology.script.file.name",
-                                            "topology.script.number.args",
-                                            "hadoop.configured.node.mapping",
-                                            "topology.node.switch.mapping.impl",
-                                            "dfs.df.interval",
-                                            "dfs.client.buffer.dir",
-                                            "hadoop.native.lib",
-                                            "fs.default.name").toSet[String]
+  val DEPRECATED_HIVECONF_PROPERTIES = List(
+    "topology.script.file.name",
+    "topology.script.number.args",
+    "hadoop.configured.node.mapping",
+    "topology.node.switch.mapping.impl",
+    "dfs.df.interval",
+    "dfs.client.buffer.dir",
+    "hadoop.native.lib",
+    "fs.default.name"
+  ).toSet[String]
 }
 
 class SerializationSuite extends FunSuite {
@@ -90,19 +96,18 @@ class SerializationSuite extends FunSuite {
     assertHiveConfEquals(hiveConf, deseredConf)
   }
 
-
   def assertHiveConfEquals(expectedConf: HiveConf, resultConf: HiveConf) = {
-    expectedConf.getAllProperties.entrySet().foreach( entry => {
+    expectedConf.getAllProperties.entrySet().foreach { entry =>
       if (!SerializationSuite.DEPRECATED_HIVECONF_PROPERTIES.contains(entry.getKey)) {
         assert(resultConf.getAllProperties.get(entry.getKey()) === entry.getValue)
       }
-    })
+    }
 
-    resultConf.getAllProperties.entrySet().foreach( entry => {
+    resultConf.getAllProperties.entrySet().foreach { entry =>
       if (!SerializationSuite.DEPRECATED_HIVECONF_PROPERTIES.contains(entry.getKey)) {
         assert(expectedConf.getAllProperties.get(entry.getKey()) === entry.getValue)
       }
-    })
+    }
     assert(ObjectUtils.equals(expectedConf.getAuxJars, resultConf.getAuxJars))
   }
 

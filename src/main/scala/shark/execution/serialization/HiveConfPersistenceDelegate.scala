@@ -17,17 +17,19 @@
 package shark.execution.serialization
 
 import java.beans.{Statement, Encoder, DefaultPersistenceDelegate}
-import org.apache.hadoop.hive.conf.HiveConf
 import scala.collection.JavaConversions._
+import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.commons.lang.ObjectUtils
 
 class HiveConfPersistenceDelegate extends DefaultPersistenceDelegate {
-  override protected def initialize(clazz: Class[_], oldInst: AnyRef, newInst: AnyRef, out: Encoder) {
+  override protected def initialize(clazz: Class[_], oldInst: AnyRef, newInst: AnyRef, out: Encoder)
+  {
     val oldConf = oldInst.asInstanceOf[HiveConf]
     val newConf = newInst.asInstanceOf[HiveConf]
 
-    if (!ObjectUtils.equals(oldConf.getAuxJars, newConf.getAuxJars))
+    if (!ObjectUtils.equals(oldConf.getAuxJars, newConf.getAuxJars)) {
       out.writeStatement(new Statement(oldInst, "setAuxJars", Array(oldConf.getAuxJars)))
+    }
 
     val oldConfProps = oldConf.getAllProperties
     val newConfProps = newConf.getAllProperties
@@ -40,7 +42,7 @@ class HiveConfPersistenceDelegate extends DefaultPersistenceDelegate {
     propsToDelete.foreach { case(k, v) =>
       out.writeStatement(new Statement(oldInst, "unset", Array(k)))
     }
-    propsToAdd.foreach {  case(k, v) =>
+    propsToAdd.foreach { case(k, v) =>
       out.writeStatement(new Statement(oldInst, "set", Array(k, v)))
     }
   }
