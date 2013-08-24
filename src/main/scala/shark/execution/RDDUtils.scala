@@ -55,7 +55,7 @@ object RDDUtils {
   def repartition[K: ClassManifest, V: ClassManifest](rdd: RDD[(K, V)], part: Partitioner)
     : RDD[(K, V)] =
   {
-    new ShuffledRDD[K, V](rdd, part).setSerializer(SharkEnv.shuffleSerializerName)
+    new ShuffledRDD[K, V, (K, V)](rdd, part).setSerializer(SharkEnv.shuffleSerializerName)
   }
 
   /**
@@ -66,7 +66,8 @@ object RDDUtils {
     : RDD[(K, V)] =
   {
     val part = new RangePartitioner(rdd.partitions.length, rdd)
-    val shuffled = new ShuffledRDD[K, V](rdd, part).setSerializer(SharkEnv.shuffleSerializerName)
+    val shuffled = new ShuffledRDD[K, V, (K, V)](rdd, part)
+      .setSerializer(SharkEnv.shuffleSerializerName)
     shuffled.mapPartitions(iter => {
       val buf = iter.toArray
       buf.sortWith((x, y) => x._1.compareTo(y._1) < 0).iterator
