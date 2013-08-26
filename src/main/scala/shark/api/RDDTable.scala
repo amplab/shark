@@ -27,7 +27,10 @@ import spark.RDD
 
 class RDDTableFunctions(self: RDD[Product], manifests: Seq[ClassManifest[_]]) {
 
-  def saveAsTable(tableName: String, fields: Seq[String]) {
+  def saveAsTable(tableName: String, fields: Seq[String]): Boolean = {
+    require(fields.size == this.manifests.size,
+      "Number of column names != number of fields in the RDD.")
+
     // Get a local copy of the manifests so we don't need to serialize this object.
     val manifests = this.manifests
 
@@ -50,15 +53,19 @@ class RDDTableFunctions(self: RDD[Product], manifests: Seq[ClassManifest[_]]) {
       Iterator(builder.build())
     }.persist()
 
-    // Put the table in the metastore. Let's use a fake DML statement.
-    HiveUtils.createTable(tableName, fields, manifests)
+    // Put the table in the metastore. Only proceed if the DDL statement is executed successfully.
+    if (HiveUtils.createTable(tableName, fields, manifests)) {
+      // Force evaluate to put the data in memory.
+      SharkEnv.memoryMetadataManager.put(tableName, rdd)
+      rdd.context.runJob(rdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
 
-    // Force evaluate to put the data in memory.
-    SharkEnv.memoryMetadataManager.put(tableName, rdd)
-    rdd.context.runJob(rdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
+      // Gather the partition statistics.
+      SharkEnv.memoryMetadataManager.putStats(tableName, statsAcc.value.toMap)
 
-    // Gather the partition statistics.
-    SharkEnv.memoryMetadataManager.putStats(tableName, statsAcc.value.toMap)
+      true
+    } else {
+      false
+    }
   }
 }
 

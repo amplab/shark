@@ -52,7 +52,11 @@ private[shark] object HiveUtils {
   /**
    * Execute the create table DDL operation against Hive's metastore.
    */
-  def createTable(tableName: String, columnNames: Seq[String], columnTypes: Seq[ClassManifest[_]]) {
+  def createTable(
+      tableName: String,
+      columnNames: Seq[String],
+      columnTypes: Seq[ClassManifest[_]]): Boolean =
+  {
     val schema = columnNames.zip(columnTypes).map { case (colName, manifest) =>
       new FieldSchema(colName, DataTypes.fromManifest(manifest).hiveName, "")
     }
@@ -72,6 +76,8 @@ private[shark] object HiveUtils {
     val task = new DDLTask
     task.initialize(new HiveConf, null, null)
     task.setWork(work)
-    task.execute(null)
+
+    // Hive returns 0 if the create table command is executed successfully.
+    task.execute(null) == 0
   }
 }
