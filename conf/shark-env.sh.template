@@ -36,7 +36,8 @@ export HIVE_HOME=""
 #export HADOOP_HOME=""
 #export SPARK_HOME=""
 #export MASTER=""
-#export MESOS_NATIVE_LIBRARY=/usr/local/lib/libmesos.so
+# Only required if using Mesos:
+#export MESOS_NATIVE_LIBRARY=/usr/local/lib/libmesos.so 
 
 # (Optional) Extra classpath
 #export SPARK_LIBRARY_PATH=""
