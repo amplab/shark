@@ -71,6 +71,14 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       OVERWRITE INTO TABLE users""")
     sc.runSql("drop table if exists users_cached")
     sc.runSql("create table users_cached as select * from users")
+
+    // test1
+    sc.sql("drop table if exists test1")
+    sc.sql("""CREATE TABLE test1 (id INT, test1val ARRAY<INT>)
+      row format delimited fields terminated by '\t'""")
+    sc.sql("LOAD DATA LOCAL INPATH '${hiveconf:shark.test.data.path}/test1.txt' INTO TABLE test1")
+    sc.sql("drop table if exists test1_cached")
+    sc.sql("CREATE TABLE test1_cached AS SELECT * FROM test1")
   }
 
   override def afterAll() {
@@ -176,6 +184,15 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   test("column pruning aggregate function") {
     expectSql("select val, sum(key) from test_cached group by val order by val desc limit 1",
       "val_98\t196")
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // join
+  //////////////////////////////////////////////////////////////////////////////
+  test("join ouput rows of stand objects") {
+    assert(
+      sc.sql("select test1val from users join test1 on users.id=test1.id and users.id=1").head ===
+      "[0,1,2]")
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -307,11 +324,11 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       select cast(key as int) as k, val from test""")
     expectSql("select count(k) from adw where val='val_487' group by 1 having count(1) > 0","1")
   }
-  
+
    //////////////////////////////////////////////////////////////////////////////
   // Sel Star
   //////////////////////////////////////////////////////////////////////////////
-  
+
   test("sel star pruning") {
     sc.sql("drop table if exists selstar")
     sc.sql("""create table selstar TBLPROPERTIES ("shark.cache" = "true") as
