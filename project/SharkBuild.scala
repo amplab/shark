@@ -93,9 +93,16 @@ object SharkBuild extends Build {
       "org.spark-project" %% "spark-core" % SPARK_VERSION,
       "org.spark-project" %% "spark-repl" % SPARK_VERSION,
       "com.google.guava" % "guava" % "14.0.1",
-      "org.apache.hadoop" % "hadoop-core" % HADOOP_VERSION,
+      "org.apache.hadoop" % "hadoop-client" % HADOOP_VERSION,
       // See https://code.google.com/p/guava-libraries/issues/detail?id=1095
       "com.google.code.findbugs" % "jsr305" % "1.3.+",
+
+      // Hive unit test requirements. These are used by Hadoop to run the tests, but not necessary
+      // in usual Shark runs.
+      "commons-io" % "commons-io" % "2.1",
+      "commons-httpclient" % "commons-httpclient" % "3.1" % "test",
+
+      // Test infrastructure
       "org.scalatest" %% "scalatest" % "1.9.1" % "test",
       "junit" % "junit" % "4.10" % "test",
       "net.java.dev.jets3t" % "jets3t" % "0.9.0",
