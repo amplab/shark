@@ -17,6 +17,7 @@
 
 package shark.memstore2
 
+import org.apache.hadoop.hive.serde2.`lazy`.ByteArrayRef
 import org.apache.hadoop.hive.serde2.objectinspector.primitive._
 import org.apache.hadoop.io._
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
@@ -266,6 +267,36 @@ class ColumnIteratorSuite extends FunSuite {
     )
     assert(builder.stats.min.equals(ts1))
     assert(builder.stats.max.equals(ts3))
+  }
+
+  test("Binary Column") {
+    val b1 = new BytesWritable()
+    b1.set(Array[Byte](0,1,2), 0, 3)
+
+    val builder = new BinaryColumnBuilder
+    testColumn(
+      Array[BytesWritable](b1),
+      builder,
+      PrimitiveObjectInspectorFactory.writableBinaryObjectInspector,
+      PrimitiveObjectInspectorFactory.writableBinaryObjectInspector,
+      classOf[BinaryColumnIterator],
+      false,
+      compareBinary)
+    assert(builder.stats.isInstanceOf[ColumnStats.NoOpStats[_]])
+ 
+    def compareBinary(x: Object, y: Object): Boolean = {
+      val xdata = x.asInstanceOf[ByteArrayRef].getData
+      val ywritable = y.asInstanceOf[BytesWritable]
+      val ydata = ywritable.getBytes()
+      val length = ywritable.getLength()
+      if (length != xdata.length) {
+        false
+      } else {
+        val ydatapruned = new Array[Byte](length)
+        System.arraycopy(ydata, 0, ydatapruned, 0, length)
+        java.util.Arrays.equals(xdata, ydatapruned)
+      }
+    }
   }
 
 

@@ -320,6 +320,53 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   //////////////////////////////////////////////////////////////////////////////
+  // various data types
+  //////////////////////////////////////////////////////////////////////////////
+  
+  test("various data types") {
+    sc.sql("drop table if exists checkboolean")
+    sc.sql("""create table checkboolean TBLPROPERTIES ("shark.cache" = "true") as
+      select key, val, true as flag from test where key < "300" """)
+    sc.sql("""insert into table checkboolean
+      select key, val, false as flag from test where key > "300" """)
+    expectSql("select flag, count(*) from checkboolean group by flag order by flag asc",
+      Array[String]("false\t208", "true\t292"))
+
+    sc.sql("drop table if exists checkbyte")
+    sc.sql("drop table if exists checkbyte_cached")
+    sc.sql("""create table checkbyte (key string, val string, flag tinyint) """)
+    sc.sql("""insert into table checkbyte
+      select key, val, 1 from test where key < "300" """)
+    sc.sql("""insert into table checkbyte
+      select key, val, 0 from test where key > "300" """)
+    sc.sql("""create table checkbyte_cached as select * from checkbyte""")
+    expectSql("select flag, count(*) from checkbyte_cached group by flag order by flag asc",
+      Array[String]("0\t208", "1\t292"))
+    
+    sc.sql("drop table if exists checkbinary")
+    sc.sql("drop table if exists checkbinary_cached")
+    sc.sql("""create table checkbinary (key string, flag binary) """)
+    sc.sql("""insert into table checkbinary
+      select key, cast(val as binary) as flag from test where key < "300" """)
+    sc.sql("""insert into table checkbinary
+      select key, cast(val as binary) as flag from test where key > "300" """)
+    sc.sql("create table checkbinary_cached as select key, flag from checkbinary")
+    expectSql("select cast(flag as string) as f from checkbinary_cached order by f asc limit 2",
+      Array[String]("val_0", "val_0"))
+      
+    sc.sql("drop table if exists checkshort")
+    sc.sql("drop table if exists checkshort_cached")
+    sc.sql("""create table checkshort (key string, val string, flag smallint) """)
+    sc.sql("""insert into table checkshort
+      select key, val, 23 as flag from test where key < "300" """)
+    sc.sql("""insert into table checkshort
+      select key, val, 36 as flag from test where key > "300" """)
+    sc.sql("create table checkshort_cached as select key, val, flag from checkshort")
+    expectSql("select flag, count(*) from checkshort_cached group by flag order by flag asc",
+      Array[String]("23\t292", "36\t208"))
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
   // SharkContext APIs (e.g. sql2rdd, sql)
   //////////////////////////////////////////////////////////////////////////////
 

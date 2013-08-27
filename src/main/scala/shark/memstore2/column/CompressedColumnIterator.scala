@@ -84,12 +84,13 @@ class DictDecoder[V] (buffer:ByteBuffer, columnType: ColumnType[_, V]) extends I
   private val _dictionary: Map[Int, V] =  {
     val size = buffer.getInt()
     val d = new HashMap[Int, V]()
-    val count = 0
+    var count = 0
     while (count < size) {
       //read text, followed by index
       val text = columnType.extract(buffer.position(), buffer)
       val index = buffer.getInt()
       d.put(index, text.asInstanceOf[V])
+      count+= 1
     }
     d
   }

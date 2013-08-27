@@ -336,6 +336,8 @@ object BINARY extends ColumnType[BytesWritable, BytesWritable](10, 16) {
   }
 
   def newWritable() = new BytesWritable
+  
+  override def actualSize(v: BytesWritable) = v.getLength() + 4
 }
 
 
