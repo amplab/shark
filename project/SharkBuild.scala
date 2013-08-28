@@ -41,6 +41,7 @@ object SharkBuild extends Build {
 
   val excludeKyro = ExclusionRule(organization = "de.javakaffee")
   val excludeHadoop = ExclusionRule(organization = "org.apache.hadoop")
+  val excludeNetty = ExclusionRule(organization = "org.jboss.netty")
 
   def coreSettings = Defaults.defaultSettings ++ Seq(
 
@@ -57,7 +58,7 @@ object SharkBuild extends Build {
       "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
       "JBoss Repository" at "http://repository.jboss.org/nexus/content/repositories/releases/",
       "Spray Repository" at "http://repo.spray.cc/",
-      "Cloudera Repository" at "http://repository.cloudera.com/artifactory/cloudera-repos/",
+      "Cloudera Repository" at "https://repository.cloudera.com/artifactory/cloudera-repos/",
       "Local Maven" at Path.userHome.asFile.toURI.toURL + ".m2/repository"
     ),
 
@@ -93,7 +94,7 @@ object SharkBuild extends Build {
       "org.spark-project" %% "spark-core" % SPARK_VERSION,
       "org.spark-project" %% "spark-repl" % SPARK_VERSION,
       "com.google.guava" % "guava" % "14.0.1",
-      "org.apache.hadoop" % "hadoop-client" % HADOOP_VERSION,
+      "org.apache.hadoop" % "hadoop-client" % HADOOP_VERSION excludeAll(excludeNetty),
       // See https://code.google.com/p/guava-libraries/issues/detail?id=1095
       "com.google.code.findbugs" % "jsr305" % "1.3.+",
 
