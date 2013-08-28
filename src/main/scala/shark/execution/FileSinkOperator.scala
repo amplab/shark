@@ -120,11 +120,9 @@ class FileSinkOperator extends TerminalOperator with Serializable {
     val inputRdd = if (parentOperators.size == 1) executeParents().head._2 else null
     val rdd = preprocessRdd(inputRdd)
 
-    val master = rdd.context.master
-    val sparkIsLocal = (master == "local" || master.startsWith("local["))
     val hiveIslocal = ShimLoader.getHadoopShims.isLocalMode(hconf)
-    if (!sparkIsLocal && hiveIslocal) {
-      val intro = "Hive's Hadoop shim detected local mode even though Shark is not running locally.\n"
+    if (!rdd.context.isLocal && hiveIslocal) {
+      val intro = "Hive Hadoop shims detected local mode even though Shark is not running locally.\n"
       val jtCheck = "mapred.job.tracker should be specified and not 'local'. Value: %s.\n".format(
         hconf.get("mapred.job.tracker"))
       val fnCheck = "mapreduce.framework.name should be specified and not 'local'. Value: %s.\n".format(
