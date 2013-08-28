@@ -18,6 +18,7 @@
 package shark.tachyon
 
 import java.nio.ByteBuffer
+import java.util.BitSet
 
 import shark.memstore2.TablePartition
 
@@ -25,6 +26,8 @@ import spark.RDD
 
 
 class TachyonUtilImpl(val master: String, val warehousePath: String) extends TachyonUtil {
+  override def addColumnPruneInfo(rdd: RDD[_], columnUsed: BitSet): Boolean = false
+
   override def tachyonEnabled(): Boolean = false
 
   override def tableExists(tableName: String): Boolean = {
