@@ -134,6 +134,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
           SharkEnv.memoryMetadataManager.get(tableName).get.asInstanceOf[RDD[TablePartition]])
       }
       SharkEnv.memoryMetadataManager.put(tableName, rdd)
+      rdd.setName(tableName)
 
       // Run a job on the original RDD to force it to go into cache.
       origRdd.context.runJob(origRdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
