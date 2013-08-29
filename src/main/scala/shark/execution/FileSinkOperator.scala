@@ -26,7 +26,7 @@ import org.apache.hadoop.hive.ql.exec.{FileSinkOperator => HiveFileSinkOperator}
 import org.apache.hadoop.hive.ql.exec.JobCloseFeedBack
 import org.apache.hadoop.mapred.TaskID
 import org.apache.hadoop.mapred.TaskAttemptID
-import org.apache.hadoop.mapred.HadoopWriter
+import org.apache.hadoop.mapred.SparkHadoopWriter
 
 import shark.execution.serialization.OperatorSerializationWrapper
 
@@ -52,7 +52,7 @@ class FileSinkOperator extends TerminalOperator with Serializable {
   def setConfParams(conf: HiveConf, context: TaskContext) {
     val jobID = context.stageId
     val splitID = context.splitId
-    val jID = HadoopWriter.createJobID(now, jobID)
+    val jID = SparkHadoopWriter.createJobID(now, jobID)
     val taID = new TaskAttemptID(new TaskID(jID, true, splitID), 0)
     conf.set("mapred.job.id", jID.toString)
     conf.set("mapred.tip.id", taID.getTaskID.toString)
@@ -124,9 +124,10 @@ class FileSinkOperator extends TerminalOperator with Serializable {
         // If there is a limit operator, let's only run one partition at a time to avoid
         // launching too many tasks.
         val limit = op.limit
+        val numPartitions = rdd.partitions.length
         var totalRows = 0
         var nextPartition = 0
-        while (totalRows < limit) {
+        while (totalRows < limit && nextPartition < numPartitions) {
           // Run one partition and get back the number of rows processed there.
           totalRows += rdd.context.runJob(
             rdd,

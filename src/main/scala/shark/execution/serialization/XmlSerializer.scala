@@ -28,6 +28,7 @@ import org.apache.hadoop.hive.ql.plan.GroupByDesc
 import org.apache.hadoop.hive.ql.plan.PlanUtils.ExpressionTypes
 
 import shark.{SharkConfVars, SharkEnvSlave}
+import org.apache.hadoop.hive.conf.HiveConf
 
 
 /**
@@ -45,6 +46,8 @@ object XmlSerializer {
     // workaround for java 1.5
     e.setPersistenceDelegate(classOf[ExpressionTypes], new EnumDelegate())
     e.setPersistenceDelegate(classOf[GroupByDesc.Mode], new EnumDelegate())
+    // workaround for HiveConf-not-a-javabean
+    e.setPersistenceDelegate(classOf[HiveConf], new HiveConfPersistenceDelegate )
     e.writeObject(o)
     e.close()
 
@@ -71,11 +74,13 @@ object XmlSerializer {
 
     // Occasionally an object inspector is created from the decoding.
     // Need to put a lock on the process.
-    val ret = SharkEnvSlave.objectInspectorLock.synchronized {
+    val ret = {
       val d: XMLDecoder = new XMLDecoder(decodedStream, null, null, cl)
-      val ret = d.readObject()
-      d.close()
-      ret
+      classOf[XMLDecoder].synchronized {
+        val ret = d.readObject()
+        d.close()
+        ret
+      }
     }
     ret.asInstanceOf[T]
   }

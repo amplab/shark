@@ -17,7 +17,7 @@
 
 package shark.execution
 
-import java.util.{ArrayList, HashMap => JHashMap, List => JList}
+import java.util.{HashMap => JHashMap, List => JList}
 
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
@@ -26,15 +26,11 @@ import scala.reflect.BeanProperty
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, JoinUtil => HiveJoinUtil}
 import org.apache.hadoop.hive.ql.exec.{MapJoinOperator => HiveMapJoinOperator}
 import org.apache.hadoop.hive.ql.plan.MapJoinDesc
-import org.apache.hadoop.hive.ql.plan.{PartitionDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
-import org.apache.hadoop.io.BytesWritable
 
 import shark.SharkEnv
-import shark.SharkEnvSlave
 import shark.execution.serialization.{OperatorSerializationWrapper, SerializableWritable}
 import spark.{RDD, SparkEnv}
-import spark.broadcast.Broadcast
 import spark.storage.StorageLevel
 
 /**
@@ -173,7 +169,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
   : Iterator[(Seq[AnyRef], Seq[Array[AnyRef]])] = {
     // MapJoinObjectValue contains a MapJoinRowContainer, which contains a list of
     // rows to be joined.
-    var valueMap = new JHashMap[Seq[AnyRef], Seq[Array[AnyRef]]]
+    val valueMap = new JHashMap[Seq[AnyRef], Seq[Array[AnyRef]]]
     iter.foreach { row =>
       val key = JoinUtil.computeJoinKey(
         row,

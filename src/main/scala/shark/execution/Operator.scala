@@ -21,7 +21,6 @@ import java.util.{List => JavaList}
 
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
-import scala.reflect.BeanProperty
 
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
@@ -87,7 +86,9 @@ abstract class Operator[T <: HiveOperator] extends LogHelper with Serializable {
     parent.childOperators += this
   }
 
-  def addChild(child: Operator[_]) = child.addParent(this)
+  def addChild(child: Operator[_]) {
+    child.addParent(this)
+  }
 
   def returnTerminalOperators(): Seq[Operator[_]] = {
     if (_childOperators == null || _childOperators.size == 0) {
@@ -112,10 +113,6 @@ abstract class Operator[T <: HiveOperator] extends LogHelper with Serializable {
 
   protected def executeParents(): Seq[(Int, RDD[_])] = {
     parentOperators.map(p => (p.getTag, p.execute()))
-  }
-
-  private def addObjectInspector(objInspector: ObjectInspector) {
-    objectInspectors += objInspector
   }
 }
 

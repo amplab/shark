@@ -18,7 +18,6 @@
 import sbt._
 import Keys._
 
-
 object SharkBuild extends Build {
 
   // Shark version
@@ -33,12 +32,16 @@ object SharkBuild extends Build {
   val HADOOP_VERSION = "1.0.4"
 
   // Whether to build Shark with Tachyon jar.
-  val TACHYON_ENABLED = true
+  val TACHYON_ENABLED = false
 
   lazy val root = Project(
     id = "root",
     base = file("."),
     settings = coreSettings)
+
+  val excludeKyro = ExclusionRule(organization = "de.javakaffee")
+  val excludeHadoop = ExclusionRule(organization = "org.apache.hadoop")
+  val excludeNetty = ExclusionRule(organization = "org.jboss.netty")
 
   def coreSettings = Defaults.defaultSettings ++ Seq(
 
@@ -55,12 +58,13 @@ object SharkBuild extends Build {
       "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
       "JBoss Repository" at "http://repository.jboss.org/nexus/content/repositories/releases/",
       "Spray Repository" at "http://repo.spray.cc/",
-      "Cloudera Repository" at "http://repository.cloudera.com/artifactory/cloudera-repos/"
+      "Cloudera Repository" at "https://repository.cloudera.com/artifactory/cloudera-repos/",
+      "Local Maven" at Path.userHome.asFile.toURI.toURL + ".m2/repository"
     ),
 
     fork := true,
-    javaOptions in test += "-XX:MaxPermSize=512m",
-    javaOptions in test += "-Xmx2g",
+    javaOptions += "-XX:MaxPermSize=512m",
+    javaOptions += "-Xmx2g",
 
     testOptions in Test += Tests.Argument("-oF"), // Full stack trace on test failures
 
@@ -91,13 +95,21 @@ object SharkBuild extends Build {
     libraryDependencies ++= Seq(
       "org.spark-project" %% "spark-core" % SPARK_VERSION,
       "org.spark-project" %% "spark-repl" % SPARK_VERSION,
-      "com.google.guava" % "guava" % "11.0.1",
-      "org.apache.hadoop" % "hadoop-core" % HADOOP_VERSION,
-      "it.unimi.dsi" % "fastutil" % "6.4.2",
+      "com.google.guava" % "guava" % "14.0.1",
+      "org.apache.hadoop" % "hadoop-client" % HADOOP_VERSION excludeAll(excludeNetty),
+      // See https://code.google.com/p/guava-libraries/issues/detail?id=1095
+      "com.google.code.findbugs" % "jsr305" % "1.3.+",
+
+      // Hive unit test requirements. These are used by Hadoop to run the tests, but not necessary
+      // in usual Shark runs.
+      "commons-io" % "commons-io" % "2.1",
+      "commons-httpclient" % "commons-httpclient" % "3.1" % "test",
+
+      // Test infrastructure
       "org.scalatest" %% "scalatest" % "1.9.1" % "test",
       "junit" % "junit" % "4.10" % "test",
+      "net.java.dev.jets3t" % "jets3t" % "0.9.0",
       "com.novocode" % "junit-interface" % "0.8" % "test") ++
-      (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.2.1") else None).toSeq
-
+      (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.3.0-SNAPSHOT" excludeAll(excludeKyro, excludeHadoop) ) else None).toSeq
   )
 }

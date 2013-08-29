@@ -95,6 +95,8 @@ object SharkEnv extends LogHelper {
 
   var sc: SparkContext = _
 
+  val shuffleSerializerName = classOf[shark.execution.serialization.ShuffleSerializer].getName
+
   val memoryMetadataManager = new MemoryMetadataManager
 
   val tachyonUtil = new TachyonUtilImpl(
@@ -108,6 +110,14 @@ object SharkEnv extends LogHelper {
   val addedJars = HashSet[String]()
 
   def unpersist(key: String): Option[RDD[_]] = {
+    if (SharkEnv.tachyonUtil.tachyonEnabled() && SharkEnv.tachyonUtil.tableExists(key)) {
+      if (SharkEnv.tachyonUtil.dropTable(key)) {
+        logInfo("Table " + key + " was deleted from Tachyon.");
+      } else {
+        logWarning("Failed to remove table " + key + " from Tachyon.");
+      }
+    }
+
     memoryMetadataManager.unpersist(key)
   }
 
@@ -128,13 +138,6 @@ object SharkEnv extends LogHelper {
 
 /** A singleton object for the slaves. */
 object SharkEnvSlave {
-  /**
-   * A lock for various operations in ObjectInspectorFactory. Methods in that
-   * class uses a static objectInspectorCache object to cache the creation of
-   * object inspectors. That object is not thread safe so we wrap all calls to
-   * that object in a synchronized lock on this.
-   */
-  val objectInspectorLock: AnyRef = new Object()
 
   val tachyonUtil = new TachyonUtilImpl(
     System.getenv("TACHYON_MASTER"), System.getenv("TACHYON_WAREHOUSE_PATH"))
