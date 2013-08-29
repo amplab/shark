@@ -148,8 +148,8 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
 
     // Run map pruning if the flag is set, there exists a filter predicate on
     // the input table and we have statistics on the table.
-    var columnsUsed = new ColumnPruner(this, table).columnsUsed;
-    SharkEnv.tachyonUtil.addColumnPruneInfo(rdd, columnsUsed)
+    val columnsUsed = new ColumnPruner(this, table).columnsUsed
+    SharkEnv.tachyonUtil.pushDownColumnPruning(rdd, columnsUsed)
 
     val prunedRdd: RDD[_] =
       if (SharkConfVars.getBoolVar(localHconf, SharkConfVars.MAP_PRUNING) &&

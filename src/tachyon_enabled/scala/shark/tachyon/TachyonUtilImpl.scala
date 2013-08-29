@@ -43,7 +43,7 @@ class TachyonUtilImpl(val master: String, val warehousePath: String) extends Tac
 
   def getPath(tableName: String): String = warehousePath + "/" + tableName
 
-  override def addColumnPruneInfo(rdd: RDD[_], columnUsed: BitSet): Boolean = {
+  override def pushDownColumnPruning(rdd: RDD[_], columnUsed: BitSet): Boolean = {
     if (rdd.isInstanceOf[TachyonTableRDD]) {
       rdd.asInstanceOf[TachyonTableRDD].setColumnUsed(columnUsed)
       true

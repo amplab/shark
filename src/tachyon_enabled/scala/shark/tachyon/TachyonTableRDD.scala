@@ -68,11 +68,7 @@ class TachyonTableRDD(path: String, @transient sc: SparkContext)
     val activeBuffers = new ArrayBuffer[TachyonByteBuffer]()
     val buffers = Array.tabulate[ByteBuffer](rawTable.getColumns()) { columnIndex =>
       if (columnIndex != 0 && mColumnUsed != null && !mColumnUsed.get(columnIndex - 1)) {
-        val buf = ByteBuffer.allocate(4)
-        buf.order(ByteOrder.nativeOrder())
-        buf.putInt(4)
-        buf.flip()
-        buf
+        null
       } else {
         val fp = rawTable.getRawColumn(columnIndex).getPartition(theSplit.index, true)
         // Try to read data from Tachyon's memory, either local or remote.

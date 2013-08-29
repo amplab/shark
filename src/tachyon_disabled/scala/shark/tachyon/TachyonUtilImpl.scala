@@ -26,7 +26,7 @@ import spark.RDD
 
 
 class TachyonUtilImpl(val master: String, val warehousePath: String) extends TachyonUtil {
-  override def addColumnPruneInfo(rdd: RDD[_], columnUsed: BitSet): Boolean = false
+  override def pushDownColumnPruning(rdd: RDD[_], columnUsed: BitSet): Boolean = false
 
   override def tachyonEnabled(): Boolean = false
 

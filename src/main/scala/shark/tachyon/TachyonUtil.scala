@@ -31,7 +31,7 @@ import spark.RDD
  * even without Tachyon jars.
  */
 abstract class TachyonUtil {
-  def addColumnPruneInfo(rdd: RDD[_], columnUsed: BitSet): Boolean
+  def pushDownColumnPruning(rdd: RDD[_], columnUsed: BitSet): Boolean
 
   def tachyonEnabled(): Boolean
 
