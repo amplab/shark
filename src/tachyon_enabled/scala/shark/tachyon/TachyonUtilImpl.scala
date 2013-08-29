@@ -18,6 +18,7 @@
 package shark.tachyon
 
 import java.nio.ByteBuffer
+import java.util.BitSet
 
 import scala.collection.JavaConverters._
 
@@ -41,6 +42,16 @@ class TachyonUtilImpl(val master: String, val warehousePath: String) extends Tac
   }
 
   def getPath(tableName: String): String = warehousePath + "/" + tableName
+
+  override def pushDownColumnPruning(rdd: RDD[_], columnUsed: BitSet): Boolean = {
+    if (rdd.isInstanceOf[TachyonTableRDD]) {
+      rdd.asInstanceOf[TachyonTableRDD].setColumnUsed(columnUsed)
+      true
+    } else {
+      false
+    }
+  }
+
 
   override def tachyonEnabled(): Boolean = (master != null && warehousePath != null)
 

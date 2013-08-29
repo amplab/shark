@@ -148,6 +148,9 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
 
     // Run map pruning if the flag is set, there exists a filter predicate on
     // the input table and we have statistics on the table.
+    val columnsUsed = new ColumnPruner(this, table).columnsUsed
+    SharkEnv.tachyonUtil.pushDownColumnPruning(rdd, columnsUsed)
+
     val prunedRdd: RDD[_] =
       if (SharkConfVars.getBoolVar(localHconf, SharkConfVars.MAP_PRUNING) &&
           childOperators(0).isInstanceOf[FilterOperator] &&
@@ -185,7 +188,6 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         rdd
       }
 
-    val columnsUsed = new ColumnPruner(this, table).columnsUsed;
     prunedRdd.mapPartitions { iter =>
       if (iter.hasNext) {
         val tablePartition = iter.next.asInstanceOf[TablePartition]
