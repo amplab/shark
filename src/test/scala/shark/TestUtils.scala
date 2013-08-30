@@ -151,7 +151,6 @@ trait TestUtils {
       c = reader.read()
       out += c.asInstanceOf[Char]
     }
-    print(out)
     out
   }
 }

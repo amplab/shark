@@ -216,7 +216,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
               _resSchema.size,                // numColumns
               cacheMode == CacheType.tachyon, // use tachyon
               false)
-          } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink) {
+          } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink && !qb.isCTAS) {
             OperatorFactory.createSharkRddOutputPlan(hiveSinkOps.head)
           } else {
             OperatorFactory.createSharkFileOutputPlan(hiveSinkOps.head)

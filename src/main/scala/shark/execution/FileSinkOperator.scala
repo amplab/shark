@@ -24,9 +24,10 @@ import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{FileSinkOperator => HiveFileSinkOperator}
 import org.apache.hadoop.hive.ql.exec.JobCloseFeedBack
+import org.apache.hadoop.hive.shims.ShimLoader
 import org.apache.hadoop.mapred.TaskID
 import org.apache.hadoop.mapred.TaskAttemptID
-import org.apache.hadoop.mapred.HadoopWriter
+import org.apache.hadoop.mapred.SparkHadoopWriter
 
 import shark.execution.serialization.OperatorSerializationWrapper
 
@@ -52,7 +53,7 @@ class FileSinkOperator extends TerminalOperator with Serializable {
   def setConfParams(conf: HiveConf, context: TaskContext) {
     val jobID = context.stageId
     val splitID = context.splitId
-    val jID = HadoopWriter.createJobID(now, jobID)
+    val jID = SparkHadoopWriter.createJobID(now, jobID)
     val taID = new TaskAttemptID(new TaskID(jID, true, splitID), 0)
     conf.set("mapred.job.id", jID.toString)
     conf.set("mapred.tip.id", taID.getTaskID.toString)
@@ -118,6 +119,16 @@ class FileSinkOperator extends TerminalOperator with Serializable {
   override def execute(): RDD[_] = {
     val inputRdd = if (parentOperators.size == 1) executeParents().head._2 else null
     val rdd = preprocessRdd(inputRdd)
+
+    val hiveIslocal = ShimLoader.getHadoopShims.isLocalMode(hconf)
+    if (!rdd.context.isLocal && hiveIslocal) {
+      val intro = "Hive Hadoop shims detected local mode even though Shark is not running locally.\n"
+      val jtCheck = "mapred.job.tracker should be specified and not 'local'. Value: %s.\n".format(
+        hconf.get("mapred.job.tracker"))
+      val fnCheck = "mapreduce.framework.name should be specified and not 'local'. Value: %s.\n".format(
+        hconf.get("mapreduce.framework.name"))
+      throw new Exception(intro + jtCheck + fnCheck)
+    }
 
     parentOperators.head match {
       case op: LimitOperator =>

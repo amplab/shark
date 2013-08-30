@@ -1,0 +1,351 @@
+#! /usr/bin/env bash
+
+# This script can be used as an automated way to set up Shark scratch and then run
+# the Shark unit tests. It is primarily intended to be called by a continuous
+# integration testing framework such as Jenkins to make sure all of the unit tests
+# are passing with each new commit, but is also helpful as a reference document
+# for new users of Shark to see all of the necessary steps to get up and running.
+# Run this file with -h (or see the usage() function below) for details about
+# configuration options.
+
+#####################################################################
+# Set up config vars using env vars or defaults; parse cmd line flags.
+#####################################################################
+SHARK_PROJ_DIR_DEFAULT="$(cd `dirname $0`/../../; pwd)"
+SPARK_MEM_DEFAULT=4g
+SHARK_MASTER_MEM_DEFAULT=4g
+SPARK_KV_JAVA_OPTS_DEFAULT=("-Dspark.local.dir=/tmp " "-Dspark.kryoserializer.buffer.mb=10 ")
+SPARK_GIT_URL_DEFAULT="https://github.com/mesos/spark.git"
+HIVE_GIT_URL_DEFAULT="https://github.com/amplab/hive.git -b shark-0.9"
+SPARK_HADOOP_VERSION_DEFAULT="1.0.4"
+SPARK_WITH_YARN_DEFAULT=false
+
+# Setup the Shark project directory.
+if [ "x$SHARK_PROJ_DIR" == "x" ] ; then
+  pushd `dirname $0` > /dev/null
+  # This script is in bin/dev so shark proj dir is two levels higher in the hierarchy.
+  SHARK_PROJ_DIR=$SHARK_PROJ_DIR_DEFAULT
+  popd > /dev/null
+fi
+
+# Find Scala version automatically from the build file, and generate the download url.
+export SCALA_VERSION=`awk '/val SCALA_VERSION/ {print $4}' < ${SHARK_PROJ_DIR}/project/SharkBuild.scala |sed -e "s/\"\(.*\)\"/\1/"`
+SCALA_DOWNLOAD_PATH="http://www.scala-lang.org/files/archive/scala-${SCALA_VERSION}.tgz"
+
+# Validate whether wget exists.
+wget --version > /dev/null
+if [ $? != 0 ]; then
+  echo "ERROR: wget must be installed and on the search path."
+  exit -1
+fi
+
+if [ "x$JAVA_HOME" == "x" ] ; then
+  echo "ERROR: You must set JAVA_HOME."
+  exit -1
+else
+  if [ ! -e "${JAVA_HOME}" ] ; then
+    echo "ERROR: your current value of JAVA_HOME (${JAVA_HOME}) is not valid."
+    exit -1
+  fi
+fi
+
+if [ "x$SPARK_MEM" == "x" ] ; then
+  export SPARK_MEM=$SPARK_MEM_DEFAULT
+fi
+
+if [ "x$SHARK_MASTER_MEM" == "x" ] ; then
+  export SHARK_MASTER_MEM=$SHARK_MASTER_MEM_DEFAULT
+fi
+
+# For each of these Java opts, add it to SPARK_JAVA_OPTS if this opt isn't already set.
+for i in ${SPARK_KV_JAVA_OPTS_DEFAULT[@]} ; do
+  if [[ ! $SPARK_JAVA_OPTS =~ ${i%%=*} ]] ; then
+    SPARK_JAVA_OPTS+="$i "
+  fi
+done
+SPARK_JAVA_OPTS+="-verbose:gc -XX:-PrintGCDetails -XX:+PrintGCTimeStamps "
+export SPARK_JAVA_OPTS
+
+if [ "x$SPARK_GIT_URL" == "x" ] ; then
+  SPARK_GIT_URL=$SPARK_GIT_URL_DEFAULT
+fi
+
+if [ "x$HIVE_GIT_URL" == "x" ] ; then
+  HIVE_GIT_URL=$HIVE_GIT_URL_DEFAULT
+fi
+
+# We will download this version of Hadoop. To do so, we assume it is available at
+# http://archive.apache.org/dist/hadoop/core/hadoop-${SPARK_HADOOP_VERSION}/hadoop-${SPARK_HADOOP_VERSION}.tar.gz
+# TODO(andyk): This assumption is not true for many versions the user might want to pass in here!
+if [ "x$SPARK_HADOOP_VERSION" == "x" ] ; then
+  SPARK_HADOOP_VERSION=$SPARK_HADOOP_VERSION_DEFAULT
+fi
+
+if [ "x$SPARK_WITH_YARN" == "x" ] ; then
+  SPARK_WITH_YARN=$SPARK_WITH_YARN_DEFAULT
+fi
+
+usage()
+{
+cat << EOF
+usage: $0 [-h] [-s] [-e] [-d] [-t]
+
+OVERVIEW:
+This script will setup and run the Shark unit tests, building up the
+necessary environment from scratch.
+
+
+OPTIONS:
+   -h      Show this message
+   -s      Skip Spark (downloading and building)
+   -e      Skip Hive (downloading and building)
+   -d      Skip Hadoop (downloading and buildling)
+   -t      Compile Shark but skip compiling and running Tests.
+
+
+CONFIGURATION:
+Custom configuration is done by setting environment variables before running
+this script.  If you are setting up a Shark continuous integration (CI) project
+for your organization to test a fork of Shark (e.g. in Jenkins), you may want to
+create a separate file containing statements that export non-default values for
+some or all of the following environment variables and then wget that and
+source it before you run this script in your CI project.
+
+Required Options:
+  JAVA_HOME (Required)
+
+Optional configuration environment variables:
+  SHARK_PROJ_DIR (default: "$SHARK_PROJ_DIR_DEFAULT")
+  SCALA_HOME (default: Scala version ${SCALA_VERSION} will be downloaded and used)
+  SPARK_MEM (default: $SPARK_MEM_DEFAULT)
+  SHARK_MASTER_MEM (default: $SHARK_MASTER_MEM_DEFAULT)
+  SPARK_JAVA_OPTS (default: "${SPARK_KV_JAVA_OPTS_DEFAULT[@]}")
+  SPARK_GIT_URL (default: "$SPARK_GIT_URL_DEFAULT")
+  HIVE_GIT_URL (default: "$HIVE_GIT_URL_DEFAULT")
+  SPARK_HADOOP_VERSION (default: $SPARK_HADOOP_VERSION_DEFAULT)
+  SPARK_WITH_YARN (default: $SPARK_WITH_YARN_DEFAULT)
+EOF
+exit
+}
+
+# Initialize control flow vars.
+SKIP_SPARK=false
+SKIP_HIVE=false
+SKIP_HADOOP=false
+SKIP_TESTS=false
+
+while getopts "hsedt" opt; do
+  case $opt in
+    h)
+      usage
+      ;;
+    s)
+      echo SKIP SPARK
+      SKIP_SPARK=true
+      ;;
+    e)
+      echo SKIP HIVE
+      SKIP_HIVE=true
+      ;;
+    d)
+      echo SKIP HADOOP
+      SKIP_HADOOP=true
+      ;;
+    t)
+      echo SKIP TESTS
+      SKIP_TESTS=true
+      ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      ;;
+  esac
+done
+
+set -xe
+
+
+# Since this script downloads a lot of stuff, keep it in a subdir workspace.
+WORKSPACE_DIR_NAME="run-tests-from-scratch-workspace"
+WORKSPACE="$SHARK_PROJ_DIR/${WORKSPACE_DIR_NAME}"
+mkdir -p $WORKSPACE
+pushd $WORKSPACE
+
+export HIVE_DEV_HOME="$WORKSPACE/hive"
+export HIVE_HOME="$HIVE_DEV_HOME/build/dist"
+
+#####################################################################
+# Validate input parameters.
+#####################################################################
+
+# Make sure they are running a new enough JDK.
+# JAVA_VERSION=`${JAVA_HOME}/bin/java -version 2>&1 |awk -F\" '/version/ { print $2 }'`
+# JAVA_MAJOR_VERSION=`echo $JAVA_VERSION | awk -F\_ '{print $1}' | awk -F\. '{print $2}'`
+# JAVA_MINOR_VERSION=`echo $JAVA_VERSION | awk -F\_ '{print $1}' | awk -F\. '{print $3}'`
+
+# set +e
+# ${JAVA_HOME}/bin/java -version 2>&1 | grep -i hotspot
+# JVM_IS_HOTSPOT=$?
+# set -e
+
+# echo "JAVA_MINOR_VERSION $JAVA_MINOR_VERSION"
+# JAVA_SUB_VERSION=`echo $JAVA_VERSION | awk -F\_ '{print $2}'`
+# if (($JAVA_MAJOR_VERSION < 6)) ||
+#    ((($JAVA_MAJOR_VERSION == 6)) && ((($JAVA_MINOR_VERSION < 23)) || (($JVM_IS_HOTSPOT==0)) )); then
+#   echo "You are running Java version ${JAVA_VERSION}, please run Java 7 or HotSpot JDK 6u23 or newer."
+#   exit -1
+# fi
+
+if [ "x$SCALA_HOME" != "x" ] ; then
+  # User already specified SCALA_HOME. Make sure the correct version of Scala installed.
+  SCALA_HOME_VERSION=`${SCALA_HOME}/bin/scala -version|awk '{print $5}'`
+  if [ "$SCALA_HOME_VERSION" != "$SCALA_VERSION" ] ; then
+    echo "Your SCALA_HOME is version ${SCALA_HOME_VERSION}, but ${SCALA_VERSION} is required."
+    exit -1
+  fi
+fi
+
+# Kill this whole process group when Control-C is pressed. This ensures any child processes
+# aren't left running (this was happening before with Ant/Java processes).
+this_pgid=`ps -o pid -o pgid | grep $$ | awk '{print $2}'`
+trap "echo 'Killing all processes in this group with SIGKILL'; kill -KILL -$this_pgid; " SIGINT SIGTERM SIGKILL
+
+if [ -e "${SHARK_PROJ_DIR}/conf/shark-env.sh" ] ; then
+  echo "WARNING: ${SHARK_PROJ_DIR}/conf/shark-env.sh exists but we don't want it to get in the way when running these scripts."
+  echo "To rename that file to ${SHARK_PROJ_DIR}/conf/shark-env.sh-OLD and proceed, press enter."
+  echo "To leave the file where it is and abort this script, press Control-C."
+  read -s
+  if [ -e "${SHARK_PROJ_DIR}/conf/shark-env.sh-OLD" ] ; then
+    echo "ERROR: ${SHARK_PROJ_DIR}/conf/shark-env.sh-OLD already exists, remove or rename it and try again. Aborting."
+    exit -1
+  else
+    mv ${SHARK_PROJ_DIR}/conf/shark-env.sh ${SHARK_PROJ_DIR}/conf/shark-env.sh-OLD
+  fi
+fi
+
+####################################################################
+# Download Scala if SCALA_HOME is not specified.
+####################################################################
+if [ "x$SCALA_HOME" == "x" ] ; then
+  wget $SCALA_DOWNLOAD_PATH
+  tar xvfz scala*tgz
+  export SCALA_HOME="$WORKSPACE/scala-$SCALA_VERSION"
+fi
+echo "SCALA_HOME is $SCALA_HOME"
+
+####################################################################
+# Download and build Spark.
+####################################################################
+if $SKIP_SPARK ; then
+  if [ ! -e "spark" ] ; then
+    echo "spark dir must exist when skipping Spark download and build stage."
+    exit -1
+  fi
+else
+  # Clean up past Spark artifacts published locally.
+  rm -rf ./spark
+  rm -rf ~/.ivy2/local/org.spark*
+  rm -rf ~/.ivy2/cache/org.spark*
+  # Download and build Spark.
+  git clone $SPARK_GIT_URL
+  pushd spark
+  export SPARK_HADOOP_VERSION=$SPARK_HADOOP_VERSION
+  export SPARK_WITH_YARN=$SPARK_WITH_YARN
+  # Build spark and push the jars to local Ivy/Maven caches.
+  sbt/sbt clean publish-local
+  popd
+fi
+export SPARK_HOME="$WORKSPACE/spark"
+
+if $SKIP_HADOOP ; then
+  if [ ! -e "hadoop-${SPARK_HADOOP_VERSION}" ] ; then
+    echo "hadoop-${SPARK_HADOOP_VERSION} must exist when skipping Hadoop download and build stage."
+    exit -1
+  fi
+else
+  rm -rf hadoop-${SPARK_HADOOP_VERSION}.tar.gz
+  rm -rf hadoop-${SPARK_HADOOP_VERSION}
+  # Download and unpack Hadoop and set env variable.
+  wget http://archive.apache.org/dist/hadoop/core/hadoop-${SPARK_HADOOP_VERSION}/hadoop-${SPARK_HADOOP_VERSION}.tar.gz
+  tar xvfz hadoop-${SPARK_HADOOP_VERSION}.tar.gz
+fi
+export HADOOP_HOME="$WORKSPACE/hadoop-${SPARK_HADOOP_VERSION}"
+
+#####################################################################
+# Download and build Hive.
+#####################################################################
+if $SKIP_HIVE ; then
+  if [ ! -e "hive" -o ! -e "hive-warehouse" ] ; then
+    echo "hive and hive-warehouse dirs must exist when skipping Hive download and build stage."
+    exit -1
+  fi
+else
+  # Setup the Hive warehouse directory.
+  HIVE_WAREHOUSE=./hive-warehouse
+  rm -rf $HIVE_WAREHOUSE
+  mkdir -p $HIVE_WAREHOUSE
+  chmod 0777 $HIVE_WAREHOUSE
+
+  rm -rf hive
+  git clone $HIVE_GIT_URL
+  pushd hive
+  ant package
+  popd
+fi
+
+clean_up_hive_metastore() { rm -rf $WORKSPACE/hive/build/test/junit_metastore_db; }
+
+#####################################################################
+# Run tests (or just build Shark if skipping tests).
+#####################################################################
+if $SKIP_TESTS ; then
+  echo "Compiling Shark and not running any tests..."
+  pushd $SHARK_PROJ_DIR
+  # Compile Shark
+  sbt/sbt publish-local
+  popd
+else
+  echo "Compiling Shark and parts of Hive necessary for testing, then running tests..."
+  # Run Hive tests in the background using ant as a background process.
+  pushd hive
+  # Use a name unlikely to be used by anything else.
+  HIVE_OUTPUT_TO_GREP=hiveoutput98237389
+  rm -rf $HIVE_OUTPUT_TO_GREP
+  { ant test -Dtestcase=TestCliDriver | tee $HIVE_OUTPUT_TO_GREP; } &
+  ant_pid=$!
+  ant_pgid=`ps -o pid -o pgid | grep $ant_pid | awk '{print $2}'`
+  # We expect grep to return non-0 for a while here so disable -e sh flag.
+  set +e
+  # Keep checking the test output while ant is still running.
+  while kill -0 $ant_pid; do
+    # Kill ant (and any child processes it has launched) if we found the
+    # string indicating we are far enough along in tests.
+    if grep --silent "^\s*\[junit\]" $HIVE_OUTPUT_TO_GREP ; then
+      ps -o pgid -o pid -o command  | grep $ant_pgid | grep "java" | grep ${WORKSPACE_DIR_NAME}
+      for pid in `ps -o pgid -o pid -o command | grep $ant_pgid | grep "java" | grep ${WORKSPACE_DIR_NAME} | awk '{print $2}'`; do
+        echo "About to kill PID $pid."
+        ps aux|grep $pid
+        kill -KILL $pid
+      done
+    fi
+    sleep 2
+  done
+  # Wait till the ant process actually is done.
+  wait
+  # Turn verbose output back on.
+  set -e
+  popd
+
+  pushd $SHARK_PROJ_DIR
+
+  clean_up_hive_metastore
+  echo "Running Shark sbt/sbt clean test..."
+  sbt/sbt clean test
+
+  clean_up_hive_metastore
+  echo "Running Hive CLI tests..."
+  TEST_FILE=src/test/tests_pass.txt ./bin/dev/test
+
+  popd
+fi
+
+echo "All Done."

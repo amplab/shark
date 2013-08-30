@@ -22,11 +22,12 @@ import java.nio.ByteBuffer
 import scala.collection.JavaConverters._
 
 import shark.SharkEnv
-import shark.memstore2.ColumnarStruct
+import shark.memstore2.TablePartition
 
 import spark.RDD
 
-import tachyon.client.{RawTable, RawColumn, TachyonFS}
+import tachyon.client.TachyonFS
+import tachyon.client.table.{RawTable, RawColumn}
 
 /**
  * An abstraction for the Tachyon APIs.
@@ -35,10 +36,21 @@ class TachyonUtilImpl(val master: String, val warehousePath: String) extends Tac
 
   val client = if (master != null && master != "") TachyonFS.get(master) else null
 
+  if (master != null && warehousePath == null) {
+    throw new TachyonException("TACHYON_MASTER is set. However, TACHYON_WAREHOUSE_PATH is not.")
+  }
+
   def getPath(tableName: String): String = warehousePath + "/" + tableName
+
+  override def tachyonEnabled(): Boolean = (master != null && warehousePath != null)
 
   override def tableExists(tableName: String): Boolean = {
     client.exist(getPath(tableName))
+  }
+
+  override def dropTable(tableName: String): Boolean = {
+    // The second parameter (true) means recursive deletion.
+    client.delete(getPath(tableName), true)
   }
 
   override def getTableMetadata(tableName: String): ByteBuffer = {
@@ -48,7 +60,7 @@ class TachyonUtilImpl(val master: String, val warehousePath: String) extends Tac
     client.getRawTable(getPath(tableName)).getMetadata()
   }
 
-  override def createRDD(tableName: String): RDD[ColumnarStruct] = {
+  override def createRDD(tableName: String): RDD[TablePartition] = {
     new TachyonTableRDD(getPath(tableName), SharkEnv.sc)
   }
 

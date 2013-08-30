@@ -252,7 +252,11 @@ class SharkCliDriver(loadRdds: Boolean = false) extends CliDriver with LogHelper
       cmd_trimmed.startsWith("!") ||
       tokens(0).toLowerCase().equals("list") ||
       ss.asInstanceOf[CliSessionState].isRemoteMode()) {
+      val start = System.currentTimeMillis()
       super.processCmd(cmd)
+      val end = System.currentTimeMillis()
+      val timeTaken: Double = (end - start) / 1000.0
+      console.printInfo("Time taken (including network latency): " + timeTaken + " seconds")
     } else {
       val hconf = conf.asInstanceOf[HiveConf]
       val proc: CommandProcessor = CommandProcessorFactory.get(tokens(0), hconf)
