@@ -10,7 +10,7 @@ import org.apache.hadoop.io.BytesWritable
 import java.sql.Timestamp
 
 class GenericColumnBuilder(oi: ObjectInspector) 
-  extends DefaultColumnBuilder[ByteStream.Output](new NoOp(), GENERIC) {
+  extends DefaultColumnBuilder[ByteStream.Output](new NoOpStats(), GENERIC) {
   override def initialize(numRows: Int):ByteBuffer = {
     val buffer = super.initialize(numRows)
     val objectInspectorSerialized = KryoSerializer.serialize(oi)
@@ -29,5 +29,5 @@ class StringColumnBuilder extends DefaultColumnBuilder[Text](new StringColumnSta
 class ByteColumnBuilder extends DefaultColumnBuilder[Byte](new ByteColumnStats(), BYTE)
 class ShortColumnBuilder extends DefaultColumnBuilder[Short](new ShortColumnStats(), SHORT)
 class TimestampColumnBuilder extends DefaultColumnBuilder[Timestamp](new TimestampColumnStats(), TIMESTAMP)
-class BinaryColumnBuilder extends DefaultColumnBuilder[BytesWritable](new NoOp(), BINARY)
-class VoidColumnBuilder extends DefaultColumnBuilder[Void](new NoOp(), VOID)
+class BinaryColumnBuilder extends DefaultColumnBuilder[BytesWritable](new NoOpStats(), BINARY)
+class VoidColumnBuilder extends DefaultColumnBuilder[Void](new NoOpStats(), VOID)

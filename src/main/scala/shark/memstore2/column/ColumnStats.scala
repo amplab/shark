@@ -56,7 +56,7 @@ sealed trait ColumnStats[@specialized(Boolean, Byte, Short, Int, Long, Float, Do
 // ordering of the column and max deltas (max difference between two cells).
 object ColumnStats {
 
-  class NoOp[T] extends ColumnStats[T] {
+  class NoOpStats[T] extends ColumnStats[T] {
     protected var _max = null.asInstanceOf[T]
     protected var _min = null.asInstanceOf[T]
     override def append(v: T) {}

@@ -115,7 +115,7 @@ class NullableColumnBuilderSuite extends FunSuite {
     assert(b.getInt() == INT.typeID)
     //next come the nulls.
     assert(b.getInt() == 0)
-    assert(b.getInt() == DEFAULT.typeID) 
+    assert(b.getInt() == DefaultCompressionType.typeID) 
     
     //now trigger RLE
     c = ColumnBuilder.create(oi)

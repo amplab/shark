@@ -291,7 +291,7 @@ class ColumnIteratorSuite extends FunSuite {
       classOf[BinaryColumnIterator],
       false,
       compareBinary)
-    assert(builder.stats.isInstanceOf[ColumnStats.NoOp[_]])
+    assert(builder.stats.isInstanceOf[ColumnStats.NoOpStats[_]])
  
     def compareBinary(x: Object, y: Object): Boolean = {
       val xdata = x.asInstanceOf[ByteArrayRef].getData
