@@ -37,6 +37,7 @@ trait CompressedColumnIterator extends ColumnIterator{
     }
   }
   
+  def hasNext = _decoder.hasNext
   override def current = _current.asInstanceOf[Object]
 }
 
@@ -81,14 +82,14 @@ class RLDecoder[V](buffer: ByteBuffer, columnType: ColumnType[_, V]) extends Ite
 
 class DictDecoder[V] (buffer:ByteBuffer, columnType: ColumnType[_, V]) extends Iterator[V] {
 
-  private val _dictionary: Map[Int, V] =  {
+  private val _dictionary: Map[Short, V] =  {
     val size = buffer.getInt()
-    val d = new HashMap[Int, V]()
+    val d = new HashMap[Short, V]()
     var count = 0
     while (count < size) {
       //read text, followed by index
       val text = columnType.extract(buffer.position(), buffer)
-      val index = buffer.getInt()
+      val index = buffer.getShort()
       d.put(index, text.asInstanceOf[V])
       count+= 1
     }
@@ -98,7 +99,7 @@ class DictDecoder[V] (buffer:ByteBuffer, columnType: ColumnType[_, V]) extends I
   override def hasNext = buffer.hasRemaining()
   
   override def next(): V = {
-    val index = buffer.getInt()
+    val index = buffer.getShort()
     _dictionary.get(index).get
   }
 }

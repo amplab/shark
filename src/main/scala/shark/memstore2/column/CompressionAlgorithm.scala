@@ -139,22 +139,26 @@ class RLE extends CompressionAlgorithm {
 
 class DictionaryEncoding extends CompressionAlgorithm {
 
-  private val MAX_DICT_SIZE = 4000
-  private val _dictionary = new HashMap[Any, Int]()
+  private val MAX_DICT_SIZE = Short.MaxValue - 1 // 32K unique values allowed
+  private val _dictionary = new HashMap[Any, Short]()
+  private val indexSize = 2 // Short
+
   private var _dictionarySize = 0
   private var _totalSize = 0
   private var _count = 0
-  private var _index = 0
+  private var _index: Short = 0
   private var _overflow = false
 
   override def compressionType = DictionaryCompressionType
 
   override def supportsType(t: ColumnType[_, _]) = t match {
     case STRING => true
+    case LONG => true
+    case INT => true
     case _ => false
   }
 
-  private def encode[T](v: T, t: ColumnType[T, _], sizeFunc:T => Int): Int = {
+  private def encode[T](v: T, t: ColumnType[T, _], sizeFunc:T => Int): Short = {
     _count += 1
     val size = sizeFunc(v)
     _totalSize += size
@@ -164,8 +168,8 @@ class DictionaryEncoding extends CompressionAlgorithm {
         case Some(index) => index
         case None => {
           _dictionary.put(s, _index)
-          _index += 1
-          _dictionarySize += (size + 4)
+          _index = (1 + _index).toShort
+          _dictionarySize += (size + indexSize)
           _index
         }
       }
@@ -187,7 +191,7 @@ class DictionaryEncoding extends CompressionAlgorithm {
    * return score between 0 and 1, smaller score imply higher compressibility.
    */
   override def compressionRatio: Double = {
-    if (_overflow) 1.0 else (_count*4 + dictionarySize) / (_totalSize + 0.0)
+    if (_overflow) 1.0 else (bufferSize) / (_totalSize + 0.0)
   }
 
   private def writeDictionary[T](compressedBuffer: ByteBuffer, t: ColumnType[T, _]) {
@@ -196,15 +200,16 @@ class DictionaryEncoding extends CompressionAlgorithm {
     //store the dictionary
     _dictionary.foreach { x =>
       t.append(x._1.asInstanceOf[T], compressedBuffer)
-      compressedBuffer.putInt(x._2)
+      compressedBuffer.putShort(x._2)
     }
   }
 
   private def dictionarySize = _dictionarySize + 4
+  private def bufferSize = { _count*indexSize + dictionarySize + 4 + 4 }
 
   override def compress[T](b: ByteBuffer, t: ColumnType[T, _]): ByteBuffer = {
     //build a dictionary of given size
-    val compressedBuffer = ByteBuffer.allocate(_count*4 + dictionarySize + 4 + 4)
+    val compressedBuffer = ByteBuffer.allocate(bufferSize)
     compressedBuffer.order(ByteOrder.nativeOrder())
     compressedBuffer.putInt(b.getInt())
     compressedBuffer.putInt(compressionType.typeID)
@@ -214,7 +219,7 @@ class DictionaryEncoding extends CompressionAlgorithm {
     while (b.hasRemaining()) {
       val v = t.extract(b.position(), b)
       _dictionary.get(v).map { index =>
-        compressedBuffer.putInt(index)
+        compressedBuffer.putShort(index)
       }
       
     }
