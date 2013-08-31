@@ -65,7 +65,7 @@ trait ColumnBuilder[T] {
     stats.append(v)
   }
 
-  def build: ByteBuffer = {
+  def build(): ByteBuffer = {
     _buffer.limit(_buffer.position())
     _buffer.rewind()
     _buffer
@@ -113,25 +113,25 @@ trait CompressedColumnBuilder[T] extends ColumnBuilder[T] {
   private var _default = new NoCompression()
 
   def shouldApply(scheme: CompressionAlgorithm): Boolean = {
-    scheme.compressibilityScore < 0.8
+    scheme.compressionRatio < 0.8
   }
 
   override protected def gatherStats(v: T) = {
     compressionSchemes.foreach { scheme =>
       if (scheme.supportsType(t)) {
-        scheme.gatherStatsForCompressability(v, t)
+        scheme.gatherStatsForCompressibility(v, t)
       }
     }
     super.gatherStats(v)
   }
 
   override def build = {
-    val b = super.build
+    val b = super.build()
     
     if (compressionSchemes.isEmpty) {
       _default.compress(b, t)
     } else {
-      val candidateScheme = compressionSchemes.minBy(_.compressibilityScore)
+      val candidateScheme = compressionSchemes.minBy(_.compressionRatio)
       if (shouldApply(candidateScheme)) {
         candidateScheme.compress(b, t)
       } else {
