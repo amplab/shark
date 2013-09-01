@@ -78,6 +78,8 @@ class TablePartition(private var _numRows: Long, private var _columns: Array[Byt
       case buffer: ByteBuffer =>
         val iter = ColumnIterator.newIterator(buffer)
         iter
+      case _ =>
+        null
     }
     new TablePartitionIterator(_numRows, columnIterators, columnsUsed)
   }
