@@ -22,8 +22,10 @@ import java.util.{List => JList}
 
 import scala.collection.JavaConversions._
 
+import org.apache.spark.api.java.JavaSparkContext
+
 import shark.SharkContext
-import spark.api.java.JavaSparkContext
+
 
 class JavaSharkContext(val sharkCtx: SharkContext) extends JavaSparkContext(sharkCtx) {
 

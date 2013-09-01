@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,10 +31,9 @@ import org.apache.hadoop.hive.serde2.objectinspector.StandardStructObjectInspect
 import org.apache.hadoop.hive.serde2.objectinspector.StructField
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 
-import shark.execution.serialization.OperatorSerializationWrapper
+import org.apache.spark.rdd.{RDD, UnionRDD}
 
-import spark.RDD
-import spark.rdd.UnionRDD
+import shark.execution.serialization.OperatorSerializationWrapper
 
 
 /**

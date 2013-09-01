@@ -24,13 +24,15 @@ import java.util.NoSuchElementException
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 
-import shark.{SharkEnv, SharkEnvSlave}
-import shark.memstore2._
-
-import spark.{Dependency, Partition, RDD, SerializableWritable, SparkContext, TaskContext}
+import org.apache.spark.{Dependency, Partition, SerializableWritable, SparkContext, TaskContext}
+import org.apache.spark.rdd.RDD
 
 import tachyon.client.{InStream, ReadType, TachyonFile, TachyonByteBuffer}
 import tachyon.client.table.RawTable
+
+import shark.{SharkEnv, SharkEnvSlave}
+import shark.memstore2._
+
 
 private class TachyonTablePartition(rddId: Int, idx: Int, val locations: Seq[String])
   extends Partition {

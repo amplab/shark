@@ -21,13 +21,14 @@ import java.nio.ByteBuffer
 
 import scala.collection.JavaConverters._
 
-import shark.SharkEnv
-import shark.memstore2.TablePartition
-
-import spark.RDD
+import org.apache.spark.rdd.RDD
 
 import tachyon.client.TachyonFS
 import tachyon.client.table.{RawTable, RawColumn}
+
+import shark.SharkEnv
+import shark.memstore2.TablePartition
+
 
 /**
  * An abstraction for the Tachyon APIs.

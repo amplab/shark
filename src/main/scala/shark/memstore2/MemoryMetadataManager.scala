@@ -22,10 +22,10 @@ import java.util.concurrent.ConcurrentHashMap
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ConcurrentMap
 
+import org.apache.spark.rdd.{RDD, UnionRDD}
+import org.apache.spark.storage.StorageLevel
+
 import shark.SharkConfVars
-import spark.RDD
-import spark.rdd.UnionRDD
-import spark.storage.StorageLevel
 
 
 class MemoryMetadataManager {

@@ -51,7 +51,7 @@ import org.apache.thrift.transport.TServerSocket
 import org.apache.thrift.transport.TTransport
 import org.apache.thrift.transport.TTransportFactory
 
-import spark.SparkEnv
+import org.apache.spark.SparkEnv
 
 
 /**
