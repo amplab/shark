@@ -21,9 +21,10 @@ import java.io.{InputStream, OutputStream}
 import java.nio.ByteBuffer
 
 import org.apache.hadoop.io.BytesWritable
-import shark.execution.{ReduceKey, ReduceKeyReduceSide}
-import spark.serializer.{DeserializationStream, Serializer, SerializerInstance, SerializationStream}
 
+import org.apache.spark.serializer.{DeserializationStream, Serializer, SerializerInstance, SerializationStream}
+
+import shark.execution.{ReduceKey, ReduceKeyReduceSide}
 
 /**
  * A serializer for Shark/Hive-specific serialization used in Spark shuffle. Since this is only

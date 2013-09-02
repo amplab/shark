@@ -17,20 +17,21 @@
 
 package shark;
 
+import java.io.Serializable;
+import java.util.List;
+
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import spark.api.java.JavaRDD;
-import spark.api.java.function.Function;
+import org.apache.spark.api.java.JavaRDD;
+import org.apache.spark.api.java.function.Function;
 
 import shark.api.Row;
 import shark.api.JavaSharkContext;
 import shark.api.JavaTableRDD;
 
-import java.io.Serializable;
-import java.util.List;
 
 // The test suite itself is Serializable so that anonymous Function implementations can be
 // serialized, as an alternative to converting these anonymous classes to static inner classes;

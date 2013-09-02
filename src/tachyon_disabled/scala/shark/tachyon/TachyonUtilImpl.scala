@@ -20,9 +20,9 @@ package shark.tachyon
 import java.nio.ByteBuffer
 import java.util.BitSet
 
-import shark.memstore2.TablePartition
+import org.apache.spark.rdd.RDD
 
-import spark.RDD
+import shark.memstore2.TablePartition
 
 
 class TachyonUtilImpl(val master: String, val warehousePath: String) extends TachyonUtil {

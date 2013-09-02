@@ -1,7 +1,7 @@
 package shark.execution
 
-import spark.{RDD, SparkContext, SparkEnv, Partition, TaskContext}
-
+import org.apache.spark.{SparkContext, SparkEnv, Partition, TaskContext}
+import org.apache.spark.rdd.RDD
 
 /**
  * An RDD that is empty, i.e. has no element in it.

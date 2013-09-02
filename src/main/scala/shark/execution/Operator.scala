@@ -25,10 +25,10 @@ import scala.collection.JavaConversions._
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 
+import org.apache.spark.rdd.RDD
+
 import shark.LogHelper
 import shark.execution.serialization.OperatorSerializationWrapper
-
-import spark.RDD
 
 
 abstract class Operator[T <: HiveOperator] extends LogHelper with Serializable {

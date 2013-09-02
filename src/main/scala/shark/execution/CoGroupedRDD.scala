@@ -15,13 +15,15 @@
  * limitations under the License.
  */
 
-package spark
+package org.apache.spark
 
 import java.io.{ObjectOutputStream, IOException}
 import java.util.{HashMap => JHashMap}
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ArrayBuffer
+
+import org.apache.spark.rdd.RDD
 
 import shark.SharkEnv
 

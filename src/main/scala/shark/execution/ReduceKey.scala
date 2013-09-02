@@ -23,7 +23,7 @@ import com.google.common.primitives.UnsignedBytes
 
 import org.apache.hadoop.io.{BytesWritable, WritableComparator}
 
-import spark.HashPartitioner
+import org.apache.spark.HashPartitioner
 
 
 /**
