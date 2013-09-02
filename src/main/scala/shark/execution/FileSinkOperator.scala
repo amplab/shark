@@ -24,14 +24,15 @@ import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{FileSinkOperator => HiveFileSinkOperator}
 import org.apache.hadoop.hive.ql.exec.JobCloseFeedBack
+import org.apache.hadoop.hive.shims.ShimLoader
 import org.apache.hadoop.mapred.TaskID
 import org.apache.hadoop.mapred.TaskAttemptID
-import org.apache.hadoop.mapred.HadoopWriter
+import org.apache.hadoop.mapred.SparkHadoopWriter
+
+import org.apache.spark.TaskContext
+import org.apache.spark.rdd.RDD
 
 import shark.execution.serialization.OperatorSerializationWrapper
-
-import spark.RDD
-import spark.TaskContext
 
 
 class FileSinkOperator extends TerminalOperator with Serializable {
@@ -52,7 +53,7 @@ class FileSinkOperator extends TerminalOperator with Serializable {
   def setConfParams(conf: HiveConf, context: TaskContext) {
     val jobID = context.stageId
     val splitID = context.splitId
-    val jID = HadoopWriter.createJobID(now, jobID)
+    val jID = SparkHadoopWriter.createJobID(now, jobID)
     val taID = new TaskAttemptID(new TaskID(jID, true, splitID), 0)
     conf.set("mapred.job.id", jID.toString)
     conf.set("mapred.tip.id", taID.getTaskID.toString)
@@ -119,14 +120,36 @@ class FileSinkOperator extends TerminalOperator with Serializable {
     val inputRdd = if (parentOperators.size == 1) executeParents().head._2 else null
     val rdd = preprocessRdd(inputRdd)
 
+    val hiveIslocal = ShimLoader.getHadoopShims.isLocalMode(hconf)
+    if (!rdd.context.isLocal && hiveIslocal) {
+      val warnMessage = "Hive Hadoop shims detected local mode, but Shark is not running locally."
+      logWarning(warnMessage)
+
+      // Try to fix this without bothering user
+      val newValue = "Spark_%s".format(System.currentTimeMillis())
+      for (k <- Seq("mapred.job.tracker", "mapreduce.framework.name")) {
+        val v = hconf.get(k)
+        if (v == null || v == "" || v == "local") {
+          hconf.set(k, newValue)
+          logWarning("Setting %s to '%s' (was '%s')".format(k, newValue, v))
+        }
+      }
+
+      // If still not fixed, bail out
+      if (ShimLoader.getHadoopShims.isLocalMode(hconf)) {
+        throw new Exception(warnMessage)
+      }
+    }
+
     parentOperators.head match {
       case op: LimitOperator =>
         // If there is a limit operator, let's only run one partition at a time to avoid
         // launching too many tasks.
         val limit = op.limit
+        val numPartitions = rdd.partitions.length
         var totalRows = 0
         var nextPartition = 0
-        while (totalRows < limit) {
+        while (totalRows < limit && nextPartition < numPartitions) {
           // Run one partition and get back the number of rows processed there.
           totalRows += rdd.context.runJob(
             rdd,

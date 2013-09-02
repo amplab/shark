@@ -35,12 +35,12 @@ import org.apache.hadoop.hive.ql.parse._
 import org.apache.hadoop.hive.ql.plan._
 import org.apache.hadoop.hive.ql.session.SessionState
 
-import shark.{CachedTableRecovery, LogHelper, SharkConfVars, SharkEnv, RDDUtils,  Utils}
-import shark.execution.{HiveOperator, Operator, OperatorFactory, ReduceSinkOperator, SparkWork,
-  TerminalOperator}
-import shark.memstore2.{CacheType, ColumnarSerDe, MemoryMetadataManager}
+import org.apache.spark.storage.StorageLevel
 
-import spark.storage.StorageLevel
+import shark.{CachedTableRecovery, LogHelper, SharkConfVars, SharkEnv,  Utils}
+import shark.execution.{HiveOperator, Operator, OperatorFactory, RDDUtils, ReduceSinkOperator,
+  SparkWork, TerminalOperator}
+import shark.memstore2.{CacheType, ColumnarSerDe, MemoryMetadataManager}
 
 
 /**
@@ -217,7 +217,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
               _resSchema.size,                // numColumns
               cacheMode == CacheType.tachyon, // use tachyon
               false)
-          } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink) {
+          } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink && !qb.isCTAS) {
             OperatorFactory.createSharkRddOutputPlan(hiveSinkOps.head)
           } else {
             OperatorFactory.createSharkFileOutputPlan(hiveSinkOps.head)

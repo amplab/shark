@@ -22,10 +22,10 @@ import java.util.concurrent.ConcurrentHashMap
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ConcurrentMap
 
+import org.apache.spark.rdd.{RDD, UnionRDD}
+import org.apache.spark.storage.StorageLevel
+
 import shark.SharkConfVars
-import spark.RDD
-import spark.rdd.UnionRDD
-import spark.storage.StorageLevel
 
 
 class MemoryMetadataManager {
@@ -93,11 +93,11 @@ object MemoryMetadataManager {
       s.toUpperCase match {
         case "NONE" => StorageLevel.NONE
         case "DISK_ONLY" => StorageLevel.DISK_ONLY
-        case "DISK_ONLY2" => StorageLevel.DISK_ONLY_2
+        case "DISK_ONLY_2" => StorageLevel.DISK_ONLY_2
         case "MEMORY_ONLY" => StorageLevel.MEMORY_ONLY
         case "MEMORY_ONLY_2" => StorageLevel.MEMORY_ONLY_2
         case "MEMORY_ONLY_SER" => StorageLevel.MEMORY_ONLY_SER
-        case "MEMORY_ONLY_SER2" => StorageLevel.MEMORY_ONLY_SER_2
+        case "MEMORY_ONLY_SER_2" => StorageLevel.MEMORY_ONLY_SER_2
         case "MEMORY_AND_DISK" => StorageLevel.MEMORY_AND_DISK
         case "MEMORY_AND_DISK_2" => StorageLevel.MEMORY_AND_DISK_2
         case "MEMORY_AND_DISK_SER" => StorageLevel.MEMORY_AND_DISK_SER
