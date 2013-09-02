@@ -40,7 +40,7 @@ object SharkBuild extends Build {
   lazy val root = Project(
     id = "root",
     base = file("."),
-    settings = coreSettings)
+    settings = coreSettings ++ assemblyProjSettings)
 
   val excludeKyro = ExclusionRule(organization = "de.javakaffee")
   val excludeHadoop = ExclusionRule(organization = "org.apache.hadoop")
@@ -115,11 +115,20 @@ object SharkBuild extends Build {
       "net.java.dev.jets3t" % "jets3t" % "0.9.0",
       "com.novocode" % "junit-interface" % "0.8" % "test") ++
       (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.3.0-SNAPSHOT" excludeAll(excludeKyro, excludeHadoop) ) else None).toSeq
-  ) ++ assemblySettings
+  )
 
   def assemblyProjSettings = Seq(
     name := "shark-assembly",
-    test in assembly := {},
     jarName in assembly <<= version map { v => "shark-assembly-" + v + "-hadoop" + HADOOP_VERSION + ".jar" }
-  ) ++ assemblySettings
+  ) ++ assemblySettings ++ extraAssemblySettings
+
+  def extraAssemblySettings() = Seq(
+    test in assembly := {},
+    mergeStrategy in assembly := {
+      case m if m.toLowerCase.endsWith("manifest.mf") => MergeStrategy.discard
+      case m if m.toLowerCase.matches("meta-inf.*\\.sf$") => MergeStrategy.discard
+      case "reference.conf" => MergeStrategy.concat
+      case _ => MergeStrategy.first
+    }
+  )
 }
