@@ -29,10 +29,10 @@ import org.apache.hadoop.mapred.TaskID
 import org.apache.hadoop.mapred.TaskAttemptID
 import org.apache.hadoop.mapred.SparkHadoopWriter
 
-import shark.execution.serialization.OperatorSerializationWrapper
+import org.apache.spark.TaskContext
+import org.apache.spark.rdd.RDD
 
-import spark.RDD
-import spark.TaskContext
+import shark.execution.serialization.OperatorSerializationWrapper
 
 
 class FileSinkOperator extends TerminalOperator with Serializable {

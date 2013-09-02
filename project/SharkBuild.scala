@@ -18,6 +18,9 @@
 import sbt._
 import Keys._
 
+import sbtassembly.Plugin._
+import AssemblyKeys._
+
 object SharkBuild extends Build {
 
   // Shark version
@@ -82,7 +85,10 @@ object SharkBuild extends Build {
       val baseDirectories = (base / "lib") +++ (hiveFile)
       val customJars = (baseDirectories ** "*.jar")
       // Hive uses an old version of guava that doesn't have what we want.
-      customJars.classpath.filter(!_.toString.contains("guava"))
+      customJars.classpath
+        .filter(!_.toString.contains("guava"))
+        .filter(!_.toString.contains("log4j"))
+        .filter(!_.toString.contains("servlet"))
     },
 
     unmanagedJars in Test ++= Seq(
@@ -91,8 +97,8 @@ object SharkBuild extends Build {
     ),
 
     libraryDependencies ++= Seq(
-      "org.spark-project" %% "spark-core" % SPARK_VERSION,
-      "org.spark-project" %% "spark-repl" % SPARK_VERSION,
+      "org.apache.spark" %% "spark-core" % SPARK_VERSION,
+      "org.apache.spark" %% "spark-repl" % SPARK_VERSION,
       "com.google.guava" % "guava" % "14.0.1",
       "org.apache.hadoop" % "hadoop-client" % HADOOP_VERSION excludeAll(excludeNetty),
       // See https://code.google.com/p/guava-libraries/issues/detail?id=1095
@@ -109,5 +115,11 @@ object SharkBuild extends Build {
       "net.java.dev.jets3t" % "jets3t" % "0.9.0",
       "com.novocode" % "junit-interface" % "0.8" % "test") ++
       (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.3.0-SNAPSHOT" excludeAll(excludeKyro, excludeHadoop) ) else None).toSeq
-  )
+  ) ++ assemblySettings
+
+  def assemblyProjSettings = Seq(
+    name := "shark-assembly",
+    test in assembly := {},
+    jarName in assembly <<= version map { v => "shark-assembly-" + v + "-hadoop" + HADOOP_VERSION + ".jar" }
+  ) ++ assemblySettings
 }

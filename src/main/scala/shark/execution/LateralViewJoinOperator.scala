@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,7 +29,8 @@ import org.apache.hadoop.hive.ql.exec.{LateralViewJoinOperator => HiveLateralVie
 import org.apache.hadoop.hive.ql.plan.SelectDesc
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, StructObjectInspector}
 
-import spark.RDD
+import org.apache.spark.rdd.RDD
+import org.apache.spark.serializer.{KryoSerializer => SparkKryoSerializer}
 
 
 /**
@@ -126,7 +127,7 @@ class LateralViewJoinOperator extends NaryOperator[HiveLateralViewJoinOperator] 
  */
 object KryoSerializerToString {
 
-  @transient val kryoSer = new spark.KryoSerializer
+  @transient val kryoSer = new SparkKryoSerializer
 
   def serialize[T](o: T): String = {
     val bytes = kryoSer.newInstance().serialize(o).array()
