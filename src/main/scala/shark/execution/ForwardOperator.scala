@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,7 @@ package shark.execution
 
 import org.apache.hadoop.hive.ql.exec.{ForwardOperator => HiveForwardOperator}
 
-import spark.RDD
+import org.apache.spark.rdd.RDD
 
 
 class ForwardOperator extends UnaryOperator[HiveForwardOperator] {

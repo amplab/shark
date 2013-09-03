@@ -19,9 +19,11 @@ package shark.execution.serialization
 
 import java.nio.ByteBuffer
 
+import org.apache.spark.serializer.{JavaSerializer => SparkJavaSerializer}
+
 
 object JavaSerializer {
-  @transient val ser = new spark.JavaSerializer
+  @transient val ser = new SparkJavaSerializer
 
   def serialize[T](o: T): Array[Byte] = {
     ser.newInstance().serialize(o).array()

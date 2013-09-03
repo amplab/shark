@@ -21,8 +21,10 @@ import org.apache.hadoop.io.BytesWritable
 
 import org.scalatest.FunSuite
 
+import org.apache.spark.SparkContext
+import org.apache.spark.rdd.RDD
+
 import shark.execution.{ReduceKey, ReduceKeyMapSide, ReduceKeyReduceSide, RDDUtils}
-import spark.{RDD, SparkContext}
 
 
 class SortSuite extends FunSuite {

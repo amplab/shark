@@ -2,17 +2,19 @@ package shark.execution.optimization
 
 import java.util.BitSet
 import java.util.{List => JList}
-import scala.collection.JavaConversions.{asScalaBuffer, 
-  bufferAsJavaList, collectionAsScalaIterable}
+
+import scala.collection.JavaConversions.{asScalaBuffer, bufferAsJavaList, collectionAsScalaIterable}
 import scala.collection.mutable.{Set, HashSet}
+
 import org.apache.hadoop.hive.ql.exec.GroupByPreShuffleOperator
 import org.apache.hadoop.hive.ql.metadata.Table
 import org.apache.hadoop.hive.ql.plan.SelectDesc
-import shark.execution.{FilterOperator, JoinOperator, 
+import org.apache.hadoop.hive.ql.plan.{FilterDesc, MapJoinDesc, ReduceSinkDesc}
+
+import shark.execution.{FilterOperator, JoinOperator,
   MapJoinOperator, Operator, ReduceSinkOperator,
   SelectOperator, TopOperator}
 import shark.memstore2.{ColumnarStruct, TablePartitionIterator}
-import org.apache.hadoop.hive.ql.plan.{FilterDesc, MapJoinDesc, ReduceSinkDesc}
 
 
 class ColumnPruner(@transient op: TopOperator[_], @transient tbl: Table) extends Serializable {

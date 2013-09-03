@@ -34,12 +34,12 @@ import org.apache.hadoop.hive.serde2.Deserializer
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils
 import org.apache.hadoop.io.BytesWritable
 
+import org.apache.spark.{Aggregator, HashPartitioner}
+import org.apache.spark.rdd.{RDD, ShuffledRDD}
+
 import shark.SharkEnv
 import shark.execution._
 import shark.execution.serialization.OperatorSerializationWrapper
-
-import spark.{Aggregator, HashPartitioner, RDD}
-import spark.rdd.ShuffledRDD
 
 
 // The final phase of group by.
