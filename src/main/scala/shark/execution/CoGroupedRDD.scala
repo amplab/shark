@@ -15,13 +15,15 @@
  * limitations under the License.
  */
 
-package spark
+package org.apache.spark
 
 import java.io.{ObjectOutputStream, IOException}
 import java.util.{HashMap => JHashMap}
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ArrayBuffer
+
+import org.apache.spark.rdd.RDD
 
 import shark.SharkEnv
 
@@ -120,7 +122,7 @@ class CoGroupedRDD[K](@transient var rdds: Seq[RDD[(_, _)]], part: Partitioner)
         // Read map outputs of shuffle
         def mergePair(pair: (K, Any)) { getSeq(pair._1)(depNum) += pair._2 }
         val fetcher = SparkEnv.get.shuffleFetcher
-        fetcher.fetch[K, Seq[Any]](shuffleId, split.index, context.taskMetrics, serializer)
+        fetcher.fetch[(K, Seq[Any])](shuffleId, split.index, context.taskMetrics, serializer)
           .foreach(mergePair)
       }
     }

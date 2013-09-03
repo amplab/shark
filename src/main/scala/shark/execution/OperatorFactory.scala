@@ -22,9 +22,9 @@ import scala.collection.JavaConversions._
 import org.apache.hadoop.hive.ql.exec.{GroupByPostShuffleOperator, GroupByPreShuffleOperator}
 import org.apache.hadoop.hive.ql.metadata.HiveException
 
-import shark.LogHelper
+import org.apache.spark.storage.StorageLevel
 
-import spark.storage.StorageLevel
+import shark.LogHelper
 
 
 /**

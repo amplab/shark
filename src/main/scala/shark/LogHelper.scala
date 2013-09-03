@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,23 +22,24 @@ import java.io.PrintStream
 import org.apache.commons.lang.StringUtils
 import org.apache.hadoop.hive.ql.session.SessionState
 
+import org.apache.spark.Logging
 
 /**
  * Utility trait for classes that want to log data. This wraps around Spark's
  * Logging trait. It creates a SLF4J logger for the class and allows logging
  * messages at different levels using methods that only evaluate parameters
  * lazily if the log level is enabled.
- * 
+ *
  * It differs from the Spark's Logging trait in that it can print out the
  * error to the specified console of the Hive session.
  */
-trait LogHelper extends spark.Logging {
+trait LogHelper extends Logging {
 
   override def logError(msg: => String) = {
     errStream().println(msg)
     super.logError(msg)
   }
-  
+
   def logError(msg: String, detail: String) = {
     errStream().println(msg)
     super.logError(msg + StringUtils.defaultString(detail))
@@ -50,7 +51,7 @@ trait LogHelper extends spark.Logging {
     exception.printStackTrace(err)
     super.logError(msg, exception)
   }
-  
+
   def outStream(): PrintStream = {
     val ss = SessionState.get()
     if (ss != null && ss.out != null) ss.out else System.out

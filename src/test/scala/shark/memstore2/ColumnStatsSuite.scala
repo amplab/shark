@@ -39,13 +39,18 @@ class ColumnStatsSuite extends FunSuite {
 
     c = new ColumnStats.BooleanColumnStats
     c.append(true)
-    c.appendNull()
     assert(c.min == true && c.max == true)
-    c.appendNull()
     c.append(false)
     assert(c.min == false && c.max == true)
-    c.appendNull()
-    assert(c.nullCount == 3)
+    assert(c := true)
+    assert(c := false)
+    c = new ColumnStats.BooleanColumnStats
+    c.append(true)
+    assert(c := true)
+    assert(!(c := false))
+    assert(c :>= false)
+    assert(!(c :<= false))
+    assert(c :>= true)
   }
 
   test("ByteColumnStats") {
@@ -53,7 +58,6 @@ class ColumnStatsSuite extends FunSuite {
     c.append(0)
     assert(c.min == 0 && c.max == 0)
     c.append(1)
-    c.appendNull()
     assert(c.min == 0 && c.max == 1)
     c.append(-1)
     assert(c.min == -1 && c.max == 1)
@@ -61,7 +65,10 @@ class ColumnStatsSuite extends FunSuite {
     assert(c.min == -1 && c.max == 2)
     c.append(-2)
     assert(c.min == -2 && c.max == 2)
-    assert(c.nullCount == 1)
+    assert(c := 0.toByte)
+    assert(c :> 0.toByte)
+    assert(c :<= -1.toByte)
+    assert(!(c :<= -3.toByte))
   }
 
   test("ShortColumnStats") {
@@ -69,7 +76,6 @@ class ColumnStatsSuite extends FunSuite {
     c.append(0)
     assert(c.min == 0 && c.max == 0)
     c.append(1)
-    c.appendNull()
     assert(c.min == 0 && c.max == 1)
     c.append(-1)
     assert(c.min == -1 && c.max == 1)
@@ -77,7 +83,6 @@ class ColumnStatsSuite extends FunSuite {
     assert(c.min == -1 && c.max == 1024)
     c.append(-1024)
     assert(c.min == -1024 && c.max == 1024)
-    assert(c.nullCount == 1)
   }
 
   test("IntColumnStats") {
@@ -95,33 +100,25 @@ class ColumnStatsSuite extends FunSuite {
 
     c = new ColumnStats.IntColumnStats
     assert(c.isOrdered && c.isAscending && c.isDescending)
-    c.appendNull()
     assert(c.maxDelta == 0)
 
     c = new ColumnStats.IntColumnStats
     Array(1).foreach(c.append)
     assert(c.isOrdered && c.isAscending && c.isDescending)
-    c.appendNull()
     assert(c.maxDelta == 0)
 
     c = new ColumnStats.IntColumnStats
     Array(1, 2, 3, 3, 4, 22).foreach(c.append)
     assert(c.isOrdered && c.isAscending && !c.isDescending)
-    c.appendNull()
-    c.appendNull()
     assert(c.maxDelta == 18)
 
     c = new ColumnStats.IntColumnStats
     Array(22, 1, 0, -5).foreach(c.append)
     assert(c.isOrdered && !c.isAscending && c.isDescending)
-    c.appendNull()
-    c.appendNull()
-    c.appendNull()
     assert(c.maxDelta == 21)
 
     c = new ColumnStats.IntColumnStats
     Array(22, 1, 24).foreach(c.append)
-    c.appendNull()
     assert(!c.isOrdered && !c.isAscending && !c.isDescending)
   }
 
@@ -130,7 +127,6 @@ class ColumnStatsSuite extends FunSuite {
     c.append(0)
     assert(c.min == 0 && c.max == 0)
     c.append(1)
-    c.appendNull()
     assert(c.min == 0 && c.max == 1)
     c.append(-1)
     assert(c.min == -1 && c.max == 1)
@@ -138,25 +134,26 @@ class ColumnStatsSuite extends FunSuite {
     assert(c.min == -1 && c.max == Int.MaxValue.toLong + 1L)
     c.append(Int.MinValue.toLong - 1L)
     assert(c.min == Int.MinValue.toLong - 1L && c.max == Int.MaxValue.toLong + 1L)
-    assert(c.nullCount == 1)
+    assert(c := 0.toLong)
+    assert(c :> -2.toLong)
+    assert(c :< 0.toLong)
   }
 
   test("FloatColumnStats") {
     var c = new ColumnStats.FloatColumnStats
     c.append(0)
     assert(c.min == 0 && c.max == 0)
-    c.appendNull()
     c.append(1)
-    c.appendNull()
     assert(c.min == 0 && c.max == 1)
     c.append(-1)
     assert(c.min == -1 && c.max == 1)
-    c.appendNull()
     c.append(20.5445F)
     assert(c.min == -1 && c.max == 20.5445F)
     c.append(-20.5445F)
     assert(c.min == -20.5445F && c.max == 20.5445F)
-    assert(c.nullCount == 3)
+    assert(c := 20.5F)
+    assert(c :< 20.6F)
+    assert(c :> -20.6F)
   }
 
   test("DoubleColumnStats") {
@@ -166,15 +163,14 @@ class ColumnStatsSuite extends FunSuite {
     c.append(1)
     assert(c.min == 0 && c.max == 1)
     c.append(-1)
-    c.appendNull()
     assert(c.min == -1 && c.max == 1)
     c.append(20.5445)
     assert(c.min == -1 && c.max == 20.5445)
     c.append(-20.5445)
     assert(c.min == -20.5445 && c.max == 20.5445)
-    c.appendNull()
-    c.appendNull()
-    assert(c.nullCount == 3)
+    assert(c := 20.5)
+    assert(!(c :> 20.6))
+    assert(c :< 20.6)
   }
 
   test("TimestampColumnStats") {
@@ -185,18 +181,18 @@ class ColumnStatsSuite extends FunSuite {
     val ts4 = new Timestamp(2000)
     ts4.setNanos(100)
     c.append(ts1)
-    c.appendNull()
+
     assert(c.min.equals(ts1) && c.max.equals(ts1))
     c.append(ts2)
     assert(c.min.equals(ts1) && c.max.equals(ts2))
     c.append(ts3)
     assert(c.min.equals(ts1) && c.max.equals(ts2))
-    c.appendNull()
-    c.appendNull()
+
+
     assert(c.min.equals(ts1) && c.max.equals(ts2))
     c.append(ts4)
     assert(c.min.equals(ts1) && c.max.equals(ts4))
-    assert(c.nullCount == 3)
+
   }
 
   test("StringColumnStats") {
@@ -205,17 +201,17 @@ class ColumnStatsSuite extends FunSuite {
     assert(c.min == null && c.max == null)
     c.append("a")
     assert(c.min.equals(T("a")) && c.max.equals(T("a")))
-    c.appendNull()
+
     assert(c.min.equals(T("a")) && c.max.equals(T("a")))
     c.append("b")
     assert(c.min.equals(T("a")) && c.max.equals(T("b")))
     c.append("b")
     assert(c.min.equals(T("a")) && c.max.equals(T("b")))
     c.append("cccc")
-    c.appendNull()
+
     assert(c.min.equals(T("a")) && c.max.equals(T("cccc")))
     c.append("0987")
     assert(c.min.equals(T("0987")) && c.max.equals(T("cccc")))
-    assert(c.nullCount == 2)
+
   }
 }

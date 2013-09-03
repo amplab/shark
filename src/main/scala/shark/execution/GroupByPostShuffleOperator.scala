@@ -34,12 +34,12 @@ import org.apache.hadoop.hive.serde2.Deserializer
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils
 import org.apache.hadoop.io.BytesWritable
 
+import org.apache.spark.{Aggregator, HashPartitioner}
+import org.apache.spark.rdd.{RDD, ShuffledRDD}
+
 import shark.SharkEnv
 import shark.execution._
 import shark.execution.serialization.OperatorSerializationWrapper
-
-import spark.{Aggregator, HashPartitioner, RDD}
-import spark.rdd.ShuffledRDD
 
 
 // The final phase of group by.
@@ -198,8 +198,8 @@ class GroupByPostShuffleOperator extends GroupByPreShuffleOperator with HiveTopO
     if (numReduceTasks < 1 || conf.getKeys.size == 0) numReduceTasks = 1
     val partitioner = new ReduceKeyPartitioner(numReduceTasks)
 
-    val repartitionedRDD = new ShuffledRDD[Any, Any](
-      inputRdd, partitioner, SharkEnv.shuffleSerializerName)
+    val repartitionedRDD = new ShuffledRDD[Any, Any, (Any, Any)](inputRdd, partitioner)
+      .setSerializer(SharkEnv.shuffleSerializerName)
 
     if (distinctKeyAggrs.size > 0) {
       // If there are distinct aggregations, do sort-based aggregation.

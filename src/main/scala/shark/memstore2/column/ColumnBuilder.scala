@@ -18,42 +18,103 @@
 package shark.memstore2.column
 
 import java.nio.ByteBuffer
-
-import javaewah.EWAHCompressedBitmap
-import javaewah.EWAHCompressedBitmapSerializer
+import java.nio.ByteOrder
 
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
 
 
-trait ColumnBuilder[@specialized(Boolean, Byte, Short, Int, Long, Float, Double) T] {
+trait ColumnBuilder[T] {
 
-  def append(o: Object, oi: ObjectInspector)
+  private[column] def t: ColumnType[T, _]
 
-  def append(v: T)
+  private[memstore2] def stats: ColumnStats[T]
 
-  def appendNull()
+  private var _buffer: ByteBuffer = _
+  private var _initialSize: Int = _
 
-  def stats: ColumnStats[T]
-
-  def build: ByteBuffer
-
-  // Subclasses should call super.initialize to initialize the null bitmap.
-  def initialize(initialSize: Int) {
-    _nullBitmap = new EWAHCompressedBitmap
+  def append(o: Object, oi: ObjectInspector) {
+    val v = t.get(o, oi)
+    _buffer = growIfNeeded(_buffer, t.actualSize(v))
+    t.append(v, _buffer)
+    gatherStats(v)
   }
 
-  protected var _nullBitmap: EWAHCompressedBitmap = null
+  protected def gatherStats(v: T) {
+    stats.append(v)
+  }
 
-  protected def sizeOfNullBitmap: Int = 8 + EWAHCompressedBitmapSerializer.sizeof(_nullBitmap)
+  def build(): ByteBuffer = {
+    _buffer.limit(_buffer.position())
+    _buffer.rewind()
+    _buffer
+  }
 
-  protected def writeNullBitmap(buf: ByteBuffer) = {
-    if (_nullBitmap.cardinality() > 0) {
-      buf.putLong(1L)
-      EWAHCompressedBitmapSerializer.writeToBuffer(buf, _nullBitmap)
+  /**
+   * Initialize with an approximate lower bound on the expected number
+   * of elements in this column.
+   */
+  def initialize(initialSize: Int): ByteBuffer = {
+    _initialSize = if(initialSize == 0) 1024*1024*10 else initialSize
+    _buffer = ByteBuffer.allocate(_initialSize*t.defaultSize + 4 + 4)
+    _buffer.order(ByteOrder.nativeOrder())
+    _buffer.putInt(t.typeID)
+  }
+  
+  protected def growIfNeeded(orig: ByteBuffer, size: Int): ByteBuffer = {
+    val capacity = orig.capacity()
+    if (orig.remaining() < size) {
+      //grow in steps of initial size 
+      var additionalSize = capacity/8 + 1
+      var newSize = capacity + additionalSize
+      if (additionalSize  < size) {
+        newSize = capacity + size
+      }
+      val pos = orig.position()
+      orig.clear()
+      val b = ByteBuffer.allocate(newSize)
+      b.order(ByteOrder.nativeOrder())
+      b.put(orig.array(), 0, pos)
     } else {
-      buf.putLong(0L)
+      orig
+    }
+  }
+}
+
+class DefaultColumnBuilder[T](val stats: ColumnStats[T], val t: ColumnType[T, _]) 
+  extends CompressedColumnBuilder[T] with NullableColumnBuilder[T]{}
+
+
+trait CompressedColumnBuilder[T] extends ColumnBuilder[T] {
+
+  var compressionSchemes: Seq[CompressionAlgorithm] = Seq()
+
+  def shouldApply(scheme: CompressionAlgorithm): Boolean = {
+    scheme.compressionRatio < 0.8
+  }
+
+  override protected def gatherStats(v: T) = {
+    compressionSchemes.foreach { scheme =>
+      if (scheme.supportsType(t)) {
+        scheme.gatherStatsForCompressibility(v, t)
+      }
+    }
+    super.gatherStats(v)
+  }
+
+  override def build() = {
+    val b = super.build()
+    
+    if (compressionSchemes.isEmpty) {
+      new NoCompression().compress(b, t)
+    } else {
+      val candidateScheme = compressionSchemes.minBy(_.compressionRatio)
+      if (shouldApply(candidateScheme)) {
+        candidateScheme.compress(b, t)
+      } else {
+        new NoCompression().compress(b, t)
+      }
     }
   }
 }
@@ -61,27 +122,31 @@ trait ColumnBuilder[@specialized(Boolean, Byte, Short, Int, Long, Float, Double)
 
 object ColumnBuilder {
 
-  def create(columnOi: ObjectInspector): ColumnBuilder[_] = {
-    columnOi.getCategory match {
+  def create(columnOi: ObjectInspector, shouldCompress: Boolean = true): ColumnBuilder[_] = {
+    val v = columnOi.getCategory match {
       case ObjectInspector.Category.PRIMITIVE => {
         columnOi.asInstanceOf[PrimitiveObjectInspector].getPrimitiveCategory match {
           case PrimitiveCategory.BOOLEAN   => new BooleanColumnBuilder
-          case PrimitiveCategory.BYTE      => new ByteColumnBuilder
-          case PrimitiveCategory.SHORT     => new ShortColumnBuilder
           case PrimitiveCategory.INT       => new IntColumnBuilder
           case PrimitiveCategory.LONG      => new LongColumnBuilder
           case PrimitiveCategory.FLOAT     => new FloatColumnBuilder
           case PrimitiveCategory.DOUBLE    => new DoubleColumnBuilder
           case PrimitiveCategory.STRING    => new StringColumnBuilder
-          case PrimitiveCategory.VOID      => new VoidColumnBuilder
+          case PrimitiveCategory.SHORT     => new ShortColumnBuilder
+          case PrimitiveCategory.BYTE      => new ByteColumnBuilder
           case PrimitiveCategory.TIMESTAMP => new TimestampColumnBuilder
           case PrimitiveCategory.BINARY    => new BinaryColumnBuilder
+         
           // TODO: add decimal column.
           case _ => throw new Exception(
             "Invalid primitive object inspector category" + columnOi.getCategory)
         }
       }
-      case _ => new ComplexColumnBuilder(columnOi)
+      case _ => new GenericColumnBuilder(columnOi)
     }
+    if (shouldCompress) {
+      v.compressionSchemes = Seq(new RLE())
+    }
+    v
   }
 }

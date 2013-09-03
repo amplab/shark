@@ -17,10 +17,10 @@
 
 package shark.api
 
-import spark.api.java.function.{Function => JFunction}
-import spark.api.java.JavaRDDLike
-import spark.RDD
-import spark.storage.StorageLevel
+import org.apache.spark.api.java.function.{Function => JFunction}
+import org.apache.spark.api.java.JavaRDDLike
+import org.apache.spark.rdd.RDD
+import org.apache.spark.storage.StorageLevel
 
 
 class JavaTableRDD(val rdd: RDD[Row], val schema: Array[ColumnDesc])

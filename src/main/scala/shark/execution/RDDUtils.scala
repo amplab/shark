@@ -21,10 +21,11 @@ import scala.collection.JavaConversions
 
 import com.google.common.collect.{Ordering => GOrdering}
 
+import org.apache.spark.{HashPartitioner, Partitioner, RangePartitioner}
+import org.apache.spark.rdd.{RDD, ShuffledRDD, UnionRDD}
+import org.apache.spark.storage.StorageLevel
+
 import shark.SharkEnv
-import spark.{HashPartitioner, Partitioner, RangePartitioner, RDD}
-import spark.rdd.{ShuffledRDD, UnionRDD}
-import spark.storage.StorageLevel
 
 
 /**
@@ -53,17 +54,21 @@ object RDDUtils {
    * except we use the Shark shuffle serializer.
    */
   def repartition[K: ClassManifest, V: ClassManifest](rdd: RDD[(K, V)], part: Partitioner)
-    : RDD[(K, V)] = {
-    new ShuffledRDD[K, V](rdd, part, SharkEnv.shuffleSerializerName)
+    : RDD[(K, V)] =
+  {
+    new ShuffledRDD[K, V, (K, V)](rdd, part).setSerializer(SharkEnv.shuffleSerializerName)
   }
 
   /**
    * Sort the RDD by key. This is similar to Spark's sortByKey, except that we use
    * the Shark shuffle serializer.
    */
-  def sortByKey[K <: Comparable[K]: ClassManifest, V: ClassManifest](rdd: RDD[(K, V)]): RDD[(K, V)] = {
+  def sortByKey[K <: Comparable[K]: ClassManifest, V: ClassManifest](rdd: RDD[(K, V)])
+    : RDD[(K, V)] =
+  {
     val part = new RangePartitioner(rdd.partitions.length, rdd)
-    val shuffled = new ShuffledRDD[K, V](rdd, part, SharkEnv.shuffleSerializerName)
+    val shuffled = new ShuffledRDD[K, V, (K, V)](rdd, part)
+      .setSerializer(SharkEnv.shuffleSerializerName)
     shuffled.mapPartitions(iter => {
       val buf = iter.toArray
       buf.sortWith((x, y) => x._1.compareTo(y._1) < 0).iterator
@@ -74,7 +79,8 @@ object RDDUtils {
    * Return an RDD containing the top K (K smallest key) from the given RDD.
    */
   def topK[K <: Comparable[K]: ClassManifest, V: ClassManifest](rdd: RDD[(K, V)], k: Int)
-    : RDD[(K, V)] = {
+    : RDD[(K, V)] =
+  {
     // First take top K on each partition.
     val partialSortedRdd = partitionTopK(rdd, k)
     // Then merge all partitions into a single one, and take the top K on that partition.

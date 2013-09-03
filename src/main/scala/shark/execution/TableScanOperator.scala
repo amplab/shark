@@ -18,38 +18,52 @@
 package shark.execution
 
 import java.util.{ArrayList, Arrays}
-
 import scala.reflect.BeanProperty
-
 import org.apache.hadoop.mapred.{FileInputFormat, InputFormat, JobConf}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants.META_TABLE_PARTITION_COLUMNS
 import org.apache.hadoop.hive.ql.exec.{TableScanOperator => HiveTableScanOperator}
 import org.apache.hadoop.hive.ql.exec.{MapSplitPruning, Utilities}
+import org.apache.hadoop.hive.ql.io.HiveInputFormat
 import org.apache.hadoop.hive.ql.metadata.{Partition, Table}
 import org.apache.hadoop.hive.ql.plan.{PlanUtils, PartitionDesc, TableDesc}
-import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorFactory,
-  StructObjectInspector}
+import org.apache.hadoop.hive.serde2.Serializer
+import org.apache.hadoop.hive.serde2.`lazy`.LazyStruct
+import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorConverters, 
+  ObjectInspectorFactory, StructObjectInspector}
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorConverters.Converter
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.io.Writable
 
+import org.apache.spark.rdd.{PartitionPruningRDD, RDD, UnionRDD}
+
 import shark.{SharkConfVars, SharkEnv, Utils}
 import shark.api.QueryExecutionException
+import shark.execution.optimization.ColumnPruner
 import shark.execution.serialization.{XmlSerializer, JavaSerializer}
 import shark.memstore2.{CacheType, TablePartition, TablePartitionStats}
 import shark.tachyon.TachyonException
 
-import spark.RDD
-import spark.rdd.{PartitionPruningRDD, UnionRDD}
-import org.apache.hadoop.hive.ql.io.HiveInputFormat
 
-
+/**
+ * The TableScanOperator is used for scanning any type of Shark or Hive table.
+ */
 class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopOperator {
 
   @transient var table: Table = _
 
+  // Metadata for Hive-partitions (i.e if the table was created from PARTITION BY). NULL if this
+  // table isn't Hive-partitioned. Set in SparkTask::initializeTableScanTableDesc().
   @transient var parts: Array[Object] = _
+
+  // PartitionDescs are used during planning in Hive. This reference to a single PartitionDesc
+  // is used to initialize partition ObjectInspectors.
+  // If the table is not Hive-partitioned, then 'firstConfPartDesc' won't be used. The value is not
+  // NULL, but rather a reference to a "dummy" PartitionDesc, in which only the PartitionDesc's
+  // 'table' is not NULL.
+  // Set in SparkTask::initializeTableScanTableDesc().
   @BeanProperty var firstConfPartDesc: PartitionDesc  = _
+
   @BeanProperty var tableDesc: TableDesc = _
   @BeanProperty var localHconf: HiveConf = _
 
@@ -67,8 +81,11 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         serializer.getObjectInspector()
       } else {
         val partProps = firstConfPartDesc.getProperties()
-        val tableDeser = firstConfPartDesc.getDeserializerClass().newInstance()
-        tableDeser.initialize(hconf, partProps)
+        val tableDesc = firstConfPartDesc.getTableDesc()
+        val tableSerde = tableDesc.getDeserializerClass().newInstance()
+        tableSerde.initialize(hconf, tableDesc.getProperties())
+
+        // Get table and partition object inspectors
         val partCols = partProps.getProperty(META_TABLE_PARTITION_COLUMNS)
         val partNames = new ArrayList[String]
         val partObjectInspectors = new ArrayList[ObjectInspector]
@@ -81,10 +98,12 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         // this is called on the master only.
         val partObjectInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
             partNames, partObjectInspectors)
+            
         val oiList = Arrays.asList(
-            tableDeser.getObjectInspector().asInstanceOf[StructObjectInspector],
+        	tableSerde.getObjectInspector().asInstanceOf[StructObjectInspector],
             partObjectInspector.asInstanceOf[StructObjectInspector])
-        // new oi is union of table + partition object inspectors
+
+        // Union of both the table and partition OIs
         ObjectInspectorFactory.getUnionStructObjectInspector(oiList)
       }
     }
@@ -117,13 +136,13 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         throw(new QueryExecutionException("Cached table not found"))
       }
       logInfo("Loading table " + tableKey + " from Spark block manager")
-      loadRddFromSpark(tableKey, rdd)
+      createPrunedRdd(tableKey, rdd)
     } else if (cacheMode == CacheType.tachyon) {
       // Table is in Tachyon.
       if (!SharkEnv.tachyonUtil.tableExists(tableKey)) {
         throw new TachyonException("Table " + tableKey + " does not exist in Tachyon")
       }
-      logInfo("Loading table " + tableKey + " from Tachyon")
+      logInfo("Loading table " + tableKey + " from Tachyon.")
 
       var indexToStats: collection.Map[Int, TablePartitionStats] =
         SharkEnv.memoryMetadataManager.getStats(tableKey).getOrElse(null)
@@ -132,22 +151,26 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         val statsByteBuffer = SharkEnv.tachyonUtil.getTableMetadata(tableKey)
         indexToStats = JavaSerializer.deserialize[collection.Map[Int, TablePartitionStats]](
           statsByteBuffer.array())
+        logInfo("Loading table " + tableKey + " stats from Tachyon.")
         SharkEnv.memoryMetadataManager.putStats(tableKey, indexToStats)
       }
-      SharkEnv.tachyonUtil.createRDD(tableKey)
+      createPrunedRdd(tableKey, SharkEnv.tachyonUtil.createRDD(tableKey))
     } else {
       // Table is a Hive table on HDFS (or other Hadoop storage).
       super.execute()
     }
   }
 
-  private def loadRddFromSpark(tableKey: String, rdd: RDD[_]): RDD[_] = {
+  private def createPrunedRdd(tableKey: String, rdd: RDD[_]): RDD[_] = {
     // Stats used for map pruning.
     val indexToStats: collection.Map[Int, TablePartitionStats] =
       SharkEnv.memoryMetadataManager.getStats(tableKey).get
 
     // Run map pruning if the flag is set, there exists a filter predicate on
     // the input table and we have statistics on the table.
+    val columnsUsed = new ColumnPruner(this, table).columnsUsed
+    SharkEnv.tachyonUtil.pushDownColumnPruning(rdd, columnsUsed)
+
     val prunedRdd: RDD[_] =
       if (SharkConfVars.getBoolVar(localHconf, SharkConfVars.MAP_PRUNING) &&
           childOperators(0).isInstanceOf[FilterOperator] &&
@@ -168,9 +191,11 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
           }
           // Only test for pruning if we have stats on the column.
           val partitionStats = indexToStats(index)
-          if (partitionStats != null && partitionStats.stats != null)
+          if (partitionStats != null && partitionStats.stats != null) {
             MapSplitPruning.test(partitionStats, filterOp.conditionEvaluator)
-          else true
+          } else {
+            true
+          }
         }
 
         // Do the pruning.
@@ -186,7 +211,8 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     prunedRdd.mapPartitions { iter =>
       if (iter.hasNext) {
         val tablePartition = iter.next.asInstanceOf[TablePartition]
-        tablePartition.iterator
+        tablePartition.prunedIterator(columnsUsed)
+        //tablePartition.iterator
       } else {
         Iterator()
       }
@@ -221,6 +247,11 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     }
   }
 
+  /**
+   * Create an RDD for every partition column specified in the query. Note that for on-disk Hive
+   * tables, a data directory is created for each partition corresponding to keys specified using
+   * 'PARTITION BY'.
+   */
   private def makePartitionRDD[T](rdd: RDD[T]): RDD[_] = {
     val partitions = parts
     val rdds = new Array[RDD[Any]](partitions.size)
@@ -229,25 +260,24 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     partitions.foreach { part =>
       val partition = part.asInstanceOf[Partition]
       val partDesc = Utilities.getPartitionDesc(partition)
-      val tablePath = partition.getPartitionPath.toString
+      val tableDesc = partDesc.getTableDesc()
+      val partProps = partDesc.getProperties()
 
       val ifc = partition.getInputFormatClass
         .asInstanceOf[java.lang.Class[InputFormat[Writable, Writable]]]
-      val parts = createHadoopRdd(tablePath, ifc)
+      val parts = createHadoopRdd(partition.getPartitionPath.toString, ifc)
 
       val serializedHconf = XmlSerializer.serialize(localHconf, localHconf)
       val partRDD = parts.mapPartitions { iter =>
-        // Map each tuple to a row object
         val hconf = XmlSerializer.deserialize(serializedHconf).asInstanceOf[HiveConf]
-        val deserializer = partDesc.getDeserializerClass().newInstance()
-        deserializer.initialize(hconf, partDesc.getProperties())
 
         // Get partition field info
         val partSpec = partDesc.getPartSpec()
-        val partProps = partDesc.getProperties()
 
         val partCols = partProps.getProperty(META_TABLE_PARTITION_COLUMNS)
+        // Partitioning keys are delimited by "/"
         val partKeys = partCols.trim().split("/")
+        // 'partValues[i]' contains the value for the partitioning key at 'partKeys[i]'.
         val partValues = new ArrayList[String]
         partKeys.foreach { key =>
           if (partSpec == null) {
@@ -257,9 +287,39 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
           }
         }
 
+        val partSerde = partDesc.getDeserializerClass().newInstance()
+        val tableSerde = tableDesc.getDeserializerClass().newInstance()
+        partSerde.initialize(hconf, partProps)
+        tableSerde.initialize(hconf, tableDesc.getProperties())
+
+        // Table OI may not be of same type as partition OI
+        val tblConvertedOI = ObjectInspectorConverters.getConvertedOI(
+          partSerde.getObjectInspector(), tableSerde.getObjectInspector())
+        .asInstanceOf[StructObjectInspector]
+
+        val partTblObjectInspectorConverter = ObjectInspectorConverters.getConverter(
+          partSerde.getObjectInspector(), tblConvertedOI);
+ 
+        // Deserialize each row
         val rowWithPartArr = new Array[Object](2)
+        // Map each tuple to a row object
         iter.map { value =>
-          val deserializedRow = deserializer.deserialize(value) // LazyStruct
+          val deserializedRow = {
+
+            // If partition schema does not match table schema, update the row to match
+            val convertedRow = partTblObjectInspectorConverter.convert(partSerde.deserialize(value))
+
+            // If conversion was performed, convertedRow will be a standard Object, but if 
+            // conversion wasn't necessary, it will still be lazy. We can't have both across 
+            // partitions, so we serialize and deserialize again to make it lazy. 
+            convertedRow match {
+              case _: LazyStruct => convertedRow
+              case _ => tableSerde.deserialize(
+                          tableSerde.asInstanceOf[Serializer].serialize(
+                            convertedRow, tblConvertedOI))
+            }
+          }
+
           rowWithPartArr.update(0, deserializedRow)
           rowWithPartArr.update(1, partValues)
           rowWithPartArr.asInstanceOf[Object]
@@ -268,6 +328,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
       rdds(i) = partRDD.asInstanceOf[RDD[Any]]
       i += 1
     }
+
     // Even if we don't use any partitions, we still need an empty RDD
     if (rdds.size == 0) {
       SharkEnv.sc.makeRDD(Seq[Object]())

@@ -30,9 +30,10 @@ import org.apache.hadoop.hive.ql.plan.{PlanUtils, PartitionDesc}
 import org.apache.hadoop.hive.ql.plan.api.StageType
 import org.apache.hadoop.hive.ql.session.SessionState
 
+import org.apache.spark.rdd.RDD
+
 import shark.api.TableRDD
 import shark.{LogHelper, SharkEnv}
-import spark.RDD
 
 
 class SparkWork(
@@ -89,6 +90,13 @@ class SparkTask extends HiveTask[SparkWork] with Serializable with LogHelper {
     initializeAllHiveOperators(terminalOp)
 
     terminalOp.initializeMasterOnAll()
+
+    // Set Spark's job description to be this query.
+    SharkEnv.sc.setJobDescription(work.pctx.getContext.getCmd)
+
+    // Set the fair scheduler's pool.
+    SharkEnv.sc.setLocalProperty("spark.scheduler.cluster.fair.pool",
+      conf.get("mapred.fairscheduler.pool"))
 
     val sinkRdd = terminalOp.execute().asInstanceOf[RDD[Any]]
 
