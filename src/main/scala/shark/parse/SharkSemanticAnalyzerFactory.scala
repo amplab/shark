@@ -18,8 +18,8 @@
 package shark.parse
 
 import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.hadoop.hive.ql.parse.{ASTNode, BaseSemanticAnalyzer, DDLSemanticAnalyzer, 
-  SemanticAnalyzerFactory, ExplainSemanticAnalyzer, SemanticAnalyzer}
+import org.apache.hadoop.hive.ql.parse.{ASTNode, BaseSemanticAnalyzer, ColumnStatsSemanticAnalyzer,
+  DDLSemanticAnalyzer, SemanticAnalyzerFactory, ExplainSemanticAnalyzer, SemanticAnalyzer}
 
 import shark.SharkConfVars
 
@@ -32,13 +32,15 @@ object SharkSemanticAnalyzerFactory {
   def get(conf: HiveConf, tree:ASTNode): BaseSemanticAnalyzer = {
     val baseSem = SemanticAnalyzerFactory.get(conf, tree)
 
-    if (baseSem.isInstanceOf[SemanticAnalyzer]) {
+    if (baseSem.isInstanceOf[ColumnStatsSemanticAnalyzer]) {
+      new SharkColumnStatsSemanticAnalyzer(conf, tree)
+    } else if (baseSem.isInstanceOf[SemanticAnalyzer]) {
       new SharkSemanticAnalyzer(conf)
     } else if (baseSem.isInstanceOf[ExplainSemanticAnalyzer] &&
         SharkConfVars.getVar(conf, SharkConfVars.EXPLAIN_MODE) == "shark") {
       new SharkExplainSemanticAnalyzer(conf)
     } else if (baseSem.isInstanceOf[DDLSemanticAnalyzer]) {
-    	new SharkDDLSemanticAnalyzer(conf)
+      new SharkDDLSemanticAnalyzer(conf)
     } else {
       baseSem
     }

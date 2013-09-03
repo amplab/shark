@@ -27,7 +27,7 @@ import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.{FieldSchema, MetaException}
 import org.apache.hadoop.hive.metastore.Warehouse
-import org.apache.hadoop.hive.ql.exec.{DDLTask, FetchTask, MoveTask, TaskFactory}
+import org.apache.hadoop.hive.ql.exec.{ColumnStatsTask, DDLTask, FetchTask, MoveTask, TaskFactory}
 import org.apache.hadoop.hive.ql.exec.{FileSinkOperator => HiveFileSinkOperator}
 import org.apache.hadoop.hive.ql.metadata.HiveException
 import org.apache.hadoop.hive.ql.parse._
@@ -62,9 +62,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
    * Override SemanticAnalyzer.analyzeInternal to handle CTAS caching.
    */
   override def analyzeInternal(ast: ASTNode): Unit = {
-    reset()
-
-    val qb = new QB(null, null, false)
+    val qb = getQB()
     var pctx = getParseContext()
     pctx.setQB(qb)
     pctx.setParseTree(ast)
@@ -122,9 +120,8 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       SessionState.get().setCommandType(HiveOperation.QUERY)
     }
 
-    // Delegate create view and analyze to Hive.
-    val astTokenType = ast.getToken().getType()
-    if (astTokenType == HiveParser.TOK_CREATEVIEW || astTokenType == HiveParser.TOK_ANALYZE) {
+    // Delegate create view to Hive.
+    if (ast.getToken().getType() == HiveParser.TOK_CREATEVIEW) {
       return super.analyzeInternal(ast)
     }
 
@@ -251,7 +248,9 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       rootTasks.add(task)
     }
 
-    if (qb.getIsQuery) {
+    val isCStats = qb.isAnalyzeRewrite()
+
+    if (qb.getIsQuery && !isCStats) {
       // Configure FetchTask (used for fetching results to CLIDriver).
       val loadWork = getParseContext.getLoadFileWork.get(0)
       val cols = loadWork.getColumns
@@ -266,7 +265,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       val fetchTask = TaskFactory.get(fetchWork, conf).asInstanceOf[FetchTask]
       setFetchTask(fetchTask)
 
-    } else {
+    } else if (!isCStats) {
       // Configure MoveTasks for table updates (e.g. CTAS, INSERT).
       val mvTasks = new ArrayList[MoveTask]()
 
@@ -322,6 +321,12 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       }
     }
 
+    // If the query was the result of analyze table column compute statistics rewrite, create
+    // a column stats task and persist stats to the metastore.
+    if (isCStats) {
+      genColumnStatsTask(qb)
+    }
+
     // For CTAS, generate a DDL task to create the table. This task should be a
     // dependent of the main SparkTask.
     if (qb.isCTAS) {
@@ -337,6 +342,41 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         new DDLWork(getInputs, getOutputs, crtTblDesc),conf).asInstanceOf[DDLTask]
       rootTasks.head.addDependentTask(crtTblTask)
     }
+  }
+
+  /* This is from ColumnStatsSemanticAnalyzer */
+  def genColumnStatsTask(qb: QB): Unit = {
+    val qbParseInfo = qb.getParseInfo()
+    var cStatsTask: ColumnStatsTask = null
+    var cStatsWork: ColumnStatsWork = null
+    var fetch: FetchWork = null
+    val tableName = qbParseInfo.getTableName()
+    val partName = qbParseInfo.getPartName()
+    val colName = qbParseInfo.getColName()
+    val colType = qbParseInfo.getColType()
+    val isTblLevel = qbParseInfo.isTblLvl()
+
+    val loadFileWorkField = classOf[SemanticAnalyzer].getDeclaredField(
+      "loadFileWork")
+    loadFileWorkField.setAccessible(true)
+    val loadFileDesc = loadFileWorkField.get(this).asInstanceOf[JavaList[LoadFileDesc]](0)
+    val cols = loadFileDesc.getColumns()
+    val colTypes = loadFileDesc.getColumnTypes()
+    
+
+    val resFileFormat = HiveConf.getVar(conf, 
+      HiveConf.ConfVars.HIVEQUERYRESULTFILEFORMAT)
+    val resultTab = PlanUtils.getDefaultQueryOutputTableDesc(
+      cols, colTypes, resFileFormat)
+
+    fetch = new FetchWork(new Path(loadFileDesc.getSourceDir()).toString, 
+      resultTab, qb.getParseInfo().getOuterQueryLimit())
+
+    val cStatsDesc = new ColumnStatsDesc(tableName, partName, colName, 
+      colType, isTblLevel)
+    cStatsWork = new ColumnStatsWork(fetch, cStatsDesc)
+    cStatsTask = TaskFactory.get(cStatsWork, conf).asInstanceOf[ColumnStatsTask]
+    rootTasks.add(cStatsTask)
   }
 }
 

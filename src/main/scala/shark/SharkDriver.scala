@@ -37,7 +37,7 @@ import shark.api.TableRDD
 import shark.api.QueryExecutionException
 import shark.execution.{SharkExplainTask, SharkExplainWork, SparkTask, SparkWork}
 import shark.memstore2.ColumnarSerDe
-import shark.parse.{QueryContext, SharkSemanticAnalyzerFactory}
+import shark.parse.{QueryContext, SharkSemanticAnalyzerFactory, SharkColumnStatsSemanticAnalyzer}
 
 
 /**
@@ -182,7 +182,7 @@ private[shark] class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHe
       context.setTryCount(getTryCount())
 
       val tree = ParseUtils.findRootNonNullToken((new ParseDriver()).parse(command, context))
-      val sem = SharkSemanticAnalyzerFactory.get(conf, tree)
+      var sem = SharkSemanticAnalyzerFactory.get(conf, tree)
 
       // Do semantic analysis and plan generation
       val saHooks = SharkDriver.saHooksMethod.invoke(this, HiveConf.ConfVars.SEMANTIC_ANALYZER_HOOK,
@@ -196,6 +196,12 @@ private[shark] class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHe
         saHooks.foreach(_.postAnalyze(hookCtx, sem.getRootTasks()))
       } else {
         sem.analyze(tree, context)
+      }
+
+      // If this is an analyze ... compute column stats query, we create a SharkSemanticAnalyzer 
+      // instance in SharkColumnStatsSemanticAnalyzer, which we fetch here.
+      if (sem.isInstanceOf[SharkColumnStatsSemanticAnalyzer]) {
+        sem = sem.asInstanceOf[SharkColumnStatsSemanticAnalyzer].getSharkSem
       }
 
       logInfo("Semantic Analysis Completed")
