@@ -59,27 +59,39 @@ class MemoryMetadataManager {
     _keyToRdd.keys.collect { case k: String => k } toSeq
   }
 
+  /**
+   * Used to drop an RDD from the in-memory cache and/or disk, both managed by Spark. All metadata
+   * (e.g. entry in <_keyToStats>) about the RDD that's tracked in Shark
+   * is deleted as well.
+   *
+   * @param key Used to fetch the an RDD value from <_keyToRDD>.
+   * @return Option::isEmpty() is true if there is no RDD value corresponding to <key> in
+   *         <_keyToRDD>. Otherwise, a reference to the RDD that was unpersist()'ed is returned.
+   */
   def unpersist(key: String): Option[RDD[_]] = {
-    def unpersist(rdd: RDD[_]): Unit = {
+    def unpersistRDD(rdd: RDD[_]): Unit = {
       rdd match {
+        // Propagate the unpersist() to all RDDs that compose a UnionRDD.
         case u: UnionRDD[_] => {
           u.unpersist()
           u.rdds.foreach {
             r => unpersist(r)
           }
         }
-        case x => x.unpersist()
+        case r => r.unpersist()
       }
     }
-    val o = _keyToRdd.remove(key.toLowerCase())
+    // Remove RDD's entry from Shark metadata. This also fetches a reference to the RDD object
+    // corresponding to the argument for <key>.
+    val rddValue = _keyToRdd.remove(key.toLowerCase())
     _keyToStats.remove(key)
-    o match {
-      case Some(rdd) => unpersist(rdd)
+    // Unpersist the RDD using the nested helper fn above.
+    rddValue match {
+      case Some(rdd) => unpersistRDD(rdd)
       case None => Unit
     }
-    o
+    rddValue
   }
-
 }
 
 
