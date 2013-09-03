@@ -131,9 +131,8 @@ class CompressionAlgorithmSuite extends FunSuite {
     b.limit(b.position())
     b.rewind()
     val compressedBuffer = rle.compress(b, INT)
-    //first 4 bytes is the compression scheme
-    assert(compressedBuffer.getInt() == RLECompressionType.typeID)
     assert(compressedBuffer.getInt() == INT.typeID)
+    assert(compressedBuffer.getInt() == RLECompressionType.typeID)
     assert(compressedBuffer.getInt() == 6)
     assert(compressedBuffer.getInt() == 1000000)
   }
@@ -207,7 +206,6 @@ class CompressionAlgorithmSuite extends FunSuite {
     }
     val newBuffer = b.build()
     assert(newBuffer.getInt() == STRING.typeID)
-    assert(newBuffer.getInt() == RLECompressionType.typeID)
     
   }
 }

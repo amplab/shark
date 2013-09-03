@@ -5,6 +5,8 @@ import org.apache.hadoop.io.Text
 import org.scalatest.FunSuite
 import org.apache.hadoop.io.IntWritable
 import shark.memstore2.column.Implicits._
+import scala.collection.mutable.ArrayBuffer
+import scala.math._
 
 class NullableColumnIteratorSuite extends FunSuite {
 
@@ -75,5 +77,25 @@ class NullableColumnIteratorSuite extends FunSuite {
     assert(i.current == null)
     i.next()
     assert(i.current == null)
+  }
+  
+  test("Iterate Ints RLE") {
+    val oi = PrimitiveObjectInspectorFactory.javaIntObjectInspector
+    val c = ColumnBuilder.create(oi)
+    c.initialize(4)
+    def toappend(i: Int): Int = i/10000
+    Range(0,1000000).foreach { i => 
+      val v = toappend(i)
+      c.append(v.asInstanceOf[Object], oi)
+    }
+    val b = c.build
+    val iter = ColumnIterator.newIterator(b)
+    Range(0, 1000000).foreach { i => 
+      val v = toappend(i)
+      iter.next()
+      val w = iter.current().asInstanceOf[IntWritable]
+      assert(v == w.get())
+      
+    }
   }
 }

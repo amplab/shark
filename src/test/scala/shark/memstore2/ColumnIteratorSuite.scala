@@ -80,6 +80,20 @@ class ColumnIteratorSuite extends FunSuite {
       true)
     assert(builder.stats.min === false)
     assert(builder.stats.max === true)
+    
+    builder = new BooleanColumnBuilder
+    builder.compressionSchemes = Seq(new RLE())
+    val a = Array.ofDim[java.lang.Boolean](100)
+    Range(0,100).foreach { i => 
+      a(i) = if (i < 10) true else if (i <80) false else null
+    }
+    testColumn(
+      a,
+      builder,
+      PrimitiveObjectInspectorFactory.javaBooleanObjectInspector,
+      PrimitiveObjectInspectorFactory.writableBooleanObjectInspector,
+      classOf[BooleanColumnIterator],
+      true)
   }
 
   test("byte column") {
@@ -103,6 +117,16 @@ class ColumnIteratorSuite extends FunSuite {
       true)
     assert(builder.stats.min === 0.toByte)
     assert(builder.stats.max === 15.toByte)
+    
+    builder = new ByteColumnBuilder
+    builder.compressionSchemes = Seq(new RLE())
+    testColumn(
+      Array[java.lang.Byte](null, 2.toByte, 2.toByte, null, 4.toByte, 4.toByte,4.toByte,5.toByte),
+      builder,
+      PrimitiveObjectInspectorFactory.javaByteObjectInspector,
+      PrimitiveObjectInspectorFactory.writableByteObjectInspector,
+      classOf[ByteColumnIterator],
+      true)
   }
 
   test("short column") {
@@ -126,6 +150,14 @@ class ColumnIteratorSuite extends FunSuite {
       true)
     assert(builder.stats.min === -15.toShort)
     assert(builder.stats.max === 2.toShort)
+    
+    testColumn(
+      Array[java.lang.Short](1.toShort, 2.toShort, 2.toShort, null, 1.toShort, 1.toShort),
+      builder,
+      PrimitiveObjectInspectorFactory.javaShortObjectInspector,
+      PrimitiveObjectInspectorFactory.writableShortObjectInspector,
+      classOf[ShortColumnIterator],
+      true)
   }
 
   test("int column") {
@@ -149,6 +181,21 @@ class ColumnIteratorSuite extends FunSuite {
       true)
     assert(builder.stats.min === -12)
     assert(builder.stats.max === 134)
+    
+    builder = new IntColumnBuilder
+    builder.compressionSchemes = Seq(new RLE())
+    val a = Array.ofDim[java.lang.Integer](100)
+    Range(0,100).foreach { i => 
+      a(i) = if (i < 10) 10 else if (i <80) 11 else null
+    }
+    
+    testColumn(
+      a,
+      builder,
+      PrimitiveObjectInspectorFactory.javaIntObjectInspector,
+      PrimitiveObjectInspectorFactory.writableIntObjectInspector,
+      classOf[IntColumnIterator],
+      true)
   }
 
   test("long column") {
@@ -171,6 +218,20 @@ class ColumnIteratorSuite extends FunSuite {
       true)
     assert(builder.stats.min === -345345L)
     assert(builder.stats.max === 15L)
+
+    builder = new LongColumnBuilder
+    builder.compressionSchemes = Seq(new RLE())
+    val a = Array.ofDim[java.lang.Long](100)
+    Range(0,100).foreach { i => 
+      a(i) = if (i < 10) 10 else if (i <80) 11 else null
+    }
+    testColumn(
+      a,
+      builder,
+      PrimitiveObjectInspectorFactory.javaLongObjectInspector,
+      PrimitiveObjectInspectorFactory.writableLongObjectInspector,
+      classOf[LongColumnIterator],
+      true)
   }
 
   test("float column") {
@@ -219,6 +280,7 @@ class ColumnIteratorSuite extends FunSuite {
 
   test("string column") {
     var builder = new StringColumnBuilder
+
     testColumn(
       Array[Text](new Text("a"), new Text(""), new Text("b"), new Text("Abcdz")),
       builder,
@@ -243,6 +305,18 @@ class ColumnIteratorSuite extends FunSuite {
     )
     assert(builder.stats.min.toString === "")
     assert(builder.stats.max.toString === "b")
+    
+    builder = new StringColumnBuilder
+    builder.compressionSchemes = Seq(new RLE())
+    testColumn(
+      Array[Text](new Text("a"), new Text("a"), null, new Text("b"), new Text("b"), new Text("Abcdz")),
+      builder,
+      PrimitiveObjectInspectorFactory.writableStringObjectInspector,
+      PrimitiveObjectInspectorFactory.writableStringObjectInspector,
+      classOf[StringColumnIterator],
+      false,
+      (a, b) => if (a == null) b == null else (a.toString.equals(b.toString))
+    )
   }
 
   test("timestamp column") {
