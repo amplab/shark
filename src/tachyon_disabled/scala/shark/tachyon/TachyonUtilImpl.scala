@@ -18,13 +18,16 @@
 package shark.tachyon
 
 import java.nio.ByteBuffer
+import java.util.BitSet
+
+import org.apache.spark.rdd.RDD
 
 import shark.memstore2.TablePartition
 
-import spark.RDD
-
 
 class TachyonUtilImpl(val master: String, val warehousePath: String) extends TachyonUtil {
+  override def pushDownColumnPruning(rdd: RDD[_], columnUsed: BitSet): Boolean = false
+
   override def tachyonEnabled(): Boolean = false
 
   override def tableExists(tableName: String): Boolean = {

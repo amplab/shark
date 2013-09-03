@@ -30,9 +30,10 @@ import org.apache.hadoop.hive.ql.plan.{PlanUtils, PartitionDesc}
 import org.apache.hadoop.hive.ql.plan.api.StageType
 import org.apache.hadoop.hive.ql.session.SessionState
 
+import org.apache.spark.rdd.RDD
+
 import shark.api.TableRDD
 import shark.{LogHelper, SharkEnv}
-import spark.RDD
 
 
 class SparkWork(

@@ -30,9 +30,10 @@ import org.apache.hadoop.hive.serde2.{Deserializer, Serializer, SerDeUtils}
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspectorUtils, StandardStructObjectInspector}
 import org.apache.hadoop.io.BytesWritable
 
-import shark.execution.serialization.OperatorSerializationWrapper
+import org.apache.spark.{CoGroupedRDD, HashPartitioner}
+import org.apache.spark.rdd.RDD
 
-import spark.{CoGroupedRDD, HashPartitioner, RDD}
+import shark.execution.serialization.OperatorSerializationWrapper
 
 
 class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]

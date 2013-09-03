@@ -24,7 +24,8 @@ import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, StructObj
 
 import shark.execution.serialization.KryoSerializer
 
-import spark.{Partition, RDD, TaskContext}
+import org.apache.spark.{Partition, TaskContext}
+import org.apache.spark.rdd.RDD
 
 
 class TableRDD(

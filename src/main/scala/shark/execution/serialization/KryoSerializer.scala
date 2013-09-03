@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,8 @@ package shark.execution.serialization
 
 import java.nio.ByteBuffer
 
+import org.apache.spark.serializer.{KryoSerializer => SparkKryoSerializer}
+
 
 /**
  * Java object serialization using Kryo. This is much more efficient, but Kryo
@@ -27,7 +29,7 @@ import java.nio.ByteBuffer
  */
 object KryoSerializer {
 
-  @transient val ser = new spark.KryoSerializer
+  @transient val ser = new SparkKryoSerializer
 
   def serialize[T](o: T): Array[Byte] = {
     ser.newInstance().serialize(o).array()
