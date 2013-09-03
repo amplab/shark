@@ -15,8 +15,8 @@
     <maven.compiler.target>1.7</maven.compiler.target>
     <encoding>UTF-8</encoding>
     <scala.version>2.9.3</scala.version>
-    <hive.version>0.9.0-csd-20</hive.version>
-    <spark.version>0.8.0-candidate-csd-7-SNAPSHOT</spark.version>
+    <hive.version>0.9.0-csd-22</hive.version>
+    <spark.version>0.8.0RC1-csd-1-SNAPSHOT</spark.version>
     <cdh.version>4.1.2</cdh.version>
     <java.version>1.5</java.version>
     <hbase.version>0.94.5-csd-30</hbase.version>
@@ -653,12 +653,12 @@
         </dependency>
         <!-- Spark -->
         <dependency>
-          <groupId>org.spark-project</groupId>
+          <groupId>org.apache.spark</groupId>
           <artifactId>spark-core</artifactId>
           <version>${spark.version}</version>
         </dependency>
         <dependency>
-          <groupId>org.spark-project</groupId>
+          <groupId>org.apache.spark</groupId>
           <artifactId>spark-repl</artifactId>
           <version>${spark.version}</version>
         </dependency>
@@ -700,12 +700,12 @@
         </dependency>
         <!-- Spark -->
         <dependency>
-          <groupId>org.spark-project</groupId>
+          <groupId>org.apache.spark</groupId>
           <artifactId>spark-core</artifactId>
           <version>${spark.version}</version>
         </dependency>
         <dependency>
-          <groupId>org.spark-project</groupId>
+          <groupId>org.apache.spark</groupId>
           <artifactId>spark-repl</artifactId>
           <version>${spark.version}</version>
         </dependency>
