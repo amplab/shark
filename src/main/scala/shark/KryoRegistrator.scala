@@ -28,8 +28,10 @@ import org.apache.hadoop.io.Writable
 import org.apache.hadoop.hive.ql.exec.persistence.{MapJoinSingleKey, MapJoinObjectKey,
     MapJoinDoubleKeys, MapJoinObjectValue}
 
+import org.apache.spark.serializer.{KryoRegistrator => SparkKryoRegistrator}
 
-class KryoRegistrator extends spark.KryoRegistrator {
+
+class KryoRegistrator extends SparkKryoRegistrator {
   def registerClasses(kryo: Kryo) {
 
     kryo.register(classOf[execution.ReduceKey])

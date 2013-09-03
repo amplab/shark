@@ -19,11 +19,16 @@ package shark
 
 import scala.collection.mutable.{HashMap, HashSet}
 
+import org.apache.spark.{SparkContext, SparkEnv}
+import org.apache.spark.rdd.RDD
+import org.apache.spark.scheduler.StatsReportListener
+import org.apache.spark.serializer.{KryoSerializer => SparkKryoSerializer}
+
 import shark.api.JavaSharkContext
 import shark.memstore2.MemoryMetadataManager
+import shark.execution.serialization.ShuffleSerializer
 import shark.tachyon.TachyonUtilImpl
-import spark.{RDD, SparkContext}
-import spark.scheduler.StatsReportListener
+
 
 /** A singleton object for the master program. The slaves should not access this. */
 object SharkEnv extends LogHelper {
@@ -80,7 +85,7 @@ object SharkEnv extends LogHelper {
 
   logInfo("Initializing SharkEnv")
 
-  System.setProperty("spark.serializer", classOf[spark.KryoSerializer].getName)
+  System.setProperty("spark.serializer", classOf[SparkKryoSerializer].getName)
   System.setProperty("spark.kryo.registrator", classOf[KryoRegistrator].getName)
 
   val executorEnvVars = new HashMap[String, String]
@@ -95,7 +100,7 @@ object SharkEnv extends LogHelper {
 
   var sc: SparkContext = _
 
-  val shuffleSerializerName = classOf[shark.execution.serialization.ShuffleSerializer].getName
+  val shuffleSerializerName = classOf[ShuffleSerializer].getName
 
   val memoryMetadataManager = new MemoryMetadataManager
 

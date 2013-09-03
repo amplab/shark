@@ -243,8 +243,8 @@ if $SKIP_SPARK ; then
 else
   # Clean up past Spark artifacts published locally.
   rm -rf ./spark
-  rm -rf ~/.ivy2/local/org.spark*
-  rm -rf ~/.ivy2/cache/org.spark*
+  rm -rf ~/.ivy2/local/org.apache.spark*
+  rm -rf ~/.ivy2/cache/org.apache.spark*
   # Download and build Spark.
   git clone $SPARK_GIT_URL
   pushd spark

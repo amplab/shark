@@ -28,10 +28,13 @@ import org.apache.hadoop.hive.ql.exec.{MapJoinOperator => HiveMapJoinOperator}
 import org.apache.hadoop.hive.ql.plan.MapJoinDesc
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 
+import org.apache.spark.SparkEnv
+import org.apache.spark.rdd.RDD
+import org.apache.spark.storage.StorageLevel
+
 import shark.SharkEnv
 import shark.execution.serialization.{OperatorSerializationWrapper, SerializableWritable}
-import spark.{RDD, SparkEnv}
-import spark.storage.StorageLevel
+
 
 /**
  * A join operator optimized for joining a large table with a number of small

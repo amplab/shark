@@ -32,8 +32,9 @@ import org.apache.hadoop.hive.ql.processors.CommandProcessorFactory
 import org.apache.hadoop.hive.ql.processors.CommandProcessorResponse
 import org.apache.hadoop.hive.ql.session.SessionState
 
+import org.apache.spark.{SparkContext, SparkEnv}
+
 import shark.api._
-import spark.{SparkContext, SparkEnv}
 
 
 class SharkContext(

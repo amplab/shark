@@ -24,13 +24,13 @@ import scala.reflect.BeanProperty
 
 import org.apache.hadoop.io.Writable
 
+import org.apache.spark.rdd.RDD
+import org.apache.spark.storage.StorageLevel
+
 import shark.{SharkConfVars, SharkEnv}
 import shark.execution.serialization.{OperatorSerializationWrapper, JavaSerializer}
 import shark.memstore2._
 import shark.tachyon.TachyonTableWriter
-
-import spark.RDD
-import spark.storage.StorageLevel
 
 
 /**
