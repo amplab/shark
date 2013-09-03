@@ -25,6 +25,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import shark.LogHelper
 import shark.execution.serialization.OperatorSerializationWrapper
 import spark.RDD
+import shark.SharkConfVars
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator
@@ -32,7 +33,7 @@ import java.util.Arrays
 
 
 abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
-
+  
   /**
    * Initialize the operator on master node. This can have dependency on other
    * nodes. When an operator's initializeOnMaster() is invoked, all its parents'
@@ -110,6 +111,12 @@ abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
   def desc() = _desc
   // TODO chenghao shouldn't need the asInstanceOf[T], but only setDesc[B >: T](d: B) could works.
   def setDesc[B >: T](d: B) {_desc = d.asInstanceOf[T]}
+
+  /**
+   * Detected if use code gen feature has been activated.
+   * WARN: This function shouldn't be called in high frequently.
+   */
+  def useCG(): Boolean = SharkConfVars.getBoolVar(hconf, SharkConfVars.EXPR_CG)
   
   @transient private[this] var _desc: T = _
   @transient private[this] val _childOperators = new ArrayBuffer[Operator[_<:HiveDesc]]()
@@ -130,7 +137,15 @@ abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
   // derived classes can set this to different object if needed, default is the first input OI
   def outputObjectInspector(): ObjectInspector = objectInspectors(0)
   
-    /**
+  protected def initEvaluatorsAndReturnStruct(
+      evals: Array[ExprNodeEvaluator] , distinctColIndices: JavaList[JavaList[Integer]] ,
+      outputColNames: JavaList[String], length: Int, rowInspector: ObjectInspector): StructObjectInspector = {
+
+    var fieldObjectInspectors = initEvaluators(evals, 0, length, rowInspector);
+    initEvaluatorsAndReturnStruct(evals, fieldObjectInspectors, distinctColIndices, outputColNames, length, rowInspector)
+  }
+  
+ /**
    * Copy from the org.apache.hadoop.hive.ql.exec.ReduceSinkOperator
    * Initializes array of ExprNodeEvaluator. Adds Union field for distinct
    * column indices for group by.
@@ -141,7 +156,7 @@ abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
    * {@link Operator#initEvaluatorsAndReturnStruct(ExprNodeEvaluator[], List, ObjectInspector)}
    */
   protected def initEvaluatorsAndReturnStruct(
-      evals: Array[ExprNodeEvaluator] , distinctColIndices: JavaList[JavaList[Integer]] ,
+      evals: Array[ExprNodeEvaluator], fieldObjectInspectors: Array[ObjectInspector], distinctColIndices: JavaList[JavaList[Integer]] ,
       outputColNames: JavaList[String], length: Int, rowInspector: ObjectInspector): StructObjectInspector = {
 
     var inspectorLen = if (evals.length > length) length + 1 else evals.length
@@ -149,7 +164,7 @@ abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
     var sois = new ArrayBuffer[ObjectInspector](inspectorLen)
 
     // keys
-    var fieldObjectInspectors = initEvaluators(evals, 0, length, rowInspector);
+    // var fieldObjectInspectors = initEvaluators(evals, 0, length, rowInspector);
     sois++=fieldObjectInspectors
 
     if (evals.length > length) {

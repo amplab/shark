@@ -51,10 +51,10 @@ var sfs = fields.map(f=>f.defStructField())
   private static ArrayList<CGStructField> INITIAL_SF() {
     ArrayList<CGStructField> fields = new ArrayList<CGStructField>(${sfs.length});
     
-    #for(i <- 0 to sfs.length - 1)
+    #for(i <- 0 until sfs.length)
     {
       CGStructField sf = new ${sfs(i)._2}(${i});
-      SF_MAP.put("${sfs(i)._1}", sf);
+      SF_MAP.put("${sfs(i)._1}".toLowerCase(), sf);
       fields.add(sf);
     }
     #end
@@ -68,14 +68,10 @@ var sfs = fields.map(f=>f.defStructField())
   protected ArrayList<Object> writables = initial_writables();
   
   public ArrayList<Object> initial_writables() {
-    ArrayList<Object> list = new ArrayList<Object>(6);
+    ArrayList<Object> list = new ArrayList<Object>(${sfs.length});
+#for(i <- 0 until sfs.length)
     list.add(null);
-    list.add(null);
-    list.add(null);
-    list.add(null);
-    list.add(null);
-    list.add(null);
-    
+#end
     return list;
   }
   
@@ -88,7 +84,7 @@ var sfs = fields.map(f=>f.defStructField())
 
   @Override
   public StructField getStructFieldRef(String fieldName) {
-    return SF_MAP.get(fieldName);
+    return SF_MAP.get(fieldName.toLowerCase());
   }
 
   @Override
@@ -105,7 +101,7 @@ var sfs = fields.map(f=>f.defStructField())
       return null;
     }
     
-    ${cgClassName} struct = (${cgClassName})data;
+    ${delegate.cgClassName} struct = (${delegate.cgClassName})data;
     
     for(int i = 0; i < SF_FIELDS.size(); ++i) {
       writables.set(i, SF_FIELDS.get(i).get(struct));

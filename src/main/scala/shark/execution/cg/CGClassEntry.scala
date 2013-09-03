@@ -45,14 +45,18 @@ import javax.tools.ToolProvider
 import scala.collection.mutable.LinkedHashSet
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ArrayBuffer
-
+import scala.collection.mutable.{HashMap,SynchronizedMap}
 import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.ql.plan.ExprNodeDesc
 import org.apache.hadoop.hive.ql.plan.ExprNodeGenericFuncDesc
-
 import shark.LogHelper
 import shark.execution.cg.node.CodeNode
+import com.esotericsoftware.kryo.KryoSerializable
+import com.esotericsoftware.kryo.Kryo
+import com.esotericsoftware.kryo.io.Input
+import com.esotericsoftware.kryo.io.Output
+import org.apache.commons.io.FileUtils
 
 
 /**
@@ -123,7 +127,7 @@ class CGClassEntry(val desc: ExprNodeDesc)
   protected def createClass(node: CodeNode): Class[IEvaluate] = {
     var code = node.cgEvaluate()
     logInfo("%s==>\n%s".format(node.desc.getExprString(), code))
-    var clz = JavaCompilerHelper.compile(node.fullClassName, code)
+    var clz = new JavaCompilerHelper().compile(node.fullClassName, code)
 
     clz.asInstanceOf[Class[IEvaluate]]
   }
@@ -172,8 +176,8 @@ object CGClassEntry extends LogHelper {
 /**
  * helper to compile the java source code
  */
-object JavaCompilerHelper extends LogHelper with DiagnosticListener[JavaFileObject] {
-  val FOR_UNIT_TEST_WORK_AROUND = "for_unit_test_workaround"
+class JavaCompilerHelper extends LogHelper with DiagnosticListener[JavaFileObject] {
+  private[this] val classFileManager = new SingleClassFileManager()
 
   override def report(d: Diagnostic[_ <: JavaFileObject]) {
     logError("Line:%s Msg:%s Source:%s".
@@ -204,7 +208,7 @@ object JavaCompilerHelper extends LogHelper with DiagnosticListener[JavaFileObje
     //  
     // Another possible solution is to make the sbt unittest runs within a spawned new jvm process,
     // but I haven't figure out how to do it in .sbt build definition.
-    if (!java.lang.Boolean.parseBoolean(System.getProperty(FOR_UNIT_TEST_WORK_AROUND, "false"))) {
+    if (!java.lang.Boolean.parseBoolean(System.getProperty(JavaCompilerHelper.FOR_UNIT_TEST_WORK_AROUND, "false"))) {
       // if NOT the sbt unit test, then will not create the class path option for JavaCompiler
       return List[String]()
     }
@@ -231,29 +235,65 @@ object JavaCompilerHelper extends LogHelper with DiagnosticListener[JavaFileObje
    * @throws CGAssertRuntimeException if anything wrong in compiling
    */
   def compile(fullClassName: String, code: String) = {
-    var classFileManager = new SingleClassFileManager()
-    classFileManager.compile(List((fullClassName, code)), this, compileOptions())
-    classFileManager.loadClass(fullClassName)
+    classFileManager.compile(ArrayBuffer((fullClassName, code)), this, compileOptions())
   }
+  
+  def compile(entries: ArrayBuffer[(String, String)]) = {
+    classFileManager.compile(entries, this, compileOptions())
+  }
+  
+  def getOperatorClassLoader() = classFileManager.getClassLoader(null).asInstanceOf[OperatorClassLoader]
 }
 
+object JavaCompilerHelper {
+  val FOR_UNIT_TEST_WORK_AROUND = "for_unit_test_workaround"
+  val CG_SOURCE_CODE_PATH = "cg_source_code_path"
+}
+  
 /**
- * Classloader for loading the generated class
+ * Customed class loader, which is single thread "write" in Master node and 
+ * multiple "read" in Workers
+ * 
  */
-class CacheClassLoader(cl: ClassLoader) extends SecureClassLoader(cl) with LogHelper {
-  private val clazzCache = new ConcurrentHashMap[String, Class[_]]()
+class OperatorClassLoader(parent: ClassLoader) 
+  extends SecureClassLoader(parent) with LogHelper with KryoSerializable {
+  
+  def this() = this(Thread.currentThread.getContextClassLoader())
+  
+  def addClassEntries(ocl: Array[OperatorClassLoader]) {
+    ocl.foreach(cl => clazzCache.putAll(cl.clazzCache))
+  }
+  
+  var clazzCache = new HashMap[String, Array[Byte]] with SynchronizedMap[String, Array[Byte]]
 
-  override def findClass(name: String) = {
-    var clazz = clazzCache.get(name)
-    if (clazz == null) {
-      throw new ClassNotFoundException(name)
-    } else {
-      clazz
+  def flushClass(name: String, bytes: Array[Byte]) = {
+    clazzCache.getOrElseUpdate(name, bytes)
+  }
+  
+  override def findClass(name: String): Class[_] = clazzCache.get(name) match {
+      case Some(b) => defineClass(name, b, 0, b.length)
+      case None => throw new ClassNotFoundException(name)
+  }
+
+  override def read(kryo: Kryo, input: Input) {
+    clazzCache = new HashMap[String, Array[Byte]] with SynchronizedMap[String, Array[Byte]]
+    var size = input.read()
+    for(i <- 0 to size - 1) {
+      var name = input.readString()
+      var bytes = new Array[Byte](input.readInt())
+      input.readBytes(bytes)
+      flushClass(name, bytes)
     }
   }
 
-  def flushClass(name: String, bytes: Array[Byte]) = {
-    clazzCache.getOrElseUpdate(name, defineClass(name, bytes, 0, bytes.length))
+  override def write(kryo: Kryo, output: Output) {
+    output.write(clazzCache.size)
+    clazzCache.foreach { case (name, bytes) => {
+        output.writeString(name)
+        output.writeInt(bytes.length)
+        output.writeBytes(bytes, 0, bytes.length)
+      }
+    }
   }
 }
 
@@ -288,7 +328,7 @@ private class SingleClassFileManager(
       }
   }
 
-  private var cl = new CacheClassLoader(this.getClass().getClassLoader())
+  private var cl = new OperatorClassLoader(this.getClass().getClassLoader())
 
   override def getClassLoader(location: Location): ClassLoader = cl
 
@@ -300,9 +340,19 @@ private class SingleClassFileManager(
   /**
    *  List[(String,String)], the tuple is (className, CodeContent)
    */
-  def compile(files: List[(String, String)],
+  def compile(files: ArrayBuffer[(String, String)],
               dl: DiagnosticListener[JavaFileObject],
               options: List[String]) {
+    // for debugging the generate source code purpose
+    val cgSourcePath = System.getProperty(JavaCompilerHelper.CG_SOURCE_CODE_PATH)
+    if (cgSourcePath != null) {
+      files.foreach(file => {
+        val sourceFilePath = 
+          cgSourcePath + File.separator + file._1.replaceAll("\\.", File.separator) + ".java"
+        FileUtils.writeStringToFile(new File(sourceFilePath), file._2)
+      })
+    }
+    
     // convert the (className, CodeContent) ==> JavaSourceObject
     var jsObject = files.map(x => new JavaSourceObject(x._1, x._2))
 

@@ -1,0 +1,127 @@
+<% escapeMarkup = false %>
+#import(shark.execution.cg.operator.CGOperator)
+#import(shark.execution.cg.row.CGStruct)
+#import(shark.execution.ReduceSinkOperator)
+<%@ import val cgo: CGReduceSinkOperator %>
+<%@ import val op: ReduceSinkOperator %>
+#{
+  val keyStruct = row.fields(0).asInstanceOf[CGStruct]
+  val valueStruct = row.fields(1).asInstanceOf[CGStruct]
+  val keyStructClassName = keyStruct.cgClassName
+  val valueStructClassName = valueStruct.cgClassName
+}#
+
+package ${packageName};
+
+import java.io.Serializable;
+import java.util.Random;
+import java.util.ArrayList;
+
+import org.apache.hadoop.io.BytesWritable;
+  
+import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils;
+
+import shark.execution.cg.operator.HashCodeUtils;
+import shark.execution.ReduceKeyMapSide;
+import shark.execution.serialization.KryoSerializer;
+import shark.execution.cg.OperatorExecutor;
+import shark.execution.ReduceSinkOperator;
+
+public class ${className} implements OperatorExecutor, Serializable {
+  private static final long serialVersionUID = 1L;
+  Random rand = new Random(13);
+  
+  #for(i <- 0 until partitionEval.length)
+  private ExprNodeEvaluator partitionEval${i};
+  private ObjectInspector partitionOI${i};
+  #end
+  #for(i <- 0 until keyEval.length)
+  private ExprNodeEvaluator keyEval${i};
+  private ObjectInspector keyFieldObjInspector${i};
+  #end
+  #for(i <- 0 until valueEval.length)
+  private ExprNodeEvaluator valEval${i};
+  private ObjectInspector valFieldObjInspector${i};
+  #end
+  
+  private KryoSerializer kryo = new KryoSerializer(new Class<?>[]{${row.cgClassName}.class});
+  private ReduceKeyMapSide reduceKey = new ReduceKeyMapSide();
+  
+  public ${className}(Object obj) {
+    ReduceSinkOperator o = (ReduceSinkOperator)obj;
+  #for(i <- 0 until partitionEval.length)
+    partitionEval${i} = o.partitionEval()[${i}];
+    partitionOI${i} = o.partitionObjInspectors()[${i}];
+  #end
+  #for(i <- 0 until keyEval.length)
+    keyEval${i} = o.keyEval()[${i}];
+    keyFieldObjInspector${i} = o.keyFieldObjInspectors()[${i}];
+  #end
+  #for(i <- 0 until valueEval.length)
+    valEval${i} = o.valueEval()[${i}];
+    valFieldObjInspector${i} = o.valFieldObjInspectors()[${i}];
+  #end
+  }
+  
+  public Object evaluate(Object obj) throws Exception {
+    // return type Iterator[(shark.execution.ReduceKeyMapSide, org.apache.hadoop.io.BytesWritable)]
+    //ArrayList<Tuple2<CGRow.SStruct2, CGRow.SStruct3>> tuples = new ArrayList<Tuple2<CGRow.SStruct2, CGRow.SStruct3>>(iter.length);
+    final scala.collection.Iterator<?> iter = (scala.collection.Iterator<?>)obj;
+    
+    return new java.util.Iterator<scala.Tuple2<ReduceKeyMapSide, BytesWritable>>() {
+      public boolean hasNext() {
+        return iter.hasNext();
+      }
+      public void remove() {throw new UnsupportedOperationException("remove");}
+      public scala.Tuple2<ReduceKeyMapSide, BytesWritable> next() {
+        try {
+	        int partitionCode = 0;
+	        Object row = iter.next();
+	        #if(partitionEval.length == 0)
+	        partitionCode = rand.nextInt();
+	        #else
+	          #for(i <- 0 until partitionEval.length)
+	        partitionCode = partitionCode * 31 + ObjectInspectorUtils.hashCode(partitionEval${i}.evaluate(row), partitionOI${i});
+	          #end
+	        #end
+	        ${keyStructClassName} key = new ${keyStructClassName}();
+	        ${valueStructClassName} value = new ${valueStructClassName}();
+	        
+	        #for(i <- 0 until keyEval.length)
+	        {
+	          Object v = keyEval${i}.evaluate(row);
+	          if (v != null) {
+	            key.mask.set(${keyStructClassName}.MASK_${keyStruct.fields(i).name}, true);
+	            // obj:String, oi: String, data: String
+	            ${keyStruct.fields(i).getValue("key." + keyStruct.fields(i).name, "keyFieldObjInspector" + i, "v")}
+	          }
+	        }
+	        #end
+	
+	        #for(i <- 0 until valueEval.length)
+	        {
+	          Object v = valEval${i}.evaluate(row);
+	          if (v != null) {
+	            value.mask.set(${valueStructClassName}.MASK_${valueStruct.fields(i).name}, true);
+	            ${valueStruct.fields(i).getValue("value." + valueStruct.fields(i).name, "valFieldObjInspector" + i, "v")}
+	          }
+	        }
+	        #end
+	        
+	        byte[] keyBytes = kryo.serialize(key);
+	        byte[] valueBytes = kryo.serialize(value);
+	        
+	        // TODO need to rewrite the ReduceKeyMapSide & KryoSerializer to avoiding bytes copying
+	        reduceKey.getBytesWritable().set(keyBytes, 0, keyBytes.length);
+	        reduceKey.setPartitionCode(partitionCode);
+	        
+	        return new scala.Tuple2<ReduceKeyMapSide, BytesWritable>(reduceKey, new BytesWritable(valueBytes));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+      }
+    };
+  }
+}

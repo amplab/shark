@@ -35,34 +35,41 @@ import shark.SharkConfVars
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 import scala.collection.mutable.ArrayBuffer
 import org.apache.hadoop.hive.conf.HiveConf
+import shark.execution.cg.CGObjectOperator
+import shark.execution.cg.row.CGStruct
+import shark.execution.cg.row.CGOIStruct
+import shark.execution.cg.operator.CGOperator
+import shark.execution.cg.operator.CGReduceSinkOperator
 
 
 /**
  * Converts a collection of rows into key, value pairs. This is the
  * upstream operator for joins and groupbys.
  */
-class ReduceSinkOperator extends UnaryOperator[ReduceSinkDesc] {
+class ReduceSinkOperator extends UnaryOperator[ReduceSinkDesc] with CGObjectOperator {
 
   @BeanProperty var conf: ReduceSinkDesc = _
 
   // The evaluator for key columns. Key columns decide the sort/hash order on
   // the reducer side. Key columns are passed to the reducer in the "key".
-  @transient var keyEval: Array[ExprNodeEvaluator] = _
+  @transient @BeanProperty var keyEval: Array[ExprNodeEvaluator] = _
 
   // The evaluator for the value columns. Value columns are passed to reducers
   // in the "value".
-  @transient var valueEval: Array[ExprNodeEvaluator] = _
+  @transient @BeanProperty var valueEval: Array[ExprNodeEvaluator] = _
 
   // The evaluator for the partition columns (used in CLUSTER BY and
   // DISTRIBUTE BY in Hive). Partition columns decide the reducer that the
   // current row goes to. Partition columns are not passed to reducers.
-  @transient var partitionEval: Array[ExprNodeEvaluator] = _
+  @transient @BeanProperty var partitionEval: Array[ExprNodeEvaluator] = _
 
-  @transient var keySer: SerDe = _
-  @transient var valueSer: SerDe = _
-  @transient var keyObjInspector: ObjectInspector = _
-  @transient var valObjInspector: ObjectInspector = _
-  @transient var partitionObjInspectors: Array[ObjectInspector] = _
+  @transient @BeanProperty var keySer: SerDe = _
+  @transient @BeanProperty var valueSer: SerDe = _
+  @transient @BeanProperty var keyObjInspector: ObjectInspector = _
+  @transient @BeanProperty var keyFieldObjInspectors: Array[ObjectInspector] = _
+  @transient @BeanProperty var valObjInspector: ObjectInspector = _
+  @transient @BeanProperty var valFieldObjInspectors: Array[ObjectInspector] = _
+  @transient @BeanProperty var partitionObjInspectors: Array[ObjectInspector] = _
 
   override def getTag() = conf.getTag()
 
@@ -70,12 +77,21 @@ class ReduceSinkOperator extends UnaryOperator[ReduceSinkDesc] {
     super.initializeOnMaster()
     
     conf = desc
+    initCGOnMaster()
   }
 
   override def initializeOnSlave() {
     initializeOisAndSers(conf, objectInspector)
+    
+    initCGOnSlave()
   }
 
+  protected[this] def createCGOperator(cgrow: CGStruct, cgoi: CGOIStruct): CGOperator = 
+    if (conf.getDistinctColumnIndices().size() == 0)
+      new CGReduceSinkOperator(row, this, CGOperator.CG_OPERATOR_REDUCE_SINK_NODISTINCT)
+    else
+      new CGReduceSinkOperator(row, this, CGOperator.CG_OPERATOR_REDUCE_SINK_DISTINCT)
+  
   override def processPartition(split: Int, iter: Iterator[_]) = {
     if (conf.getDistinctColumnIndices().size() == 0) {
       processPartitionNoDistinct(iter)
@@ -84,7 +100,9 @@ class ReduceSinkOperator extends UnaryOperator[ReduceSinkDesc] {
     }
   }
   
-  override def outputObjectInspector() = {
+  override def outputObjectInspector() = soi
+  
+  protected[this] def createOutputOI() = {
     initializeOisAndSers(conf, objectInspector)
     
     val ois = new ArrayList[ObjectInspector]
@@ -105,6 +123,8 @@ class ReduceSinkOperator extends UnaryOperator[ReduceSinkDesc] {
    */
   private def initializeOisAndSers(conf: ReduceSinkDesc, rowInspector: ObjectInspector) {
     keyEval = conf.getKeyCols.map(ExprNodeEvaluatorFactory.get(_)).toArray
+    keyFieldObjInspectors = initEvaluators(keyEval, 0, keyEval.length, rowInspector)
+    
     val numDistributionKeys = conf.getNumDistributionKeys()
     val distinctColIndices = conf.getDistinctColumnIndices()
     valueEval = conf.getValueCols.map(ExprNodeEvaluatorFactory.get(_)).toArray
@@ -119,9 +139,11 @@ class ReduceSinkOperator extends UnaryOperator[ReduceSinkDesc] {
     valueSer = valueTableDesc.getDeserializerClass().newInstance().asInstanceOf[SerDe]
     valueSer.initialize(null, valueTableDesc.getProperties())
 
+    
     // Initialize object inspector for key columns.
     keyObjInspector = SharkEnvSlave.objectInspectorLock.synchronized {
       initEvaluatorsAndReturnStruct(keyEval,
+        keyFieldObjInspectors,
         distinctColIndices,
         conf.getOutputKeyColumnNames,
         numDistributionKeys,
@@ -129,10 +151,10 @@ class ReduceSinkOperator extends UnaryOperator[ReduceSinkDesc] {
     }
 
     // Initialize object inspector for value columns.
-    val valFieldInspectors = valueEval.map(eval => eval.initialize(rowInspector)).toList
+    valFieldObjInspectors = valueEval.map(eval => eval.initialize(rowInspector))
     valObjInspector = SharkEnvSlave.objectInspectorLock.synchronized {
       ObjectInspectorFactory.getStandardStructObjectInspector(
-        conf.getOutputValueColumnNames(), valFieldInspectors)
+        conf.getOutputValueColumnNames(), valFieldObjInspectors.toList)
     }
 
     // Initialize evaluator and object inspector for partition columns.
@@ -143,7 +165,15 @@ class ReduceSinkOperator extends UnaryOperator[ReduceSinkDesc] {
   /**
    * Process a partition when there is NO distinct key aggregations.
    */
-  def processPartitionNoDistinct(iter: Iterator[_]) = {
+  def processPartitionNoDistinct(iter: Iterator[_]): Iterator[_] = {
+    if (cg) {
+      cgexec.evaluate(iter).asInstanceOf[java.util.Iterator[Object]]
+    } else {
+      processPartitionNoDistinctDynamic(iter)
+    }
+  }
+  
+  def processPartitionNoDistinctDynamic(iter: Iterator[_]) = {
     // Buffer for key, value evaluation to avoid frequent object allocation.
     val evaluatedKey = new Array[Object](keyEval.length)
     val evaluatedValue = new Array[Object](valueEval.length)

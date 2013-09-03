@@ -25,17 +25,23 @@ public class ${clazz} implements KryoSerializable {
 public static class ${clazz} implements KryoSerializable {
 #end
 <%-- MASK definitions  --%>
-#for (i <- 0 to fields.length - 1)
-	public static final transient int ${fields(i).maskName} = ${i};
+#for (i <- 0 until fields.length)
+	public static final transient int MASK_${fields(i).name} = ${i};
 #end
 
+<%-- reset() --%>
+    public void reset() {
+#for (f <- fields)
+	this.mask.set(MASK_${f.name}, false);
+#end    
+    }
 <%-- sub type definitions --%>
 #for(f <- fields)
    ${f.defStaticBlocks()}
 #end
    public BitSet mask = new BitSet(<%=fields.length%>);
 <%-- field definitions  --%>
-#for(i <- 0 to fields.length - 1)
+#for(i <- 0 until fields.length)
     ${fields(i).defField()}
 #end
 	
@@ -43,7 +49,7 @@ public static class ${clazz} implements KryoSerializable {
     public void read(Kryo kryo, Input input) {
       mask = BitSet.valueOf(input.readBytes(input.read()));
 #for(f <- fields; if (!f.constant))
-	   if (mask.get(${f.maskName})) { ${f.defRead()} }
+	   if (mask.get(MASK_${f.name})) { ${f.defRead()} }
 #end
     }
 
@@ -53,7 +59,7 @@ public static class ${clazz} implements KryoSerializable {
       output.write(bytes.length);
       output.write(bytes);
 #for(f <- fields; if (!f.constant))
-	   if (mask.get(${f.maskName})) { ${f.defWrite()} }
+	   if (mask.get(MASK_${f.name})) { ${f.defWrite()} }
 #end
     }
     
@@ -67,9 +73,9 @@ public static class ${clazz} implements KryoSerializable {
 		  Object obj = oi.getStructFieldData(o, sf);
 		  
 		  if(obj == null) {
-		    me.mask.set(${f.maskName}, false);
+		    me.mask.set(MASK_${f.name}, false);
 		  } else {
-		    me.mask.set(${f.maskName}, true);
+		    me.mask.set(MASK_${f.name}, true);
             ${f.getValue("me." + f.name, "sf.getFieldObjectInspector()", "obj")}
           }
       }

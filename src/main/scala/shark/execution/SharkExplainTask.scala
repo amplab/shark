@@ -75,7 +75,7 @@ class SharkExplainTask extends Task[SharkExplainWork] with java.io.Serializable 
             case sparkTask: SparkTask => {
               out.println("SHARK QUERY PLAN #%d:".format(taskIndex))
               val terminalOp = sparkTask.getWork().terminalOperator
-              ExplainTaskHelper.outputPlan(terminalOp, out, work.getExtended, 2)
+              //ExplainTaskHelper.outputPlan(terminalOp, out, work.getExtended, 2)
               out.println()
             }
             case _ => null

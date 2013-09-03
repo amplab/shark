@@ -2,7 +2,7 @@
 #import(shark.execution.cg.row.CGOIMap)
 <%@ import val obj: CGOIMap %>
 <%@ val classname: String %>
-  public static final class ${classname} extends CGStructField<${parentFullClass()}, java.util.HashMap<${key.writableClass()}, ${value.writableClass()}>> {
+  public static final class ${classname} extends CGStructField<${parentFullClass()}, ${writableClass()}>> {
     public CGStructField${delegate.name}(int idx) {
       super("${delegate.name}", ${createOI()}, null, idx);
     }

@@ -18,12 +18,10 @@
 package shark.execution
 
 import java.io.{Externalizable, ObjectOutput, ObjectInput}
-
 import com.google.common.primitives.UnsignedBytes
-
 import org.apache.hadoop.io.{BytesWritable, WritableComparator}
-
 import spark.HashPartitioner
+import scala.reflect.BeanProperty
 
 
 /**
@@ -52,14 +50,14 @@ sealed trait ReduceKey extends Comparable[ReduceKey] {
 }
 
 
-class ReduceKeyMapSide(var bytesWritable: BytesWritable) extends ReduceKey
+class ReduceKeyMapSide(@BeanProperty var bytesWritable: BytesWritable) extends ReduceKey
   with Externalizable {
 
   // A default no-arg constructor for Java serializer to use.
   def this() = this(new BytesWritable)
 
   /** Used by ReduceKeyPartitioner to determine the hash partition. */
-  @transient var partitionCode = 0
+  @transient @BeanProperty var partitionCode = 0
 
   def createDeepCopy(): ReduceKeyMapSide = {
     val writable = new BytesWritable

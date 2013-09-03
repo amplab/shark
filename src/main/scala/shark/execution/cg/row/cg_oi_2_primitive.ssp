@@ -6,62 +6,34 @@
 <%@ var varname: String %>
 <%@ var varoi: String %>
 <%@ var result: String %>
-#{if(oi.isInstanceOf[PrimitiveObjectInspector]) {if(oi.asInstanceOf[PrimitiveObjectInspector].preferWritable()) { }#
-		#match (oi)
-		#case(a:TimestampObjectInspector)
-			${result} = ((org.apache.hadoop.hive.serde2.io.TimestampWritable)${varname}).getTimestamp();
-		#case(a:StringObjectInspector)
-			${result} = ((org.apache.hadoop.io.Text)${varname}).toString();
-		#case(a:DateObjectInspector)
-			${result} = ((org.apache.hadoop.hive.serde2.io.DateWritable)${varname}).get();
-		#case(a:BinaryObjectInspector)
-			${result} = ((org.apache.hadoop.io.BytesWritable)${varname}).get();
-		#case(a:BooleanObjectInspector)
-			${result} = ((org.apache.hadoop.io.BooleanWritable)${varname}).get();
-		#case(a:ByteObjectInspector)
-			${result} = ((org.apache.hadoop.hive.serde2.io.ByteWritable)${varname}).get();
-		#case(a:ShortObjectInspector)
-			${result} = ((org.apache.hadoop.hive.serde2.io.ShortWritable)${varname}).get();
-		#case(a:FloatObjectInspector)
-			${result} = ((org.apache.hadoop.io.FloatWritable)${varname}).get();
-		#case(a:IntObjectInspector)
-			${result} = ((org.apache.hadoop.io.IntWritable)${varname}).get();
-		#case(a:LongObjectInspector)
-			${result} = ((org.apache.hadoop.io.LongWritable)${varname}).get();
-		#case(a:DoubleObjectInspector)
-			${result} = ((org.apache.hadoop.hive.serde2.io.DoubleWritable)${varname}).get();
-		#otherwise
-		    {throw new RuntimeException("${oi.getClass().getCanonicalName()} need to be added in the primitive template.");}
-		#end
-	#{ } else { }#
-		#match (oi)
-		#case (a:TimestampObjectInspector)
-			${result} = ((java.sql.Timestamp)${varname});
-		#case(a:StringObjectInspector)
-			${result} = ((String)${varname});
-		#case(a:DateObjectInspector)
-			${result} = ((java.sql.Date)${varname});
-		#case(a:BinaryObjectInspector)
-			${result} = ((byte[])${varname});
-		#case(a:BooleanObjectInspector)
-			${result} = ((Boolean)${varname});
-		#case(a:ByteObjectInspector)
-			${result} = ((Byte)${varname});
-		#case(a:ShortObjectInspector)
-			${result} = ((Short)${varname});
-		#case(a:FloatObjectInspector)
-			${result} = ((Float)${varname});
-		#case(a:IntObjectInspector)
-			${result} = ((Integer)${varname});
-		#case(a:LongObjectInspector)
-			${result} = ((Long)${varname});
-		#case(a:DoubleObjectInspector)
-			${result} = ((Double)${varname});
-		#otherwise
-		    {throw new RuntimeException("${oi.getClass().getCanonicalName()} need to be added in the primitive template.");}
-		#end
+#{if(oi.isInstanceOf[PrimitiveObjectInspector]) { }#
+	#match (oi)
+	#case(a:TimestampObjectInspector)
+		${result} = ((org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector)${varoi}).getPrimitiveJavaObject(${varname});
+	#case(a:StringObjectInspector)
+		${result} = ((org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector)${varoi}).getPrimitiveJavaObject(${varname});
+	#case(a:DateObjectInspector)
+		${result} = ((org.apache.hadoop.hive.serde2.objectinspector.primitive.DateObjectInspector)${varoi}).getPrimitiveJavaObject(${varname});
+	#case(a:BinaryObjectInspector)
+		${result} = ((org.apache.hadoop.hive.serde2.objectinspector.primitive.BinaryObjectInspector)${varoi}).getPrimitiveJavaObject(${varname}).getData();
+	#case(a:BooleanObjectInspector)
+		${result} = ((org.apache.hadoop.hive.serde2.objectinspector.primitive.BooleanObjectInspector)${varoi}).get(${varname});
+	#case(a:ByteObjectInspector)
+		${result} = ((org.apache.hadoop.hive.serde2.objectinspector.primitive.ByteObjectInspector)${varoi}).get(${varname});
+	#case(a:ShortObjectInspector)
+		${result} = ((org.apache.hadoop.hive.serde2.objectinspector.primitive.ShortObjectInspector)${varoi}).get(${varname});
+	#case(a:FloatObjectInspector)
+		${result} = ((org.apache.hadoop.hive.serde2.objectinspector.primitive.FloatObjectInspector)${varoi}).get(${varname});
+	#case(a:IntObjectInspector)
+		${result} = ((org.apache.hadoop.hive.serde2.objectinspector.primitive.IntObjectInspector)${varoi}).get(${varname});
+	#case(a:LongObjectInspector)
+		${result} = ((org.apache.hadoop.hive.serde2.objectinspector.primitive.LongObjectInspector)${varoi}).get(${varname});
+	#case(a:DoubleObjectInspector)
+		${result} = ((org.apache.hadoop.hive.serde2.objectinspector.primitive.DoubleObjectInspector)${varoi}).get(${varname});
+	#otherwise
+	    {throw new RuntimeException("${oi.getClass().getCanonicalName()} need to be added in the primitive template.");}
+	#end
 #{ 
-    }
 } else { 
 }#
 	#match(oi)

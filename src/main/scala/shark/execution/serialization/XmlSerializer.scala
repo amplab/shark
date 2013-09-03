@@ -19,15 +19,13 @@ package shark.execution.serialization
 
 import java.beans.{XMLDecoder, XMLEncoder, PersistenceDelegate}
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, ObjectOutput, ObjectInput}
-
 import com.ning.compress.lzf.{LZFEncoder, LZFDecoder}
-
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hive.ql.exec.Utilities.EnumDelegate
 import org.apache.hadoop.hive.ql.plan.GroupByDesc
 import org.apache.hadoop.hive.ql.plan.PlanUtils.ExpressionTypes
-
 import shark.{SharkConfVars, SharkEnvSlave}
+import java.beans.ExceptionListener
 
 
 /**
@@ -41,7 +39,19 @@ object XmlSerializer {
 
   def serialize[T](o: T, conf: Configuration): Array[Byte] = {
     val byteStream = new ByteArrayOutputStream()
+    var el = new ExceptionListener() {
+               def exceptionThrown(e: Exception) {
+                 // TODO will print out, but once Operator doesn't have the property HiveConf with 
+                 // modifier "@BeanProperty", everything goes well.
+                 // failed to evaluate: <unbound>=Class.new();
+                 // at java.beans.Encoder.getValue(Encoder.java:109)
+                 // at java.beans.Encoder.get(Encoder.java:246)
+                    e.printStackTrace()
+               }
+          }
+          
     val e = new XMLEncoder(byteStream)
+    e.setExceptionListener(el)
     // workaround for java 1.5
     e.setPersistenceDelegate(classOf[ExpressionTypes], new EnumDelegate())
     e.setPersistenceDelegate(classOf[GroupByDesc.Mode], new EnumDelegate())

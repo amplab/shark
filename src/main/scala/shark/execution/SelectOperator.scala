@@ -32,22 +32,22 @@ import shark.SharkConfVars
  */
 class SelectOperator extends UnaryOperator[SelectDesc] {
 
-  @BeanProperty var useCG = true
   @BeanProperty var conf: SelectDesc = _
   @transient var evals: Array[ExprNodeEvaluator] = _
+  @BeanProperty var cg: Boolean = _
 
   // TODO to make the evals as initialized only on Master
   override def initializeOnMaster() {
     super.initializeOnMaster()
     conf = desc
-    useCG = SharkConfVars.getBoolVar(super.hconf, SharkConfVars.EXPR_CG)
     initializeEvals(false)
+    cg = useCG()
   }
   
   def initializeEvals(initializeEval: Boolean) {
     if (!conf.isSelStarNoCompute) {
       import scala.collection.JavaConversions._
-      evals = conf.getColList().map(CGEvaluatorFactory.get(_, useCG)).toArray
+      evals = conf.getColList().map(CGEvaluatorFactory.get(_, cg)).toArray
       if (initializeEval) {
         evals.foreach(_.initialize(objectInspector))
       }

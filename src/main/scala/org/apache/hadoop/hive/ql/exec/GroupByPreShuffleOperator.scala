@@ -39,34 +39,43 @@ import org.apache.hadoop.hive.ql.exec.KeyWrapper
 import org.apache.hadoop.hive.ql.exec.KeyWrapperFactory
 import scala.Array.canBuildFrom
 import scala.reflect.BeanProperty
+import java.util.{ArrayList => JArrayList}
+import java.util.{HashMap => JHashMap}
+import scala.reflect.BeanProperty
+import shark.execution.cg.CGObjectOperator
+import scala.collection.mutable.ArrayBuffer
+import shark.execution.cg.row.CGStruct
+import shark.execution.cg.row.CGOIStruct
+import shark.execution.cg.operator.CGOperator
+import shark.execution.cg.operator.CGGroupByPreShuffleOperator
 
 
 /**
  * The pre-shuffle group by operator responsible for map side aggregations.
  */
-class GroupByPreShuffleOperator extends UnaryOperator[GroupByDesc] {
+class GroupByPreShuffleOperator extends UnaryOperator[GroupByDesc] with CGObjectOperator {
 
   @BeanProperty var conf: GroupByDesc = _
   @BeanProperty var minReductionHashAggr: Float = _
   @BeanProperty var numRowsCompareHashAggr: Int = _
 
-  @transient var keyFactory: KeyWrapperFactory = _
-  @transient var rowInspector: ObjectInspector = _
+  @transient @BeanProperty var keyFactory: KeyWrapperFactory = _
+  @transient @BeanProperty var rowInspector: ObjectInspector = _
 
   // The aggregation functions.
-  @transient var aggregationEvals: Array[GenericUDAFEvaluator] = _
-
+  @transient @BeanProperty var aggregationEvals: Array[GenericUDAFEvaluator] = _
+  @transient @BeanProperty var aggregationObjectInspectors: Array[ObjectInspector] = _
   // Key fields to be grouped.
-  @transient var keyFields: Array[ExprNodeEvaluator] = _
+  @transient @BeanProperty var keyFields: Array[ExprNodeEvaluator] = _
   // A struct object inspector composing of all the fields.
-  @transient var keyObjectInspector: StructObjectInspector = _
+  @transient @BeanProperty var keyObjectInspector: StructObjectInspector = _
 
-  @transient var aggregationParameterFields: Array[Array[ExprNodeEvaluator]] = _
-  @transient var aggregationParameterObjectInspectors: Array[Array[ObjectInspector]] = _
-  @transient var aggregationParameterStandardObjectInspectors: Array[Array[ObjectInspector]] = _
+  @transient @BeanProperty var aggregationParameterFields: Array[Array[ExprNodeEvaluator]] = _
+  @transient @BeanProperty var aggregationParameterObjectInspectors: Array[Array[ObjectInspector]] = _
+  @transient @BeanProperty var aggregationParameterStandardObjectInspectors: Array[Array[ObjectInspector]] = _
 
-  @transient var aggregationIsDistinct: Array[Boolean] = _
-  @transient var currentKeyObjectInspectors: Array[ObjectInspector] = _
+  @transient @BeanProperty var aggregationIsDistinct: Array[Boolean] = _
+  @transient @BeanProperty var currentKeyObjectInspectors: Array[ObjectInspector] = _
 
   def initialLocals() {
     aggregationEvals = conf.getAggregators.map(_.getGenericUDAFEvaluator).toArray
@@ -99,6 +108,12 @@ class GroupByPreShuffleOperator extends UnaryOperator[GroupByDesc] {
         aggregationParameterObjectInspectors(pair._2))
     }
 
+    aggregationObjectInspectors = 
+      Array.tabulate[ObjectInspector](aggregationEvals.length) { i=>
+        var mode = conf.getAggregators()(i).getMode()
+        aggregationEvals(i).init(mode, aggregationParameterObjectInspectors(i))
+      }
+    
     val keyFieldNames = conf.getOutputColumnNames.slice(0, keyFields.length)
     val totalFields = keyFields.length + aggregationEvals.length
     val keyois = new JArrayList[ObjectInspector](totalFields)
@@ -113,28 +128,28 @@ class GroupByPreShuffleOperator extends UnaryOperator[GroupByDesc] {
   
   override def initializeOnMaster() {
     super.initializeOnMaster()
+    
     conf = desc
     minReductionHashAggr = hconf.get(HiveConf.ConfVars.HIVEMAPAGGRHASHMINREDUCTION.varname).toFloat
     numRowsCompareHashAggr = hconf.get(HiveConf.ConfVars.HIVEGROUPBYMAPINTERVAL.varname).toInt
     
     initialLocals()
+    initCGOnMaster()
   }
 
   override def initializeOnSlave() {
     initialLocals()
+    initCGOnSlave()
   }
 
   // copied from the org.apache.hadoop.hive.ql.exec.GroupByOperator 
-  override def outputObjectInspector() = {
+  override def outputObjectInspector() = soi
+  override def createOutputOI() = {
     var totalFields = keyFields.length + aggregationEvals.length
-    var ois = Array.tabulate[ObjectInspector](totalFields){i=>
-      if(i < keyFields.length) {
-        currentKeyObjectInspectors(i)
-      } else {
-        var idx = i - keyFields.length
-        aggregationEvals(idx).init(conf.getAggregators()(idx).getMode(), aggregationParameterObjectInspectors(idx))
-      }
-    }
+        
+    var ois = new ArrayBuffer[ObjectInspector](totalFields)
+    ois.++=(currentKeyObjectInspectors)
+    ois.++=(aggregationObjectInspectors)
 
     var fieldNames = conf.getOutputColumnNames()
 
@@ -142,8 +157,10 @@ class GroupByPreShuffleOperator extends UnaryOperator[GroupByDesc] {
     ObjectInspectorFactory.getStandardStructObjectInspector(fieldNames, ois.toList)
   }
   
-  override def processPartition(split: Int, iter: Iterator[_]) = {
-    logInfo("Running Pre-Shuffle Group-By")
+  protected[this] def createCGOperator(cgrow: CGStruct, cgoi: CGOIStruct): CGOperator =
+    new CGGroupByPreShuffleOperator(row, this)
+  
+  private def processPartitionDynamic(split: Int, iter: Iterator[_]) = {
     var numRowsInput = 0
     var numRowsHashTbl = 0
     var useHashAggr = true
@@ -224,6 +241,15 @@ class GroupByPreShuffleOperator extends UnaryOperator[GroupByDesc] {
         i += 1
       }
       outputCache
+    }
+  }
+  
+  override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
+    logInfo("Running Pre-Shuffle Group-By")
+    if (cg) {
+      cgexec.evaluate(iter).asInstanceOf[java.util.Iterator[Object]]
+    } else {
+      processPartitionDynamic(split, iter)
     }
   }
 

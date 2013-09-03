@@ -22,11 +22,9 @@ import java.util.{ArrayList => JArrayList, HashMap => JHashMap, HashSet => JHash
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
-import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.plan.{ExprNodeColumnDesc, TableDesc}
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator.AggregationBuffer
-import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorUtils,StandardStructObjectInspector, StructObjectInspector, UnionObject}
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption
+import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, StandardStructObjectInspector, StructObjectInspector, UnionObject}
 import org.apache.hadoop.hive.serde2.Deserializer
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils
 import org.apache.hadoop.io.BytesWritable
@@ -44,14 +42,27 @@ import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluatorFactory
 import org.apache.hadoop.hive.ql.exec.KeyWrapper
 import org.apache.hadoop.hive.ql.exec.KeyWrapperFactory
 import org.apache.hadoop.hive.ql.exec.Utilities
-import scala.Array.canBuildFrom
 import scala.reflect.BeanProperty
+import java.util.{ArrayList => JArrayList}
+import java.util.{HashMap => JHashMap}
+import java.util.{HashSet => JHashSet}
+import java.util.{Set => JSet}
+import scala.reflect.BeanProperty
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption
+import org.apache.hadoop.hive.conf.HiveConf
+import shark.execution.cg.operator.CGGroupByPostShuffleOperator
+import shark.execution.cg.row.CGOIStruct
+import shark.execution.cg.operator.CGOperator
+import shark.execution.cg.row.CGStruct
+import shark.execution.cg.CGObjectOperator
 
 
 // The final phase of group by.
 // TODO(rxin): For multiple distinct aggregations, use sort-based shuffle.
 class GroupByPostShuffleOperator extends GroupByPreShuffleOperator 
-  with ReduceSinkTableDesc {
+  with ReduceSinkTableDesc
+  with CGObjectOperator {
 
   @BeanProperty var keyTableDesc: TableDesc = _
   @BeanProperty var valueTableDesc: TableDesc = _
@@ -59,31 +70,25 @@ class GroupByPostShuffleOperator extends GroupByPreShuffleOperator
   // Use two sets of key deserializer and value deserializer because in sort-based aggregations,
   // we need to keep two rows deserialized at any given time (to compare whether we have seen
   // a new input group by key).
-  @transient var keySer: Deserializer = _
-  @transient var keySer1: Deserializer = _
-  @transient var valueSer: Deserializer = _
-  @transient var valueSer1: Deserializer = _
+  @transient @BeanProperty var keySer: Deserializer = _
+  @transient @BeanProperty var keySer1: Deserializer = _
+  @transient @BeanProperty var valueSer: Deserializer = _
+  @transient @BeanProperty var valueSer1: Deserializer = _
 
-  @transient val distinctKeyAggrs = new JHashMap[Int, JSet[java.lang.Integer]]()
-  @transient val nonDistinctKeyAggrs = new JHashMap[Int, JSet[java.lang.Integer]]()
-  @transient val nonDistinctAggrs = new JArrayList[Int]()
-  @transient val distinctKeyWrapperFactories = new JHashMap[Int, JArrayList[KeyWrapperFactory]]()
-  @transient val distinctHashSets = new JHashMap[Int, JArrayList[JHashSet[KeyWrapper]]]()
-  @transient var unionExprEvaluator: ExprNodeEvaluator = _
+  @transient @BeanProperty val distinctKeyAggrs = new JHashMap[Int, JSet[java.lang.Integer]]()
+  @transient @BeanProperty val nonDistinctKeyAggrs = new JHashMap[Int, JSet[java.lang.Integer]]()
+  @transient @BeanProperty val nonDistinctAggrs = new JArrayList[Int]()
+  @transient @BeanProperty val distinctKeyWrapperFactories = new JHashMap[Int, JArrayList[KeyWrapperFactory]]()
+  @transient @BeanProperty val distinctHashSets = new JHashMap[Int, JArrayList[JHashSet[KeyWrapper]]]()
+  @transient @BeanProperty var unionExprEvaluator: ExprNodeEvaluator = _
 
-  override def initializeOnMaster() {
-    super.initializeOnMaster()
-
+  override def initialLocals() {
+    super.initialLocals()
+    
     var kvd = keyValueDescs()
     keyTableDesc = kvd.head._2._1
     valueTableDesc = kvd.head._2._2
     
-    initializeOnSlave()
-  }
-
-  override def initializeOnSlave() {
-
-    super.initializeOnSlave()
     // Initialize unionExpr. KEY has union field as the last field if there are distinct aggrs.
     unionExprEvaluator = initializeUnionExprEvaluator(rowInspector)
 
@@ -101,6 +106,12 @@ class GroupByPostShuffleOperator extends GroupByPreShuffleOperator
     valueSer1.initialize(null, valueTableDesc.getProperties())
   }
 
+  override def createCGOperator(cgrow: CGStruct, cgoi: CGOIStruct): CGOperator =
+    if(distinctKeyAggrs.size > 0)
+      new CGGroupByPostShuffleOperator(row, this, CGOperator.CG_GROUPBYPOSTSHUFFLEOPERATOR_DISTINCT)
+    else 
+      new CGGroupByPostShuffleOperator(row, this, CGOperator.CG_GROUPBYPOSTSHUFFLEOPERATOR_NODISTINCT)
+    
   private def initializeKeyWrapperFactories() {
     distinctKeyAggrs.keySet.iterator.foreach { unionId =>
       val aggrIndices = distinctKeyAggrs.get(unionId)
@@ -400,7 +411,14 @@ class GroupByPostShuffleOperator extends GroupByPreShuffleOperator
     }
   }
 
-  def hashAggregate(iter: Iterator[_]) = {
+  def hashAggregate(iter: Iterator[_]): Iterator[_] = {
+    if(cg)
+      cgexec.evaluate(iter).asInstanceOf[java.util.Iterator[Object]]
+    else
+      hashAggregateDynamic(iter)
+  }
+  
+  def hashAggregateDynamic(iter: Iterator[_]): Iterator[_] = {
     // TODO: use MutableBytesWritable to avoid the array copy.
     val bytes = new BytesWritable()
     logInfo("Running Post Shuffle Group-By")

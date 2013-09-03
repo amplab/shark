@@ -18,24 +18,27 @@
 package shark.execution
 
 import java.util.{HashMap => JHashMap, List => JList}
-
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
-
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{JoinOperator => HiveJoinOperator}
 import org.apache.hadoop.hive.ql.plan.{JoinDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.{Deserializer, SerDeUtils}
 import org.apache.hadoop.hive.serde2.objectinspector.StandardStructObjectInspector
 import org.apache.hadoop.io.BytesWritable
-
 import shark.execution.serialization.OperatorSerializationWrapper
-
 import spark.{CoGroupedRDD, HashPartitioner, RDD}
+import shark.execution.cg.CGObjectOperator
+import shark.execution.cg.row.CGOIStruct
+import shark.execution.cg.row.CGStruct
+import shark.execution.cg.operator.CGOperator
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
+import shark.execution.cg.operator.CGJoinOperator
 
 
-class JoinOperator extends CommonJoinOperator[JoinDesc] with ReduceSinkTableDesc {
+class JoinOperator extends CommonJoinOperator[JoinDesc] 
+  with ReduceSinkTableDesc with CGObjectOperator {
 
   @BeanProperty var valueTableDescMap: JHashMap[Int, TableDesc] = _
   @BeanProperty var keyTableDesc: TableDesc = _
@@ -53,6 +56,7 @@ class JoinOperator extends CommonJoinOperator[JoinDesc] with ReduceSinkTableDesc
 
     // Call initializeOnSlave to initialize the join filters, etc.
     initializeOnSlave()
+    initCGOnMaster()
   }
 
   override def initializeOnSlave() {
@@ -75,6 +79,8 @@ class JoinOperator extends CommonJoinOperator[JoinDesc] with ReduceSinkTableDesc
       keyObjectInspector =
         keyDeserializer.getObjectInspector().asInstanceOf[StandardStructObjectInspector]
     }
+    
+    initCGOnSlave()
   }
 
   override def execute(): RDD[_] = {
@@ -139,8 +145,14 @@ class JoinOperator extends CommonJoinOperator[JoinDesc] with ReduceSinkTableDesc
   }
 
   def generateTuples(iter: Iterator[Array[Any]]): Iterator[_] = {
+    if (cg) {
+      cgexec.evaluate(iter).asInstanceOf[Iterator[_]]
+    } else {
+      generateTuplesDynamic(iter)
+    }
+  }
+  def generateTuplesDynamic(iter: Iterator[Array[Any]]): Iterator[_] = {
     //val tupleOrder = CommonJoinOperator.computeTupleOrder(joinConditions)
-
     // TODO: use MutableBytesWritable to avoid the array copy.
     val bytes = new BytesWritable
     val tmp = new Array[Object](2)
@@ -179,4 +191,14 @@ class JoinOperator extends CommonJoinOperator[JoinDesc] with ReduceSinkTableDesc
 
   override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] =
     throw new UnsupportedOperationException("JoinOperator.processPartition()")
+  
+  override def outputObjectInspector() = soi
+  
+  protected[this] def createOutputOI(): StructObjectInspector = {
+    super.outputObjectInspector()
+  }
+  
+  protected[this] def createCGOperator(cgrow: CGStruct, cgoi: CGOIStruct): CGOperator = {
+    new CGJoinOperator(row, this)
+  }
 }

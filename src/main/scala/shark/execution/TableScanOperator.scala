@@ -38,28 +38,29 @@ import spark.RDD
 import spark.rdd.{PartitionPruningRDD, UnionRDD}
 import org.apache.hadoop.hive.ql.io.HiveInputFormat
 import org.apache.hadoop.hive.ql.plan.TableScanDesc
+import org.apache.hadoop.hive.serde2.Deserializer
 
-
-class TableScanOperator extends TopOperator[TableScanDesc] {
+class TableScanOperator extends TopOperator[TableScanDesc] 
+  with ReduceSinkTableDesc {
 
   @transient var table: Table = _
   @transient var hiveOp: HiveTableScanOperator = _
-
   @transient var parts: Array[Object] = _
+  
   @BeanProperty var firstConfPartDesc: PartitionDesc  = _
   @BeanProperty var tableDesc: TableDesc = _
   @BeanProperty var localHconf: HiveConf = _
 
   override def initializeOnMaster() {
-    super.initializeOnMaster()
     localHconf = super.hconf
+    super.initializeOnMaster()
   }
 
   override def outputObjectInspector() = {
     if (parts == null) {
       val serializer = tableDesc.getDeserializerClass().newInstance()
       serializer.initialize(hconf, tableDesc.getProperties)
-      serializer.getObjectInspector()
+      serializer.getObjectInspector().asInstanceOf[StructObjectInspector]
     } else {
       val partProps = firstConfPartDesc.getProperties()
       val tableDeser = firstConfPartDesc.getDeserializerClass().newInstance()
@@ -67,7 +68,7 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
       val partCols = partProps.getProperty(META_TABLE_PARTITION_COLUMNS)
       val partNames = new ArrayList[String]
       val partObjectInspectors = new ArrayList[ObjectInspector]
-      partCols.trim().split("/").foreach{ key =>
+      partCols.trim().split("/").foreach { key =>
         partNames.add(key)
         partObjectInspectors.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector)
       }
@@ -75,10 +76,10 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
       // No need to lock this one (see SharkEnv.objectInspectorLock) because
       // this is called on the master only.
       val partObjectInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
-          partNames, partObjectInspectors)
+        partNames, partObjectInspectors)
       val oiList = Arrays.asList(
-          tableDeser.getObjectInspector().asInstanceOf[StructObjectInspector],
-          partObjectInspector.asInstanceOf[StructObjectInspector])
+        tableDeser.getObjectInspector().asInstanceOf[StructObjectInspector],
+        partObjectInspector.asInstanceOf[StructObjectInspector])
       // new oi is union of table + partition object inspectors
       ObjectInspectorFactory.getUnionStructObjectInspector(oiList)
     }
@@ -192,7 +193,7 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
   }
 
   override def processPartition(index: Int, iter: Iterator[_]): Iterator[_] = {
-    val deserializer = tableDesc.getDeserializerClass().newInstance()
+    var deserializer = tableDesc.getDeserializerClass().newInstance()
     deserializer.initialize(localHconf, tableDesc.getProperties)
     iter.map { value =>
       value match {

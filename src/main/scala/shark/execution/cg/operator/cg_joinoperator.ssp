@@ -1,0 +1,105 @@
+<% escapeMarkup = false %>
+#import(shark.execution.cg.operator.CGOperator)
+#import(shark.execution.cg.row.CGStruct)
+#import(shark.execution.cg.CGObjectOperator)
+#import(shark.execution.JoinOperator)
+<%@ import val cgo: CGOperator %>
+<%@ import val op: JoinOperator %>
+
+#{
+// parents should be CGObjectOperators for Join
+   var datas = parentOperators.map{
+    parent => if(parent.isInstanceOf[CGObjectOperator]) 
+            parent.asInstanceOf[CGObjectOperator].row 
+          else 
+            throw new RuntimeException("All of the parents of the JoinOperator should be the CGObjectOperator")
+   }.toArray 
+   
+   val structClassName = row.cgClassName
+}#
+package ${packageName};
+
+import java.io.Serializable;
+import java.util.List;
+import java.util.HashMap;
+
+import shark.execution.cg.OperatorExecutor;
+import shark.execution.JoinOperator;
+import shark.execution.serialization.KryoSerializer;
+import ${row.cgClassName};
+
+public class ${className} implements OperatorExecutor, Serializable {
+  private static final long serialVersionUID = 1L;
+  public ${className}(Object obj) {
+    JoinOperator o = (JoinOperator) obj;
+  }
+  private transient ${structClassName} data = new ${structClassName}();
+  private transient KryoSerializer ks = new KryoSerializer(new Class<?>[] {
+      ${structClassName}.class
+      #for(inputRow <- datas)
+        , ${inputRow.cgClassName}.class
+      #end
+  });
+
+  @Override
+  public Object evaluate(Object obj) throws Exception {
+    final scala.collection.Iterator<Object[]> iter = (scala.collection.Iterator<Object[]>) obj;
+    
+    return new java.util.Iterator<Object> () {
+      public boolean hasNext() {
+        return iter.hasNext();
+      }
+      
+      public void remove() {throw new UnsupportedOperationException("remove");}
+      
+      public Object next() {
+	    Object[] elements = iter.next();
+	    data.reset();
+	    
+	    try {
+	#{
+	var idx = 0 // field index for the output row
+	for(i <- 0 until datas.length) {
+	    // table size = datas.length
+	}#
+	    {
+	    #{
+	      val inputRow = datas(i)
+	      val inputRowClassName = inputRow.cgClassName
+	      val inputRowKey   = inputRow.fields(0).asInstanceOf[CGStruct] // joined key struct
+	      val inputRowValue = inputRow.fields(1).asInstanceOf[CGStruct] // joined value struct
+	      val keyFieldName = inputRow.fields(0).name // should be "key" constantly
+	      val valueFieldName = inputRow.fields(1).name // should be "key" constantly
+	      val inputRowKeyClassName = inputRowKey.cgClassName
+	      val inputRowValueClassName = inputRowValue.cgClassName
+	    }#
+	      byte[] element = (byte[])elements[${i}];
+	      if (element != null) {
+	        ${inputRowClassName} ss = ks.deserialize(element, ${inputRowClassName}.class);
+	        if(ss.mask.get(${inputRowClassName}.MASK_${valueFieldName})) {
+	          // we only cares about the value part (and the field name is fixed as "value")
+	          #{
+	          for(a <- 0 until inputRowValue.fields.length) {
+	          }#
+	          if(ss.${valueFieldName}.mask.get(${inputRowValueClassName}.MASK_${inputRowValue.fields(a).name})) {
+	            data.mask.set(${structClassName}.MASK_${row.fields(idx).name}, true);
+	            data.${row.fields(idx).name} = ss.${valueFieldName}.${inputRowValue.fields(a).name};
+	          }
+	          #{
+	            idx += 1
+	            }
+	          }#
+	        }
+	      }
+	    }
+	#{
+	}
+	}#
+	    	return data;
+	    } catch (Exception e) {
+	        throw new RuntimeException(e);
+	    }
+	  }
+    };
+  }
+}

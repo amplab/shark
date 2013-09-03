@@ -18,6 +18,9 @@
 package shark.execution.serialization
 
 import java.nio.ByteBuffer
+import com.esotericsoftware.kryo.Kryo
+import com.esotericsoftware.kryo.io.Input
+import com.esotericsoftware.kryo.io.Output
 
 
 /**
@@ -35,5 +38,33 @@ object KryoSerializer {
 
   def deserialize[T](bytes: Array[Byte]): T  = {
     ser.newInstance().deserialize[T](ByteBuffer.wrap(bytes))
+  }
+  
+  def deserialize[T](bytes: Array[Byte], cl: ClassLoader): T  = {
+    ser.newInstance().deserialize[T](ByteBuffer.wrap(bytes), cl)
+  }
+}
+
+class KryoSerializer(klasses: Array[Class[_]], cl: ClassLoader) {
+  val kryo = new Kryo()
+  val input = new Input()
+  val output = new Output()
+  {
+    klasses.foreach( cls => kryo.register(cls))
+  }
+  
+  def this(klasses: Array[Class[_]]) = {
+    this(klasses, Thread.currentThread().getContextClassLoader())
+  }
+  
+  def serialize[T](o: T): Array[Byte] = {
+    output.clear()
+    kryo.writeObject(output, o)
+    output.getBuffer()
+  }
+
+  def deserialize[T](bytes: Array[Byte], cls: Class[_]): T  = {
+    input.setBuffer(bytes)
+    kryo.readObject(input, cls).asInstanceOf[T]
   }
 }

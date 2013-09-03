@@ -83,10 +83,13 @@ object CGRowUtil {
   }
     
   var u: Int = 0
-  def unionClassName() = {u+=1;"UUnion"+u}
+  def unionClassName() = this.synchronized({u+=1;"UUnion"+u})
   
   var s: Int = 0
-  def structClassName() = {s+=1;"SStruct"+s} 
+  def structClassName() = this.synchronized({s+=1;"SStruct"+s})
+  
+  var o: Int = 0
+  def operatorClassName() = this.synchronized({o+=1;"OOperator"+o})
   
   def serialize(o: Object): Array[Byte] = {
     var array = new ByteArrayOutputStream()
@@ -104,7 +107,6 @@ abstract class CGField[+T<:ObjectInspector](val oi: T,
     val name: String, 
     val clazz: String, 
     val primitive: String) {
-  val maskName = "MARK_%s".format(name)
   var constantNull = false
   var constant = oi.isInstanceOf[ConstantObjectInspector] 
   
@@ -140,7 +142,6 @@ abstract class CGField[+T<:ObjectInspector](val oi: T,
   def fieldValue() = "INITIAL_%s()".format(name)
   
   def isConstantNull(): Boolean = constantNull
-  def markValidity(valid: Boolean) = "mask.set(%s, %s)".format(maskName, valid)
 }
 
 class CGPrimitive(oi: PrimitiveObjectInspector, name: String) 
@@ -297,7 +298,7 @@ object CGField {
   def unionName(name: String, tag: Int) = "%s_%d".format(name, tag)
   
   def create(oi: StructObjectInspector): CGStruct = {
-    var struct = create(oi, "AA").asInstanceOf[CGStruct]
+    var struct = create(oi, CGRowUtil.structClassName()).asInstanceOf[CGStruct]
     struct.packageName = PACKAGE_NAME
     
     struct

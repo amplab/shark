@@ -1,0 +1,185 @@
+<% escapeMarkup = false %>
+#import(org.apache.hadoop.hive.ql.exec.GroupByPostShuffleOperator)
+#import(shark.execution.ReduceSinkOperator)
+#import(shark.execution.cg.operator.CGOperator)
+#import(shark.execution.cg.row.CGStruct)
+<%@ import val cgo: CGOperator %>
+<%@ import val op: GroupByPostShuffleOperator %>
+#{
+  val structClassName = row.cgClassName
+  val parentOP = parentOperators(0).asInstanceOf[ReduceSinkOperator]
+  val parentStructKey = parentOP.row.fields(0).asInstanceOf[CGStruct]
+  val parentStructValue = parentOP.row.fields(1).asInstanceOf[CGStruct]
+  val parentStructKeyClassName = parentStructKey.cgClassName
+  val parentStructValueClassName = parentStructValue.cgClassName
+}#
+
+package ${packageName};
+
+import java.io.Serializable;
+import java.util.Random;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+
+import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator.AggregationBuffer;
+import org.apache.hadoop.hive.ql.exec.KeyWrapper;
+import org.apache.hadoop.hive.ql.exec.KeyWrapperFactory;
+
+import shark.execution.cg.OperatorExecutor;
+import shark.execution.ReduceKeyReduceSide;
+import shark.execution.serialization.KryoSerializer;
+
+public class ${className} implements OperatorExecutor, Serializable {
+  private static final long serialVersionUID = 1L;
+  private ObjectInspector rowInspector;
+  private KeyWrapperFactory keyFactory;
+#for(i <- 0 until aggregationEvals.length)
+  private GenericUDAFEvaluator aggregationEval${i};
+  private ObjectInspector aggregationObjectInspector${i};
+  private ExprNodeEvaluator[] aggregationParameterField${i};
+#end
+  private KryoSerializer kryo = new KryoSerializer(new Class<?>[]{${parentStructValueClassName}.class, ${parentStructKeyClassName}.class});
+  private AggregationBuffer[] aggs = new AggregationBuffer[${aggregationEvals.length}];
+  private Object[] reusedRow = new Object[2];
+    
+#for(i <- 0 until currentKeyObjectInspectors.length)
+  private ObjectInspector keyObjectInspector${i};
+#end
+  public ${className}(Object obj) {
+    GroupByPostShuffleOperator o = (GroupByPostShuffleOperator) obj;
+#for(i <- 0 until aggregationEvals.length)
+    this.aggregationEval${i} = o.aggregationEvals()[${i}];
+    this.aggregationObjectInspector${i} = o.aggregationObjectInspectors()[${i}];
+    this.aggregationParameterField${i} = o.aggregationParameterFields()[${i}];
+#end
+#for(i <- 0 until currentKeyObjectInspectors.length)
+    this.keyObjectInspector${i} = o.currentKeyObjectInspectors()[${i}];
+#end
+  }
+  
+  public Object evaluate(Object obj) throws Exception {
+  	final scala.collection.Iterator<?> iter = (scala.collection.Iterator<?>)obj;
+#for(i <- 0 until aggregationEvals.length)
+    {
+      aggs[${i}] = aggregationEval${i}.getNewAggregationBuffer();
+    }
+#end
+    final ${structClassName} data = new ${structClassName}();
+#{ if (currentKeyObjectInspectors.length == 0) { }#
+    if(!iter.hasNext)
+      return new java.util.Iterator<Object>() {
+        boolean has = true;
+        public boolean hasNext() {
+          if(has) {
+            has = false;
+            return true;
+          } else {
+            return false;
+          }
+        }
+        public void remove() {throw new UnsupportedOperationException("remove");}
+        public Object next() {
+//        private def createEmptyRow(): Array[Object] = {
+//        val aggrs = newAggregations()
+//        val output = new Array[Object](aggrs.length)
+//        var i = 0
+//        while (i < aggrs.length) {
+//          var emptyObj: Array[Object] = null
+//          if (aggregationParameterFields(i).length > 0) {
+//            emptyObj = aggregationParameterFields.map { field => null }.toArray
+//          }
+//          aggregationEvals(i).aggregate(aggrs(i), emptyObj)
+//          output(i) = aggregationEvals(i).evaluate(aggrs(i))
+//          i += 1
+//        }
+//        output
+//      }
+#for(i <- 0 until aggregationEvals.length)
+          {
+            Object[] emptyObj = null;
+            #if(aggregationParameterFields(i).length > 0)
+              emptyObj = new Object[aggregationParameterFields(i).length];
+              for(int i = 0; i < emptyObj.length; ++i) emptyObj[i] = null;
+            #end
+            aggregationEval${i}.aggregate(aggrs[${i}], emptyObj);
+            Object obj = aggregationEval${i}.evaluate(aggrs[${i}]);
+            if (obj != null) {
+              data.mask.set(CGRow.MASK_{row.fields(i).name}, true);
+              ${row.fields(i).getValue("data." + row.fields(i).name, "aggregationObjectInspector" + i, "obj")}
+            }
+          }
+#end
+          return data;
+        }
+      };
+   else 
+#{ } }#
+   return new java.util.Iterator<Object>() {
+        public boolean hasNext() {
+          return iter.hasNext();
+        }
+        public void remove() {throw new UnsupportedOperationException("remove");}
+        public Object next() {
+          scala.Tuple2<ReduceKeyReduceSide, List<byte[]>> tuple = (scala.Tuple2<ReduceKeyReduceSide, List<byte[]>>)iter.next();
+          data.reset();
+          try{
+          ${parentStructKeyClassName} key = kryo.deserialize(tuple._1.byteArray(), ${parentStructKeyClassName}.class); 
+          reusedRow[0] = key;
+        #for(i <- 0 until aggregationEvals.length)
+          aggregationEval${i}.reset(aggs[${i}]);
+        #end
+          for(byte[] bytes : tuple._2) {
+            ${parentStructValueClassName} value = kryo.deserialize(bytes, ${parentStructValueClassName}.class);
+            reusedRow[1] = value;
+  //        aggregateExistingKey(row, aggs)
+  //        @inline protected final
+  //        def aggregateExistingKey(row: AnyRef, aggregations: Array[AggregationBuffer]) {
+  //          var i = 0
+  //          while (i < aggregations.length) {
+  //            if (!aggregationIsDistinct(i)) {
+  //              aggregationEvals(i).aggregate(
+  //                aggregations(i), aggregationParameterFields(i).map(_.evaluate(row)))
+  //            }
+  //            i += 1
+  //          }
+  //        }
+  #for(i <- 0 until aggregationEvals.length)
+            {
+              Object[] parameters = new Object[aggregationParameterField${i}.length];
+       #for(a <- 0 until aggregationParameterFields(i).length)
+              parameters[${i}] = aggregationParameterField${i}[${a}].evaluate((Object)reusedRow);
+       #end
+              aggregationEval${i}.aggregate(aggs[${i}], parameters);
+            }
+  #end            
+          }
+  #for(i <- 0 until currentKeyObjectInspectors.length)
+          if (key.mask.get(${parentStructKeyClassName}.MASK_${parentStructKey.fields(i).name})) {
+            data.mask.set(${structClassName}.MASK_${row.fields(i).name}, true);
+            ${row.fields(i).getValue("data." + row.fields(i).name, "keyObjectInspector" + i, "key." + parentStructKey.fields(i).name)}
+          }
+  #end
+  #for(i <- 0 until aggregationEvals.length)
+          {
+            Object obj = aggregationEval${i}.evaluate(aggs[${i}]);
+            if(obj != null) {
+              data.mask.set(${structClassName}.MASK_${row.fields(i + currentKeyObjectInspectors.length).name}, true);
+              ${row.fields(i + currentKeyObjectInspectors.length).getValue("data." + row.fields(i + currentKeyObjectInspectors.length).name, "aggregationObjectInspector" + i, "obj")}
+            }
+          }
+  #end
+          
+          return data;
+          } catch (Exception e) {
+              throw new RuntimeException(e);
+          }
+        }
+      };
+  }
+}

@@ -34,17 +34,17 @@ class FilterOperator extends UnaryOperator[FilterDesc] {
   @transient var conditionInspector: PrimitiveObjectInspector = _
   
   @BeanProperty var conf: FilterDesc = _
-  @BeanProperty var useCG = true
+  @BeanProperty var cg: Boolean = _
   
   override def initializeOnMaster() {
     super.initializeOnMaster()
-    useCG = SharkConfVars.getBoolVar(super.hconf, SharkConfVars.EXPR_CG)
     conf = desc
+    cg = useCG()
   }
 
   override def initializeOnSlave() {
     try {
-      conditionEvaluator = CGEvaluatorFactory.get(conf.getPredicate(), useCG)
+      conditionEvaluator = CGEvaluatorFactory.get(conf.getPredicate(), cg)
 
       conditionInspector = conditionEvaluator.initialize(objectInspector)
         .asInstanceOf[PrimitiveObjectInspector]

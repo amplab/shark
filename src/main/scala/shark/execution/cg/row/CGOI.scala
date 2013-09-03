@@ -141,7 +141,7 @@ class CGOIList(delegate: CGList, val field: CGOIField[_<:CGField[_]]) extends CG
 class CGOIStruct(delegate: CGStruct, val fields:Array[CGOIField[_<:CGField[_]]]) extends CGOIField[CGStruct](delegate) {
   def oiClassName(): String = "%sStructObjectInspector".format(delegate.clazz)
   override def createOI(): String = "new %s()".format(oiClassName())
-  override def writableClass(): String = cgClassName()
+  override def writableClass(): String = delegate.cgClassName()
   override def java2Writable(javaVarName: String, writableVarName: String) = 
     (if(writableVarName!=null)
       "%s=%s;".format(writableVarName, javaVarName)
@@ -149,10 +149,19 @@ class CGOIStruct(delegate: CGStruct, val fields:Array[CGOIField[_<:CGField[_]]])
        javaVarName, ()=>null)
   override def defStructField(): (String, String, String) = {
     var classname = "CGStructField%s".format(delegate.name)
-    (delegate.name, classname, CGOI.generateOI(this, false))
+    (delegate.name, classname, CGTE.layout(CGOI.CG_SF_STRUCT, Map("obj"->this, "classname"->classname)))
   }
   
   override def oiClass(): String = {CGTE.layout(CGOI.CG_OI_STRUCT, Map("struct"->this))}
+  
+  override def cgClassName(): String = {
+    var parentClass = parentFullClass()
+    if (null == parentClass) {
+      if (delegate.packageName != null) "%s.%s".format(delegate.packageName, oiClassName) else oiClassName
+    } else {
+      "%s.%s".format(parentClass, oiClassName)
+    }
+  }
 }
 
 class CGOIUnion(delegate: CGUnion, val fields: Array[CGOIField[_<:CGField[_]]]) extends CGOIField[CGUnion](delegate) {

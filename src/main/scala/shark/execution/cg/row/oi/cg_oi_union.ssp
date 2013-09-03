@@ -7,7 +7,7 @@
       ${fields.map(_.createOI()).reduce(_+","+_)}
     });
     
-    #for(i <- 0 to fields.length - 1)
+    #for(i <- 0 until fields.length)
     private ${fields(i).writableClass()} cache_${delegate.name}${i} = new ${fields(i).writableClass()}();
     #end
     
@@ -42,7 +42,7 @@
       if (a == null || a.tag < 0) {
         return null;
       } else {
-      #for(i <- 0 to vf.length - 1)
+      #for(i <- 0 until vf.length)
         if (a.tag == ${i}) {
           ${vf(i)._1}
           return cache_${delegate.name}${i};

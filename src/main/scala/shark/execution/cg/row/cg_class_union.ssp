@@ -17,6 +17,9 @@ public static class ${clazz} implements KryoSerializable {
 // end of sub type definition
 
    public int tag = -1;
+   public void reset() {
+      this.tag = -1;
+   }
 <%-- field definitions  --%>
 
 <%-- fields is Array[CGField[_]] --%>
@@ -27,7 +30,7 @@ public static class ${clazz} implements KryoSerializable {
 	@Override
     public void read(Kryo kryo, Input input) {
       tag = input.read();
-#for(i <- 0 to fields.length - 1; if (!fields(i).constant))    
+#for(i <- 0 until fields.length; if (!fields(i).constant))    
       if (tag == ${i}) {
         ${fields(i).defRead()}
       } else 
@@ -38,7 +41,7 @@ public static class ${clazz} implements KryoSerializable {
     @Override
     public void write(Kryo kryo, Output output) {
       output.write(tag);
-#for(i <- 0 to fields.length - 1; if (!fields(i).constant))    
+#for(i <- 0 until fields.length; if (!fields(i).constant))    
       if (tag == ${i}) {
         ${fields(i).defWrite()}
       } else 
@@ -57,7 +60,7 @@ public static class ${clazz} implements KryoSerializable {
         me.tag = uoi.getTag(o);
         java.util.List<org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector> ois = uoi.getObjectInspectors();
 <%-- fields is Array[CGField[_]] --%>
-#for(i <- 0 to fields.length - 1)  
+#for(i <- 0 until fields.length)  
         if (me.tag == ${i}) {
           ${fields(i).getValue("me." + fields(i).name, "ois.get(" +i + ")", "uobj")};
         } else 

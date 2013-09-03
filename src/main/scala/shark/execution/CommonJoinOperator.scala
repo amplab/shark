@@ -33,6 +33,7 @@ import spark.RDD
 import spark.rdd.UnionRDD
 import spark.SparkContext.rddToPairRDDFunctions
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 
 
 abstract class CommonJoinOperator[T<:JoinDesc] extends NaryOperator[T] {
@@ -91,7 +92,7 @@ abstract class CommonJoinOperator[T<:JoinDesc] extends NaryOperator[T] {
   }
   
   // copied from the org.apache.hadoop.hive.ql.exec.CommonJoinOperator
-  override def outputObjectInspector() = {
+  override def outputObjectInspector(): StructObjectInspector = {
     var structFieldObjectInspectors = new JavaArrayList[ObjectInspector]()
     for (alias <- order) {
       var oiList = joinValuesStandardObjectInspectors.get(alias)
