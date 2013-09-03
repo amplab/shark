@@ -49,17 +49,16 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
 
   @transient var table: Table = _
 
-  // Metadata for Hive-partitions (from PARTITION BY). NULL if this table isn't
-  // Hive-partitioned. Reference is set in SparkTask::initializeTableScanTableDesc().
+  // Metadata for Hive-partitions (i.e if the table was created from PARTITION BY). NULL if this
+  // table isn't Hive-partitioned. Set in SparkTask::initializeTableScanTableDesc().
   @transient var parts: Array[Object] = _
 
   // PartitionDescs are used during planning in Hive. This reference to a single PartitionDesc
   // is used to initialize partition ObjectInspectors.
-  // If the table is not Hive-partitioned, then this will reference a "dummy" PartitionDesc, in
-  // which only the PartitionDesc's <table> class var is not NULL, that won't be used.
-  // The reference is set in SparkTask::initializeTableScanTableDesc().
-  // TODO (Harvey): Is it possible to only reference the Properties (might cause a
-  //                serialization issue...)?
+  // If the table is not Hive-partitioned, then 'firstConfPartDesc' won't be used. The value is not
+  // NULL, but rather a reference to a "dummy" PartitionDesc, in which only the PartitionDesc's
+  // 'table' is not NULL.
+  // Set in SparkTask::initializeTableScanTableDesc().
   @BeanProperty var firstConfPartDesc: PartitionDesc  = _
 
   @BeanProperty var tableDesc: TableDesc = _
@@ -241,9 +240,9 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
   }
 
   /**
-   * Create an RDD for every partition column specified in the query. Note that
-   * in on-disk Hive tables, a separate data directory is created for each partition
-   * based on partitioning keys specified using 'PARTITION BY'.
+   * Create an RDD for every partition column specified in the query. Note that for on-disk Hive
+   * tables, a data directory is created for each partition corresponding to keys specified using
+   * 'PARTITION BY'.
    */
   private def makePartitionRDD[T](rdd: RDD[T]): RDD[_] = {
     val partitions = parts
@@ -272,7 +271,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         val partCols = partProps.getProperty(META_TABLE_PARTITION_COLUMNS)
         // Partitioning keys are delimited by "/"
         val partKeys = partCols.trim().split("/")
-        // partValues[i] contains the value for the partitioning key at partKeys[i].
+        // 'partValues[i]' contains the value for the partitioning key at 'partKeys[i]'.
         val partValues = new ArrayList[String]
         partKeys.foreach { key =>
           if (partSpec == null) {

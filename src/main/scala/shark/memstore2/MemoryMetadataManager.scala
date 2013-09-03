@@ -60,29 +60,28 @@ class MemoryMetadataManager {
   }
 
   /**
-   * Used to drop an RDD from the in-memory cache and/or disk, both managed by Spark. All metadata
-   * (e.g. entry in <_keyToStats>) about the RDD that's tracked in Shark
-   * is deleted as well.
+   * Used to drop an RDD from the Spark in-memory cache and/or disk. All metadata
+   * (e.g. entry in '_keyToStats') about the RDD that's tracked by Shark is deleted as well.
    *
-   * @param key Used to fetch the an RDD value from <_keyToRDD>.
-   * @return Option::isEmpty() is true if there is no RDD value corresponding to <key> in
-   *         <_keyToRDD>. Otherwise, a reference to the RDD that was unpersist()'ed is returned.
+   * @param key Used to fetch the an RDD value from '_keyToRDD'.
+   * @return Option::isEmpty() is true if there is no RDD value corresponding to 'key' in
+   *         '_keyToRDD'. Otherwise, returns a reference to the RDD that was unpersist()'ed.
    */
   def unpersist(key: String): Option[RDD[_]] = {
     def unpersistRDD(rdd: RDD[_]): Unit = {
       rdd match {
-        // Propagate the unpersist() to all RDDs that compose a UnionRDD.
         case u: UnionRDD[_] => {
+          // Recursively unpersist() all RDDs that compose the UnionRDD.
           u.unpersist()
           u.rdds.foreach {
-            r => unpersist(r)
+            r => unpersistRDD(r)
           }
         }
         case r => r.unpersist()
       }
     }
     // Remove RDD's entry from Shark metadata. This also fetches a reference to the RDD object
-    // corresponding to the argument for <key>.
+    // corresponding to the argument for 'key'.
     val rddValue = _keyToRdd.remove(key.toLowerCase())
     _keyToStats.remove(key)
     // Unpersist the RDD using the nested helper fn above.
@@ -99,7 +98,7 @@ object MemoryMetadataManager {
 
   /** Return a StorageLevel corresponding to its String name. */
   def getStorageLevelFromString(s: String): StorageLevel = {
-    if (s == null || s =="") {
+    if (s == null || s == "") {
       getStorageLevelFromString(SharkConfVars.STORAGE_LEVEL.defaultVal)
     } else {
       s.toUpperCase match {
