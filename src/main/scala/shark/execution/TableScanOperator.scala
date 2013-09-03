@@ -42,12 +42,25 @@ import shark.memstore2.{CacheType, TablePartition, TablePartitionStats}
 import shark.tachyon.TachyonException
 
 
+/**
+ * The TableScanOperator is used for scanning any type of Shark or Hive table.
+ */
 class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopOperator {
 
   @transient var table: Table = _
 
+  // Metadata for Hive-partitions (i.e if the table was created from PARTITION BY). NULL if this
+  // table isn't Hive-partitioned. Set in SparkTask::initializeTableScanTableDesc().
   @transient var parts: Array[Object] = _
+
+  // PartitionDescs are used during planning in Hive. This reference to a single PartitionDesc
+  // is used to initialize partition ObjectInspectors.
+  // If the table is not Hive-partitioned, then 'firstConfPartDesc' won't be used. The value is not
+  // NULL, but rather a reference to a "dummy" PartitionDesc, in which only the PartitionDesc's
+  // 'table' is not NULL.
+  // Set in SparkTask::initializeTableScanTableDesc().
   @BeanProperty var firstConfPartDesc: PartitionDesc  = _
+
   @BeanProperty var tableDesc: TableDesc = _
   @BeanProperty var localHconf: HiveConf = _
 
@@ -226,6 +239,11 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     }
   }
 
+  /**
+   * Create an RDD for every partition column specified in the query. Note that for on-disk Hive
+   * tables, a data directory is created for each partition corresponding to keys specified using
+   * 'PARTITION BY'.
+   */
   private def makePartitionRDD[T](rdd: RDD[T]): RDD[_] = {
     val partitions = parts
     val rdds = new Array[RDD[Any]](partitions.size)
@@ -242,7 +260,6 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
 
       val serializedHconf = XmlSerializer.serialize(localHconf, localHconf)
       val partRDD = parts.mapPartitions { iter =>
-        // Map each tuple to a row object
         val hconf = XmlSerializer.deserialize(serializedHconf).asInstanceOf[HiveConf]
         val deserializer = partDesc.getDeserializerClass().newInstance()
         deserializer.initialize(hconf, partDesc.getProperties())
@@ -252,7 +269,9 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         val partProps = partDesc.getProperties()
 
         val partCols = partProps.getProperty(META_TABLE_PARTITION_COLUMNS)
+        // Partitioning keys are delimited by "/"
         val partKeys = partCols.trim().split("/")
+        // 'partValues[i]' contains the value for the partitioning key at 'partKeys[i]'.
         val partValues = new ArrayList[String]
         partKeys.foreach { key =>
           if (partSpec == null) {
@@ -263,6 +282,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         }
 
         val rowWithPartArr = new Array[Object](2)
+        // Map each tuple to a row object
         iter.map { value =>
           val deserializedRow = deserializer.deserialize(value) // LazyStruct
           rowWithPartArr.update(0, deserializedRow)
