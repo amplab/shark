@@ -20,6 +20,7 @@ package shark.parse
 import java.lang.reflect.Method
 import java.util.ArrayList
 import java.util.{List => JavaList}
+import java.util.{Map => JavaMap}
 
 import scala.collection.JavaConversions._
 
@@ -95,27 +96,30 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
 
       // If the table descriptor can be null if the CTAS has an
       // "if not exists" condition.
-      val td = getParseContext.getQB.getTableDesc
-      if (!isCTAS || td == null) {
+      val createTableDesc = getParseContext.getQB.getTableDesc
+      if (!isCTAS || createTableDesc == null) {
         return
       } else {
         val checkTableName = SharkConfVars.getBoolVar(conf, SharkConfVars.CHECK_TABLENAME_FLAG)
-        val cacheType = CacheType.fromString(td.getTblProps().get("shark.cache"))
+        // Note: the CreateTableDesc's table properties are Java Maps, but the TableDesc's table
+        //       properties, which are used during execution, are Java Properties.
+        val createTableProperties: JavaMap[String, String] = createTableDesc.getTblProps()
+        val cacheType = CacheType.fromString(createTableProperties.get("shark.cache"))
         if (cacheType == CacheType.HEAP ||
-          (td.getTableName.endsWith("_cached") && checkTableName)) {
+            (createTableDesc.getTableName.endsWith("_cached") && checkTableName)) {
           cacheMode = CacheType.HEAP
-          td.getTblProps().put("shark.cache", cacheMode.toString)
+          createTableProperties.put("shark.cache", cacheMode.toString)
         } else if (cacheType == CacheType.TACHYON ||
-          (td.getTableName.endsWith("_tachyon") && checkTableName)) {
+          (createTableDesc.getTableName.endsWith("_tachyon") && checkTableName)) {
           cacheMode = CacheType.TACHYON
-          td.getTblProps().put("shark.cache", cacheMode.toString)
+          createTableProperties.put("shark.cache", cacheMode.toString)
         }
 
         if (CacheType.shouldCache(cacheMode)) {
-          td.setSerName(classOf[ColumnarSerDe].getName)
+          createTableDesc.setSerName(classOf[ColumnarSerDe].getName)
         }
 
-        qb.setTableDesc(td)
+        qb.setTableDesc(createTableDesc)
         shouldReset = true
       }
     } else {

@@ -114,9 +114,8 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
 
     // There are three places we can load the table from.
     // 1. Tachyon table
-    // 2. Spark heap (block manager)
+    // 2. Spark heap (block manager), accessed through the Shark MemoryMetadataManager
     // 3. Hive table on HDFS (or other Hadoop storage)
-
     val cacheMode = CacheType.fromString(
       tableDesc.getProperties().get("shark.cache").asInstanceOf[String])
     if (cacheMode == CacheType.HEAP) {
