@@ -21,19 +21,19 @@ package shark.memstore2
 object CacheType extends Enumeration {
 
   type CacheType = Value
-  val none, heap, tachyon = Value
+  val NONE, HEAP, TACHYON = Value
 
-  def shouldCache(c: CacheType): Boolean = (c != none)
+  def shouldCache(c: CacheType): Boolean = (c != NONE)
 
   /** Get the cache type object from a string representation. */
   def fromString(name: String): CacheType = {
     if (name == null || name == "") {
-      none
+      NONE
     } else if (name.toLowerCase == "true") {
-      heap
+      HEAP
     } else {
       try {
-        withName(name.toLowerCase)
+        withName(name.toUpperCase)
       } catch {
         case e: java.util.NoSuchElementException => throw new InvalidCacheTypeException(name)
       }

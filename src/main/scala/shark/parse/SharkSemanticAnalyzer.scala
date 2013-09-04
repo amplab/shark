@@ -76,7 +76,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
 
     //TODO: can probably reuse Hive code for this
     // analyze create table command
-    var cacheMode = CacheType.none
+    var cacheMode = CacheType.NONE
     var isCTAS = false
     var shouldReset = false
 
@@ -101,13 +101,13 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       } else {
         val checkTableName = SharkConfVars.getBoolVar(conf, SharkConfVars.CHECK_TABLENAME_FLAG)
         val cacheType = CacheType.fromString(td.getTblProps().get("shark.cache"))
-        if (cacheType == CacheType.heap ||
+        if (cacheType == CacheType.HEAP ||
           (td.getTableName.endsWith("_cached") && checkTableName)) {
-          cacheMode = CacheType.heap
+          cacheMode = CacheType.HEAP
           td.getTblProps().put("shark.cache", cacheMode.toString)
-        } else if (cacheType == CacheType.tachyon ||
+        } else if (cacheType == CacheType.TACHYON ||
           (td.getTableName.endsWith("_tachyon") && checkTableName)) {
-          cacheMode = CacheType.tachyon
+          cacheMode = CacheType.TACHYON
           td.getTblProps().put("shark.cache", cacheMode.toString)
         }
 
@@ -191,7 +191,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                     cachedTableName,
                     storageLevel,
                     _resSchema.size,                // numColumns
-                    cacheMode == CacheType.tachyon, // use tachyon
+                    cacheMode == CacheType.TACHYON, // use tachyon
                     useUnionRDD)
                 } else {
                   throw new SemanticException(
@@ -215,7 +215,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
               qb.getTableDesc.getTableName,
               storageLevel,
               _resSchema.size,                // numColumns
-              cacheMode == CacheType.tachyon, // use tachyon
+              cacheMode == CacheType.TACHYON, // use tachyon
               false)
           } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink && !qb.isCTAS) {
             OperatorFactory.createSharkRddOutputPlan(hiveSinkOps.head)
