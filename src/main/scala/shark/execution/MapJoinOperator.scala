@@ -34,6 +34,7 @@ import spark.RDD
 import spark.broadcast.Broadcast
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
+import shark.execution.cg.CompilationContext
 
 
 /**
@@ -56,8 +57,8 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc] {
   @transient val metadataKeyTag = -1
   @transient var joinValues: JHashMap[java.lang.Byte, JList[ExprNodeEvaluator]] = _
 
-  override def initializeOnMaster() {
-    super.initializeOnMaster()
+  override def initializeOnMaster(cc: CompilationContext) {
+    super.initializeOnMaster(cc)
     posBigTable = conf.getPosBigTable()
     bigTableAlias = order(posBigTable).toInt
     bigTableAliasByte = bigTableAlias.toByte

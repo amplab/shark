@@ -235,10 +235,10 @@ class JavaCompilerHelper extends LogHelper with DiagnosticListener[JavaFileObjec
    * @throws CGAssertRuntimeException if anything wrong in compiling
    */
   def compile(fullClassName: String, code: String) = {
-    classFileManager.compile(ArrayBuffer((fullClassName, code)), this, compileOptions())
+    classFileManager.compile(List((fullClassName, code)), this, compileOptions())
   }
   
-  def compile(entries: ArrayBuffer[(String, String)]) = {
+  def compile(entries: List[(String, String)]) = {
     classFileManager.compile(entries, this, compileOptions())
   }
   
@@ -278,7 +278,7 @@ class OperatorClassLoader(parent: ClassLoader)
   override def read(kryo: Kryo, input: Input) {
     clazzCache = new HashMap[String, Array[Byte]] with SynchronizedMap[String, Array[Byte]]
     var size = input.read()
-    for(i <- 0 to size - 1) {
+    for(i <- 0 until size) {
       var name = input.readString()
       var bytes = new Array[Byte](input.readInt())
       input.readBytes(bytes)
@@ -340,7 +340,7 @@ private class SingleClassFileManager(
   /**
    *  List[(String,String)], the tuple is (className, CodeContent)
    */
-  def compile(files: ArrayBuffer[(String, String)],
+  def compile(files: List[(String, String)],
               dl: DiagnosticListener[JavaFileObject],
               options: List[String]) {
     // for debugging the generate source code purpose

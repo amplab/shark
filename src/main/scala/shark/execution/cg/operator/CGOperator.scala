@@ -9,8 +9,8 @@ import shark.execution.JoinOperator
 import shark.execution.Operator
 import shark.execution.HiveDesc
 import shark.execution.ReduceSinkOperator
-import org.apache.hadoop.hive.ql.exec.GroupByPreShuffleOperator
-import org.apache.hadoop.hive.ql.exec.GroupByPostShuffleOperator
+import shark.execution.GroupByPreShuffleOperator
+import shark.execution.GroupByPostShuffleOperator
 
 abstract class CGOperator(
     val path: String, 
@@ -40,7 +40,7 @@ class CGReduceSinkOperator(
 class CGGroupByPreShuffleOperator(
     val row: CGStruct, 
     override val op: GroupByPreShuffleOperator) 
-  extends CGOperator(CGOperator.CG_GROUPBYPRESHUFFLEOPERATOR, op, "org.apache.hadoop.hive.ql.exec")
+  extends CGOperator(CGOperator.CG_GROUPBYPRESHUFFLEOPERATOR, op)
 
 /*
  * org.apache.hadoop.hive.ql.exec.KeyWrapperFactory in the PostShuffleOperator is package visibility
@@ -51,7 +51,7 @@ class CGGroupByPostShuffleOperator(
     val row: CGStruct, 
     override val op: GroupByPostShuffleOperator, 
     path: String) 
-  extends CGOperator(path, op, "org.apache.hadoop.hive.ql.exec")
+  extends CGOperator(path, op)
 
 object CGOperator {
   val CG_OPERATOR_JOIN = "shark/execution/cg/operator/cg_joinoperator.ssp"

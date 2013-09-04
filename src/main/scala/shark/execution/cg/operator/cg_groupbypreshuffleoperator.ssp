@@ -1,5 +1,5 @@
 <% escapeMarkup = false %>
-#import(org.apache.hadoop.hive.ql.exec.GroupByPreShuffleOperator)
+#import(shark.execution.GroupByPreShuffleOperator)
 #import(shark.execution.cg.row.CGStruct)
 #import(shark.execution.cg.operator.CGOperator)
 <%@ import val cgo: CGOperator %>
@@ -26,6 +26,7 @@ import org.apache.hadoop.hive.ql.exec.KeyWrapper;
 import org.apache.hadoop.hive.ql.exec.KeyWrapperFactory;
 
 import shark.execution.cg.OperatorExecutor;
+import shark.execution.GroupByPreShuffleOperator;
 
 public class ${className} implements OperatorExecutor, Serializable {
   private static final long serialVersionUID = 1L;
@@ -57,6 +58,7 @@ public class ${className} implements OperatorExecutor, Serializable {
     final HashMap<KeyWrapper, AggregationBuffer[]> hashAggregations = new HashMap<KeyWrapper, AggregationBuffer[]>();
     final KeyWrapper newKeys = keyFactory.getKeyWrapper();
     scala.collection.Iterator<?> iter = (scala.collection.Iterator<?>)obj;
+    try {
     while(iter.hasNext()) {
       Object row = iter.next();
       newKeys.getNewKey(row, rowInspector);
@@ -117,6 +119,9 @@ public class ${className} implements OperatorExecutor, Serializable {
 #end
       }
     }
+    } catch (Throwable t) {
+      t.printStackTrace();
+    }
 
     return new java.util.Iterator<Object>() {
       java.util.Iterator<Entry<KeyWrapper, AggregationBuffer[]>> it = hashAggregations.entrySet().iterator();
@@ -145,7 +150,8 @@ public class ${className} implements OperatorExecutor, Serializable {
         }
 #end
         return data;
-        } catch (Exception e) {
+        } catch (Throwable e) {
+          e.printStackTrace();
           throw new RuntimeException(e);
         }
       }

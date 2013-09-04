@@ -18,16 +18,15 @@
 package shark.execution
 
 import java.util.{List => JavaList}
-
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
-
 import org.apache.hadoop.hive.ql.exec.{UDTFOperator => HiveUDTFOperator}
 import org.apache.hadoop.hive.ql.plan.UDTFDesc
 import org.apache.hadoop.hive.ql.udf.generic.Collector
 import org.apache.hadoop.hive.serde2.objectinspector.{ ObjectInspector,
   StandardStructObjectInspector, StructField, StructObjectInspector }
+import shark.execution.cg.CompilationContext
 
 
 class UDTFOperator extends UnaryOperator[UDTFDesc] {
@@ -39,8 +38,8 @@ class UDTFOperator extends UnaryOperator[UDTFDesc] {
   @transient var inputFields: JavaList[_ <: StructField] = _
   @transient var collector: UDTFCollector = _
 
-  override def initializeOnMaster() {
-    super.initializeOnMaster()
+  override def initializeOnMaster(cc: CompilationContext) {
+    super.initializeOnMaster(cc)
     conf = desc
   }
 

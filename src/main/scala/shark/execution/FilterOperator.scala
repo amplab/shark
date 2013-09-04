@@ -26,6 +26,7 @@ import org.apache.hadoop.hive.ql.plan.FilterDesc
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
 import shark.execution.cg.CGEvaluatorFactory
 import shark.SharkConfVars
+import shark.execution.cg.CompilationContext
 
 
 class FilterOperator extends UnaryOperator[FilterDesc] {
@@ -36,10 +37,10 @@ class FilterOperator extends UnaryOperator[FilterDesc] {
   @BeanProperty var conf: FilterDesc = _
   @BeanProperty var cg: Boolean = _
   
-  override def initializeOnMaster() {
-    super.initializeOnMaster()
+  override def initializeOnMaster(cc: CompilationContext) {
+    super.initializeOnMaster(cc)
     conf = desc
-    cg = useCG()
+    cg = cc.useCG
   }
 
   override def initializeOnSlave() {

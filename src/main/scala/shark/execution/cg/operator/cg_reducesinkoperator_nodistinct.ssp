@@ -118,7 +118,8 @@ public class ${className} implements OperatorExecutor, Serializable {
 	        reduceKey.setPartitionCode(partitionCode);
 	        
 	        return new scala.Tuple2<ReduceKeyMapSide, BytesWritable>(reduceKey, new BytesWritable(valueBytes));
-        } catch (Exception e) {
+        } catch (Throwable e) {
+            e.printStackTrace();
             throw new RuntimeException(e);
         }
       }

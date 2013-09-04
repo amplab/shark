@@ -18,7 +18,6 @@
 package shark.execution
 
 import scala.reflect.BeanProperty
-
 import org.apache.hadoop.fs.FileSystem
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hive.conf.HiveConf
@@ -27,11 +26,10 @@ import org.apache.hadoop.hive.ql.exec.JobCloseFeedBack
 import org.apache.hadoop.mapred.TaskID
 import org.apache.hadoop.mapred.TaskAttemptID
 import org.apache.hadoop.mapred.HadoopWriter
-
 import shark.execution.serialization.OperatorSerializationWrapper
-
 import spark.RDD
 import spark.TaskContext
+import shark.execution.cg.CompilationContext
 
 
 class FileSinkOperator extends TerminalOperator with Serializable {
@@ -39,8 +37,8 @@ class FileSinkOperator extends TerminalOperator with Serializable {
   // Pass the file extension ConfVar used by HiveFileSinkOperator.
   @BeanProperty var outputFileExtension: String = _
 
-  override def initializeOnMaster() {
-    super.initializeOnMaster()
+  override def initializeOnMaster(cc: CompilationContext) {
+    super.initializeOnMaster(cc)
     outputFileExtension = HiveConf.getVar(localHconf, HiveConf.ConfVars.OUTPUT_FILE_EXTENSION)
   }
 

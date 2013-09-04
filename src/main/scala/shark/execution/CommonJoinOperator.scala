@@ -34,6 +34,7 @@ import spark.rdd.UnionRDD
 import spark.SparkContext.rddToPairRDDFunctions
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
+import shark.execution.cg.CompilationContext
 
 
 abstract class CommonJoinOperator[T<:JoinDesc] extends NaryOperator[T] {
@@ -59,8 +60,8 @@ abstract class CommonJoinOperator[T<:JoinDesc] extends NaryOperator[T] {
 
   @transient var noOuterJoin: Boolean = _
 
-  override def initializeOnMaster() {
-    super.initializeOnMaster()
+  override def initializeOnMaster(cc: CompilationContext) {
+    super.initializeOnMaster(cc)
     conf = desc
     
     order = conf.getTagOrder()
@@ -92,7 +93,9 @@ abstract class CommonJoinOperator[T<:JoinDesc] extends NaryOperator[T] {
   }
   
   // copied from the org.apache.hadoop.hive.ql.exec.CommonJoinOperator
-  override def outputObjectInspector(): StructObjectInspector = {
+  override def outputObjectInspector() = initializeOutputOI()
+  
+  def initializeOutputOI(): StructObjectInspector = {
     var structFieldObjectInspectors = new JavaArrayList[ObjectInspector]()
     for (alias <- order) {
       var oiList = joinValuesStandardObjectInspectors.get(alias)

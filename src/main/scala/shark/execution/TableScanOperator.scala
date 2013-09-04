@@ -39,6 +39,7 @@ import spark.rdd.{PartitionPruningRDD, UnionRDD}
 import org.apache.hadoop.hive.ql.io.HiveInputFormat
 import org.apache.hadoop.hive.ql.plan.TableScanDesc
 import org.apache.hadoop.hive.serde2.Deserializer
+import shark.execution.cg.CompilationContext
 
 class TableScanOperator extends TopOperator[TableScanDesc] 
   with ReduceSinkTableDesc {
@@ -51,9 +52,9 @@ class TableScanOperator extends TopOperator[TableScanDesc]
   @BeanProperty var tableDesc: TableDesc = _
   @BeanProperty var localHconf: HiveConf = _
 
-  override def initializeOnMaster() {
+  override def initializeOnMaster(cc: CompilationContext) {
     localHconf = super.hconf
-    super.initializeOnMaster()
+    super.initializeOnMaster(cc)
   }
 
   override def outputObjectInspector() = {

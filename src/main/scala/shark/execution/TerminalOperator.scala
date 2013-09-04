@@ -22,6 +22,7 @@ import scala.reflect.BeanProperty
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{FileSinkOperator => HiveFileSinkOperator}
 import org.apache.hadoop.hive.ql.plan.FileSinkDesc
+import shark.execution.cg.CompilationContext
 
 
 /**
@@ -37,8 +38,8 @@ class TerminalOperator extends UnaryOperator[FileSinkDesc] {
   @BeanProperty var localHconf: HiveConf = _
   @BeanProperty val now = new Date()
 
-  override def initializeOnMaster() {
-    super.initializeOnMaster()
+  override def initializeOnMaster(cc: CompilationContext) {
+    super.initializeOnMaster(cc)
     localHconf = super.hconf
     // Set parent to null so we won't serialize the entire query plan.
     localHiveOp.setParentOperators(null)

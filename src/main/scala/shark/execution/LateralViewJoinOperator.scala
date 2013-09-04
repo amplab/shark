@@ -30,6 +30,7 @@ import shark.execution.cg.CGEvaluatorFactory
 import spark.RDD
 import shark.SharkConfVars
 import org.apache.hadoop.hive.ql.plan.LateralViewJoinDesc
+import shark.execution.cg.CompilationContext
 
 
 /**
@@ -50,8 +51,8 @@ class LateralViewJoinOperator extends NaryOperator[LateralViewJoinDesc] {
   @transient var eval: Array[ExprNodeEvaluator] = _
   @transient var fieldOis: StructObjectInspector = _
 
-  override def initializeOnMaster() {
-    super.initializeOnMaster()
+  override def initializeOnMaster(cc: CompilationContext) {
+    super.initializeOnMaster(cc)
     // Get conf from Select operator beyond UDTF Op to get eval()
     conf = parentOperators.filter(_.isInstanceOf[UDTFOperator]).head
       .parentOperators.head.asInstanceOf[SelectOperator].desc
@@ -62,7 +63,7 @@ class LateralViewJoinOperator extends NaryOperator[LateralViewJoinDesc] {
       .asInstanceOf[LateralViewForwardOperator]
     lvfOIString = KryoSerializerToString.serialize(lvfOp.objectInspectors)
     
-    cg = useCG()
+    cg = cc.useCG
   }
 
   override def initializeOnSlave() {

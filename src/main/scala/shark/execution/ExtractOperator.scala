@@ -18,17 +18,15 @@
 package shark.execution
 
 import scala.reflect.BeanProperty
-
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory}
 import org.apache.hadoop.hive.ql.exec.{ExtractOperator => HiveExtractOperator}
 import org.apache.hadoop.hive.ql.plan.{ExtractDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.Deserializer
 import org.apache.hadoop.io.BytesWritable
-
 import spark.RDD
-
 import shark.SharkConfVars
+import shark.execution.cg.CompilationContext
 
 
 class ExtractOperator extends UnaryOperator[ExtractDesc] 
@@ -41,8 +39,8 @@ class ExtractOperator extends UnaryOperator[ExtractDesc]
   @transient var eval: ExprNodeEvaluator = _
   @transient var valueDeser: Deserializer = _
 
-  override def initializeOnMaster() {
-    super.initializeOnMaster()
+  override def initializeOnMaster(cc: CompilationContext) {
+    super.initializeOnMaster(cc)
     conf = desc
     localHconf = super.hconf
     valueTableDesc = keyValueDescs().head._2._2

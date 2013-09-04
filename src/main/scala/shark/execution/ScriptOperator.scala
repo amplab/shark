@@ -19,11 +19,9 @@ package shark.execution
 
 import java.io.{File, InputStream}
 import java.util.{Arrays, Properties}
-
 import scala.collection.JavaConversions._
 import scala.io.Source
 import scala.reflect.BeanProperty
-
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{ScriptOperator => HiveScriptOperator}
@@ -32,12 +30,10 @@ import org.apache.hadoop.hive.ql.plan.ScriptDesc
 import org.apache.hadoop.hive.serde2.{Serializer, Deserializer}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.io.{BytesWritable, Writable}
-
 import shark.execution.serialization.OperatorSerializationWrapper
-
 import spark.{OneToOneDependency, RDD, SparkEnv}
-// Note that SparkFiles class is written in Java in Spark.
 import spark.SparkFiles
+import shark.execution.cg.CompilationContext
 
 
 /**
@@ -139,8 +135,8 @@ class ScriptOperator extends UnaryOperator[ScriptDesc] {
     }
   }
 
-  override def initializeOnMaster() {
-    super.initializeOnMaster()
+  override def initializeOnMaster(cc: CompilationContext) {
+    super.initializeOnMaster(cc)
     localHconf = super.hconf
     conf = desc
   }

@@ -10,7 +10,7 @@
 // parents should be CGObjectOperators for Join
    var datas = parentOperators.map{
     parent => if(parent.isInstanceOf[CGObjectOperator]) 
-            parent.asInstanceOf[CGObjectOperator].row 
+            (parent.getTag, parent.asInstanceOf[CGObjectOperator].row) 
           else 
             throw new RuntimeException("All of the parents of the JoinOperator should be the CGObjectOperator")
    }.toArray 
@@ -37,7 +37,7 @@ public class ${className} implements OperatorExecutor, Serializable {
   private transient KryoSerializer ks = new KryoSerializer(new Class<?>[] {
       ${structClassName}.class
       #for(inputRow <- datas)
-        , ${inputRow.cgClassName}.class
+        , ${inputRow._2.cgClassName}.class
       #end
   });
 
@@ -64,39 +64,37 @@ public class ${className} implements OperatorExecutor, Serializable {
 	}#
 	    {
 	    #{
-	      val inputRow = datas(i)
-	      val inputRowClassName = inputRow.cgClassName
-	      val inputRowKey   = inputRow.fields(0).asInstanceOf[CGStruct] // joined key struct
+	      val inputRow = datas(i)._2
+	      // val inputRowKey   = inputRow.fields(0).asInstanceOf[CGStruct] // joined key struct
 	      val inputRowValue = inputRow.fields(1).asInstanceOf[CGStruct] // joined value struct
-	      val keyFieldName = inputRow.fields(0).name // should be "key" constantly
-	      val valueFieldName = inputRow.fields(1).name // should be "key" constantly
-	      val inputRowKeyClassName = inputRowKey.cgClassName
+	      // val keyFieldName = inputRow.fields(0).name // should be "key" constantly
+	      // val valueFieldName = inputRow.fields(1).name // should be "value" constantly
+	      // val inputRowKeyClassName = inputRowKey.cgClassName
 	      val inputRowValueClassName = inputRowValue.cgClassName
 	    }#
-	      byte[] element = (byte[])elements[${i}];
+	      byte[] element = (byte[])elements[${datas(i)._1}];
 	      if (element != null) {
-	        ${inputRowClassName} ss = ks.deserialize(element, ${inputRowClassName}.class);
-	        if(ss.mask.get(${inputRowClassName}.MASK_${valueFieldName})) {
-	          // we only cares about the value part (and the field name is fixed as "value")
+	        // we only cares about the value part (and the field name is fixed as "value")
+	        ${inputRowValueClassName} ss = ks.deserialize(element, ${inputRowValueClassName}.class);
 	          #{
 	          for(a <- 0 until inputRowValue.fields.length) {
 	          }#
-	          if(ss.${valueFieldName}.mask.get(${inputRowValueClassName}.MASK_${inputRowValue.fields(a).name})) {
+	          if(ss.mask.get(${inputRowValueClassName}.MASK_${inputRowValue.fields(a).name})) {
 	            data.mask.set(${structClassName}.MASK_${row.fields(idx).name}, true);
-	            data.${row.fields(idx).name} = ss.${valueFieldName}.${inputRowValue.fields(a).name};
+	            data.${row.fields(idx).name} = ss.${inputRowValue.fields(a).name};
 	          }
 	          #{
 	            idx += 1
 	            }
 	          }#
-	        }
 	      }
 	    }
 	#{
 	}
 	}#
 	    	return data;
-	    } catch (Exception e) {
+	    } catch (Throwable e) {
+	        e.printStackTrace();
 	        throw new RuntimeException(e);
 	    }
 	  }

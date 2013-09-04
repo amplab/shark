@@ -40,6 +40,7 @@ import shark.execution.cg.row.CGStruct
 import shark.execution.cg.row.CGOIStruct
 import shark.execution.cg.operator.CGOperator
 import shark.execution.cg.operator.CGReduceSinkOperator
+import shark.execution.cg.CompilationContext
 
 
 /**
@@ -52,32 +53,32 @@ class ReduceSinkOperator extends UnaryOperator[ReduceSinkDesc] with CGObjectOper
 
   // The evaluator for key columns. Key columns decide the sort/hash order on
   // the reducer side. Key columns are passed to the reducer in the "key".
-  @transient @BeanProperty var keyEval: Array[ExprNodeEvaluator] = _
+  @transient var keyEval: Array[ExprNodeEvaluator] = _
 
   // The evaluator for the value columns. Value columns are passed to reducers
   // in the "value".
-  @transient @BeanProperty var valueEval: Array[ExprNodeEvaluator] = _
+  @transient var valueEval: Array[ExprNodeEvaluator] = _
 
   // The evaluator for the partition columns (used in CLUSTER BY and
   // DISTRIBUTE BY in Hive). Partition columns decide the reducer that the
   // current row goes to. Partition columns are not passed to reducers.
-  @transient @BeanProperty var partitionEval: Array[ExprNodeEvaluator] = _
+  @transient var partitionEval: Array[ExprNodeEvaluator] = _
 
-  @transient @BeanProperty var keySer: SerDe = _
-  @transient @BeanProperty var valueSer: SerDe = _
-  @transient @BeanProperty var keyObjInspector: ObjectInspector = _
-  @transient @BeanProperty var keyFieldObjInspectors: Array[ObjectInspector] = _
-  @transient @BeanProperty var valObjInspector: ObjectInspector = _
-  @transient @BeanProperty var valFieldObjInspectors: Array[ObjectInspector] = _
-  @transient @BeanProperty var partitionObjInspectors: Array[ObjectInspector] = _
+  @transient var keySer: SerDe = _
+  @transient var valueSer: SerDe = _
+  @transient var keyObjInspector: ObjectInspector = _
+  @transient var keyFieldObjInspectors: Array[ObjectInspector] = _
+  @transient var valObjInspector: ObjectInspector = _
+  @transient var valFieldObjInspectors: Array[ObjectInspector] = _
+  @transient var partitionObjInspectors: Array[ObjectInspector] = _
 
   override def getTag() = conf.getTag()
 
-  override def initializeOnMaster() {
-    super.initializeOnMaster()
+  override def initializeOnMaster(cc: CompilationContext) {
+    super.initializeOnMaster(cc)
     
     conf = desc
-    initCGOnMaster()
+    initCGOnMaster(cc)
   }
 
   override def initializeOnSlave() {
@@ -86,7 +87,7 @@ class ReduceSinkOperator extends UnaryOperator[ReduceSinkDesc] with CGObjectOper
     initCGOnSlave()
   }
 
-  protected[this] def createCGOperator(cgrow: CGStruct, cgoi: CGOIStruct): CGOperator = 
+  override protected def createCGOperator(): CGOperator = 
     if (conf.getDistinctColumnIndices().size() == 0)
       new CGReduceSinkOperator(row, this, CGOperator.CG_OPERATOR_REDUCE_SINK_NODISTINCT)
     else
@@ -166,7 +167,7 @@ class ReduceSinkOperator extends UnaryOperator[ReduceSinkDesc] with CGObjectOper
    * Process a partition when there is NO distinct key aggregations.
    */
   def processPartitionNoDistinct(iter: Iterator[_]): Iterator[_] = {
-    if (cg) {
+    if (useCG) {
       cgexec.evaluate(iter).asInstanceOf[java.util.Iterator[Object]]
     } else {
       processPartitionNoDistinctDynamic(iter)

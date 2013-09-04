@@ -21,6 +21,7 @@ import shark.execution.HiveDesc
 import shark.execution.Operator
 import shark.execution.cg.CGObjectOperator
 import shark.execution.cg.OperatorClassLoader
+import shark.execution.cg.CGBeanUtils
 
 
 /**
@@ -36,7 +37,7 @@ class OperatorSerializationWrapper[T <: Operator[_ <: HiveDesc]]
   /** The operator we are going to serialize. */
   @transient var _value: T = _
 
-  /** The operator serialized by the XMLEncoder, minus the object inspectors. */
+  /** The operator serialized by the XMLEncoder, minus the object inspectors or cgexec. */
   var opSerialized: Array[Byte] = _
 
   /** The object inspectors, serialized by Kryo. */
@@ -45,44 +46,34 @@ class OperatorSerializationWrapper[T <: Operator[_ <: HiveDesc]]
   /** The generated classes byte code, serialized by Kryo. */
   var classSerialized: Array[Byte] = _
   
-  /** The generated operator instance, serialized by Kryo*/
-  var cgOpSerialized: Array[Byte] = _
-
   def value: T = {
     if (_value == null) {
       assert(opSerialized != null)
       assert(opSerialized.length > 0)
       assert(objectInspectorsSerialized != null)
       assert(objectInspectorsSerialized.length > 0)
-
       _value = XmlSerializer.deserialize[T](opSerialized)
-
+      
       if (classSerialized != null) {
         assert(classSerialized.length > 0)
-        assert(cgOpSerialized != null)
-        assert(cgOpSerialized.length > 0)
-        
+        var cgo = _value.asInstanceOf[CGObjectOperator]
+        // TODO this is in very low efficiency, which is create a class loader per task
         var cl: OperatorClassLoader = KryoSerializer.deserialize(classSerialized)
         Thread.currentThread().setContextClassLoader(cl)
-        
-        _value.asInstanceOf[CGObjectOperator].clcompiler = cl
-        _value.objectInspectors = KryoSerializer.deserialize(objectInspectorsSerialized, cl)
-      } else {
-        _value.objectInspectors = KryoSerializer.deserialize(objectInspectorsSerialized)
-      }
+      } 
+      
+      _value.objectInspectors = KryoSerializer.deserialize(objectInspectorsSerialized)
     }
     _value
   }
 
   def value_= (v: T):Unit = {
-    var t = Thread.currentThread().getContextClassLoader()
     _value = v
     
-    opSerialized = XmlSerializer.serialize(value, v.hconf)
-    
     if(value.isInstanceOf[CGObjectOperator]){
-      classSerialized = KryoSerializer.serialize(value.asInstanceOf[CGObjectOperator].clcompiler)
+      classSerialized = KryoSerializer.serialize(value.asInstanceOf[CGObjectOperator].operatorCL)
     }
+    opSerialized = XmlSerializer.serialize(value, v.hconf)
     objectInspectorsSerialized = KryoSerializer.serialize(value.objectInspectors)
   }
 

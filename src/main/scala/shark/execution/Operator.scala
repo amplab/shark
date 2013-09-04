@@ -30,6 +30,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator
 import java.util.Arrays
+import shark.execution.cg.CompilationContext
 
 
 abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
@@ -39,7 +40,7 @@ abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
    * nodes. When an operator's initializeOnMaster() is invoked, all its parents'
    * initializeOnMaster() have been invoked.
    */
-  def initializeOnMaster() {
+  def initializeOnMaster(cc: CompilationContext) {
     objectInspectors = inputObjectInspectors()
   }
 
@@ -61,9 +62,9 @@ abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
    * Recursively calls initializeOnMaster() for the entire query plan. Parent
    * operators are called before children.
    */
-  def initializeMasterOnAll() {
-    _parentOperators.foreach(_.initializeMasterOnAll())
-    initializeOnMaster()
+  def initializeMasterOnAll(cc: CompilationContext) {
+    _parentOperators.foreach(_.initializeMasterOnAll(cc))
+    initializeOnMaster(cc)
   }
 
   /**
@@ -112,12 +113,6 @@ abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
   // TODO chenghao shouldn't need the asInstanceOf[T], but only setDesc[B >: T](d: B) could works.
   def setDesc[B >: T](d: B) {_desc = d.asInstanceOf[T]}
 
-  /**
-   * Detected if use code gen feature has been activated.
-   * WARN: This function shouldn't be called in high frequently.
-   */
-  def useCG(): Boolean = SharkConfVars.getBoolVar(hconf, SharkConfVars.EXPR_CG)
-  
   @transient private[this] var _desc: T = _
   @transient private[this] val _childOperators = new ArrayBuffer[Operator[_<:HiveDesc]]()
   @transient private[this] val _parentOperators = new ArrayBuffer[Operator[_<:HiveDesc]]()
@@ -325,7 +320,6 @@ object Operator extends LogHelper {
     rdd.mapPartitionsWithIndex { case(split, partition) =>
       op.logDebug("Started executing mapPartitions for operator: " + op)
       op.logDebug("Input object inspectors: " + op.objectInspectors)
-
       op.initializeOnSlave()
       val newPart = op.processPartition(split, partition)
       op.logDebug("Finished executing mapPartitions for operator: " + op)

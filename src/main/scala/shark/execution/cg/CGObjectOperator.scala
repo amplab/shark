@@ -15,71 +15,48 @@ import scala.reflect.BeanProperty
 import shark.execution.Operator
 import shark.execution.HiveDesc
 
-
 trait CGObjectOperator {
-  self: Operator[_<: HiveDesc] => 
-  @transient var soi: StructObjectInspector = _
-  @transient var compiler: JavaCompilerHelper = _
+  // for describing the output data
   @transient var row: CGStruct = _
-  
-  // the following field will be ser/de by OperatorSerializationWrapper
-  @transient var clcompiler: OperatorClassLoader = _ // classloader for CGed classes
   @transient var cgexec: OperatorExecutor = _
-  @BeanProperty var cg: Boolean = _
-  @BeanProperty var execClassName: String = _
-
-  private def parentCL(parents: ArrayBuffer[Operator[_ <: HiveDesc]]): ArrayBuffer[OperatorClassLoader] = {
-    var compilers = new ArrayBuffer[OperatorClassLoader]()
-    if (parents != null) {
-      parents.foreach(p => {
-        // TODO need to collect all of its parents complier
-        compilers ++= parentCL(p.parentOperators)
-        if (p.isInstanceOf[CGObjectOperator]) {
-          compilers += (p.asInstanceOf[CGObjectOperator].clcompiler)
-        }
-      }
-      )
-    }
-
-    compilers
-  }
   
-  def initCGOnMaster() {
+  @BeanProperty var useCG: Boolean = _
+  @BeanProperty var operatorClassName: String = _
+  // soi will be serialized by Kryo in OperatorSerializationWrapper
+  @transient var soi: StructObjectInspector = _
+  @transient var operatorCL: OperatorClassLoader = _ // classloader for CGed classes
+  
+  def initCGOnMaster(cc: CompilationContext) {
     soi   = createOutputOI()
-    cg = useCG
-    if (cg) {
-      compiler = new JavaCompilerHelper()
-      clcompiler = compiler.getOperatorClassLoader()
+    this.useCG = cc.useCG
+    
+    if (this.useCG) {
+      row = CGField.create(soi)
+      var oi = CGOIField.create(row).asInstanceOf[CGOIStruct]
       
-      var oldCL = Thread.currentThread().getContextClassLoader()
-      try{
-        clcompiler.addClassEntries(parentCL(parentOperators).toArray)
-        Thread.currentThread().setContextClassLoader(clcompiler)
-        
-        var compilationEntries = ArrayBuffer[(String, String)]()
-        row = CGField.create(soi)
-        var cgoi = CGOIField.create(row).asInstanceOf[CGOIStruct]
-        var op = createCGOperator(row, cgoi)
-        
-        compilationEntries.+=((row.cgClassName, CGRow.generate(row, true) ))
-        compilationEntries.+=((cgoi.cgClassName, CGOI.generateOI(cgoi, true)))
-        compilationEntries.+=((op.fullClassName, CGOperator.generate(op)))
-        
-        compiler.compile(compilationEntries)
-        execClassName = op.fullClassName
-        soi = CGBeanUtils.instance[StructObjectInspector](cgoi.cgClassName)
-        
-      } finally {
-        //Thread.currentThread().setContextClassLoader(oldCL)
-      }
+      // compile the row and oi object, which will be used while initiliazeOnMaster() 
+      operatorCL = cc.compile(List(
+          (row.cgClassName, CGRow.generate(row, true)), 
+          (oi.cgClassName, CGOI.generateOI(oi, true))))
+      
+      Thread.currentThread().setContextClassLoader(operatorCL)
+      soi = CGBeanUtils.instance[StructObjectInspector](oi.cgClassName)
+      
+      var operator = createCGOperator()
+      operatorClassName = operator.fullClassName
+      
+      // Put the CG Operator Compilation Unit into context, all of the CG operators 
+      // will be compiled together later on  
+      cc.add(this, operatorClassName, CGOperator.generate(operator))
     }
   }
   
   def initCGOnSlave() {
-    if(cg) {
-      cgexec = CGBeanUtils.instance[OperatorExecutor](execClassName, Array[Object](self))
+    if(this.useCG) {
+      cgexec = CGBeanUtils.instance[OperatorExecutor](operatorClassName, Array[Object](this))
     }
   }
-  protected[this] def createOutputOI(): StructObjectInspector
-  protected[this] def createCGOperator(cgrow: CGStruct, cgoi: CGOIStruct): CGOperator
+  
+  protected def createOutputOI(): StructObjectInspector
+  protected def createCGOperator(): CGOperator
 }

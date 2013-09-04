@@ -35,6 +35,7 @@ import shark.execution.cg.row.CGStruct
 import shark.execution.cg.operator.CGOperator
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 import shark.execution.cg.operator.CGJoinOperator
+import shark.execution.cg.CompilationContext
 
 
 class JoinOperator extends CommonJoinOperator[JoinDesc] 
@@ -47,8 +48,8 @@ class JoinOperator extends CommonJoinOperator[JoinDesc]
   @transient var keyDeserializer: Deserializer = _
   @transient var keyObjectInspector: StandardStructObjectInspector = _
 
-  override def initializeOnMaster() {
-    super.initializeOnMaster()
+  override def initializeOnMaster(cc: CompilationContext) {
+    super.initializeOnMaster(cc)
     var descs = keyValueDescs()
     valueTableDescMap = new JHashMap[Int, TableDesc]
     valueTableDescMap ++= descs.map { case(tag, kvdescs) => (tag, kvdescs._2) }
@@ -56,7 +57,7 @@ class JoinOperator extends CommonJoinOperator[JoinDesc]
 
     // Call initializeOnSlave to initialize the join filters, etc.
     initializeOnSlave()
-    initCGOnMaster()
+    initCGOnMaster(cc)
   }
 
   override def initializeOnSlave() {
@@ -145,8 +146,8 @@ class JoinOperator extends CommonJoinOperator[JoinDesc]
   }
 
   def generateTuples(iter: Iterator[Array[Any]]): Iterator[_] = {
-    if (cg) {
-      cgexec.evaluate(iter).asInstanceOf[Iterator[_]]
+    if (useCG) {
+      cgexec.evaluate(iter).asInstanceOf[java.util.Iterator[Object]]
     } else {
       generateTuplesDynamic(iter)
     }
@@ -195,10 +196,10 @@ class JoinOperator extends CommonJoinOperator[JoinDesc]
   override def outputObjectInspector() = soi
   
   protected[this] def createOutputOI(): StructObjectInspector = {
-    super.outputObjectInspector()
+    super.initializeOutputOI()
   }
   
-  protected[this] def createCGOperator(cgrow: CGStruct, cgoi: CGOIStruct): CGOperator = {
+  protected[this] def createCGOperator(): CGOperator = {
     new CGJoinOperator(row, this)
   }
 }

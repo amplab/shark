@@ -1,5 +1,5 @@
 <% escapeMarkup = false %>
-#import(org.apache.hadoop.hive.ql.exec.GroupByPostShuffleOperator)
+#import(shark.execution.GroupByPostShuffleOperator)
 #import(shark.execution.ReduceSinkOperator)
 #import(shark.execution.cg.operator.CGOperator)
 #import(shark.execution.cg.row.CGStruct)
@@ -8,6 +8,8 @@
 #{
   val structClassName = row.cgClassName
   val parentOP = parentOperators(0).asInstanceOf[ReduceSinkOperator]
+  val parentStruct = parentOP.row.asInstanceOf[CGStruct]
+  val parentStructClassName = parentStruct.cgClassName
   val parentStructKey = parentOP.row.fields(0).asInstanceOf[CGStruct]
   val parentStructValue = parentOP.row.fields(1).asInstanceOf[CGStruct]
   val parentStructKeyClassName = parentStructKey.cgClassName
@@ -28,17 +30,15 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator.AggregationBuffer;
-import org.apache.hadoop.hive.ql.exec.KeyWrapper;
-import org.apache.hadoop.hive.ql.exec.KeyWrapperFactory;
 
 import shark.execution.cg.OperatorExecutor;
 import shark.execution.ReduceKeyReduceSide;
+import shark.execution.GroupByPostShuffleOperator;
 import shark.execution.serialization.KryoSerializer;
 
 public class ${className} implements OperatorExecutor, Serializable {
   private static final long serialVersionUID = 1L;
   private ObjectInspector rowInspector;
-  private KeyWrapperFactory keyFactory;
 #for(i <- 0 until aggregationEvals.length)
   private GenericUDAFEvaluator aggregationEval${i};
   private ObjectInspector aggregationObjectInspector${i};
@@ -46,7 +46,7 @@ public class ${className} implements OperatorExecutor, Serializable {
 #end
   private KryoSerializer kryo = new KryoSerializer(new Class<?>[]{${parentStructValueClassName}.class, ${parentStructKeyClassName}.class});
   private AggregationBuffer[] aggs = new AggregationBuffer[${aggregationEvals.length}];
-  private Object[] reusedRow = new Object[2];
+  private ${parentStructClassName} reusedRow = new ${parentStructClassName}();
     
 #for(i <- 0 until currentKeyObjectInspectors.length)
   private ObjectInspector keyObjectInspector${i};
@@ -126,17 +126,21 @@ public class ${className} implements OperatorExecutor, Serializable {
         }
         public void remove() {throw new UnsupportedOperationException("remove");}
         public Object next() {
-          scala.Tuple2<ReduceKeyReduceSide, List<byte[]>> tuple = (scala.Tuple2<ReduceKeyReduceSide, List<byte[]>>)iter.next();
+          scala.Tuple2<ReduceKeyReduceSide, scala.collection.mutable.ArrayBuffer<byte[]>> tuple = (scala.Tuple2<ReduceKeyReduceSide, scala.collection.mutable.ArrayBuffer<byte[]>>)iter.next();
           data.reset();
           try{
           ${parentStructKeyClassName} key = kryo.deserialize(tuple._1.byteArray(), ${parentStructKeyClassName}.class); 
-          reusedRow[0] = key;
+          reusedRow.mask.set(${parentStructClassName}.MASK_key, true);
+          reusedRow.key = key;
         #for(i <- 0 until aggregationEvals.length)
           aggregationEval${i}.reset(aggs[${i}]);
         #end
-          for(byte[] bytes : tuple._2) {
+          scala.collection.Iterator<byte[]> byteIt = tuple._2.iterator();
+          while (byteIt.hasNext()) {
+            byte[] bytes = byteIt.next();
             ${parentStructValueClassName} value = kryo.deserialize(bytes, ${parentStructValueClassName}.class);
-            reusedRow[1] = value;
+            reusedRow.mask.set(${parentStructClassName}.MASK_value, true);
+            reusedRow.value = value;
   //        aggregateExistingKey(row, aggs)
   //        @inline protected final
   //        def aggregateExistingKey(row: AnyRef, aggregations: Array[AggregationBuffer]) {
@@ -162,7 +166,7 @@ public class ${className} implements OperatorExecutor, Serializable {
   #for(i <- 0 until currentKeyObjectInspectors.length)
           if (key.mask.get(${parentStructKeyClassName}.MASK_${parentStructKey.fields(i).name})) {
             data.mask.set(${structClassName}.MASK_${row.fields(i).name}, true);
-            ${row.fields(i).getValue("data." + row.fields(i).name, "keyObjectInspector" + i, "key." + parentStructKey.fields(i).name)}
+            data.${row.fields(i).name} = key.${parentStructKey.fields(i).name};
           }
   #end
   #for(i <- 0 until aggregationEvals.length)
@@ -176,7 +180,8 @@ public class ${className} implements OperatorExecutor, Serializable {
   #end
           
           return data;
-          } catch (Exception e) {
+          } catch (Throwable e) {
+              e.printStackTrace();
               throw new RuntimeException(e);
           }
         }

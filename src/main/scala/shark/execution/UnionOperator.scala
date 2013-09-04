@@ -33,6 +33,7 @@ import shark.execution.serialization.OperatorSerializationWrapper
 import spark.RDD
 import spark.rdd.UnionRDD
 import org.apache.hadoop.hive.ql.plan.UnionDesc
+import shark.execution.cg.CompilationContext
 
 
 /**
@@ -48,8 +49,8 @@ class UnionOperator extends NaryOperator[UnionDesc] {
   @BeanProperty var needsTransform: Array[Boolean] = _
   @BeanProperty var numParents: Int = _
 
-  override def initializeOnMaster() {
-    super.initializeOnMaster()
+  override def initializeOnMaster(cc: CompilationContext) {
+    super.initializeOnMaster(cc)
     numParents = parentOperators.size
 
     // whether we need to do transformation for each parent

@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.hadoop.hive.ql.exec
+package shark.execution
 // Put this file in Hive's exec package to access package level visible fields and methods.
 
 import java.util.{ArrayList => JArrayList, HashMap => JHashMap}
@@ -29,14 +29,9 @@ import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectIns
     ObjectInspectorUtils, StructObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption
 import shark.SharkEnvSlave
-import shark.execution.UnaryOperator
 import java.util.ArrayList
 import java.util.{ArrayList => JArrayList}
 import java.util.{HashMap => JHashMap}
-import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator
-import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluatorFactory
-import org.apache.hadoop.hive.ql.exec.KeyWrapper
-import org.apache.hadoop.hive.ql.exec.KeyWrapperFactory
 import scala.Array.canBuildFrom
 import scala.reflect.BeanProperty
 import java.util.{ArrayList => JArrayList}
@@ -44,11 +39,17 @@ import java.util.{HashMap => JHashMap}
 import scala.reflect.BeanProperty
 import shark.execution.cg.CGObjectOperator
 import scala.collection.mutable.ArrayBuffer
-import shark.execution.cg.row.CGStruct
-import shark.execution.cg.row.CGOIStruct
 import shark.execution.cg.operator.CGOperator
+import shark.execution.cg.CompilationContext
+import java.util.{ArrayList => JArrayList}
+import java.util.{HashMap => JHashMap}
+import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator
+import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluatorFactory
+import org.apache.hadoop.hive.ql.exec.KeyWrapper
+import org.apache.hadoop.hive.ql.exec.KeyWrapperFactory
+import scala.annotation.target.field
+import scala.reflect.BeanProperty
 import shark.execution.cg.operator.CGGroupByPreShuffleOperator
-
 
 /**
  * The pre-shuffle group by operator responsible for map side aggregations.
@@ -59,25 +60,25 @@ class GroupByPreShuffleOperator extends UnaryOperator[GroupByDesc] with CGObject
   @BeanProperty var minReductionHashAggr: Float = _
   @BeanProperty var numRowsCompareHashAggr: Int = _
 
-  @transient @BeanProperty var keyFactory: KeyWrapperFactory = _
-  @transient @BeanProperty var rowInspector: ObjectInspector = _
+  @transient var keyFactory: KeyWrapperFactory = _
+  @transient var rowInspector: ObjectInspector = _
 
   // The aggregation functions.
-  @transient @BeanProperty var aggregationEvals: Array[GenericUDAFEvaluator] = _
-  @transient @BeanProperty var aggregationObjectInspectors: Array[ObjectInspector] = _
+  @transient var aggregationEvals: Array[GenericUDAFEvaluator] = _
+  @transient var aggregationObjectInspectors: Array[ObjectInspector] = _
   // Key fields to be grouped.
-  @transient @BeanProperty var keyFields: Array[ExprNodeEvaluator] = _
+  @transient var keyFields: Array[ExprNodeEvaluator] = _
   // A struct object inspector composing of all the fields.
-  @transient @BeanProperty var keyObjectInspector: StructObjectInspector = _
+  @transient var keyObjectInspector: StructObjectInspector = _
 
-  @transient @BeanProperty var aggregationParameterFields: Array[Array[ExprNodeEvaluator]] = _
-  @transient @BeanProperty var aggregationParameterObjectInspectors: Array[Array[ObjectInspector]] = _
-  @transient @BeanProperty var aggregationParameterStandardObjectInspectors: Array[Array[ObjectInspector]] = _
+  @transient var aggregationParameterFields: Array[Array[ExprNodeEvaluator]] = _
+  @transient var aggregationParameterObjectInspectors: Array[Array[ObjectInspector]] = _
+  @transient var aggregationParameterStandardObjectInspectors: Array[Array[ObjectInspector]] = _
 
-  @transient @BeanProperty var aggregationIsDistinct: Array[Boolean] = _
-  @transient @BeanProperty var currentKeyObjectInspectors: Array[ObjectInspector] = _
+  @transient var aggregationIsDistinct: Array[Boolean] = _
+  @transient var currentKeyObjectInspectors: Array[ObjectInspector] = _
 
-  def initialLocals() {
+  def createLocals() {
     aggregationEvals = conf.getAggregators.map(_.getGenericUDAFEvaluator).toArray
     aggregationIsDistinct = conf.getAggregators.map(_.getDistinct).toArray
     rowInspector = objectInspector.asInstanceOf[StructObjectInspector]
@@ -126,24 +127,27 @@ class GroupByPreShuffleOperator extends UnaryOperator[GroupByDesc] with CGObject
     keyFactory = new KeyWrapperFactory(keyFields, keyObjectInspectors, currentKeyObjectInspectors)
   }
   
-  override def initializeOnMaster() {
-    super.initializeOnMaster()
-    
+  def createRemotes() {
     conf = desc
     minReductionHashAggr = hconf.get(HiveConf.ConfVars.HIVEMAPAGGRHASHMINREDUCTION.varname).toFloat
     numRowsCompareHashAggr = hconf.get(HiveConf.ConfVars.HIVEGROUPBYMAPINTERVAL.varname).toInt
+  }
+  override def initializeOnMaster(cc: CompilationContext) {
+    super.initializeOnMaster(cc)
     
-    initialLocals()
-    initCGOnMaster()
+    createRemotes()
+    createLocals()
+    initCGOnMaster(cc)
   }
 
   override def initializeOnSlave() {
-    initialLocals()
+    createLocals()
     initCGOnSlave()
   }
 
-  // copied from the org.apache.hadoop.hive.ql.exec.GroupByOperator 
   override def outputObjectInspector() = soi
+  
+  // copied from the org.apache.hadoop.hive.ql.exec.GroupByOperator 
   override def createOutputOI() = {
     var totalFields = keyFields.length + aggregationEvals.length
         
@@ -157,7 +161,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[GroupByDesc] with CGObject
     ObjectInspectorFactory.getStandardStructObjectInspector(fieldNames, ois.toList)
   }
   
-  protected[this] def createCGOperator(cgrow: CGStruct, cgoi: CGOIStruct): CGOperator =
+  override protected def createCGOperator(): CGOperator =
     new CGGroupByPreShuffleOperator(row, this)
   
   private def processPartitionDynamic(split: Int, iter: Iterator[_]) = {
@@ -246,7 +250,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[GroupByDesc] with CGObject
   
   override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
     logInfo("Running Pre-Shuffle Group-By")
-    if (cg) {
+    if (useCG) {
       cgexec.evaluate(iter).asInstanceOf[java.util.Iterator[Object]]
     } else {
       processPartitionDynamic(split, iter)

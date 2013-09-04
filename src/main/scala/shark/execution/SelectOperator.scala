@@ -18,13 +18,12 @@
 package shark.execution
 
 import scala.reflect.BeanProperty
-
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator
 import org.apache.hadoop.hive.ql.plan.SelectDesc
-
 import shark.execution.cg.CGEvaluatorFactory
 import shark.SharkConfVars
+import shark.execution.cg.CompilationContext
 
 /**
  * An operator that does projection, i.e. selecting certain columns and
@@ -37,11 +36,11 @@ class SelectOperator extends UnaryOperator[SelectDesc] {
   @BeanProperty var cg: Boolean = _
 
   // TODO to make the evals as initialized only on Master
-  override def initializeOnMaster() {
-    super.initializeOnMaster()
+  override def initializeOnMaster(cc: CompilationContext) {
+    super.initializeOnMaster(cc)
     conf = desc
     initializeEvals(false)
-    cg = useCG()
+    cg = cc.useCG
   }
   
   def initializeEvals(initializeEval: Boolean) {

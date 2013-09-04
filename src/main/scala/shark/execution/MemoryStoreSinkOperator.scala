@@ -18,20 +18,17 @@
 package shark.execution
 
 import java.nio.ByteBuffer
-
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.BeanProperty
-
 import org.apache.hadoop.io.Writable
-
 import shark.{SharkConfVars, SharkEnv, SharkEnvSlave, Utils}
 import shark.execution.serialization.{OperatorSerializationWrapper, JavaSerializer}
 import shark.memstore2._
 import shark.tachyon.TachyonTableWriter
-
 import spark.{RDD, TaskContext}
 import spark.SparkContext._
 import spark.storage.StorageLevel
+import shark.execution.cg.CompilationContext
 
 
 /**
@@ -46,8 +43,8 @@ class MemoryStoreSinkOperator extends TerminalOperator {
   @transient var useUnionRDD: Boolean = _
   @transient var numColumns: Int = _
 
-  override def initializeOnMaster() {
-    super.initializeOnMaster()
+  override def initializeOnMaster(cc: CompilationContext) {
+    super.initializeOnMaster(cc)
     initialColumnSize = SharkConfVars.getIntVar(localHconf, SharkConfVars.COLUMN_INITIALSIZE)
   }
 
