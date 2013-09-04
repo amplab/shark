@@ -18,12 +18,12 @@
     <hive.version>0.9.0-csd-22</hive.version>
     <spark.version>0.8.0RC1-csd-1-SNAPSHOT</spark.version>
     <cdh.version>4.1.2</cdh.version>
+    <hadoop.version>2.0.0-mr1-cdh${cdh.version}</hadoop.version>
     <java.version>1.5</java.version>
     <hbase.version>0.94.5-csd-30</hbase.version>
-    <jline.version>0.9.94</jline.version>
 
-    <deb.pkg.name>shark-${classifier}</deb.pkg.name>
-    <deb.install.path>/usr/share/shark-${classifier}</deb.install.path>
+    <deb.pkg.name>shark</deb.pkg.name>
+    <deb.install.path>/usr/share/shark</deb.install.path>
     <deb.user>root</deb.user>
     <deb.hive.dependency>${hive.version}</deb.hive.dependency>
 
@@ -54,18 +54,6 @@
       <id>TypesafeRepository</id>
       <name>Typesafe Repository</name>
       <url>http://repo.typesafe.com/typesafe/releases/</url>
-      <layout>default</layout>
-    </repository>
-    <repository>
-      <id>JBossRepository</id>
-      <name>JBoss Repository</name>
-      <url>http://repository.jboss.org/nexus/content/repositories/releases/</url>
-      <layout>default</layout>
-    </repository>
-    <repository>
-      <id>SprayRepository</id>
-      <name>Spray Repository</name>
-      <url>http://repo.spray.cc/</url>
       <layout>default</layout>
     </repository>
     <repository>
@@ -237,16 +225,12 @@
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-test</artifactId>
         </exclusion>
-        <exclusion>
-          <groupId>de.javakaffee</groupId>
-          <artifactId>kryo-serializers</artifactId>
-        </exclusion>
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>jline</groupId>
+      <groupId>org.scala-lang</groupId>
       <artifactId>jline</artifactId>
-      <version>${jline.version}</version>
+      <version>${scala.version}</version>
     </dependency>
 
     <!-- Testing -->
@@ -286,6 +270,47 @@
       <groupId>org.apache.hive</groupId>
       <artifactId>hive-exec-test</artifactId>
       <version>${hive.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-client</artifactId>
+      <version>${hadoop.version}</version>
+      <optional>true</optional>
+    </dependency>
+    <!-- Spark -->
+    <dependency>
+      <groupId>org.apache.spark</groupId>
+      <artifactId>spark-core</artifactId>
+      <version>${spark.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.spark</groupId>
+      <artifactId>spark-repl</artifactId>
+      <version>${spark.version}</version>
+    </dependency>
+    <!-- HBase -->
+    <dependency>
+      <groupId>org.apache.hbase</groupId>
+      <artifactId>hbase</artifactId>
+      <version>${hbase.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>asm</groupId>
+          <artifactId>asm</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>net.java.dev.jets3t</groupId>
+      <artifactId>jets3t</artifactId>
+      <version>0.9.0</version>
+    </dependency>
+    <!-- Test -->
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-test</artifactId>
+      <version>${hadoop.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
@@ -489,16 +514,6 @@
               <goal>jar</goal>
             </goals>
           </execution>
-          <execution>
-            <id>classifier-jar</id>
-            <phase>package</phase>
-            <goals>
-              <goal>jar</goal>
-            </goals>
-            <configuration>
-              <classifier>${classifier}</classifier>
-            </configuration>
-          </execution>
         </executions>
       </plugin>
       <plugin>
@@ -507,7 +522,6 @@
         <version>2.0-csd-2</version>
         <configuration>
           <shadedArtifactAttached>true</shadedArtifactAttached>
-          <shadedClassifierName>shaded-${classifier}</shadedClassifierName>
           <artifactSet>
             <excludes>
               <!-- Old Netty versions break Akka. The new groupId is io.netty. -->
@@ -565,28 +579,6 @@
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-enforcer-plugin</artifactId>
-        <version>1.2</version>
-        <executions>
-          <execution>
-            <id>enforce-property</id>
-            <goals>
-              <goal>enforce</goal>
-            </goals>
-            <configuration>
-              <rules>
-                <requireProperty>
-                  <property>hadoop.major.version</property>
-                  <message>You must specify -Phadoop1 or -Phadoop2</message>
-                </requireProperty>
-              </rules>
-              <fail>true</fail>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-dependency-plugin</artifactId>
         <executions>
           <!-- Install Scala jars into a directory that will be passed to tests as SCALA_HOME -->
@@ -611,9 +603,9 @@
                   <type>jar</type>
                 </artifactItem>
                 <artifactItem>
-                  <groupId>jline</groupId>
+                  <groupId>org.scala-lang</groupId>
                   <artifactId>jline</artifactId>
-                  <version>${jline.version}</version>
+                  <version>${scala.version}</version>
                   <type>jar</type>
                 </artifactItem>
               </artifactItems>
@@ -628,108 +620,7 @@
     </plugins>
   </build>
 
-  <!-- Separate profiles for Hadoop 1 and 2 -->
   <profiles>
-    <profile>
-      <id>hadoop1</id>
-      <properties>
-        <classifier>hadoop1</classifier>
-        <hadoop.major.version>1</hadoop.major.version>
-        <hadoop.version>0.20.205.0</hadoop.version>
-      </properties>
-      <dependencies>
-        <!-- Hadoop -->
-        <dependency>
-          <groupId>org.apache.hadoop</groupId>
-          <artifactId>hadoop-core</artifactId>
-          <version>${hadoop.version}</version>
-          <optional>true</optional>
-        </dependency>
-        <dependency>
-          <groupId>org.apache.hadoop</groupId>
-          <artifactId>hadoop-tools</artifactId>
-          <version>${hadoop.version}</version>
-          <optional>true</optional>
-        </dependency>
-        <!-- Spark -->
-        <dependency>
-          <groupId>org.apache.spark</groupId>
-          <artifactId>spark-core</artifactId>
-          <version>${spark.version}</version>
-        </dependency>
-        <dependency>
-          <groupId>org.apache.spark</groupId>
-          <artifactId>spark-repl</artifactId>
-          <version>${spark.version}</version>
-        </dependency>
-        <!-- Test -->
-        <dependency>
-          <groupId>org.apache.hadoop</groupId>
-          <artifactId>hadoop-test</artifactId>
-          <version>${hadoop.version}</version>
-          <scope>test</scope>
-        </dependency>
-      </dependencies>
-    </profile>
-    <profile>
-      <id>hadoop2</id>
-      <properties>
-        <hadoop.major.version>2</hadoop.major.version>
-        <hadoop.version>2.0.0-mr1-cdh${cdh.version}</hadoop.version>
-        <classifier>hadoop2</classifier>
-      </properties>
-      <dependencies>
-        <!-- Hadoop -->
-        <dependency>
-          <groupId>org.apache.hadoop</groupId>
-          <artifactId>hadoop-core</artifactId>
-          <version>${hadoop.version}</version>
-          <optional>true</optional>
-        </dependency>
-        <dependency>
-          <groupId>org.apache.hadoop</groupId>
-          <artifactId>hadoop-client</artifactId>
-          <version>${hadoop.version}</version>
-          <optional>true</optional>
-        </dependency>
-        <dependency>
-          <groupId>org.apache.hadoop</groupId>
-          <artifactId>hadoop-tools</artifactId>
-          <version>${hadoop.version}</version>
-          <optional>true</optional>
-        </dependency>
-        <!-- Spark -->
-        <dependency>
-          <groupId>org.apache.spark</groupId>
-          <artifactId>spark-core</artifactId>
-          <version>${spark.version}</version>
-        </dependency>
-        <dependency>
-          <groupId>org.apache.spark</groupId>
-          <artifactId>spark-repl</artifactId>
-          <version>${spark.version}</version>
-        </dependency>
-        <!-- HBase -->
-        <dependency>
-          <groupId>org.apache.hbase</groupId>
-          <artifactId>hbase</artifactId>
-          <version>${hbase.version}</version>
-          <exclusions>
-            <exclusion>
-              <groupId>asm</groupId>
-              <artifactId>asm</artifactId>
-            </exclusion>
-          </exclusions>
-        </dependency>
-        <!-- Test -->
-        <dependency>
-          <groupId>org.apache.hadoop</groupId>
-          <artifactId>hadoop-test</artifactId>
-          <version>${hadoop.version}</version>
-          <scope>test</scope>
-        </dependency>
-      </dependencies>
-    </profile>
     <profile>
       <id>deb</id>
       <build>
@@ -766,7 +657,7 @@
                   <compression>gzip</compression>
                   <dataSet>
                     <data>
-                      <src>${project.build.directory}/${project.artifactId}-${project.version}-shaded-${classifier}.jar</src>
+                      <src>${project.build.directory}/${project.artifactId}-${project.version}-shaded.jar</src>
                       <type>file</type>
                       <mapper>
                         <type>perm</type>
