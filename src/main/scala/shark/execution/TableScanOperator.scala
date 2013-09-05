@@ -117,7 +117,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     // 2. Spark heap (block manager), accessed through the Shark MemoryMetadataManager
     // 3. Hive table on HDFS (or other Hadoop storage)
     val cacheMode = CacheType.fromString(
-      tableDesc.getProperties().get("shark.cache").asInstanceOf[String])
+      tableDesc.getProperties().get("shark.cache.type").asInstanceOf[String])
     if (cacheMode == CacheType.HEAP) {
       // Table should be in Spark heap (block manager).
       val rdd = SharkEnv.memoryMetadataManager.get(tableKey).getOrElse {

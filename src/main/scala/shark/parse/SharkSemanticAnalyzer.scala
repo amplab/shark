@@ -104,15 +104,27 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         // Note: the CreateTableDesc's table properties are Java Maps, but the TableDesc's table
         //       properties, which are used during execution, are Java Properties.
         val createTableProperties: JavaMap[String, String] = createTableDesc.getTblProps()
-        val cacheType = CacheType.fromString(createTableProperties.get("shark.cache"))
-        if (cacheType == CacheType.HEAP ||
+
+        // There are two cases that will enable caching:
+        // 1) Table name includes "_cached" or "_tachyon".
+        // 2) The "shark.cache" table property is true.
+        //    - In this case, the cache type can be specified by a "shark.cache.type" table
+        //      property
+        val hasCacheFlag = createTableProperties.getOrElse("shark.cache", "false").toBoolean
+        if (hasCacheFlag) {
+          // If "shark.cache" is true, then default to CacheType.HEAP.
+          cacheMode = CacheType.fromString(
+            createTableProperties.getOrElse("shark.cache.type", "heap"))
+        }
+        // Continue planning based on the 'cacheMode' read.
+        if (cacheMode == CacheType.HEAP ||
             (createTableDesc.getTableName.endsWith("_cached") && checkTableName)) {
           cacheMode = CacheType.HEAP
-          createTableProperties.put("shark.cache", cacheMode.toString)
-        } else if (cacheType == CacheType.TACHYON ||
+          createTableProperties.put("shark.cache.type", cacheMode.toString)
+        } else if (cacheMode == CacheType.TACHYON ||
           (createTableDesc.getTableName.endsWith("_tachyon") && checkTableName)) {
           cacheMode = CacheType.TACHYON
-          createTableProperties.put("shark.cache", cacheMode.toString)
+          createTableProperties.put("shark.cache.type", cacheMode.toString)
         }
 
         if (CacheType.shouldCache(cacheMode)) {
