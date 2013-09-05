@@ -50,7 +50,8 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     // test_null
     sc.runSql("drop table if exists test_null")
     sc.runSql("CREATE TABLE test_null (key INT, val STRING)")
-    sc.runSql("LOAD DATA LOCAL INPATH '${hiveconf:shark.test.data.path}/kv3.txt' INTO TABLE test_null")
+    sc.runSql("""LOAD DATA LOCAL INPATH '${hiveconf:shark.test.data.path}/kv3.txt'
+      INTO TABLE test_null""")
     sc.runSql("drop table if exists test_null_cached")
     sc.runSql("CREATE TABLE test_null_cached AS SELECT * FROM test_null")
 
@@ -257,12 +258,21 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     expectSql("select count(*) from foo_cached", "0")
   }
 
-  test("create cached table with table properties") {
+  test("create cached table with 'shark.cache' flag in table properties") {
     sc.runSql("drop table if exists ctas_tbl_props")
     sc.runSql("""create table ctas_tbl_props TBLPROPERTIES ('shark.cache'='true') as
       select * from test""")
     assert(SharkEnv.memoryMetadataManager.contains("ctas_tbl_props"))
     expectSql("select * from ctas_tbl_props where key=407", "407\tval_407")
+  }
+
+  test("default to Hive table creation when 'shark.cache' flag is false in table properties") {
+    sc.runSql("drop table if exists ctas_tbl_props_should_not_be_cached")
+    sc.runSql("""
+      CREATE TABLE ctas_tbl_props_result_should_not_be_cached
+        TBLPROPERTIES ('shark.cache'='false')
+        AS select * from test""")
+    assert(!SharkEnv.memoryMetadataManager.contains("ctas_tbl_props_should_not_be_cached"))
   }
 
   test("cached tables with complex types") {
