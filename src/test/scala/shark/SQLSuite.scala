@@ -50,8 +50,8 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     // test_null
     sc.runSql("drop table if exists test_null")
     sc.runSql("CREATE TABLE test_null (key INT, val STRING)")
-    sc.runSql("LOAD DATA LOCAL INPATH '${hiveconf:shark.test.data.path}/kv3.txt'
-               INTO TABLE test_null")
+    sc.runSql("""LOAD DATA LOCAL INPATH '${hiveconf:shark.test.data.path}/kv3.txt'
+      INTO TABLE test_null""")
     sc.runSql("drop table if exists test_null_cached")
     sc.runSql("CREATE TABLE test_null_cached AS SELECT * FROM test_null")
 
