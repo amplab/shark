@@ -135,7 +135,7 @@ class RLE extends CompressionAlgorithm {
       writeOutRun()
       return
     }
-    val elem = t.extract(currentBuffer.position(), currentBuffer)
+    val elem = t.extract(currentBuffer)
     val newRun =
       if (currentRun == null) {
         (elem, 1)
@@ -252,7 +252,7 @@ class DictionaryEncoding extends CompressionAlgorithm {
 
     // Write out the encoded values, each is represented by a short integer.
     while (b.hasRemaining()) {
-      val v = t.extract(b.position(), b)
+      val v = t.extract(b)
       compressedBuffer.putShort(_dictionary(v))
     }
 

@@ -49,7 +49,7 @@ class DefaultDecoder[V](buffer: ByteBuffer, columnType: ColumnType[_, V]) extend
   override def hasNext = buffer.hasRemaining()
 
   override def next(): V = {
-    columnType.extractInto(buffer.position(), buffer, _current)
+    columnType.extractInto(buffer, _current)
     _current
   }
 }
@@ -68,7 +68,7 @@ class RLDecoder[V](buffer: ByteBuffer, columnType: ColumnType[_, V]) extends Ite
   override def next(): V = {
     if (_count == _run) {
       //next run
-      columnType.extractInto(buffer.position(), buffer, _current)
+      columnType.extractInto(buffer, _current)
       _run = buffer.getInt()
       _count = 1
     } else {
@@ -91,7 +91,7 @@ class DictDecoder[V](buffer: ByteBuffer, columnType: ColumnType[_, V]) extends I
     var count = 0
     while (count < size) {
       val writable = columnType.newWritable()
-      columnType.extractInto(buffer.position(), buffer, writable)
+      columnType.extractInto(buffer, writable)
       arr(count) = writable.asInstanceOf[V]
       count += 1
     }

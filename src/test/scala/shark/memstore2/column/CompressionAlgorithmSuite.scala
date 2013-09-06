@@ -55,11 +55,11 @@ class CompressionAlgorithmSuite extends FunSuite {
     val compressedBuffer = rle.compress(b, STRING)
     assert(compressedBuffer.getInt() == STRING.typeID)
     assert(compressedBuffer.getInt() == RLECompressionType.typeID)
-    assert(STRING.extract(compressedBuffer.position(), compressedBuffer).equals(new Text("abc")))
+    assert(STRING.extract(compressedBuffer).equals(new Text("abc")))
     assert(compressedBuffer.getInt() == 2)
-    assert(STRING.extract(compressedBuffer.position(), compressedBuffer).equals(new Text("efg")))
+    assert(STRING.extract(compressedBuffer).equals(new Text("efg")))
     assert(compressedBuffer.getInt() == 1)
-    assert(STRING.extract(compressedBuffer.position(), compressedBuffer).equals(new Text("abc")))
+    assert(STRING.extract(compressedBuffer).equals(new Text("abc")))
     assert(compressedBuffer.getInt() == 1)
     assert(!compressedBuffer.hasRemaining)
   }
@@ -194,7 +194,7 @@ class CompressionAlgorithmSuite extends FunSuite {
       val dictionary = new HashMap[Short, T]()
       var count = 0
       while (count < expectedDictSize) {
-        val v = u.extract(compressedBuffer.position(), compressedBuffer)
+        val v = u.extract(compressedBuffer)
         dictionary.put(dictionary.size.toShort, u.clone(v))
         count += 1
       }

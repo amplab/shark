@@ -15,7 +15,7 @@ class ColumnTypeSuite extends FunSuite {
     a.foreach {i => buffer.putInt(i)}
     buffer.rewind()
     a.foreach {i => 
-      val v = INT.extract(buffer.position(), buffer)
+      val v = INT.extract(buffer)
       assert(v == i)
     }
     buffer = ByteBuffer.allocate(32)
@@ -32,7 +32,7 @@ class ColumnTypeSuite extends FunSuite {
     buffer.rewind()
     val writable = new IntWritable()
     a.foreach { i => 
-      INT.extractInto(buffer.position(), buffer, writable)
+      INT.extractInto(buffer, writable)
       assert(writable.get == i)
     }
     
@@ -46,7 +46,7 @@ class ColumnTypeSuite extends FunSuite {
     a.foreach {i => buffer.putShort(i)}
     buffer.rewind()
     a.foreach {i => 
-      val v = SHORT.extract(buffer.position(), buffer)
+      val v = SHORT.extract(buffer)
       assert(v == i)
     }
     
@@ -64,7 +64,7 @@ class ColumnTypeSuite extends FunSuite {
     buffer.rewind()
     val writable = new ShortWritable()
     a.foreach { i => 
-      SHORT.extractInto(buffer.position(), buffer, writable)
+      SHORT.extractInto(buffer, writable)
       assert(writable.get == i)
     }
   }
@@ -77,7 +77,7 @@ class ColumnTypeSuite extends FunSuite {
     a.foreach {i => buffer.putLong(i)}
     buffer.rewind()
     a.foreach {i => 
-      val v = LONG.extract(buffer.position(), buffer)
+      val v = LONG.extract(buffer)
       assert(v == i)
     }
     
@@ -95,7 +95,7 @@ class ColumnTypeSuite extends FunSuite {
     buffer.rewind()
     val writable = new LongWritable()
     a.foreach { i => 
-      LONG.extractInto(buffer.position(), buffer, writable)
+      LONG.extractInto(buffer, writable)
       assert(writable.get == i)
     }
   }
