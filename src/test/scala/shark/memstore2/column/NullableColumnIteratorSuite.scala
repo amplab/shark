@@ -25,6 +25,7 @@ class NullableColumnIteratorSuite extends FunSuite {
     val b = c.build()
     val i = ColumnIterator.newIterator(b)
     Range(0, a.length).foreach { x =>
+      if (x > 0) assert(true === i.hasNext)
       i.next()
       val v = i.current
       if (a(x) == null) {
@@ -33,7 +34,9 @@ class NullableColumnIteratorSuite extends FunSuite {
         assert(v.toString == a(x).toString)
       }
     }
+    assert(false === i.hasNext)
   }
+
   test("Iterate Strings") {
     val oi = PrimitiveObjectInspectorFactory.writableStringObjectInspector
     val c = ColumnBuilder.create(oi)
@@ -58,23 +61,35 @@ class NullableColumnIteratorSuite extends FunSuite {
     assert(i.current.toString() == "Abcdz")
     i.next()
     assert(i.current == null)
+    assert(false === i.hasNext)
   }
   
   test("Iterate Ints") {
-    val oi = PrimitiveObjectInspectorFactory.javaIntObjectInspector
-    val c = ColumnBuilder.create(oi)
-    c.initialize(4)
-    c.append(123.asInstanceOf[Object],oi)
-    c.append(null, oi)
-    c.append(null, oi)
-    c.append(56.asInstanceOf[Object], oi)
-    val b = c.build()
-    val i = ColumnIterator.newIterator(b)
-    i.next()
-    assert(i.current.asInstanceOf[IntWritable].get() == 123)
-    i.next()
-    assert(i.current == null)
-    i.next()
-    assert(i.current == null)
+    def testList(l: Seq[AnyRef]) {
+      val oi = PrimitiveObjectInspectorFactory.javaIntObjectInspector
+      val c = ColumnBuilder.create(oi)
+      c.initialize(l.size)
+
+      l.foreach { item =>
+        c.append(item.asInstanceOf[AnyRef], oi)
+      }
+
+      val b = c.build()
+      val i = ColumnIterator.newIterator(b)
+
+      l.foreach { x =>
+        i.next()
+        if (x == null) {
+          assert(i.current === x)
+        } else {
+          assert(i.current.asInstanceOf[IntWritable].get === x)
+        }
+      }
+      assert(false === i.hasNext)
+    }
+
+    testList(List(null, null, 123.asInstanceOf[AnyRef]))
+    testList(List(123.asInstanceOf[AnyRef], 4.asInstanceOf[AnyRef], null))
+    testList(List(null))
   }
 }

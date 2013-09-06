@@ -42,6 +42,14 @@ class NullableColumnIterator(delegate: ColumnIterator, buffer: ByteBuffer) exten
     _pos += 1
   }
   
+  override def hasNext: Boolean = {
+    if (_nulls < _nullCount) {
+      true
+    } else {
+      delegate.hasNext
+    }
+  }
+
   def current: Object = {
     if (_isNull) null else delegate.current
   }

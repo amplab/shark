@@ -35,6 +35,8 @@ trait ColumnIterator {
     computeNext()
   }
 
+  def hasNext: Boolean
+
   def computeNext(): Unit
 
   // Should be implemented as a read-only operation by the ColumnIterator
