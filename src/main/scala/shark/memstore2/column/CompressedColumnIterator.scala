@@ -38,6 +38,7 @@ trait CompressedColumnIterator extends ColumnIterator{
   }
   
   def hasNext = _decoder.hasNext
+
   override def current = _current.asInstanceOf[Object]
 }
 
@@ -88,9 +89,11 @@ class DictDecoder[V] (buffer:ByteBuffer, columnType: ColumnType[_, V]) extends I
     var count = 0
     while (count < size) {
       //read text, followed by index
-      val text = columnType.extract(buffer.position(), buffer)
+      val text = columnType.newWritable
+      columnType.extractInto(buffer.position(), buffer, text)
       val index = buffer.getShort()
       d.put(index, text.asInstanceOf[V])
+
       count+= 1
     }
     d
@@ -100,6 +103,9 @@ class DictDecoder[V] (buffer:ByteBuffer, columnType: ColumnType[_, V]) extends I
   
   override def next(): V = {
     val index = buffer.getShort()
-    _dictionary.get(index).get
+    _dictionary.get(index) match {
+      case Some(s) => s.asInstanceOf[V]
+      case None => throw new Exception("Bad index into Dictionary")
+    }
   }
 }

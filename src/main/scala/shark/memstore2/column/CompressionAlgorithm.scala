@@ -69,7 +69,7 @@ class RLE extends CompressionAlgorithm {
 
   override def supportsType(t: ColumnType[_, _]) = {
     t match {
-      case INT | STRING | SHORT | BYTE | BOOLEAN => true
+      case LONG | INT | STRING | SHORT | BYTE | BOOLEAN => true
       case _ => false
     }
   }
@@ -189,9 +189,10 @@ class DictionaryEncoding extends CompressionAlgorithm {
 
   /**
    * return score between 0 and 1, smaller score imply higher compressibility.
+   * return Double.MaxValue to indicate overflow so that dict does not get chosen.
    */
   override def compressionRatio: Double = {
-    if (_overflow) 1.0 else (bufferSize) / (_totalSize + 0.0)
+    if (_overflow) Double.MaxValue else (bufferSize) / (_totalSize + 0.0)
   }
 
   private def writeDictionary[T](compressedBuffer: ByteBuffer, t: ColumnType[T, _]) {

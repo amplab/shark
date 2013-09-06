@@ -77,7 +77,7 @@ class CompressionAlgorithmSuite extends FunSuite {
     assert(compressedBuffer.getInt() == 1)
   }
   
-  test("RLE perfect encoding") {
+  test("RLE perfect encoding Int") {
     val b = ByteBuffer.allocate(4008)
     b.order(ByteOrder.nativeOrder())
     b.putInt(INT.typeID)
@@ -92,6 +92,24 @@ class CompressionAlgorithmSuite extends FunSuite {
     assert(compressedBuffer.getInt() == INT.typeID)
     assert(compressedBuffer.getInt() == RLECompressionType.typeID)
     assert(compressedBuffer.getInt() == 6)
+    assert(compressedBuffer.getInt() == 1000)
+  }
+  
+  test("RLE perfect encoding Long") {
+    val b = ByteBuffer.allocate(8008)
+    b.order(ByteOrder.nativeOrder())
+    b.putInt(LONG.typeID)
+    val rle = new RLE()
+    Range(0,1000).foreach { x => 
+      b.putLong(Long.MaxValue - 6)
+      rle.gatherStatsForCompressibility(Long.MaxValue - 6, LONG)
+    }
+    b.limit(b.position())
+    b.rewind()
+    val compressedBuffer = rle.compress(b, LONG)
+    assert(compressedBuffer.getInt() == LONG.typeID)
+    assert(compressedBuffer.getInt() == RLECompressionType.typeID)
+    assert(compressedBuffer.getLong() == Long.MaxValue - 6)
     assert(compressedBuffer.getInt() == 1000)
   }
   
@@ -177,7 +195,7 @@ class CompressionAlgorithmSuite extends FunSuite {
     }
 
     val iList = Array[Int](10, 10, 20, 10)
-    val lList = iList.map { i => i.toLong }
+    val lList = iList.map { i => Long.MaxValue - i.toLong }
     val sList = iList.map { i => new Text(i.toString) }
 
     testList(iList, INT, 2)
