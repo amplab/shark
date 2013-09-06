@@ -22,30 +22,19 @@ import java.nio.{ByteBuffer, ByteOrder}
 
 trait ColumnIterator {
 
-  private var _initialized = false
-  
+  init()
+
   def init() {}
 
   /**
    * Produces the next element of this iterator.
    */
-  def next() {
-    if (!_initialized) {
-      init()
-      _initialized = true
-    }
-    computeNext()
-  }
+  def next()
 
   /**
    * Tests whether this iterator can provide another element.
    */
   def hasNext: Boolean
-
-  /**
-   * Compute the next element so it is ready to be fetched using the current function.
-   */
-  def computeNext()
 
   /**
    * Return the current element. The operation should have no side-effect, i.e. it can be invoked
@@ -64,7 +53,7 @@ object Implicits {
     case DefaultCompressionType.typeID => DefaultCompressionType
     case RLECompressionType.typeID => RLECompressionType
     case DictionaryCompressionType.typeID => DictionaryCompressionType
-    case _ => throw new UnsupportedOperationException("Compression Type " + i)
+    case _ => throw new MemoryStoreException("Unknown compression type " + i)
   }
 
   implicit def intToColumnType(i: Int): ColumnType[_, _] = i match {
@@ -80,6 +69,7 @@ object Implicits {
     case TIMESTAMP.typeID => TIMESTAMP
     case BINARY.typeID => BINARY
     case GENERIC.typeID => GENERIC
+    case _ => throw new MemoryStoreException("Unknown column type " + i)
   }
 }
 
@@ -88,10 +78,14 @@ object ColumnIterator {
   import shark.memstore2.column.Implicits._
 
   def newIterator(b: ByteBuffer): ColumnIterator = {
+    new NullableColumnIterator(b.duplicate().order(ByteOrder.nativeOrder()))
+  }
+
+  def newNonNullIterator(b: ByteBuffer): ColumnIterator = {
     // The first 4 bytes in the buffer indicates the column type.
     val buffer = b.duplicate().order(ByteOrder.nativeOrder())
     val columnType: ColumnType[_, _] = buffer.getInt()
-    val v = columnType match {
+    columnType match {
       case INT => new IntColumnIterator(buffer)
       case LONG => new LongColumnIterator(buffer)
       case FLOAT => new FloatColumnIterator(buffer)
@@ -105,6 +99,5 @@ object ColumnIterator {
       case TIMESTAMP => new TimestampColumnIterator(buffer)
       case GENERIC => new GenericColumnIterator(buffer)
     }
-    new NullableColumnIterator(v, buffer)
   }
 }

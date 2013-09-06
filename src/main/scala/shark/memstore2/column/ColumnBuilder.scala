@@ -65,8 +65,8 @@ trait ColumnBuilder[T] {
   protected def growIfNeeded(orig: ByteBuffer, size: Int): ByteBuffer = {
     val capacity = orig.capacity()
     if (orig.remaining() < size) {
-      //grow in steps of initial size 
-      var additionalSize = capacity/8 + 1
+      // grow in steps of initial size
+      val additionalSize = capacity / 8 + 1
       var newSize = capacity + additionalSize
       if (additionalSize  < size) {
         newSize = capacity + size

@@ -28,7 +28,8 @@ trait CompressedColumnIterator extends ColumnIterator {
     }
   }
 
-  override def computeNext() {
+  override def next() {
+    // TODO: can we remove the if branch?
     if (_decoder.hasNext) {
       _current = _decoder.next()
     }

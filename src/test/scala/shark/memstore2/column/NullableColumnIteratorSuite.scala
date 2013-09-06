@@ -25,7 +25,7 @@ class NullableColumnIteratorSuite extends FunSuite {
     val b = c.build()
     val i = ColumnIterator.newIterator(b)
     Range(0, a.length).foreach { x =>
-      if (x > 0) assert(true === i.hasNext)
+      if (x > 0) assert(i.hasNext)
       i.next()
       val v = i.current
       if (a(x) == null) {
@@ -34,7 +34,7 @@ class NullableColumnIteratorSuite extends FunSuite {
         assert(v.toString == a(x).toString)
       }
     }
-    assert(false === i.hasNext)
+    assert(!i.hasNext)
   }
 
   test("Iterate Strings") {
@@ -71,7 +71,7 @@ class NullableColumnIteratorSuite extends FunSuite {
       c.initialize(l.size)
 
       l.foreach { item =>
-        c.append(item.asInstanceOf[AnyRef], oi)
+        c.append(item, oi)
       }
 
       val b = c.build()

@@ -221,23 +221,24 @@ class CompressionAlgorithmSuite extends FunSuite {
     testList(longList, INT, Short.MaxValue - 1)
   }
   
-  test("RLE region") {
+  test("Uncompressed text") {
     val b = new StringColumnBuilder
     b.initialize(0)
     val oi = PrimitiveObjectInspectorFactory.javaStringObjectInspector
 
-    val lines = Array[String]("lar deposits. blithely final packages cajole. regular waters are final requests. regular accounts are according to",
+    val lines = Array[String](
+      "lar deposits. blithely final packages cajole. regular waters are final requests.",
       "hs use ironic, even requests. s",
       "ges. thinly even pinto beans ca",
       "ly final courts cajole furiously final excuse",
-      "uickly special accounts cajole carefully blithely close requests. carefully final asymptotes haggle furiousl"
+      "uickly special accounts cajole carefully blithely close requests. carefully final"
     )
     lines.foreach { line =>
       b.append(line, oi)
     }
     val newBuffer = b.build()
-    assert(newBuffer.getInt() == STRING.typeID)
-    assert(newBuffer.getInt() == RLECompressionType.typeID)
-    
+    assert(newBuffer.getInt() === 0)  // null count
+    assert(newBuffer.getInt() === STRING.typeID)
+    assert(newBuffer.getInt() === DefaultCompressionType.typeID)
   }
 }

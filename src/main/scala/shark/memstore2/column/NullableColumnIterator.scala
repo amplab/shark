@@ -9,7 +9,7 @@ import java.nio.ByteOrder
  * Reading of non nulls is delegated by setting the buffer position to the first
  * non null.
  */
-class NullableColumnIterator(delegate: ColumnIterator, buffer: ByteBuffer) extends ColumnIterator {
+class NullableColumnIterator(buffer: ByteBuffer) extends ColumnIterator {
   private var _d: ByteBuffer = _
   private var _nullCount: Int = _
   private var _nulls = 0
@@ -18,17 +18,21 @@ class NullableColumnIterator(delegate: ColumnIterator, buffer: ByteBuffer) exten
   private var _currentNullIndex: Int = _
   private var _pos = 0
 
+  private var _delegate: ColumnIterator = _
+
   override def init() {
     _d = buffer.duplicate()
     _d.order(ByteOrder.nativeOrder())
     _nullCount = _d.getInt()
-    buffer.position(buffer.position() + _nullCount * 4 + 4)
     _currentNullIndex = if (_nullCount > 0) _d.getInt() else Integer.MAX_VALUE
     _pos = 0
-    delegate.init()
+
+    // Move the buffer position to the non-null region.
+    buffer.position(buffer.position() + 4 + _nullCount * 4)
+    _delegate = ColumnIterator.newNonNullIterator(buffer)
   }
 
-  override def computeNext() {
+  override def next() {
     if (_pos == _currentNullIndex) {
       _nulls += 1
       if (_nulls < _nullCount) {
@@ -37,12 +41,12 @@ class NullableColumnIterator(delegate: ColumnIterator, buffer: ByteBuffer) exten
       _isNull = true
     } else {
       _isNull = false
-      delegate.computeNext()
+      _delegate.next()
     }
     _pos += 1
   }
   
-  override def hasNext: Boolean = (_nulls < _nullCount) || delegate.hasNext
+  override def hasNext: Boolean = (_nulls < _nullCount) || _delegate.hasNext
 
-  def current: Object = if (_isNull) null else delegate.current
+  def current: Object = if (_isNull) null else _delegate.current
 }
