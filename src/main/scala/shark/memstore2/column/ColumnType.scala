@@ -34,7 +34,19 @@ import org.apache.hadoop.io._
  * @tparam T Scala data type for the column.
  * @tparam V Writable data type for the column.
  */
-sealed abstract class ColumnType[T, V](val typeID: Int, val defaultSize: Int) {
+sealed abstract class ColumnType[T : ClassManifest, V : ClassManifest](
+    val typeID: Int, val defaultSize: Int) {
+
+  /**
+   * Scala class manifest. Can be used to create primitive arrays and hash tables.
+   */
+  def scalaManifest: ClassManifest[T] = classManifest[T]
+
+  /**
+   * Scala class manifest for the writable type. Can be used to create primitive arrays and
+   * hash tables.
+   */
+  def writableManifest: ClassManifest[V] = classManifest[V]
 
   /**
    * Extract a value out of the buffer.

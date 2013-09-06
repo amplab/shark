@@ -2,8 +2,6 @@ package shark.memstore2.column
 
 import java.nio.ByteBuffer
 
-import scala.collection.mutable.{Map, HashMap}
-
 import shark.memstore2.column.Implicits._
 
 /**
@@ -85,29 +83,25 @@ class RLDecoder[V](buffer: ByteBuffer, columnType: ColumnType[_, V]) extends Ite
  */
 class DictDecoder[V](buffer: ByteBuffer, columnType: ColumnType[_, V]) extends Iterator[V] {
 
-  private val _dictionary: Map[Short, V] =  {
+  // Dictionary in the form of an array. The index is the encoded value, and the value is the
+  // decompressed value.
+  private val _dictionary: Array[V] =  {
     val size = buffer.getInt()
-    val d = new HashMap[Short, V]()
+    val arr = columnType.writableManifest.newArray(size)
     var count = 0
     while (count < size) {
-      //read text, followed by index
-      val text = columnType.newWritable()
-      columnType.extractInto(buffer.position(), buffer, text)
-      val index = buffer.getShort()
-      d.put(index, text.asInstanceOf[V])
-
+      val writable = columnType.newWritable()
+      columnType.extractInto(buffer.position(), buffer, writable)
+      arr(count) = writable.asInstanceOf[V]
       count += 1
     }
-    d
+    arr
   }
 
   override def hasNext = buffer.hasRemaining()
 
   override def next(): V = {
-    val index = buffer.getShort()
-    _dictionary.get(index) match {
-      case Some(s) => s.asInstanceOf[V]
-      case None => throw new MemoryStoreException("Invalid dictionary index " + index)
-    }
+    val index = buffer.getShort().toInt
+    _dictionary(index)
   }
 }

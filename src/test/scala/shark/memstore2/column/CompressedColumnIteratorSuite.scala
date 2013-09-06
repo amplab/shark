@@ -13,7 +13,13 @@ import shark.memstore2.column.Implicits._
 class CompressedColumnIteratorSuite extends FunSuite {
 
   /**
-   * Generic tester across types and encodings
+   * Generic tester across types and encodings. The function applies the given compression
+   * algorithm on the given sequence of values, and test whether the resulting iterator gives
+   * the same sequence of values.
+   *
+   * If we expect the compression algorithm to not compress the data, we should set the
+   * shouldNotCompress flag to true. This way, it doesn't actually create a compressed buffer,
+   * but simply tests the compression ratio returned by the algorithm is >= 1.0.
    */
   def testList[T, W](
       l: Seq[T],

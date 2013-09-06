@@ -3,7 +3,7 @@ package shark.memstore2.column
 import java.nio.{ByteBuffer, ByteOrder}
 
 import scala.annotation.tailrec
-import scala.collection.mutable.HashMap
+import scala.collection.mutable.{ArrayBuffer, HashMap}
 
 /**
  * API for Compression
@@ -152,12 +152,19 @@ class RLE extends CompressionAlgorithm {
 }
 
 /**
- * Dictionary encoding for columns with small cardinality.
+ * Dictionary encoding for columns with small cardinality. This algorithm encodes values into
+ * short integers (2 byte each). It can support up to 32k distinct values.
  */
 class DictionaryEncoding extends CompressionAlgorithm {
 
-  private val MAX_DICT_SIZE = Short.MaxValue - 1 // 32K unique values allowed
+  // 32K unique values allowed
+  private val MAX_DICT_SIZE = Short.MaxValue - 1
+
+  // The dictionary that maps a value to the encoded short integer.
   private var _dictionary = new HashMap[Any, Short]()
+
+  // The reverse mapping of _dictionary, i.e. mapping encoded integer to the value itself.
+  private var _values = new ArrayBuffer[Any](1024)
 
   // We use a short integer to store the dictionary index, which takes 2 bytes.
   private val indexSize = 2
@@ -195,12 +202,15 @@ class DictionaryEncoding extends CompressionAlgorithm {
         // The dictionary doesn't contain the value. Add the value to the dictionary if we haven't
         // overflown yet.
         if (_dictionary.size < MAX_DICT_SIZE) {
-          _dictionary.put(t.clone(v), _dictionary.size.toShort)
-          _dictionarySize += size + indexSize
+          val clone = t.clone(v)
+          _values.append(clone)
+          _dictionary.put(clone, _dictionary.size.toShort)
+          _dictionarySize += size
         } else {
           // Overflown. Release the dictionary immediately to lower memory pressure.
           _overflow = true
           _dictionary = null
+          _values = null
         }
       }
     }
@@ -236,9 +246,8 @@ class DictionaryEncoding extends CompressionAlgorithm {
 
     // Write out the dictionary.
     compressedBuffer.putInt(_dictionary.size)
-    _dictionary.foreach { x =>
-      t.append(x._1.asInstanceOf[T], compressedBuffer)
-      compressedBuffer.putShort(x._2)
+    _values.foreach { v =>
+      t.append(v.asInstanceOf[T], compressedBuffer)
     }
 
     // Write out the encoded values, each is represented by a short integer.
