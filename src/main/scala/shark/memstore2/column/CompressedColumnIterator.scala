@@ -37,7 +37,7 @@ trait CompressedColumnIterator extends ColumnIterator{
     }
   }
   
-  def hasNext = _decoder.hasNext
+  override def hasNext = _decoder.hasNext
 
   override def current = _current.asInstanceOf[Object]
 }
