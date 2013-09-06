@@ -15,7 +15,7 @@ class NullableColumnIterator(delegate: ColumnIterator, buffer: ByteBuffer) exten
   private var _nulls = 0
 
   private var _isNull = false
-  private var _currentNullIndex:Int = _
+  private var _currentNullIndex: Int = _
   private var _pos = 0
 
   override def init() {
@@ -42,15 +42,7 @@ class NullableColumnIterator(delegate: ColumnIterator, buffer: ByteBuffer) exten
     _pos += 1
   }
   
-  override def hasNext: Boolean = {
-    if (_nulls < _nullCount) {
-      true
-    } else {
-      delegate.hasNext
-    }
-  }
+  override def hasNext: Boolean = (_nulls < _nullCount) || delegate.hasNext
 
-  def current: Object = {
-    if (_isNull) null else delegate.current
-  }
+  def current: Object = if (_isNull) null else delegate.current
 }

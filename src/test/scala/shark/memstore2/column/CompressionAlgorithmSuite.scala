@@ -1,23 +1,28 @@
 package shark.memstore2.column
 
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
+import java.nio.{ByteBuffer, ByteOrder}
+
 import scala.collection.mutable.HashMap
-import org.scalatest.FunSuite
 
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.io.Text
+
+import org.scalatest.FunSuite
 
 import shark.memstore2.column.ColumnStats._
 
 class CompressionAlgorithmSuite extends FunSuite {
 
+  // TODO: clean these tests.
+
   test("Compressed Column Builder") {
+
     class TestColumnBuilder(val stats: ColumnStats[Int], val t: ColumnType[Int,_])
-    extends CompressedColumnBuilder[Int] {
+      extends CompressedColumnBuilder[Int] {
       compressionSchemes = Seq(new RLE())
       override def shouldApply(scheme: CompressionAlgorithm) = true
     }
+
     val b = new TestColumnBuilder(new NoOpStats, INT)
     b.initialize(100)
     val oi = PrimitiveObjectInspectorFactory.javaIntObjectInspector
@@ -31,7 +36,6 @@ class CompressionAlgorithmSuite extends FunSuite {
 
     assert(compressedBuffer.getInt() == 123)
     assert(compressedBuffer.getInt() == 2)
-    
   }
 
   test("RLE Strings") {
@@ -39,10 +43,7 @@ class CompressionAlgorithmSuite extends FunSuite {
     b.order(ByteOrder.nativeOrder())
     b.putInt(STRING.typeID)
     val rle = new RLE()
-    Array[Text](new Text("abc"),
-        new Text("abc"),
-        new Text("efg"),
-        new Text("abc")).foreach { text =>
+    Seq[Text](new Text("abc"), new Text("abc"), new Text("efg"), new Text("abc")).foreach { text =>
       STRING.append(text, b)
       rle.gatherStatsForCompressibility(text, STRING)
     }
@@ -51,9 +52,9 @@ class CompressionAlgorithmSuite extends FunSuite {
     val compressedBuffer = rle.compress(b, STRING)
     assert(compressedBuffer.getInt() == STRING.typeID)
     assert(compressedBuffer.getInt() == RLECompressionType.typeID)
-    assert(STRING.extract(compressedBuffer.position(), compressedBuffer).equals (new Text("abc")))
+    assert(STRING.extract(compressedBuffer.position(), compressedBuffer).equals(new Text("abc")))
     assert(compressedBuffer.getInt() == 2)
-    assert(STRING.extract(compressedBuffer.position(), compressedBuffer).equals (new Text("efg")))
+    assert(STRING.extract(compressedBuffer.position(), compressedBuffer).equals(new Text("efg")))
     assert(compressedBuffer.getInt() == 1)
   }
 
@@ -135,7 +136,7 @@ class CompressionAlgorithmSuite extends FunSuite {
     assert(compressedBuffer.getInt() == 20)
     assert(compressedBuffer.getInt() == 400)
   }
-  
+
   test("RLE perf") {
     val b = ByteBuffer.allocate(4000008)
     b.order(ByteOrder.nativeOrder())
@@ -169,7 +170,7 @@ class CompressionAlgorithmSuite extends FunSuite {
       b.putInt(u.typeID)
       val de = new DictionaryEncoding()
       l.foreach { item =>
-        u.append(item.asInstanceOf[T], b)
+        u.append(item, b)
         de.gatherStatsForCompressibility(item, u.asInstanceOf[ColumnType[Any, _]])
       }
       b.limit(b.position())

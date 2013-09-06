@@ -17,8 +17,7 @@
 
 package shark.memstore2.column
 
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
+import java.nio.{ByteBuffer, ByteOrder}
 
 
 trait ColumnIterator {
@@ -27,6 +26,9 @@ trait ColumnIterator {
   
   def init() {}
 
+  /**
+   * Produces the next element of this iterator.
+   */
   def next() {
     if (!_initialized) {
       init()
@@ -35,12 +37,20 @@ trait ColumnIterator {
     computeNext()
   }
 
+  /**
+   * Tests whether this iterator can provide another element.
+   */
   def hasNext: Boolean
 
-  def computeNext(): Unit
+  /**
+   * Compute the next element so it is ready to be fetched using the current function.
+   */
+  def computeNext()
 
-  // Should be implemented as a read-only operation by the ColumnIterator
-  // Can be called any number of times
+  /**
+   * Return the current element. The operation should have no side-effect, i.e. it can be invoked
+   * multiple times returning the same value.
+   */
   def current: Object
 }
 
@@ -51,25 +61,25 @@ abstract class DefaultColumnIterator[T, V](val buffer: ByteBuffer, val columnTyp
 
 object Implicits {
   implicit def intToCompressionType(i: Int): CompressionType = i match {
-    case -1 => DefaultCompressionType
-    case 0 => RLECompressionType
-    case 1 => DictionaryCompressionType
+    case DefaultCompressionType.typeID => DefaultCompressionType
+    case RLECompressionType.typeID => RLECompressionType
+    case DictionaryCompressionType.typeID => DictionaryCompressionType
     case _ => throw new UnsupportedOperationException("Compression Type " + i)
   }
 
   implicit def intToColumnType(i: Int): ColumnType[_, _] = i match {
-    case 0 => INT
-    case 1 => LONG
-    case 2 => FLOAT
-    case 3 => DOUBLE
-    case 4 => BOOLEAN
-    case 5 => BYTE
-    case 6 => SHORT
-    case 7 => VOID
-    case 8 => STRING
-    case 9 => TIMESTAMP
-    case 10 => BINARY
-    case 11 => GENERIC
+    case INT.typeID => INT
+    case LONG.typeID => LONG
+    case FLOAT.typeID => FLOAT
+    case DOUBLE.typeID => DOUBLE
+    case BOOLEAN.typeID => BOOLEAN
+    case BYTE.typeID => BYTE
+    case SHORT.typeID => SHORT
+    case VOID.typeID => VOID
+    case STRING.typeID => STRING
+    case TIMESTAMP.typeID => TIMESTAMP
+    case BINARY.typeID => BINARY
+    case GENERIC.typeID => GENERIC
   }
 }
 
@@ -78,6 +88,7 @@ object ColumnIterator {
   import shark.memstore2.column.Implicits._
 
   def newIterator(b: ByteBuffer): ColumnIterator = {
+    // The first 4 bytes in the buffer indicates the column type.
     val buffer = b.duplicate().order(ByteOrder.nativeOrder())
     val columnType: ColumnType[_, _] = buffer.getInt()
     val v = columnType match {

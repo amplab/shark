@@ -22,7 +22,7 @@ class NullableColumnBuilderSuite extends FunSuite {
     }
   }
 
-  test("Grow") {
+  test("Buffer size auto growth") {
     val c = new StringColumnBuilder()
     c.initialize(4)
     val oi = PrimitiveObjectInspectorFactory.writableStringObjectInspector
@@ -108,7 +108,7 @@ class NullableColumnBuilderSuite extends FunSuite {
     val c = new IntColumnBuilder()
     c.initialize(4)
     val oi = PrimitiveObjectInspectorFactory.javaIntObjectInspector
-    Range(1,1000).foreach { x =>
+    Range(1, 1000).foreach { x =>
       c.append(x.asInstanceOf[Object], oi)
     }
     val b = c.build()

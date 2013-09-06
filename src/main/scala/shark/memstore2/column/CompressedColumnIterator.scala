@@ -11,9 +11,8 @@ import shark.memstore2.column.Implicits._
  * The first element of the buffer at the point of initialization
  * is expected to be the type of compression indicator.
  */
-trait CompressedColumnIterator extends ColumnIterator{
+trait CompressedColumnIterator extends ColumnIterator {
 
-  private var _compressionType: CompressionType = _
   private var _decoder: Iterator[_] = _
   private var _current: Any = _
 
@@ -22,8 +21,8 @@ trait CompressedColumnIterator extends ColumnIterator{
   def columnType: ColumnType[_,_]
 
   override def init() {
-    _compressionType = buffer.getInt()
-    _decoder = _compressionType match {
+    val compressionType: CompressionType = buffer.getInt()
+    _decoder = compressionType match {
       case DefaultCompressionType => new DefaultDecoder(buffer, columnType)
       case RLECompressionType => new RLDecoder(buffer, columnType)
       case DictionaryCompressionType => new DictDecoder(buffer, columnType)
@@ -36,7 +35,7 @@ trait CompressedColumnIterator extends ColumnIterator{
       _current = _decoder.next()
     }
   }
-  
+
   override def hasNext = _decoder.hasNext
 
   override def current = _current.asInstanceOf[Object]
@@ -81,7 +80,10 @@ class RLDecoder[V](buffer: ByteBuffer, columnType: ColumnType[_, V]) extends Ite
   }
 }
 
-class DictDecoder[V] (buffer:ByteBuffer, columnType: ColumnType[_, V]) extends Iterator[V] {
+/**
+ * Dictionary encoding compression.
+ */
+class DictDecoder[V](buffer: ByteBuffer, columnType: ColumnType[_, V]) extends Iterator[V] {
 
   private val _dictionary: Map[Short, V] =  {
     val size = buffer.getInt()
@@ -89,23 +91,23 @@ class DictDecoder[V] (buffer:ByteBuffer, columnType: ColumnType[_, V]) extends I
     var count = 0
     while (count < size) {
       //read text, followed by index
-      val text = columnType.newWritable
+      val text = columnType.newWritable()
       columnType.extractInto(buffer.position(), buffer, text)
       val index = buffer.getShort()
       d.put(index, text.asInstanceOf[V])
 
-      count+= 1
+      count += 1
     }
     d
   }
 
   override def hasNext = buffer.hasRemaining()
-  
+
   override def next(): V = {
     val index = buffer.getShort()
     _dictionary.get(index) match {
       case Some(s) => s.asInstanceOf[V]
-      case None => throw new Exception("Bad index into Dictionary")
+      case None => throw new MemoryStoreException("Invalid dictionary index " + index)
     }
   }
 }

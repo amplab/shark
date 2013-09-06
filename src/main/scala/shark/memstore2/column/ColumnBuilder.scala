@@ -138,7 +138,7 @@ object ColumnBuilder {
           case PrimitiveCategory.BINARY    => new BinaryColumnBuilder
          
           // TODO: add decimal column.
-          case _ => throw new Exception(
+          case _ => throw new MemoryStoreException(
             "Invalid primitive object inspector category" + columnOi.getCategory)
         }
       }
