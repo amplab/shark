@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2012 The Regents of The University California.
+ * All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package shark.execution.cg.row
 
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
@@ -6,8 +23,8 @@ import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
 
 abstract class CGOIField[+T<:CGField[_]](val delegate: T) {
-  def parentFullClass(): String = delegate.parentFullClass()
-  def cgClassName(): String = delegate.cgClassName()
+  def parentFullClassName(): String = delegate.parentFullClassName()
+  def fullClassName(): String = delegate.fullClassName()
   
   def createOI(): String
   def writableClass(): String
@@ -141,7 +158,7 @@ class CGOIList(delegate: CGList, val field: CGOIField[_<:CGField[_]]) extends CG
 class CGOIStruct(delegate: CGStruct, val fields:Array[CGOIField[_<:CGField[_]]]) extends CGOIField[CGStruct](delegate) {
   def oiClassName(): String = "%sStructObjectInspector".format(delegate.clazz)
   override def createOI(): String = "new %s()".format(oiClassName())
-  override def writableClass(): String = delegate.cgClassName()
+  override def writableClass(): String = delegate.fullClassName()
   override def java2Writable(javaVarName: String, writableVarName: String) = 
     (if(writableVarName!=null)
       "%s=%s;".format(writableVarName, javaVarName)
@@ -154,8 +171,8 @@ class CGOIStruct(delegate: CGStruct, val fields:Array[CGOIField[_<:CGField[_]]])
   
   override def oiClass(): String = {CGTE.layout(CGOI.CG_OI_STRUCT, Map("struct"->this))}
   
-  override def cgClassName(): String = {
-    var parentClass = parentFullClass()
+  override def fullClassName(): String = {
+    var parentClass = parentFullClassName()
     if (null == parentClass) {
       if (delegate.packageName != null) "%s.%s".format(delegate.packageName, oiClassName) else oiClassName
     } else {
@@ -167,7 +184,7 @@ class CGOIStruct(delegate: CGStruct, val fields:Array[CGOIField[_<:CGField[_]]])
 class CGOIUnion(delegate: CGUnion, val fields: Array[CGOIField[_<:CGField[_]]]) extends CGOIField[CGUnion](delegate) {
   def oiClassName(): String = "%sUnionObjectInspector".format(delegate.clazz)
   override def createOI(): String = "new %s()".format(oiClassName())
-  override def writableClass(): String = cgClassName()
+  override def writableClass(): String = fullClassName()
   override def java2Writable(javaVarName: String, writableVarName: String) = 
     (if(writableVarName!=null)
       "%s=%s;".format(writableVarName, javaVarName)

@@ -31,6 +31,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator
 import java.util.Arrays
 import shark.execution.cg.CompilationContext
+import shark.execution.cg.OperatorClassLoader
 
 
 abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
@@ -117,6 +118,9 @@ abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
   @transient private[this] val _childOperators = new ArrayBuffer[Operator[_<:HiveDesc]]()
   @transient private[this] val _parentOperators = new ArrayBuffer[Operator[_<:HiveDesc]]()
   @transient var objectInspectors: Array[ObjectInspector] =_
+  // soi will be serialized by Kryo in OperatorSerializationWrapper and this should only be
+  // set by the first Operator of a stage
+  @transient var operatorClassLoader: OperatorClassLoader = _ // classloader for CGed classes
 
   protected def executeParents(): Seq[(Int, RDD[_])] = {
     parentOperators.map(p => (p.getTag, p.execute()))
@@ -309,6 +313,7 @@ object Operator extends LogHelper {
 
   /** A reference to HiveConf for convenience. */
   @transient var hconf: HiveConf = _
+  @transient var operatorClassLoader: OperatorClassLoader = _
 
   /**
    * Calls the code to process the partitions. It is placed here because we want

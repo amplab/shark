@@ -2,13 +2,13 @@
 #import(shark.execution.cg.row.CGOIStruct)
 <%@ import val obj: CGOIStruct %>
 <%@ val classname: String %>
-  public static final class ${classname} extends CGStructField<${parentFullClass()}, ${writableClass()}> {
+  public static final class ${classname} extends CGStructField<${parentFullClassName()}, ${writableClass()}> {
     public CGStructField${delegate.name}(int idx) {
       super("${delegate.name}", ${createOI()}, null, idx);
     }
 #{var tuple = java2Writable("data." + delegate.name, null)}#
     @Override
-    public ${writableClass()} get(${parentFullClass()} data) {
+    public ${writableClass()} get(${parentFullClassName()} data) {
       if(data == null) return null;
       if(data.mask.get(idx)) {
         return ${tuple._1};

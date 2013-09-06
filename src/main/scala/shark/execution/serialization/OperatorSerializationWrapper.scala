@@ -46,6 +46,12 @@ class OperatorSerializationWrapper[T <: Operator[_ <: HiveDesc]]
   /** The generated classes byte code, serialized by Kryo. */
   var classSerialized: Array[Byte] = _
   
+  /** 
+   *  This method is called before value be de-serialized in slaves, suppose to be called 
+   *  within the rdd.mapPartition etc. for the first operator in a new stage.
+   *  (TopOperator(TableScanOperator) / JoinOperator / GroupByPostShuffleOperator etc.) 
+   */
+
   def value: T = {
     if (_value == null) {
       assert(opSerialized != null)
@@ -53,16 +59,14 @@ class OperatorSerializationWrapper[T <: Operator[_ <: HiveDesc]]
       assert(objectInspectorsSerialized != null)
       assert(objectInspectorsSerialized.length > 0)
       _value = XmlSerializer.deserialize[T](opSerialized)
-      
+
       if (classSerialized != null) {
         assert(classSerialized.length > 0)
-        var cgo = _value.asInstanceOf[CGObjectOperator]
         // TODO this is in very low efficiency, which is create a class loader per task
-        var cl: OperatorClassLoader = KryoSerializer.deserialize(classSerialized)
-        Thread.currentThread().setContextClassLoader(cl)
-      } 
-      
-      _value.objectInspectors = KryoSerializer.deserialize(objectInspectorsSerialized)
+        _value.operatorClassLoader = KryoSerializer.deserialize(classSerialized)
+        Thread.currentThread().setContextClassLoader(_value.operatorClassLoader)
+      }
+      _value.objectInspectors = KryoSerializer.deserialize(objectInspectorsSerialized, false)
     }
     _value
   }
@@ -70,8 +74,8 @@ class OperatorSerializationWrapper[T <: Operator[_ <: HiveDesc]]
   def value_= (v: T):Unit = {
     _value = v
     
-    if(value.isInstanceOf[CGObjectOperator]){
-      classSerialized = KryoSerializer.serialize(value.asInstanceOf[CGObjectOperator].operatorCL)
+    if(value.operatorClassLoader != null){
+      classSerialized = KryoSerializer.serialize(value.operatorClassLoader)
     }
     opSerialized = XmlSerializer.serialize(value, v.hconf)
     objectInspectorsSerialized = KryoSerializer.serialize(value.objectInspectors)

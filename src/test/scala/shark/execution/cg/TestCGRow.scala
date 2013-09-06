@@ -26,6 +26,7 @@ import shark.execution.cg.row.CGField
 import shark.execution.cg.row.CGOI
 import shark.execution.cg.row.CGOIField
 import shark.execution.cg.row.CGOIStruct
+import shark.execution.serialization.KryoSerializer
 
 class TestCGRow extends FunSuite with BeforeAndAfterEach {
   import collection.JavaConversions._

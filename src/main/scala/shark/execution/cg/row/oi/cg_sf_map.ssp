@@ -2,14 +2,14 @@
 #import(shark.execution.cg.row.CGOIMap)
 <%@ import val obj: CGOIMap %>
 <%@ val classname: String %>
-  public static final class ${classname} extends CGStructField<${parentFullClass()}, ${writableClass()}>> {
+  public static final class ${classname} extends CGStructField<${parentFullClassName()}, ${writableClass()}>> {
     public CGStructField${delegate.name}(int idx) {
       super("${delegate.name}", ${createOI()}, null, idx);
     }
 
     #{var tuple = java2Writable("map", null)}#
     @Override
-    public ${writableClass()} get(${parentFullClass()} data) {
+    public ${writableClass()} get(${parentFullClassName()} data) {
       if(data == null) return null;
       if(data.mask.get(idx)) {
         java.util.HashMap<${key.delegate.clazz}, ${value.delegate.clazz}> map=data.${delegate.name};

@@ -62,6 +62,8 @@ class UnionOperator extends NaryOperator[UnionDesc] {
     }
     
     initializeOnSlave()
+    
+    operatorClassLoader = Operator.operatorClassLoader
   }
 
   override def initializeOnSlave() {

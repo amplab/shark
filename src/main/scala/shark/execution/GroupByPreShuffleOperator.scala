@@ -78,6 +78,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[GroupByDesc] with CGObject
   @transient var aggregationIsDistinct: Array[Boolean] = _
   @transient var currentKeyObjectInspectors: Array[ObjectInspector] = _
 
+  /** Initialize the transient properties */
   def createLocals() {
     aggregationEvals = conf.getAggregators.map(_.getGenericUDAFEvaluator).toArray
     aggregationIsDistinct = conf.getAggregators.map(_.getDistinct).toArray
@@ -127,26 +128,28 @@ class GroupByPreShuffleOperator extends UnaryOperator[GroupByDesc] with CGObject
     keyFactory = new KeyWrapperFactory(keyFields, keyObjectInspectors, currentKeyObjectInspectors)
   }
   
-  def createRemotes() {
+  /** Initialize the serializable properties */
+  def createRemotes(cc: CompilationContext) {
     conf = desc
     minReductionHashAggr = hconf.get(HiveConf.ConfVars.HIVEMAPAGGRHASHMINREDUCTION.varname).toFloat
     numRowsCompareHashAggr = hconf.get(HiveConf.ConfVars.HIVEGROUPBYMAPINTERVAL.varname).toInt
   }
+  
   override def initializeOnMaster(cc: CompilationContext) {
     super.initializeOnMaster(cc)
     
-    createRemotes()
+    createRemotes(cc)
     createLocals()
-    initCGOnMaster(cc)
+    
+    cgOnMaster(cc)
   }
 
   override def initializeOnSlave() {
     createLocals()
-    initCGOnSlave()
+    
+    cgOnSlave()
   }
 
-  override def outputObjectInspector() = soi
-  
   // copied from the org.apache.hadoop.hive.ql.exec.GroupByOperator 
   override def createOutputOI() = {
     var totalFields = keyFields.length + aggregationEvals.length

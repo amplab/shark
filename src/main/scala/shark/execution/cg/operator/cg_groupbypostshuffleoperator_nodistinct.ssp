@@ -6,14 +6,14 @@
 <%@ import val cgo: CGOperator %>
 <%@ import val op: GroupByPostShuffleOperator %>
 #{
-  val structClassName = row.cgClassName
+  val structClassName = row.fullClassName
   val parentOP = parentOperators(0).asInstanceOf[ReduceSinkOperator]
   val parentStruct = parentOP.row.asInstanceOf[CGStruct]
-  val parentStructClassName = parentStruct.cgClassName
+  val parentStructClassName = parentStruct.fullClassName
   val parentStructKey = parentOP.row.fields(0).asInstanceOf[CGStruct]
   val parentStructValue = parentOP.row.fields(1).asInstanceOf[CGStruct]
-  val parentStructKeyClassName = parentStructKey.cgClassName
-  val parentStructValueClassName = parentStructValue.cgClassName
+  val parentStructKeyClassName = parentStructKey.fullClassName
+  val parentStructValueClassName = parentStructValue.fullClassName
 }#
 
 package ${packageName};
@@ -72,7 +72,7 @@ public class ${className} implements OperatorExecutor, Serializable {
 #end
     final ${structClassName} data = new ${structClassName}();
 #{ if (currentKeyObjectInspectors.length == 0) { }#
-    if(!iter.hasNext)
+    if(!iter.hasNext())
       return new java.util.Iterator<Object>() {
         boolean has = true;
         public boolean hasNext() {
@@ -85,6 +85,7 @@ public class ${className} implements OperatorExecutor, Serializable {
         }
         public void remove() {throw new UnsupportedOperationException("remove");}
         public Object next() {
+          try {
 //        private def createEmptyRow(): Array[Object] = {
 //        val aggrs = newAggregations()
 //        val output = new Array[Object](aggrs.length)
@@ -104,18 +105,22 @@ public class ${className} implements OperatorExecutor, Serializable {
           {
             Object[] emptyObj = null;
             #if(aggregationParameterFields(i).length > 0)
-              emptyObj = new Object[aggregationParameterFields(i).length];
-              for(int i = 0; i < emptyObj.length; ++i) emptyObj[i] = null;
+              emptyObj = new Object[${aggregationParameterFields(i).length}];
+              for(int i = 0; i < emptyObj.length; ++i) emptyObj[${i}] = null;
             #end
-            aggregationEval${i}.aggregate(aggrs[${i}], emptyObj);
-            Object obj = aggregationEval${i}.evaluate(aggrs[${i}]);
+            aggregationEval${i}.aggregate(aggs[${i}], emptyObj);
+            Object obj = aggregationEval${i}.evaluate(aggs[${i}]);
             if (obj != null) {
-              data.mask.set(CGRow.MASK_{row.fields(i).name}, true);
+              data.mask.set(${structClassName}.MASK_${row.fields(i).name}, true);
               ${row.fields(i).getValue("data." + row.fields(i).name, "aggregationObjectInspector" + i, "obj")}
             }
           }
 #end
           return data;
+          } catch (Throwable e) {
+              e.printStackTrace();
+              throw new RuntimeException(e);
+          }
         }
       };
    else 
@@ -157,7 +162,7 @@ public class ${className} implements OperatorExecutor, Serializable {
             {
               Object[] parameters = new Object[aggregationParameterField${i}.length];
        #for(a <- 0 until aggregationParameterFields(i).length)
-              parameters[${i}] = aggregationParameterField${i}[${a}].evaluate((Object)reusedRow);
+              parameters[${a}] = aggregationParameterField${i}[${a}].evaluate((Object)reusedRow);
        #end
               aggregationEval${i}.aggregate(aggs[${i}], parameters);
             }
@@ -180,10 +185,10 @@ public class ${className} implements OperatorExecutor, Serializable {
   #end
           
           return data;
-          } catch (Throwable e) {
-              e.printStackTrace();
-              throw new RuntimeException(e);
-          }
+        } catch (Throwable e) {
+           e.printStackTrace();
+           throw new RuntimeException(e);
+        }
         }
       };
   }

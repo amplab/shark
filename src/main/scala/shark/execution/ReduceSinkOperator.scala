@@ -47,7 +47,9 @@ import shark.execution.cg.CompilationContext
  * Converts a collection of rows into key, value pairs. This is the
  * upstream operator for joins and groupbys.
  */
-class ReduceSinkOperator extends UnaryOperator[ReduceSinkDesc] with CGObjectOperator {
+class ReduceSinkOperator 
+  extends UnaryOperator[ReduceSinkDesc] 
+  with CGObjectOperator {
 
   @BeanProperty var conf: ReduceSinkDesc = _
 
@@ -75,16 +77,15 @@ class ReduceSinkOperator extends UnaryOperator[ReduceSinkDesc] with CGObjectOper
   override def getTag() = conf.getTag()
 
   override def initializeOnMaster(cc: CompilationContext) {
-    super.initializeOnMaster(cc)
-    
     conf = desc
-    initCGOnMaster(cc)
+    super.initializeOnMaster(cc)
+    cgOnMaster(cc)
   }
 
   override def initializeOnSlave() {
     initializeOisAndSers(conf, objectInspector)
-    
-    initCGOnSlave()
+    super.initializeOnSlave()
+    cgOnSlave()
   }
 
   override protected def createCGOperator(): CGOperator = 
@@ -92,18 +93,8 @@ class ReduceSinkOperator extends UnaryOperator[ReduceSinkDesc] with CGObjectOper
       new CGReduceSinkOperator(row, this, CGOperator.CG_OPERATOR_REDUCE_SINK_NODISTINCT)
     else
       new CGReduceSinkOperator(row, this, CGOperator.CG_OPERATOR_REDUCE_SINK_DISTINCT)
-  
-  override def processPartition(split: Int, iter: Iterator[_]) = {
-    if (conf.getDistinctColumnIndices().size() == 0) {
-      processPartitionNoDistinct(iter)
-    } else {
-      processPartitionDistinct(iter)
-    }
-  }
-  
-  override def outputObjectInspector() = soi
-  
-  protected[this] def createOutputOI() = {
+
+  override protected def createOutputOI() = {
     initializeOisAndSers(conf, objectInspector)
     
     val ois = new ArrayList[ObjectInspector]
@@ -112,6 +103,14 @@ class ReduceSinkOperator extends UnaryOperator[ReduceSinkDesc] with CGObjectOper
 
     SharkEnvSlave.objectInspectorLock.synchronized {
       ObjectInspectorFactory.getStandardStructObjectInspector(List("KEY","VALUE"), ois)
+    }
+  }
+  
+  override def processPartition(split: Int, iter: Iterator[_]) = {
+    if (conf.getDistinctColumnIndices().size() == 0) {
+      processPartitionNoDistinct(iter)
+    } else {
+      processPartitionDistinct(iter)
     }
   }
 

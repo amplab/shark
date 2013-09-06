@@ -22,9 +22,9 @@ import Keys._
 object SharkBuild extends Build {
 
   // Shark version
-  val SHARK_VERSION = "0.8.0-SNAPSHOT"
+  val SHARK_VERSION = "0.8.0"
 
-  val SPARK_VERSION = "0.8.0-SNAPSHOT"
+  val SPARK_VERSION = "0.8.0"
 
   val SCALA_VERSION = "2.9.3"
 
@@ -52,7 +52,8 @@ object SharkBuild extends Build {
     // Download managed jars into lib_managed.
     retrieveManaged := true,
     resolvers ++= Seq(
-      "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
+      "Maven Repository" at "http://repo1.maven.org/maven2",      
+      //"Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
       "JBoss Repository" at "http://repository.jboss.org/nexus/content/repositories/releases/",
       "Spray Repository" at "http://repo.spray.cc/",
       "Cloudera Repository" at "http://repository.cloudera.com/artifactory/cloudera-repos/"
@@ -92,6 +93,7 @@ object SharkBuild extends Build {
       "com.google.guava" % "guava" % "14.0.1",
       "org.apache.hadoop" % "hadoop-core" % HADOOP_VERSION,
       // See https://code.google.com/p/guava-libraries/issues/detail?id=1095
+      "org.fusesource.scalate" % "scalate-core_2.9" % "1.6.1",
       "com.google.code.findbugs" % "jsr305" % "1.3.+",
       "it.unimi.dsi" % "fastutil" % "6.4.2",
       "org.scalatest" %% "scalatest" % "1.9.1" % "test",

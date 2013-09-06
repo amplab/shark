@@ -5,7 +5,7 @@
 <%@ import val cgo: CGOperator %>
 <%@ import val op: GroupByPreShuffleOperator %>
 #{
-  val structClassName = row.cgClassName
+  val structClassName = row.fullClassName
 }#
 
 package ${packageName};

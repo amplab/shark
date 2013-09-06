@@ -40,7 +40,7 @@ class FilterOperator extends UnaryOperator[FilterDesc] {
   override def initializeOnMaster(cc: CompilationContext) {
     super.initializeOnMaster(cc)
     conf = desc
-    cg = cc.useCG
+    cg = SharkConfVars.getBoolVar(Operator.hconf, SharkConfVars.EXPR_CG)
   }
 
   override def initializeOnSlave() {

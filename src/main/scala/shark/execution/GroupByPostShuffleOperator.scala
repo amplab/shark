@@ -61,6 +61,7 @@ import scala.reflect.BeanProperty
 import shark.execution.cg.operator.CGGroupByPostShuffleOperator
 import shark.execution.cg.operator.CGGroupByPostShuffleOperator
 import shark.execution.cg.operator.CGOperator
+import shark.execution.cg.CompilationContext
 
 
 // The final phase of group by.
@@ -105,17 +106,17 @@ class GroupByPostShuffleOperator extends GroupByPreShuffleOperator
     valueSer.initialize(null, valueTableDesc.getProperties())
     valueSer1 = valueTableDesc.getDeserializerClass.newInstance()
     valueSer1.initialize(null, valueTableDesc.getProperties())
+    
+    operatorClassLoader = Operator.operatorClassLoader
   }
   
-  override def createRemotes() {
-    super.createRemotes()
+  override def createRemotes(cc: CompilationContext) {
+    super.createRemotes(cc)
     
     var kvd = keyValueDescs()
     keyTableDesc = kvd.head._2._1
     valueTableDesc = kvd.head._2._2
   }
-
-  override def outputObjectInspector() = soi
   
   override protected def createCGOperator(): CGOperator =
     if(distinctKeyAggrs.size > 0)

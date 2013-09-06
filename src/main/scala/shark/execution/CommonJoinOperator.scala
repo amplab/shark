@@ -70,6 +70,8 @@ abstract class CommonJoinOperator[T<:JoinDesc] extends NaryOperator[T] {
     nullCheck = SharkConfVars.getBoolVar(hconf, SharkConfVars.JOIN_CHECK_NULL)
 
     assert(joinConditions.size + 1 == numTables)
+    
+    operatorClassLoader = Operator.operatorClassLoader
   }
 
   override def initializeOnSlave() {

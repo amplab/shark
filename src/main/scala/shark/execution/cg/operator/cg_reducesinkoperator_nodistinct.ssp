@@ -7,8 +7,8 @@
 #{
   val keyStruct = row.fields(0).asInstanceOf[CGStruct]
   val valueStruct = row.fields(1).asInstanceOf[CGStruct]
-  val keyStructClassName = keyStruct.cgClassName
-  val valueStructClassName = valueStruct.cgClassName
+  val keyStructClassName = keyStruct.fullClassName
+  val valueStructClassName = valueStruct.fullClassName
 }#
 
 package ${packageName};
@@ -46,7 +46,7 @@ public class ${className} implements OperatorExecutor, Serializable {
   private ObjectInspector valFieldObjInspector${i};
   #end
   
-  private KryoSerializer kryo = new KryoSerializer(new Class<?>[]{${row.cgClassName}.class});
+  private KryoSerializer kryo = new KryoSerializer(new Class<?>[]{${row.fullClassName}.class});
   private ReduceKeyMapSide reduceKey = new ReduceKeyMapSide();
   
   public ${className}(Object obj) {

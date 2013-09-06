@@ -40,7 +40,7 @@ class SelectOperator extends UnaryOperator[SelectDesc] {
     super.initializeOnMaster(cc)
     conf = desc
     initializeEvals(false)
-    cg = cc.useCG
+    cg = SharkConfVars.getBoolVar(Operator.hconf, SharkConfVars.EXPR_CG)
   }
   
   def initializeEvals(initializeEval: Boolean) {

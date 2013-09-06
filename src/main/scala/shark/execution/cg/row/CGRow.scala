@@ -114,9 +114,9 @@ abstract class CGField[+T<:ObjectInspector](val oi: T,
     this(oi, name, clz, clz)
   }
   
-  def parentFullClass(): String = if (parent != null) parent.cgClassName() else null
+  def parentFullClassName(): String = if (parent != null) parent.fullClassName() else null
   
-  def cgClassName(): String = null
+  def fullClassName(): String = null
   
   var parent: CGField[_] = _
 
@@ -256,8 +256,8 @@ class CGStruct(oi: StructObjectInspector, name: String, val fields: Array[CGFiel
   
   override def getValue(obj:String, oi: String, data: String): String = "%s = %s.BUILD(%s, %s);".format(obj, clazz, oi, data)
   
-  override def cgClassName(): String = {
-    var parentClass = parentFullClass()
+  override def fullClassName(): String = {
+    var parentClass = parentFullClassName()
     if (null == parentClass) {
       if (packageName != null) "%s.%s".format(packageName, clazz) else clazz
     } else {
@@ -283,8 +283,8 @@ class CGUnion(oi:UnionObjectInspector, name: String, val fields: Array[CGField[_
   
   override def getValue(obj: String, oi: String, data: String): String = "%s = %s.BUILD(%s, %s);".format(obj, clazz, oi, data)
   
-  override def cgClassName(): String = {
-    var parentClass = parentFullClass()
+  override def fullClassName(): String = {
+    var parentClass = parentFullClassName()
     if (null == parentClass) {
       throw new CGAssertRuntimeException("Union should have a parent class")
     } else {

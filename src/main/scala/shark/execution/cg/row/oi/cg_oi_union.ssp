@@ -28,7 +28,7 @@
 
     @Override
     public byte getTag(Object o) {
-      ${cgClassName()} a = (${cgClassName()})o;
+      ${fullClassName()} a = (${fullClassName()})o;
       if (a == null || a.tag < 0) {
         return 0;
       } else {
@@ -38,7 +38,7 @@
     #{var vf = Array.tabulate[(String, ()=>String)](fields.length){i=>fields(i).java2Writable("a." + delegate.name+"_"+i, "cache_%s%d".format(delegate.name, i))}}#
     @Override
     public Object getField(Object o) {
-      ${cgClassName()} a = (${cgClassName()})o;
+      ${fullClassName()} a = (${fullClassName()})o;
       if (a == null || a.tag < 0) {
         return null;
       } else {

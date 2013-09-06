@@ -55,6 +55,8 @@ class TableScanOperator extends TopOperator[TableScanDesc]
   override def initializeOnMaster(cc: CompilationContext) {
     localHconf = super.hconf
     super.initializeOnMaster(cc)
+    
+    operatorClassLoader = Operator.operatorClassLoader
   }
 
   override def outputObjectInspector() = {

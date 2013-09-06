@@ -30,7 +30,6 @@ import java.io.ByteArrayInputStream
  * inspectors.
  */
 object KryoSerializer {
-
   @transient val ser = new spark.KryoSerializer
 
   def serialize[T](o: T): Array[Byte] = {
@@ -40,14 +39,49 @@ object KryoSerializer {
       ser.newInstance().serialize(o).array()
   }
 
-  def deserialize[T](bytes: Array[Byte]): T = {
-    ser.newInstance().deserialize[T](ByteBuffer.wrap(bytes))
-  }
-
-  def deserialize[T](bytes: Array[Byte], cl: ClassLoader): T = {
-    ser.newInstance().deserialize[T](ByteBuffer.wrap(bytes), cl)
+  def deserialize[T](bytes: Array[Byte], reuse: Boolean = true): T = {
+    if(reuse) {
+      ser.newInstance().deserialize[T](ByteBuffer.wrap(bytes))
+    } else {
+      new spark.KryoSerializer().newInstance().deserialize[T](ByteBuffer.wrap(bytes))
+    }
   }
 }
+
+//class KryoSerializer(klasses: Array[Class[_]], cl: ClassLoader) {
+//  @transient val ser = new spark.KryoSerializer
+//
+//  def this(klasses: Array[Class[_]]) = {
+//    this(klasses, Thread.currentThread().getContextClassLoader())
+//  }
+//  
+//  def this(cl: ClassLoader ) = {
+//    this(null, cl)
+//  }
+//  
+//  def this() = {
+//    this(Thread.currentThread().getContextClassLoader())
+//  }
+//
+//  def serialize[T](o: T): Array[Byte] = {
+//    if(null == o) 
+//      null
+//    else
+//      ser.newInstance().serialize(o).array()
+//  }
+//  
+//  def deserialize[T](bytes: Array[Byte], cls: Class[_]): T = {
+//    ser.newInstance().deserialize[T](ByteBuffer.wrap(bytes))
+//  }
+//
+//  def deserialize[T](bytes: Array[Byte], cl: ClassLoader): T = {
+//    ser.newInstance().deserialize[T](ByteBuffer.wrap(bytes), cl)
+//  }
+//  
+//  def deserialize[T](bytes: Array[Byte]): T = {
+//    ser.newInstance().deserialize[T](ByteBuffer.wrap(bytes))
+//  }
+//}
 
 class KryoSerializer(klasses: Array[Class[_]], cl: ClassLoader) {
   val kryo = new Kryo()
@@ -63,6 +97,7 @@ class KryoSerializer(klasses: Array[Class[_]], cl: ClassLoader) {
     this(klasses, Thread.currentThread().getContextClassLoader())
   }
 
+  // TODO need to figure out how to save the bytes copying
   def serialize[T](o: T): Array[Byte] = {
     kryo.writeObject(output, o)
     output.close()

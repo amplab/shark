@@ -39,7 +39,8 @@ import shark.execution.cg.CompilationContext
 
 
 class JoinOperator extends CommonJoinOperator[JoinDesc] 
-  with ReduceSinkTableDesc with CGObjectOperator {
+  with ReduceSinkTableDesc 
+  with CGObjectOperator {
 
   @BeanProperty var valueTableDescMap: JHashMap[Int, TableDesc] = _
   @BeanProperty var keyTableDesc: TableDesc = _
@@ -50,6 +51,7 @@ class JoinOperator extends CommonJoinOperator[JoinDesc]
 
   override def initializeOnMaster(cc: CompilationContext) {
     super.initializeOnMaster(cc)
+
     var descs = keyValueDescs()
     valueTableDescMap = new JHashMap[Int, TableDesc]
     valueTableDescMap ++= descs.map { case(tag, kvdescs) => (tag, kvdescs._2) }
@@ -57,7 +59,8 @@ class JoinOperator extends CommonJoinOperator[JoinDesc]
 
     // Call initializeOnSlave to initialize the join filters, etc.
     initializeOnSlave()
-    initCGOnMaster(cc)
+    
+    cgOnMaster(cc)
   }
 
   override def initializeOnSlave() {
@@ -81,7 +84,7 @@ class JoinOperator extends CommonJoinOperator[JoinDesc]
         keyDeserializer.getObjectInspector().asInstanceOf[StandardStructObjectInspector]
     }
     
-    initCGOnSlave()
+    cgOnSlave()
   }
 
   override def execute(): RDD[_] = {
@@ -195,7 +198,7 @@ class JoinOperator extends CommonJoinOperator[JoinDesc]
   
   override def outputObjectInspector() = soi
   
-  protected[this] def createOutputOI(): StructObjectInspector = {
+  protected def createOutputOI(): StructObjectInspector = {
     super.initializeOutputOI()
   }
   

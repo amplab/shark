@@ -67,6 +67,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc] {
     // be initialized so we can use them in combineMultipleRdds(). This also puts
     // serialization info for keys in MapJoinMetaData.
     initializeOnSlave()
+    operatorClassLoader = Operator.operatorClassLoader
   }
 
   override def initializeOnSlave() {

@@ -139,6 +139,8 @@ class ScriptOperator extends UnaryOperator[ScriptDesc] {
     super.initializeOnMaster(cc)
     localHconf = super.hconf
     conf = desc
+    
+    operatorClassLoader = Operator.operatorClassLoader
   }
 
   override def initializeOnSlave() {

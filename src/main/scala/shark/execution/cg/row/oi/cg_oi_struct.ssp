@@ -101,7 +101,7 @@ var sfs = fields.map(f=>f.defStructField())
       return null;
     }
     
-    ${delegate.cgClassName} struct = (${delegate.cgClassName})data;
+    ${delegate.fullClassName} struct = (${delegate.fullClassName})data;
     
     for(int i = 0; i < SF_FIELDS.size(); ++i) {
       writables.set(i, SF_FIELDS.get(i).get(struct));
