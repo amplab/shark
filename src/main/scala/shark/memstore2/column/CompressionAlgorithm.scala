@@ -24,8 +24,19 @@ trait CompressionAlgorithm  {
 
   /**
    * Return compression ratio between 0 and 1, smaller score imply higher compressibility.
+   * This is used to pick the compression algorithm to apply at runtime.
    */
-  def compressionRatio: Double
+  def compressionRatio: Double = compressedSize.toDouble / uncompressedSize.toDouble
+
+  /**
+   * The uncompressed size of the input data.
+   */
+  def uncompressedSize: Int
+
+  /**
+   * Estimation of the data size once compressed.
+   */
+  def compressedSize: Int
 
   /**
    * Compress the given buffer and return the compressed data as a new buffer.
@@ -42,8 +53,11 @@ object RLECompressionType extends CompressionType(0)
 
 object DictionaryCompressionType extends CompressionType(1)
 
-
+/**
+ * An no-op compression.
+ */
 class NoCompression extends CompressionAlgorithm {
+
   override def compressionType = DefaultCompressionType
 
   override def supportsType(t: ColumnType[_,_]) = true
@@ -51,6 +65,10 @@ class NoCompression extends CompressionAlgorithm {
   override def gatherStatsForCompressibility[T](v: T, t: ColumnType[T,_]) {}
 
   override def compressionRatio: Double = 1.0
+
+  override def uncompressedSize: Int = 0
+
+  override def compressedSize: Int = 0
 
   override def compress[T](b: ByteBuffer, t: ColumnType[T, _]) = {
     val len = b.limit()
@@ -92,13 +110,14 @@ class RLE extends CompressionAlgorithm {
       // This is the very first run.
       _prev = t.clone(v)
       _run = 1
+      _compressedSize += s + 4
     } else {
       if (_prev.equals(v)) {
         // Add one to the current run's length.
         _run += 1
       } else {
         // Start a new run. Update the current run length.
-        _compressedSize += (t.actualSize(_prev.asInstanceOf[T]) + 4)
+        _compressedSize += s + 4
         _prev = t.clone(v)
         _run = 1
       }
@@ -106,17 +125,15 @@ class RLE extends CompressionAlgorithm {
     _uncompressedSize += s
   }
 
+  override def uncompressedSize: Int = _uncompressedSize
+
   // Note that we don't actually track the size of the last run into account to simplify the
   // logic a little bit.
-  override def compressionRatio = _compressedSize / (_uncompressedSize + 0.0)
+  override def compressedSize: Int = _compressedSize
 
   override def compress[T](b: ByteBuffer, t: ColumnType[T,_]): ByteBuffer = {
-    // Add the size of the last run to the _size
-    if (_prev != null) {
-      _compressedSize += t.actualSize(_prev.asInstanceOf[T]) + 4
-    }
-
-    val compressedBuffer = ByteBuffer.allocate(_compressedSize + 4 + 4)
+    // Leave 4 extra bytes for column type and another 4 for compression type.
+    val compressedBuffer = ByteBuffer.allocate(4 + 4 + _compressedSize)
     compressedBuffer.order(ByteOrder.nativeOrder())
     compressedBuffer.putInt(b.getInt())
     compressedBuffer.putInt(compressionType.typeID)
@@ -216,20 +233,18 @@ class DictionaryEncoding extends CompressionAlgorithm {
     }
   }
 
-  /**
-   * Return the compression ratio if encoded with dictionary encoding. If the dictionary
-   * cardinality (i.e. the number of distinct elements) is bigger than 32K, we return an
-   * arbitrary number greater than 1.0.
-   */
-  override def compressionRatio: Double = compressedSize / (_uncompressedSize + 0.0)
+  override def uncompressedSize: Int = _uncompressedSize
 
-  private def compressedSize: Int = {
+  /**
+   * Return the compressed data size if encoded with dictionary encoding. If the dictionary
+   * cardinality (i.e. the number of distinct elements) is bigger than 32K, we return an
+   * a really large number.
+   */
+  override def compressedSize: Int = {
     // Total compressed size =
     //   size of the dictionary +
-    //   the number of elements * dictionary encoded size (short) +
-    //   an integer for compression type
-    //   an integer for column type
-    if (_overflow) Int.MaxValue else _dictionarySize + _count * indexSize + 4 + 4
+    //   the number of elements * dictionary encoded size (short)
+    if (_overflow) Int.MaxValue else _dictionarySize + _count * indexSize
   }
 
   override def compress[T](b: ByteBuffer, t: ColumnType[T, _]): ByteBuffer = {
@@ -239,7 +254,8 @@ class DictionaryEncoding extends CompressionAlgorithm {
     }
 
     // Create a new buffer and store the compression type and column type.
-    val compressedBuffer = ByteBuffer.allocate(compressedSize)
+    // Leave 4 extra bytes for column type and another 4 for compression type.
+    val compressedBuffer = ByteBuffer.allocate(4 + 4 + compressedSize)
     compressedBuffer.order(ByteOrder.nativeOrder())
     compressedBuffer.putInt(b.getInt())
     compressedBuffer.putInt(compressionType.typeID)

@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2012 The Regents of The University California.
+ * All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package shark.memstore2.column
 
 import java.nio.ByteBuffer
@@ -25,7 +42,7 @@ class CompressedColumnIteratorSuite extends FunSuite {
       l: Seq[T],
       t: ColumnType[T, _],
       algo: CompressionAlgorithm,
-      compareFunc: (T, T) => Boolean = (a: T, b: T) => a == b,
+      expectedCompressedSize: Int,
       shouldNotCompress: Boolean = false)
   {
     val b = ByteBuffer.allocate(1024 + (3 * 40 * l.size))
@@ -37,6 +54,11 @@ class CompressedColumnIteratorSuite extends FunSuite {
     }
     b.limit(b.position())
     b.rewind()
+
+    info("compressed size: %d, uncompressed size: %d, compression ratio %f".format(
+      algo.compressedSize, algo.uncompressedSize, algo.compressionRatio))
+
+    assert(algo.compressedSize === expectedCompressedSize)
 
     if (shouldNotCompress) {
       assert(algo.compressionRatio >= 1.0)
@@ -56,7 +78,7 @@ class CompressedColumnIteratorSuite extends FunSuite {
 
       l.foreach { x =>
         iter.next()
-        assert(compareFunc(t.get(iter.current, oi), x))
+        assert(t.get(iter.current, oi) === x)
       }
 
       // Make sure we reach the end of the iterator.
@@ -65,60 +87,71 @@ class CompressedColumnIteratorSuite extends FunSuite {
   }
 
   test("RLE Boolean") {
-    testList(Seq[Boolean](true, true, false, true), BOOLEAN, new RLE())
+    // 3 runs: (1+4)*3
+    val bools = Seq(true, true, false, true, true, true, true, true, true, true, true, true)
+    testList(bools, BOOLEAN, new RLE, 15)
   }
 
   test("RLE Byte") {
-    testList(Seq[Byte](10, 10, 20, 10), BYTE, new RLE())
+    // 3 runs: (1+4)*3
+    testList(Seq[Byte](10, 10, 10, 10, 10, 10, 10, 10, 10, 20, 10), BYTE, new RLE, 15)
   }
 
   test("RLE Short") {
-    testList(Seq[Short](10, 10, 10, 20000, 20000, 20000, 500, 500, 500, 500), SHORT, new RLE())
+    // 3 runs: (2+4)*3
+    testList(Seq[Short](10, 10, 10, 20000, 20000, 20000, 500, 500, 500, 500), SHORT, new RLE, 18)
   }
 
   test("RLE Int") {
-    testList(Seq[Int](1000000, 1000000, 1000000, 1000000, 900000, 99), INT, new RLE())
+    // 3 runs: (4+4)*3
+    testList(Seq[Int](1000000, 1000000, 1000000, 1000000, 900000, 99), INT, new RLE, 24)
   }
 
   test("RLE Long") {
+    // 2 runs: (8+4)*3
     val longs = Seq[Long](2147483649L, 2147483649L, 2147483649L, 2147483649L, 500L, 500L, 500L)
-    testList(longs, LONG, new RLE())
+    testList(longs, LONG, new RLE, 24)
   }
 
   test("RLE String") {
+    // 3 runs: (4+4+4) + (4+1+4) + (4+1+4) = 30
     val strs: Seq[Text] = Seq("abcd", "abcd", "abcd", "e", "e", "!", "!").map(s => new Text(s))
-    testList(strs, STRING, new RLE(), (a: Text, b: Text) => a.equals(b))
+    testList(strs, STRING, new RLE, 30)
   }
 
   test("Dictionary Encoded Int") {
-    testList(Seq[Int](1000000, 1000000, 1000000, 1000000, 900000, 99), INT, new DictionaryEncoding)
+    // dict len + 3 distinct values + 7 values = 4 + 3*4 + 7*2 = 30
+    val ints = Seq[Int](1000000, 1000000, 99, 1000000, 1000000, 900000, 99)
+    testList(ints, INT, new DictionaryEncoding, 30)
   }
 
   test("Dictionary Encoded Long") {
+    // dict len + 2 distinct values + 7 values = 4 + 2*8 + 7*2 = 34
     val longs = Seq[Long](2147483649L, 2147483649L, 2147483649L, 2147483649L, 500L, 500L, 500L)
-    testList(longs, LONG, new DictionaryEncoding)
+    testList(longs, LONG, new DictionaryEncoding, 34)
   }
 
   test("Dictionary Encoded String") {
-    val strs: Seq[Text] = Seq("abcd", "abcd", "abcd", "e", "e", "!", "!").map(s => new Text(s))
-    testList(strs, STRING, new DictionaryEncoding, (a: Text, b: Text) => a.equals(b),
-      shouldNotCompress = false)
+    // dict len + 3 distinct values + 8 values = 4 + (4+4) + (4+1) + (4+1) + 8*2 =
+    val strs: Seq[Text] = Seq("abcd", "abcd", "abcd", "e", "e", "e", "!", "!").map(s => new Text(s))
+    testList(strs, STRING, new DictionaryEncoding, 38, shouldNotCompress = false)
   }
 
   test("Dictionary Encoding at limit of unique values") {
     val ints = Range(0, Short.MaxValue - 1).flatMap(i => Iterator(i, i, i))
-    testList(ints, INT, new DictionaryEncoding)
+    val expectedLen = 4 + (Short.MaxValue - 1) * 4 + 2 * (Short.MaxValue - 1) * 3
+    testList(ints, INT, new DictionaryEncoding, expectedLen)
   }
 
   test("Dictionary Encoding - should not compress") {
     val ints = Range(0, Short.MaxValue.toInt)
-    testList(ints, INT, new DictionaryEncoding, (a: Int, b: Int) => a == b,
-      shouldNotCompress = true)
+    testList(ints, INT, new DictionaryEncoding, Int.MaxValue, shouldNotCompress = true)
   }
 
   test("RLE - should not compress") {
     val ints = Range(0, Short.MaxValue.toInt + 1)
-    testList(ints, INT, new RLE, (a: Int, b: Int) => a == b, shouldNotCompress = true)
+    val expectedLen = (Short.MaxValue.toInt + 1) * (4 + 4)
+    testList(ints, INT, new RLE, expectedLen, shouldNotCompress = true)
   }
 }
 
