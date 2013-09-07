@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2012 The Regents of The University California.
+ * All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package shark.memstore2.column
 
 import java.nio.ByteBuffer
@@ -12,117 +29,132 @@ import shark.memstore2.column.Implicits._
 
 class CompressedColumnIteratorSuite extends FunSuite {
 
-  val booleanList = Array[Boolean](true, true, false, true)
-  val byteList = Array[Byte](10, 10, 20, 10)
-  val shortList = byteList.map { i => (Short.MaxValue - i).toShort }
-  val iList = byteList.map { i => Int.MaxValue - i.toInt }
-  val lList = iList.map { i => Long.MaxValue - i.toLong }
-  val sList = iList.map { i => new Text(i.toString) }
-
-  /** Generic tester across types and encodings
-    *
-    */
+  /**
+   * Generic tester across types and encodings. The function applies the given compression
+   * algorithm on the given sequence of values, and test whether the resulting iterator gives
+   * the same sequence of values.
+   *
+   * If we expect the compression algorithm to not compress the data, we should set the
+   * shouldNotCompress flag to true. This way, it doesn't actually create a compressed buffer,
+   * but simply tests the compression ratio returned by the algorithm is >= 1.0.
+   */
   def testList[T, W](
-    l: Seq[T],
-    u: ColumnType[T, _],
-    algo: CompressionAlgorithm,
-    compareFunc: (T, T) => Boolean = (a: T, b: T) => a == b,
-    shouldNotCompress: Boolean = false) {
-
-    val b = ByteBuffer.allocate(1024 + (3*40*l.size))
+      l: Seq[T],
+      t: ColumnType[T, _],
+      algo: CompressionAlgorithm,
+      expectedCompressedSize: Int,
+      shouldNotCompress: Boolean = false)
+  {
+    val b = ByteBuffer.allocate(1024 + (3 * 40 * l.size))
     b.order(ByteOrder.nativeOrder())
-    b.putInt(u.typeID)
+    b.putInt(t.typeID)
     l.foreach { item =>
-      u.append(item.asInstanceOf[T], b)
-      algo.gatherStatsForCompressibility(item, u.asInstanceOf[ColumnType[Any, _]])
+      t.append(item, b)
+      algo.gatherStatsForCompressibility(item, t.asInstanceOf[ColumnType[Any, _]])
     }
     b.limit(b.position())
     b.rewind()
-    val compressedBuffer = algo.compress(b, u)
+
+    info("compressed size: %d, uncompressed size: %d, compression ratio %f".format(
+      algo.compressedSize, algo.uncompressedSize, algo.compressionRatio))
+
+    assert(algo.compressedSize === expectedCompressedSize)
+
     if (shouldNotCompress) {
       assert(algo.compressionRatio >= 1.0)
-      info("CompressionRatio " + algo.compressionRatio)
     } else {
-
+      val compressedBuffer = algo.compress(b, t)
       val iter = new TestIterator(compressedBuffer, compressedBuffer.getInt())
 
-      val oi: ObjectInspector = u match {
+      val oi: ObjectInspector = t match {
         case BOOLEAN => PrimitiveObjectInspectorFactory.writableBooleanObjectInspector
         case BYTE    => PrimitiveObjectInspectorFactory.writableByteObjectInspector
         case SHORT   => PrimitiveObjectInspectorFactory.writableShortObjectInspector
         case INT     => PrimitiveObjectInspectorFactory.writableIntObjectInspector
         case LONG    => PrimitiveObjectInspectorFactory.writableLongObjectInspector
         case STRING  => PrimitiveObjectInspectorFactory.writableStringObjectInspector
+        case _       => throw new UnsupportedOperationException("Unsupported compression type " + t)
       }
 
       l.foreach { x =>
         iter.next()
-        assert(compareFunc(u.get(iter.current, oi), x))
-        // assert(u.get(iter.current, oi) === x)
+        assert(t.get(iter.current, oi) === x)
       }
-      assert(false === iter.hasNext) // no extras at the end
+
+      // Make sure we reach the end of the iterator.
+      assert(!iter.hasNext)
     }
   }
 
-  test("RLE Decompression Boolean") {
-    testList(booleanList, BOOLEAN, new RLE())
+  test("RLE Boolean") {
+    // 3 runs: (1+4)*3
+    val bools = Seq(true, true, false, true, true, true, true, true, true, true, true, true)
+    testList(bools, BOOLEAN, new RLE, 15)
   }
 
-  test("RLE Decompression Byte") {
-    testList(byteList, BYTE, new RLE())
+  test("RLE Byte") {
+    // 3 runs: (1+4)*3
+    testList(Seq[Byte](10, 10, 10, 10, 10, 10, 10, 10, 10, 20, 10), BYTE, new RLE, 15)
   }
 
-  test("RLE Decompression Short") {
-    testList(shortList, SHORT, new RLE())
+  test("RLE Short") {
+    // 3 runs: (2+4)*3
+    testList(Seq[Short](10, 10, 10, 20000, 20000, 20000, 500, 500, 500, 500), SHORT, new RLE, 18)
   }
 
-  test("RLE Decompression Int") {
-    testList(iList, INT, new RLE())
+  test("RLE Int") {
+    // 3 runs: (4+4)*3
+    testList(Seq[Int](1000000, 1000000, 1000000, 1000000, 900000, 99), INT, new RLE, 24)
   }
 
-  test("RLE Decompression Long") {
-    testList(lList, LONG, new RLE())
+  test("RLE Long") {
+    // 2 runs: (8+4)*3
+    val longs = Seq[Long](2147483649L, 2147483649L, 2147483649L, 2147483649L, 500L, 500L, 500L)
+    testList(longs, LONG, new RLE, 24)
   }
 
-  test("RLE Decompression String") {
-    testList(sList, STRING, new RLE(), (a: Text, b: Text) => a.hashCode == b.hashCode)
+  test("RLE String") {
+    // 3 runs: (4+4+4) + (4+1+4) + (4+1+4) = 30
+    val strs: Seq[Text] = Seq("abcd", "abcd", "abcd", "e", "e", "!", "!").map(s => new Text(s))
+    testList(strs, STRING, new RLE, 30)
   }
 
-  test("Dictionary Decompression Int") {
-    testList(iList, INT, new DictionaryEncoding())
+  test("Dictionary Encoded Int") {
+    // dict len + 3 distinct values + 7 values = 4 + 3*4 + 7*2 = 30
+    val ints = Seq[Int](1000000, 1000000, 99, 1000000, 1000000, 900000, 99)
+    testList(ints, INT, new DictionaryEncoding, 30)
   }
 
-  test("Dictionary Decompression Long") {
-    testList(lList, LONG, new DictionaryEncoding())
+  test("Dictionary Encoded Long") {
+    // dict len + 2 distinct values + 7 values = 4 + 2*8 + 7*2 = 34
+    val longs = Seq[Long](2147483649L, 2147483649L, 2147483649L, 2147483649L, 500L, 500L, 500L)
+    testList(longs, LONG, new DictionaryEncoding, 34)
   }
 
-  test("Dictionary Decompression String") {
-    testList(sList, STRING, new DictionaryEncoding(), (a: Text, b: Text) => a.hashCode == b.hashCode)
+  test("Dictionary Encoded String") {
+    // dict len + 3 distinct values + 8 values = 4 + (4+4) + (4+1) + (4+1) + 8*2 =
+    val strs: Seq[Text] = Seq("abcd", "abcd", "abcd", "e", "e", "e", "!", "!").map(s => new Text(s))
+    testList(strs, STRING, new DictionaryEncoding, 38, shouldNotCompress = false)
   }
 
-  test("Dictionary Decompression at limit of unique values") {
-    val alternating = Range(0, Short.MaxValue-1, 1).flatMap { s => List(1, s) }
-    val iiList = byteList.map { i => i.toInt }
-    val hugeList = List.concat(iiList, alternating, iiList)
-    assert(hugeList.size === (8 + 2*(Short.MaxValue-1)))
-    testList(hugeList, INT, new DictionaryEncoding())
+  test("Dictionary Encoding at limit of unique values") {
+    val ints = Range(0, Short.MaxValue - 1).flatMap(i => Iterator(i, i, i))
+    val expectedLen = 4 + (Short.MaxValue - 1) * 4 + 2 * (Short.MaxValue - 1) * 3
+    testList(ints, INT, new DictionaryEncoding, expectedLen)
   }
 
-  test("Dictionary Decompression - should not compress") {
-    val alternating = Range(0, Short.MaxValue-1, 1).flatMap { s => List(1, s) }
-    val hugeList = List.concat(iList, alternating, iList)
-    assert(hugeList.size === (8 + 2*(Short.MaxValue-1)))
-    testList(hugeList, INT, new DictionaryEncoding(), (a: Int, b: Int) => a == b, true)
+  test("Dictionary Encoding - should not compress") {
+    val ints = Range(0, Short.MaxValue.toInt)
+    testList(ints, INT, new DictionaryEncoding, Int.MaxValue, shouldNotCompress = true)
   }
 
   test("RLE - should not compress") {
-    val alternating = Range(0, Short.MaxValue-1, 1).flatMap { s => List(1, s) }
-    val hugeList = List.concat(iList, alternating, iList)
-    assert(hugeList.size === (8 + 2*(Short.MaxValue-1)))
-    testList(hugeList, INT, new RLE(), (a: Int, b: Int) => a == b, true)
+    val ints = Range(0, Short.MaxValue.toInt + 1)
+    val expectedLen = (Short.MaxValue.toInt + 1) * (4 + 4)
+    testList(ints, INT, new RLE, expectedLen, shouldNotCompress = true)
   }
-
 }
 
- class TestIterator(val buffer: ByteBuffer, val columnType: ColumnType[_,_])
-      extends CompressedColumnIterator
+
+class TestIterator(val buffer: ByteBuffer, val columnType: ColumnType[_,_])
+    extends CompressedColumnIterator
