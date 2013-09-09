@@ -26,7 +26,7 @@ import org.apache.hadoop.hive.ql.plan.{ExtractDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.Deserializer
 import org.apache.hadoop.io.BytesWritable
 
-import spark.RDD
+import org.apache.spark.rdd.RDD
 
 
 class ExtractOperator extends UnaryOperator[HiveExtractOperator] with HiveTopOperator {

@@ -29,10 +29,10 @@ import org.apache.hadoop.mapred.TaskID
 import org.apache.hadoop.mapred.TaskAttemptID
 import org.apache.hadoop.mapred.SparkHadoopWriter
 
-import shark.execution.serialization.OperatorSerializationWrapper
+import org.apache.spark.TaskContext
+import org.apache.spark.rdd.RDD
 
-import spark.RDD
-import spark.TaskContext
+import shark.execution.serialization.OperatorSerializationWrapper
 
 
 class FileSinkOperator extends TerminalOperator with Serializable {
@@ -122,12 +122,23 @@ class FileSinkOperator extends TerminalOperator with Serializable {
 
     val hiveIslocal = ShimLoader.getHadoopShims.isLocalMode(hconf)
     if (!rdd.context.isLocal && hiveIslocal) {
-      val intro = "Hive Hadoop shims detected local mode even though Shark is not running locally.\n"
-      val jtCheck = "mapred.job.tracker should be specified and not 'local'. Value: %s.\n".format(
-        hconf.get("mapred.job.tracker"))
-      val fnCheck = "mapreduce.framework.name should be specified and not 'local'. Value: %s.\n".format(
-        hconf.get("mapreduce.framework.name"))
-      throw new Exception(intro + jtCheck + fnCheck)
+      val warnMessage = "Hive Hadoop shims detected local mode, but Shark is not running locally."
+      logWarning(warnMessage)
+
+      // Try to fix this without bothering user
+      val newValue = "Spark_%s".format(System.currentTimeMillis())
+      for (k <- Seq("mapred.job.tracker", "mapreduce.framework.name")) {
+        val v = hconf.get(k)
+        if (v == null || v == "" || v == "local") {
+          hconf.set(k, newValue)
+          logWarning("Setting %s to '%s' (was '%s')".format(k, newValue, v))
+        }
+      }
+
+      // If still not fixed, bail out
+      if (ShimLoader.getHadoopShims.isLocalMode(hconf)) {
+        throw new Exception(warnMessage)
+      }
     }
 
     parentOperators.head match {

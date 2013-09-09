@@ -33,11 +33,10 @@ import org.apache.hadoop.hive.serde2.{Serializer, Deserializer}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.io.{BytesWritable, Writable}
 
-import shark.execution.serialization.OperatorSerializationWrapper
+import org.apache.spark.{OneToOneDependency, SparkEnv, SparkFiles}
+import org.apache.spark.rdd.RDD
 
-import spark.{OneToOneDependency, RDD, SparkEnv}
-// Note that SparkFiles class is written in Java in Spark.
-import spark.SparkFiles
+import shark.execution.serialization.OperatorSerializationWrapper
 
 
 /**

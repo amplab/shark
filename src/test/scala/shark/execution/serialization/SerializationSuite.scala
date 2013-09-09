@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,7 +27,7 @@ import org.apache.hadoop.hive.conf.HiveConf
 
 import org.scalatest.FunSuite
 
-import spark.{JavaSerializer => SparkJavaSerializer}
+import org.apache.spark.serializer.{JavaSerializer => SparkJavaSerializer}
 
 
 object SerializationSuite {

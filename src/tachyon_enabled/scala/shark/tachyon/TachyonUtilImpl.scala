@@ -18,16 +18,18 @@
 package shark.tachyon
 
 import java.nio.ByteBuffer
+import java.util.BitSet
 
 import scala.collection.JavaConverters._
+
+import org.apache.spark.rdd.RDD
+
+import tachyon.client.TachyonFS
+import tachyon.client.table.{RawTable, RawColumn}
 
 import shark.SharkEnv
 import shark.memstore2.TablePartition
 
-import spark.RDD
-
-import tachyon.client.TachyonFS
-import tachyon.client.table.{RawTable, RawColumn}
 
 /**
  * An abstraction for the Tachyon APIs.
@@ -41,6 +43,16 @@ class TachyonUtilImpl(val master: String, val warehousePath: String) extends Tac
   }
 
   def getPath(tableName: String): String = warehousePath + "/" + tableName
+
+  override def pushDownColumnPruning(rdd: RDD[_], columnUsed: BitSet): Boolean = {
+    if (rdd.isInstanceOf[TachyonTableRDD]) {
+      rdd.asInstanceOf[TachyonTableRDD].setColumnUsed(columnUsed)
+      true
+    } else {
+      false
+    }
+  }
+
 
   override def tachyonEnabled(): Boolean = (master != null && warehousePath != null)
 

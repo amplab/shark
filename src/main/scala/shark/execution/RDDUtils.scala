@@ -21,10 +21,11 @@ import scala.collection.JavaConversions
 
 import com.google.common.collect.{Ordering => GOrdering}
 
+import org.apache.spark.{HashPartitioner, Partitioner, RangePartitioner}
+import org.apache.spark.rdd.{RDD, ShuffledRDD, UnionRDD}
+import org.apache.spark.storage.StorageLevel
+
 import shark.SharkEnv
-import spark.{HashPartitioner, Partitioner, RangePartitioner, RDD}
-import spark.rdd.{ShuffledRDD, UnionRDD}
-import spark.storage.StorageLevel
 
 
 /**

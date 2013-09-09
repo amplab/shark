@@ -45,7 +45,7 @@ import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hadoop.hive.shims.ShimLoader
 import org.apache.hadoop.io.IOUtils
 
-import spark.SparkContext
+import org.apache.spark.SparkContext
 
 
 object SharkCliDriver {
