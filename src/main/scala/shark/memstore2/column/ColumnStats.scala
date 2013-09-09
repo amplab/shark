@@ -22,6 +22,7 @@ import java.io.ObjectOutput
 import java.io.Externalizable
 import java.sql.Timestamp
 import org.apache.hadoop.io.Text
+import com.clearspring.analytics.stream.cardinality.HyperLogLog
 
 
 /**
@@ -35,11 +36,20 @@ sealed trait ColumnStats[@specialized(Boolean, Byte, Short, Int, Long, Float, Do
   protected def _min: T
   protected def _max: T
 
-
   def min: T = _min
   def max: T = _max
 
   override def toString = "[" + min + ", " + max + "]"
+
+  // Cardinality estimation currently uses Streamlib's implementation of 
+  // HyperLogLog and its 32-bit implementation of MurmurHash
+  protected var _numDistinct: Long = 0
+  def numDistinct: Long = _numDistinct
+  // Use 16 bits as basis for the HLL instance
+  @transient var _hyperLogLog: HyperLogLog = new HyperLogLog(16)
+  def estimateDistinct{
+    _numDistinct = _hyperLogLog.cardinality()
+  }
   
   def :><(l: Any, r: Any): Boolean = (this :>= l) && (this :<= r)
   def :<=(v: Any): Boolean = (this := v) || (this :< v)
@@ -58,7 +68,9 @@ object ColumnStats {
   class NoOpStats[T] extends ColumnStats[T] {
     protected var _max = null.asInstanceOf[T]
     protected var _min = null.asInstanceOf[T]
-    override def append(v: T) {}
+    override def append(v: T) {
+      _hyperLogLog.offer(v)
+    }
     override def :=(v: Any): Boolean = true
     override def :>(v: Any): Boolean = true
     override def :<(v: Any): Boolean = true
@@ -68,9 +80,11 @@ object ColumnStats {
     protected var _max = false
     protected var _min = true
     override def append(v: Boolean) {
+      _hyperLogLog.offer(v)
       if (v) _max = v
       else _min = v
     }
+
     def :=(v: Any): Boolean = {
       v match {
         case u:Boolean => _min <= u && _max >= u
@@ -98,6 +112,7 @@ object ColumnStats {
     protected var _max = Byte.MinValue
     protected var _min = Byte.MaxValue
     override def append(v: Byte) {
+      _hyperLogLog.offer(v)
       if (v > _max) _max = v
       if (v < _min) _min = v
     }
@@ -128,9 +143,11 @@ object ColumnStats {
     protected var _max = Short.MinValue
     protected var _min = Short.MaxValue
     override def append(v: Short) {
+      _hyperLogLog.offer(v)
       if (v > _max) _max = v
       if (v < _min) _min = v
     }
+
     def :=(v: Any): Boolean = {
       v match {
         case u:Short => _min <= u && _max >= u
@@ -197,6 +214,7 @@ object ColumnStats {
     }
 
     override def append(v: Int) {
+      _hyperLogLog.offer(v)
       if (v > _max) _max = v
       if (v < _min) _min = v
 
@@ -229,9 +247,11 @@ object ColumnStats {
     protected var _max = Long.MinValue
     protected var _min = Long.MaxValue
     override def append(v: Long) {
+      _hyperLogLog.offer(v)
       if (v > _max) _max = v
       if (v < _min) _min = v
     }
+
     def :=(v: Any): Boolean = {
       v match {
         case u:Long => _min <= u && _max >= u
@@ -258,6 +278,7 @@ object ColumnStats {
     protected var _max = Float.MinValue
     protected var _min = Float.MaxValue
     override def append(v: Float) {
+      _hyperLogLog.offer(v)
       if (v > _max) _max = v
       if (v < _min) _min = v
     }
@@ -287,6 +308,7 @@ object ColumnStats {
     protected var _max = Double.MinValue
     protected var _min = Double.MaxValue
     override def append(v: Double) {
+      _hyperLogLog.offer(v)
       if (v > _max) _max = v
       if (v < _min) _min = v
     }
@@ -316,6 +338,7 @@ object ColumnStats {
     protected var _max = new Timestamp(0)
     protected var _min = new Timestamp(Long.MaxValue)
     override def append(v: Timestamp) {
+      _hyperLogLog.offer(v)
       if (v.compareTo(_max) > 0) _max = v
       if (v.compareTo(_min) < 0) _min = v
     }
@@ -345,7 +368,7 @@ object ColumnStats {
     // Note: this is not Java serializable because Text is not Java serializable.
     protected var _max: Text = null
     protected var _min: Text = null
-    
+
     def :=(v: Any): Boolean = {
       v match {
         case u: Text => _min.compareTo(u) <= 0 && _max.compareTo(u) >= 0
@@ -371,6 +394,7 @@ object ColumnStats {
     }
 
     override def append(v: Text) {
+      _hyperLogLog.offer(v)
       // Need to make a copy of Text since Text is not immutable and we reuse
       // the same Text object in serializer to mitigate frequent GC.
       if (_max == null) {
