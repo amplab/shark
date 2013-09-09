@@ -78,8 +78,11 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     //TODO: can probably reuse Hive code for this
     // analyze create table command
     var cacheMode = CacheType.NONE
-    var isCTAS = false
     var shouldReset = false
+
+    // These are set when parsing the command statement AST for a CREATE TABLE.
+    var isCTAS = false
+    var isPartitioned = false
 
     if (ast.getToken().getType() == HiveParser.TOK_CREATETABLE) {
       super.analyzeInternal(ast)
@@ -87,16 +90,38 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         ch.asInstanceOf[ASTNode].getToken.getType match {
           case HiveParser.TOK_QUERY => {
             isCTAS = true
+            // Set the child ASTNode, which will be passed as an argument to
+            // SemanticAnalzyer#doPhase1().
             child = ch.asInstanceOf[ASTNode]
+          }
+          case HiveParser.TOK_TABLEPARTCOLS => {
+            // If the table that will be created is Hive-partitioned and should be cached, then
+            // metadata will be initialized in the initializeCachedTableMetadata() call below.
+            isPartitionedTable = true
+            // Get the partitioning columns. In Hive, CREATE TABLE ... [PARTITIONED BY] ...
+            // is handled by a DDLTask (created by the Hive SemanticAnalyzer's genMapRedTasks and
+            // not to be confused with the Hive DDLSemanticAnalyzer, which handles ALTER/DROP table
+            // (among other things). Since creating tables in Shark doesn't involve too much
+            // overhead (e.g. we don't support indexing), just update the Shark
+            // MemoryMetaDataManager in this method (during the semantic analysis phase).
+            // TODO(harvey): a Shark-specific DDLTask might be needed once indexing is supported.
+            partitionColumns = BaseSemanticAnalyzer.getColumns((ASTNode) child.getChild(0), false);
           }
           case _ =>
             Unit
         }
       }
 
-      // If the table descriptor can be null if the CTAS has an
-      // "if not exists" condition.
+      // The table descriptor can be NULL if the command is a ...
+      // 1) syntactically valid CREATE TABLE statement. The table specified may or may not already
+      //    exist. If the table already exists, then an exception is thrown by the DDLTask that's
+      //    executed after semantic analysis.
+      // 2) valid CTAS statement with an IF NOT EXISTS condition, and the specified table already
+      //    exists. If the table to-be-created already exists, and the CTAS statement does not
+      //    have an IF NOT EXISTS condition, then an exception will be thrown by the parent
+      //    SemanticAnalzyer's analyzeInternal() call above.
       val createTableDesc = getParseContext.getQB.getTableDesc
+
       if (!isCTAS || createTableDesc == null) {
         return
       } else {
@@ -108,7 +133,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         // There are two cases that will enable caching:
         // 1) Table name includes "_cached" or "_tachyon".
         // 2) The "shark.cache" table property is "true", or the string representation of a supported
-        //   cache mode (heap, Tachyon).
+        //    cache mode (heap, Tachyon).
         cacheMode = CacheType.fromString(createTableProperties.get("shark.cache"))
         // Continue planning based on the 'cacheMode' read.
         if (cacheMode == CacheType.HEAP ||
