@@ -21,8 +21,8 @@ import java.io.ObjectInput
 import java.io.ObjectOutput
 import java.io.Externalizable
 import java.sql.Timestamp
-import org.apache.hadoop.io.Text
 import com.clearspring.analytics.stream.cardinality.HyperLogLog
+import org.apache.hadoop.io.Text
 
 
 /**
@@ -41,22 +41,24 @@ sealed trait ColumnStats[@specialized(Boolean, Byte, Short, Int, Long, Float, Do
 
   override def toString = "[" + min + ", " + max + "]"
 
-  // Cardinality estimation currently uses Streamlib's implementation of 
-  // HyperLogLog and its 32-bit implementation of MurmurHash
-  protected var _numDistinct: Long = 0
-  def numDistinct: Long = _numDistinct
-  // Use 16 bits as basis for the HLL instance
-  @transient var _hyperLogLog: HyperLogLog = new HyperLogLog(16)
-  def estimateDistinct{
-    _numDistinct = _hyperLogLog.cardinality()
-  }
-  
   def :><(l: Any, r: Any): Boolean = (this :>= l) && (this :<= r)
   def :<=(v: Any): Boolean = (this := v) || (this :< v)
   def :>=(v: Any): Boolean = (this := v) || (this :> v)
   def  :=(v: Any): Boolean
   def  :>(v: Any): Boolean
   def  :<(v: Any): Boolean
+
+
+  // Use Streamlib's HyperLogLog and 32-bit Murmurhash implemenatations for 
+  // cardinality estimation, with 16 bits as the basis for this HLL instance.
+  @transient protected var _hyperLogLog: HyperLogLog = new HyperLogLog(16)
+  protected var _numDistinct: Long = 0
+
+  def numDistinct: Long = _numDistinct
+
+  def estimateCardinality {
+    _numDistinct = _hyperLogLog.cardinality()
+  }
 }
 
 

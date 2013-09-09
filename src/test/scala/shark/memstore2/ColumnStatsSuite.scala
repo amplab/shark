@@ -53,7 +53,7 @@ class ColumnStatsSuite extends FunSuite {
     assert(c :>= true)
 
     c.append(true)
-    c.estimateDistinct
+    c.estimateCardinality()
     assert(c.numDistinct == 1)
   }
 
@@ -75,7 +75,7 @@ class ColumnStatsSuite extends FunSuite {
     assert(!(c :<= -3.toByte))
 
     c.append(0)
-    c.estimateDistinct
+    c.estimateCardinality()
     assert(c.numDistinct == 5)
   }
 
@@ -93,7 +93,7 @@ class ColumnStatsSuite extends FunSuite {
     assert(c.min == -1024 && c.max == 1024)
 
     c.append(0)
-    c.estimateDistinct
+    c.estimateCardinality()
     assert(c.numDistinct == 5)
   }
 
@@ -134,7 +134,7 @@ class ColumnStatsSuite extends FunSuite {
     assert(!c.isOrdered && !c.isAscending && !c.isDescending)
 
     c.append(22)
-    c.estimateDistinct
+    c.estimateCardinality()
     assert(c.numDistinct == 3)
   }
 
@@ -155,7 +155,7 @@ class ColumnStatsSuite extends FunSuite {
     assert(c :< 0.toLong)
 
     c.append(0)
-    c.estimateDistinct
+    c.estimateCardinality()
     assert(c.numDistinct == 5)
   }
 
@@ -176,7 +176,7 @@ class ColumnStatsSuite extends FunSuite {
     assert(c :> -20.6F)
 
     c.append(0)
-    c.estimateDistinct
+    c.estimateCardinality()
     assert(c.numDistinct == 5)
   }
 
@@ -197,7 +197,7 @@ class ColumnStatsSuite extends FunSuite {
     assert(c :< 20.6)
 
     c.append(0)
-    c.estimateDistinct
+    c.estimateCardinality()
     assert(c.numDistinct == 5)
   }
 
@@ -222,7 +222,7 @@ class ColumnStatsSuite extends FunSuite {
     assert(c.min.equals(ts1) && c.max.equals(ts4))
     
     c.append(ts4)
-    c.estimateDistinct
+    c.estimateCardinality()
     assert(c.numDistinct == 4)
   }
 
@@ -244,7 +244,7 @@ class ColumnStatsSuite extends FunSuite {
     c.append("0987")
     assert(c.min.equals(T("0987")) && c.max.equals(T("cccc")))
 
-    c.estimateDistinct
+    c.estimateCardinality()
     assert(c.numDistinct == 4)
   }
 
@@ -254,8 +254,8 @@ class ColumnStatsSuite extends FunSuite {
     for (i <- 1 to size) {
       c.append(i)
     }
-    c.estimateDistinct
-    val err = scala.math.abs(c.numDistinct - size) / size.asInstanceOf[Double]; 
+    c.estimateCardinality()
+    val err = scala.math.abs(c.numDistinct - size) / size.asInstanceOf[Double]
     assert(err < 0.1)
   }
 }
