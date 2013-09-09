@@ -87,6 +87,8 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       }
 
       if (builder != null) {
+        // Generate cardinality estimate now that all rows for current part are serialized
+        builder.asInstanceOf[TablePartitionBuilder].stats.estimateDistinct
         statsAcc += Tuple2(partitionIndex, builder.asInstanceOf[TablePartitionBuilder].stats)
         Iterator(builder.asInstanceOf[TablePartitionBuilder].build)
       } else {

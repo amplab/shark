@@ -32,4 +32,8 @@ class TablePartitionStats(val stats: Array[ColumnStats[_]], val numRows: Long)
       "  column " + index + " " +
       { if (column != null) column.toString else "no column statistics" }
     }.mkString("\n")
+
+  def estimateDistinct {
+    stats.foreach(_.estimateDistinct)
+  }
 }
