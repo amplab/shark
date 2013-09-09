@@ -56,7 +56,7 @@ sealed trait ColumnStats[@specialized(Boolean, Byte, Short, Int, Long, Float, Do
 
   def numDistinct: Long = _numDistinct
 
-  def estimateCardinality {
+  def estimateCardinality() {
     _numDistinct = _hyperLogLog.cardinality()
   }
 }
