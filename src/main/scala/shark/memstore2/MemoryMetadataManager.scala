@@ -30,19 +30,39 @@ import shark.SharkConfVars
 
 class MemoryMetadataManager {
 
-  private val _keyToRdd: ConcurrentMap[String, RDD[_]] =
-    new ConcurrentHashMap[String, RDD[_]]()
+  private val _keyToMemoryTable: ConcurrentMap[String, MemoryTable] =
+    new ConcurrentHashMap[String, MemoryTable]()
 
+  // TODO(harvey): Support stats for Hive-partitioned tables.
   private val _keyToStats: ConcurrentMap[String, collection.Map[Int, TablePartitionStats]] =
     new ConcurrentHashMap[String, collection.Map[Int, TablePartitionStats]]
 
-  def contains(key: String) = _keyToRdd.contains(key.toLowerCase)
+  def contains(key: String) = _keyToMemoryTable.contains(key.toLowerCase)
 
   def put(key: String, rdd: RDD[_]) {
-    _keyToRdd(key.toLowerCase) = rdd
+    if (!contains(key)) {
+      _keyToMemoryTable(key.toLowerCase) = new MemoryTable(key, false /* isHivePartitioned */)
+    }
+    _keyToMemoryTable(key.toLowerCase).tableRDD = rdd
   }
 
-  def get(key: String): Option[RDD[_]] = _keyToRdd.get(key.toLowerCase)
+  def putHivePartition(key: String, partitionColumn: String, rdd: RDD[_]) {
+    if (!contains(key)) {
+      _keyToMemoryTable(key.toLowerCase) = new MemoryTable(key, true /* isHivePartitioned */)
+    }
+    _keyToMemoryTable(key.toLowerCase).hivePartitionRDDs(partitionColumn) = rdd
+  }
+
+  def get(key: String): Option[RDD[_]] = {
+    _keyToMemoryTable.get(key.toLowerCase) match {
+      case Some(memoryTable) => return Some(memoryTable.tableRDD)
+      case None => return None
+    }
+  }
+
+  def getHivePartition(key: String, partitionColumn: String): RDD[_] = {
+    return _keyToMemoryTable(key.toLowerCase).hivePartitionRDDs(partitionColumn)
+  }
 
   def putStats(key: String, stats: collection.Map[Int, TablePartitionStats]) {
     _keyToStats.put(key.toLowerCase, stats)
@@ -56,19 +76,18 @@ class MemoryMetadataManager {
    * Find all keys that are strings. Used to drop tables after exiting.
    */
   def getAllKeyStrings(): Seq[String] = {
-    _keyToRdd.keys.collect { case k: String => k } toSeq
+    _keyToMemoryTable.keys.collect { case k: String => k } toSeq
   }
 
   /**
-   * Used to drop an RDD from the Spark in-memory cache and/or disk. All metadata
-   * (e.g. entry in '_keyToStats') about the RDD that's tracked by Shark is deleted as well.
+   * Used to drop a table from the Spark in-memory cache and/or disk. All metadata
+   * (e.g. entry in '_keyToStats' if the table isn't Hive-partitioned) tracked by Shark is deleted
+   * as well.
    *
-   * @param key Used to fetch the an RDD value from '_keyToRDD'.
-   * @return Option::isEmpty() is true if there is no RDD value corresponding to 'key' in
-   *         '_keyToRDD'. Otherwise, returns a reference to the RDD that was unpersist()'ed.
+   * @param key Name of the table to drop.
    */
-  def unpersist(key: String): Option[RDD[_]] = {
-    def unpersistRDD(rdd: RDD[_]): Unit = {
+  def unpersist(key: String) {
+    def unpersistRDD(rdd: RDD[_]) {
       rdd match {
         case u: UnionRDD[_] => {
           // Recursively unpersist() all RDDs that compose the UnionRDD.
@@ -80,16 +99,23 @@ class MemoryMetadataManager {
         case r => r.unpersist()
       }
     }
-    // Remove RDD's entry from Shark metadata. This also fetches a reference to the RDD object
-    // corresponding to the argument for 'key'.
-    val rddValue = _keyToRdd.remove(key.toLowerCase())
+    def unpersistMemoryTable(memoryTable: MemoryTable) {
+      if (memoryTable.isHivePartitioned) {
+        // unpersist() all RDDs for all Hive-partitions.
+        memoryTable.hivePartitionRDDs.mapValues(unpersistRDD(_))
+      } else {
+        unpersistRDD(memoryTable.tableRDD)
+      }
+    }
+    // Remove MemoryTable's entry from Shark metadata.
+    val memoryTableValue = _keyToMemoryTable.remove(key.toLowerCase())
     _keyToStats.remove(key)
-    // Unpersist the RDD using the nested helper fn above.
-    rddValue match {
-      case Some(rdd) => unpersistRDD(rdd)
+
+    // Unpersist the MemoryTable using the nested helper functions above.
+    memoryTableValue match {
+      case Some(memoryTable) => unpersistMemoryTable(memoryTable)
       case None => Unit
     }
-    rddValue
   }
 }
 

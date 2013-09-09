@@ -114,7 +114,7 @@ object SharkEnv extends LogHelper {
   val addedFiles = HashSet[String]()
   val addedJars = HashSet[String]()
 
-  def unpersist(key: String): Option[RDD[_]] = {
+  def unpersist(key: String) {
     if (SharkEnv.tachyonUtil.tachyonEnabled() && SharkEnv.tachyonUtil.tableExists(key)) {
       if (SharkEnv.tachyonUtil.dropTable(key)) {
         logInfo("Table " + key + " was deleted from Tachyon.");

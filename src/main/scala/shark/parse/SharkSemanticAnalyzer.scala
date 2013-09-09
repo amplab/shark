@@ -66,96 +66,40 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
   override def analyzeInternal(ast: ASTNode): Unit = {
     reset()
 
-    val qb = new QB(null, null, false)
+    val qb = new QueryBlock(null, null, false)
     val pctx = getParseContext()
     pctx.setQB(qb)
     pctx.setParseTree(ast)
     init(pctx)
+    // The ASTNode that will be analyzed by SemanticAnalzyer#doPhase1().
     var child: ASTNode = ast
 
     logInfo("Starting Shark Semantic Analysis")
 
     //TODO: can probably reuse Hive code for this
     // analyze create table command
-    var cacheMode = CacheType.NONE
-    var shouldReset = false
 
     // These are set when parsing the command statement AST for a CREATE TABLE.
-    var isCTAS = false
     var isPartitioned = false
 
     if (ast.getToken().getType() == HiveParser.TOK_CREATETABLE) {
       super.analyzeInternal(ast)
-      for (ch <- ast.getChildren) {
-        ch.asInstanceOf[ASTNode].getToken.getType match {
-          case HiveParser.TOK_QUERY => {
-            isCTAS = true
-            // Set the child ASTNode, which will be passed as an argument to
-            // SemanticAnalzyer#doPhase1().
-            child = ch.asInstanceOf[ASTNode]
-          }
-          case HiveParser.TOK_TABLEPARTCOLS => {
-            // If the table that will be created is Hive-partitioned and should be cached, then
-            // metadata will be initialized in the initializeCachedTableMetadata() call below.
-            isPartitionedTable = true
-            // Get the partitioning columns. In Hive, CREATE TABLE ... [PARTITIONED BY] ...
-            // is handled by a DDLTask (created by the Hive SemanticAnalyzer's genMapRedTasks and
-            // not to be confused with the Hive DDLSemanticAnalyzer, which handles ALTER/DROP table
-            // (among other things). Since creating tables in Shark doesn't involve too much
-            // overhead (e.g. we don't support indexing), just update the Shark
-            // MemoryMetaDataManager in this method (during the semantic analysis phase).
-            // TODO(harvey): a Shark-specific DDLTask might be needed once indexing is supported.
-            partitionColumns = BaseSemanticAnalyzer.getColumns((ASTNode) child.getChild(0), false);
-          }
-          case _ =>
-            Unit
+      // Do post-Hive analysis of the CREATE TABLE (e.g detect caching mode).
+      analyzeCreateTable(ast, qb) match {
+        case Some(selectStmtASTNode) => {
+          child = selectStmtASTNode
         }
-      }
-
-      // The table descriptor can be NULL if the command is a ...
-      // 1) syntactically valid CREATE TABLE statement. The table specified may or may not already
-      //    exist. If the table already exists, then an exception is thrown by the DDLTask that's
-      //    executed after semantic analysis.
-      // 2) valid CTAS statement with an IF NOT EXISTS condition, and the specified table already
-      //    exists. If the table to-be-created already exists, and the CTAS statement does not
-      //    have an IF NOT EXISTS condition, then an exception will be thrown by the parent
-      //    SemanticAnalzyer's analyzeInternal() call above.
-      val createTableDesc = getParseContext.getQB.getTableDesc
-
-      if (!isCTAS || createTableDesc == null) {
-        return
-      } else {
-        val checkTableName = SharkConfVars.getBoolVar(conf, SharkConfVars.CHECK_TABLENAME_FLAG)
-        // Note: the CreateTableDesc's table properties are Java Maps, but the TableDesc's table
-        //       properties, which are used during execution, are Java Properties.
-        val createTableProperties: JavaMap[String, String] = createTableDesc.getTblProps()
-
-        // There are two cases that will enable caching:
-        // 1) Table name includes "_cached" or "_tachyon".
-        // 2) The "shark.cache" table property is "true", or the string representation of a supported
-        //    cache mode (heap, Tachyon).
-        cacheMode = CacheType.fromString(createTableProperties.get("shark.cache"))
-        // Continue planning based on the 'cacheMode' read.
-        if (cacheMode == CacheType.HEAP ||
-            (createTableDesc.getTableName.endsWith("_cached") && checkTableName)) {
-          cacheMode = CacheType.HEAP
-          createTableProperties.put("shark.cache", cacheMode.toString)
-        } else if (cacheMode == CacheType.TACHYON ||
-          (createTableDesc.getTableName.endsWith("_tachyon") && checkTableName)) {
-          cacheMode = CacheType.TACHYON
-          createTableProperties.put("shark.cache", cacheMode.toString)
+        case None => {
+          // Done with semantic analysis if the CREATE TABLE statement isn't a CTAS.
+          return
         }
-
-        if (CacheType.shouldCache(cacheMode)) {
-          createTableDesc.setSerName(classOf[ColumnarSerDe].getName)
-        }
-
-        qb.setTableDesc(createTableDesc)
-        shouldReset = true
       }
     } else {
       SessionState.get().setCommandType(HiveOperation.QUERY)
     }
+
+    // Invariant: At this point, the command includes a query - it's ASTNode has a
+    //            HiveParser.TOK_QUERY somewhere).
 
     // Delegate create view and analyze to Hive.
     val astTokenType = ast.getToken().getType()
@@ -164,6 +108,8 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     }
 
     // Continue analyzing from the child ASTNode.
+    // TODO(harvey): Look into whether doPhase1() can be skipped for CTAS. The
+    //               'super.analyzeInternal()' call above already calls it.
     if (!doPhase1(child, qb, initPhase1Ctx())) {
       return
     }
@@ -176,7 +122,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     logInfo("Completed getting MetaData in Shark Semantic Analysis")
 
     // Reset makes sure we don't run the mapred jobs generated by Hive.
-    if (shouldReset) reset()
+    reset()
 
     // Save the result schema derived from the sink operator produced
     // by genPlan. This has the correct column names, which clients
@@ -205,6 +151,9 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     // TODO: clean the following code. It's too messy to understand...
     val terminalOpSeq = {
       if (qb.getParseInfo.isInsertToTable && !qb.isCTAS) {
+        // Handle an INSERT into a cached table.
+        // TODO(harvey): Detect the RDD's cache mode. It doesn't make sense to change the cache mode
+        //               using an INSERT...
         hiveSinkOps.map { hiveSinkOp =>
           val tableName = hiveSinkOp.asInstanceOf[HiveFileSinkOperator].getConf().getTableInfo()
             .getTableName()
@@ -226,7 +175,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                     cachedTableName,
                     storageLevel,
                     _resSchema.size,                // numColumns
-                    cacheMode == CacheType.TACHYON, // use tachyon
+                    qb.getCacheMode == CacheType.TACHYON, // use tachyon
                     useUnionRDD)
                 } else {
                   throw new SemanticException(
@@ -241,7 +190,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         // For a single output, we have the option of choosing the output
         // destination (e.g. CTAS with table property "shark.cache" = "true").
         Seq {
-          if (qb.isCTAS && qb.getTableDesc != null && CacheType.shouldCache(cacheMode)) {
+          if (qb.isCTAS && qb.getTableDesc != null && CacheType.shouldCache(qb.getCacheMode())) {
             val storageLevel = MemoryMetadataManager.getStorageLevelFromString(
               qb.getTableDesc().getTblProps.get("shark.cache.storageLevel"))
             qb.getTableDesc().getTblProps().put(CachedTableRecovery.QUERY_STRING, ctx.getCmd())
@@ -250,7 +199,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
               qb.getTableDesc.getTableName,
               storageLevel,
               _resSchema.size,                // numColumns
-              cacheMode == CacheType.TACHYON, // use tachyon
+              qb.getCacheMode == CacheType.TACHYON, // use tachyon
               false)
           } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink && !qb.isCTAS) {
             OperatorFactory.createSharkRddOutputPlan(hiveSinkOps.head)
@@ -378,6 +327,89 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         new DDLWork(getInputs, getOutputs, crtTblDesc),conf).asInstanceOf[DDLTask]
       rootTasks.head.addDependentTask(crtTblTask)
     }
+  }
+
+
+  def analyzeCreateTable(rootAST: ASTNode, queryBlock: QueryBlock): Option[ASTNode] = {
+    // If we detect that the CREATE TABLE is part of a CTAS, then this is set to the root node of the
+    // SELECT statement
+    var selectStmtASTNode: Option[ASTNode] = None
+
+    // TODO(harvey): Probably don't need this. We might be able to reuse the QB passed into this
+    //               method, as long as it was created from getParseContext.getQB after the
+    //               super.analyzeInternal() call.
+    //               That QB's createTableDesc should have everything needed (isCTAS(), partCols...).
+    var isCTAS = false
+    var isPartitionedTable = false
+
+    for (ch <- rootAST.getChildren) {
+      ch.asInstanceOf[ASTNode].getToken.getType match {
+        case HiveParser.TOK_QUERY => {
+          isCTAS = true
+          selectStmtASTNode = Some(ch.asInstanceOf[ASTNode])
+        }
+        case HiveParser.TOK_TABLEPARTCOLS => {
+          // If the table that will be created is Hive-partitioned and should be cached, then
+          // metadata will be initialized in the initializeCachedTableMetadata() call below.
+          isPartitionedTable = true
+          // Get the partitioning columns. In Hive, a 'CREATE TABLE ... [PARTITIONED BY] ...'
+          // command is handled by a DDLTask (created by the Hive SemanticAnalyzer's genMapRedTasks
+          // and not to be confused with the Hive DDLSemanticAnalyzer, which handles ALTER/DROP
+          // table (among other things). Since creating tables in Shark doesn't involve too much
+          // overhead (e.g. we don't support indexing), just directly update the Shark
+          // MemoryMetaDataManager in this block.
+          // TODO(harvey): A Shark-specific DDLTask (specifying a Spark job) might be needed once
+          //               indexing is supported.
+
+          // partitionColumns = BaseSemanticAnalyzer.getColumnNames(
+          //   rootAST.getChild(0).asInstanceOf[ASTNode])
+        }
+        case _ => Unit
+      }
+    }
+
+    // The 'createTableDesc' can be NULL if the command is a ...
+    // 1) syntactically valid CREATE TABLE statement. The table specified may or may not already
+    //    exist. If the table already exists, then an exception is thrown by the DDLTask that's
+    //    executed after semantic analysis.
+    // 2) valid CTAS statement with an IF NOT EXISTS condition, and the specified table already
+    //    exists. If the table to-be-created already exists, and the CTAS statement does not
+    //    have an IF NOT EXISTS condition, then an exception will be thrown by
+    //    SemanticAnalzyer#analyzeInternal().
+    val createTableDesc = getParseContext.getQB.getTableDesc
+    if (!isCTAS || createTableDesc == null) {
+      return selectStmtASTNode
+    } else {
+      val checkTableName = SharkConfVars.getBoolVar(conf, SharkConfVars.CHECK_TABLENAME_FLAG)
+      // Note: the CreateTableDesc's table properties are Java Maps, but the TableDesc's table
+      //       properties, which are used during execution, are Java Properties.
+      val createTableProperties: JavaMap[String, String] = createTableDesc.getTblProps()
+
+      // There are two cases that will enable caching:
+      // 1) Table name includes "_cached" or "_tachyon".
+      // 2) The "shark.cache" table property is "true", or the string representation of a supported
+      //    cache mode (heap, Tachyon).
+      var cacheMode = CacheType.fromString(createTableProperties.get("shark.cache"))
+      // Continue planning based on the 'cacheMode' read.
+      if (cacheMode == CacheType.HEAP ||
+          (createTableDesc.getTableName.endsWith("_cached") && checkTableName)) {
+        cacheMode = CacheType.HEAP
+        createTableProperties.put("shark.cache", cacheMode.toString)
+      } else if (cacheMode == CacheType.TACHYON ||
+        (createTableDesc.getTableName.endsWith("_tachyon") && checkTableName)) {
+        cacheMode = CacheType.TACHYON
+        createTableProperties.put("shark.cache", cacheMode.toString)
+      }
+
+      if (CacheType.shouldCache(cacheMode)) {
+        createTableDesc.setSerName(classOf[ColumnarSerDe].getName)
+      }
+
+      queryBlock.setCacheMode(cacheMode)
+      queryBlock.setTableDesc(createTableDesc)
+    }
+
+    return selectStmtASTNode
   }
 }
 
