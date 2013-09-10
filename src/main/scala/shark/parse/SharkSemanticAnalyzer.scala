@@ -379,8 +379,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       //    cache mode (heap, Tachyon).
       var cacheMode = CacheType.fromString(createTableProperties.get("shark.cache"))
       // Continue planning based on the 'cacheMode' read.
-      if (cacheMode == CacheType.HEAP ||
-          (checkTableName && tableName.endsWith("_cached"))) {
+      if (cacheMode == CacheType.HEAP || (checkTableName && tableName.endsWith("_cached"))) {
         cacheMode = CacheType.HEAP
         createTableProperties.put("shark.cache", cacheMode.toString)
       } else if (cacheMode == CacheType.TACHYON ||
@@ -391,17 +390,23 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
 
       if (CacheType.shouldCache(cacheMode)) {
         createTableDesc.setSerName(classOf[ColumnarSerDe].getName)
+
+        // TODO(harvey): Remove once it's supported ...
+        if (isHivePartitioned) {
+          throw new SemanticException(
+            "Support for cached, Hive-partitioned tables coming soon!")
+        }
+
+        // In Hive, a CREATE TABLE command is handled by a DDLTask, which in this case, is created
+        // by the Hive SemanticAnalyzer's genMapRedTasks and not Hive's DDLSemanticAnalyzer. Since
+        // creating tables in Shark doesn't involve too much overhead (we don't support features
+        // such as indexing), just directly update the Shark MemoryMetaDataManager in this method.
+        MemoryMetadataManager.add(tableName, isHivePartitioned)
       }
 
       queryBlock.setCacheMode(cacheMode)
       queryBlock.setTableDesc(createTableDesc)
     }
-
-    // In Hive, a CREATE TABLE command is handled by a DDLTask, which in this case, is created by
-    // the Hive SemanticAnalyzer's genMapRedTasks and not Hive's DDLSemanticAnalyzer. Since
-    // creating tables in Shark doesn't involve too much overhead (we don't support features such
-    // as indexing), just directly update the Shark MemoryMetaDataManager in this method.
-    MemoryMetadataManager.add(tableName, isHivePartitioned)
 
     return selectStmtASTNode
   }
