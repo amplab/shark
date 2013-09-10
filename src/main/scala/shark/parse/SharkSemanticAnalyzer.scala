@@ -174,8 +174,8 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                     hiveSinkOp,
                     cachedTableName,
                     storageLevel,
-                    _resSchema.size,                // numColumns
-                    qb.getCacheMode == CacheType.TACHYON, // use tachyon
+                    _resSchema.size,  // numColumns
+                    qb.getCacheMode == CacheType.TACHYON,  // use tachyon
                     useUnionRDD)
                 } else {
                   throw new SemanticException(
@@ -337,10 +337,10 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
 
     // TODO(harvey): Probably don't need this. We might be able to reuse the QB passed into this
     //               method, as long as it was created from getParseContext.getQB after the
-    //               super.analyzeInternal() call.
-    //               That QB's createTableDesc should have everything needed (isCTAS(), partCols...).
+    //               super.analyzeInternal() call. That QB's createTableDesc should have everything
+    //               needed (e.g. isCTAS(), partCols).
     var isCTAS = false
-    var isPartitionedTable = false
+    var isHivePartitioned = false
 
     for (ch <- rootAST.getChildren) {
       ch.asInstanceOf[ASTNode].getToken.getType match {
@@ -349,20 +349,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
           selectStmtASTNode = Some(ch.asInstanceOf[ASTNode])
         }
         case HiveParser.TOK_TABLEPARTCOLS => {
-          // If the table that will be created is Hive-partitioned and should be cached, then
-          // metadata will be initialized in the initializeCachedTableMetadata() call below.
-          isPartitionedTable = true
-          // Get the partitioning columns. In Hive, a 'CREATE TABLE ... [PARTITIONED BY] ...'
-          // command is handled by a DDLTask (created by the Hive SemanticAnalyzer's genMapRedTasks
-          // and not to be confused with the Hive DDLSemanticAnalyzer, which handles ALTER/DROP
-          // table (among other things). Since creating tables in Shark doesn't involve too much
-          // overhead (e.g. we don't support indexing), just directly update the Shark
-          // MemoryMetaDataManager in this block.
-          // TODO(harvey): A Shark-specific DDLTask (specifying a Spark job) might be needed once
-          //               indexing is supported.
-
-          // partitionColumns = BaseSemanticAnalyzer.getColumnNames(
-          //   rootAST.getChild(0).asInstanceOf[ASTNode])
+          isHivePartitioned = true
         }
         case _ => Unit
       }
@@ -377,6 +364,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     //    have an IF NOT EXISTS condition, then an exception will be thrown by
     //    SemanticAnalzyer#analyzeInternal().
     val createTableDesc = getParseContext.getQB.getTableDesc
+    val tableName = createTableDesc.getTableName
     if (!isCTAS || createTableDesc == null) {
       return selectStmtASTNode
     } else {
@@ -392,11 +380,11 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       var cacheMode = CacheType.fromString(createTableProperties.get("shark.cache"))
       // Continue planning based on the 'cacheMode' read.
       if (cacheMode == CacheType.HEAP ||
-          (createTableDesc.getTableName.endsWith("_cached") && checkTableName)) {
+          (checkTableName && tableName.endsWith("_cached"))) {
         cacheMode = CacheType.HEAP
         createTableProperties.put("shark.cache", cacheMode.toString)
       } else if (cacheMode == CacheType.TACHYON ||
-        (createTableDesc.getTableName.endsWith("_tachyon") && checkTableName)) {
+                 (checkTableName && tableName.endsWith("_tachyon"))) {
         cacheMode = CacheType.TACHYON
         createTableProperties.put("shark.cache", cacheMode.toString)
       }
@@ -408,6 +396,12 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       queryBlock.setCacheMode(cacheMode)
       queryBlock.setTableDesc(createTableDesc)
     }
+
+    // In Hive, a CREATE TABLE command is handled by a DDLTask, which in this case, is created by
+    // the Hive SemanticAnalyzer's genMapRedTasks and not Hive's DDLSemanticAnalyzer. Since
+    // creating tables in Shark doesn't involve too much overhead (we don't support features such
+    // as indexing), just directly update the Shark MemoryMetaDataManager in this method.
+    MemoryMetadataManager.add(tableName, isHivePartitioned)
 
     return selectStmtASTNode
   }

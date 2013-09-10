@@ -40,7 +40,7 @@ import org.apache.spark.rdd.RDD
 private[shark] class MemoryTable(val tableName: String, val isHivePartitioned: Boolean) {
 
   /** Should only be used if the table is not Hive-partitioned. */
-  private var _tableRDD: RDD[_] = _
+  private var _tableRDD: Option[RDD[_]] = None
 
   /**
    * Should only be used if a cached table is Hive-partitioned.
@@ -48,7 +48,7 @@ private[shark] class MemoryTable(val tableName: String, val isHivePartitioned: B
   private val _hivePartitionRDDs: Map[String, RDD[_]] =
     if (isHivePartitioned) { new JavaHashMap[String, RDD[_]]() } else { null }
 
-  def tableRDD: RDD[_] = {
+  def tableRDD: Option[RDD[_]] = {
     assert (
       !isHivePartitioned,
       "Table " + tableName + " is Hive-partitioned. Use MemoryTableDesc::hivePartitionRDDs() " +
@@ -63,7 +63,7 @@ private[shark] class MemoryTable(val tableName: String, val isHivePartitioned: B
       "Table " + tableName + " is Hive-partitioned. Pass in a map of <partition key, RDD> pairs " +
       "the 'hivePartitionRDDs =' setter."
     )
-    _tableRDD = value
+    _tableRDD = Some(value)
   }
 
   def hivePartitionRDDs: Map[String, RDD[_]] = {

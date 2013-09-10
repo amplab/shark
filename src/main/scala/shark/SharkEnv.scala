@@ -114,7 +114,7 @@ object SharkEnv extends LogHelper {
   val addedFiles = HashSet[String]()
   val addedJars = HashSet[String]()
 
-  def unpersist(key: String) {
+  def unpersist(key: String): Option[RDD[_]] = {
     if (SharkEnv.tachyonUtil.tachyonEnabled() && SharkEnv.tachyonUtil.tableExists(key)) {
       if (SharkEnv.tachyonUtil.dropTable(key)) {
         logInfo("Table " + key + " was deleted from Tachyon.");
@@ -122,8 +122,7 @@ object SharkEnv extends LogHelper {
         logWarning("Failed to remove table " + key + " from Tachyon.");
       }
     }
-
-    memoryMetadataManager.unpersist(key)
+    return memoryMetadataManager.unpersist(key)
   }
 
   /** Cleans up and shuts down the Shark environments. */

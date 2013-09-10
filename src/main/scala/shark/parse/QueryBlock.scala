@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,7 +25,7 @@ import shark.memstore2.CacheType._
 class QueryBlock(outerID: String, alias: String, isSubQuery: Boolean)
     extends HiveQueryBlock(outerID, alias, isSubQuery) {
 
-  // The CacheType for the table of a CREATE TABLE/CTAS, 
+  // The CacheType for the table that will be created from CREATE TABLE/CTAS.
   private var cacheMode = CacheType.NONE
 
   def setCacheMode(cacheModeToSet: CacheType) {

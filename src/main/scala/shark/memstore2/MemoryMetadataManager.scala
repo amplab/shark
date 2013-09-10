@@ -33,35 +33,31 @@ class MemoryMetadataManager {
   private val _keyToMemoryTable: ConcurrentMap[String, MemoryTable] =
     new ConcurrentHashMap[String, MemoryTable]()
 
-  // TODO(harvey): Support stats for Hive-partitioned tables.
+  // TODO(harvey): Support stats for cached Hive-partitioned tables.
   private val _keyToStats: ConcurrentMap[String, collection.Map[Int, TablePartitionStats]] =
     new ConcurrentHashMap[String, collection.Map[Int, TablePartitionStats]]
 
   def contains(key: String) = _keyToMemoryTable.contains(key.toLowerCase)
 
+  def add(key: String, isHivePartitioned: Boolean) {
+    _keyToMemoryTable.put(key, new MemoryTable(key, isHivePartitioned))
+  }
+
   def put(key: String, rdd: RDD[_]) {
-    if (!contains(key)) {
-      _keyToMemoryTable(key.toLowerCase) = new MemoryTable(key, false /* isHivePartitioned */)
-    }
     _keyToMemoryTable(key.toLowerCase).tableRDD = rdd
   }
 
   def putHivePartition(key: String, partitionColumn: String, rdd: RDD[_]) {
-    if (!contains(key)) {
-      _keyToMemoryTable(key.toLowerCase) = new MemoryTable(key, true /* isHivePartitioned */)
-    }
     _keyToMemoryTable(key.toLowerCase).hivePartitionRDDs(partitionColumn) = rdd
   }
 
   def get(key: String): Option[RDD[_]] = {
-    _keyToMemoryTable.get(key.toLowerCase) match {
-      case Some(memoryTable) => return Some(memoryTable.tableRDD)
-      case None => return None
-    }
+    val memoryTableValue: Option[MemoryTable] = _keyToMemoryTable.get(key.toLowerCase)
+    return memoryTableValue.flatMap(_.tableRDD)
   }
 
-  def getHivePartition(key: String, partitionColumn: String): RDD[_] = {
-    return _keyToMemoryTable(key.toLowerCase).hivePartitionRDDs(partitionColumn)
+  def getHivePartition(key: String, partitionColumn: String): Option[RDD[_]] = {
+    return _keyToMemoryTable(key.toLowerCase).hivePartitionRDDs.get(partitionColumn)
   }
 
   def putStats(key: String, stats: collection.Map[Int, TablePartitionStats]) {
@@ -85,8 +81,11 @@ class MemoryMetadataManager {
    * as well.
    *
    * @param key Name of the table to drop.
+   * @return Option::isEmpty() is true of there is no MemoryTable corresponding to 'key' in
+   *         _keyToMemoryTable. For MemoryTables that are Hive-partitioned, the RDD returned will be
+   *         a UnionRDD comprising all RDDs for all Hive-partitions.
    */
-  def unpersist(key: String) {
+  def unpersist(key: String): Option[RDD[_]] = {
     def unpersistRDD(rdd: RDD[_]) {
       rdd match {
         case u: UnionRDD[_] => {
@@ -99,23 +98,28 @@ class MemoryMetadataManager {
         case r => r.unpersist()
       }
     }
-    def unpersistMemoryTable(memoryTable: MemoryTable) {
+    def unpersistMemoryTable(memoryTable: MemoryTable): Option[RDD[_]] = {
       if (memoryTable.isHivePartitioned) {
         // unpersist() all RDDs for all Hive-partitions.
-        memoryTable.hivePartitionRDDs.mapValues(unpersistRDD(_))
+        val hivePartitionRDDs =
+          memoryTable.hivePartitionRDDs.values.toSeq.asInstanceOf[Seq[RDD[Any]]]
+        if (hivePartitionRDDs.size > 0) {
+          return Some(new UnionRDD(hivePartitionRDDs.head.context, hivePartitionRDDs))
+        }
+        return None
       } else {
-        unpersistRDD(memoryTable.tableRDD)
+        if (memoryTable.tableRDD.isDefined) {
+          unpersistRDD(memoryTable.tableRDD.get)
+        }
+        return memoryTable.tableRDD
       }
     }
+
     // Remove MemoryTable's entry from Shark metadata.
-    val memoryTableValue = _keyToMemoryTable.remove(key.toLowerCase())
     _keyToStats.remove(key)
 
-    // Unpersist the MemoryTable using the nested helper functions above.
-    memoryTableValue match {
-      case Some(memoryTable) => unpersistMemoryTable(memoryTable)
-      case None => Unit
-    }
+    val memoryTableValue: Option[MemoryTable] = _keyToMemoryTable.remove(key.toLowerCase)
+    return memoryTableValue.flatMap(unpersistMemoryTable(_))
   }
 }
 
