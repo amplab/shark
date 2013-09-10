@@ -30,8 +30,7 @@ import org.apache.spark.rdd.RDD
  * wrapper around either an RDD or multiple RDDs if the Shark table is Hive-partitioned.
  * Note that a Hive-partition of a table is different from an RDD partition. Each Hive-partition
  * is stored as a subdirectory of the table subdirectory in the warehouse directory
- * (e.g. /user/hive/warehouse). So, every Hive-Partition is loaded into Shark as an RDD, and is
- * cached as one if the user-specifies it.
+ * (e.g. /user/hive/warehouse). So, every Hive-Partition is loaded into Shark as an RDD.
  *
  * TODO(harvey): It could be useful to make MemoryTable a parent class, and have other table types,
  *               such as HivePartitionedTable or TachyonTable, subclass it. For now, there isn't
@@ -39,12 +38,12 @@ import org.apache.spark.rdd.RDD
  */
 private[shark] class MemoryTable(val tableName: String, val isHivePartitioned: Boolean) {
 
-  /** Should only be used if the table is not Hive-partitioned. */
+  // Should only be used if the table is not Hive-partitioned. _tableRDD.isEmpty() is true if the
+  // table does not contain any data (e.g. it was created from a CREATE TABLE command, but never
+  // populated with data).
   private var _tableRDD: Option[RDD[_]] = None
 
-  /**
-   * Should only be used if a cached table is Hive-partitioned.
-   */
+  // Should only be used if a cached table is Hive-partitioned.
   private val _hivePartitionRDDs: Map[String, RDD[_]] =
     if (isHivePartitioned) { new JavaHashMap[String, RDD[_]]() } else { null }
 

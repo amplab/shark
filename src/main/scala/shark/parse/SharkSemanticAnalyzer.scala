@@ -401,7 +401,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         // by the Hive SemanticAnalyzer's genMapRedTasks and not Hive's DDLSemanticAnalyzer. Since
         // creating tables in Shark doesn't involve too much overhead (we don't support features
         // such as indexing), just directly update the Shark MemoryMetaDataManager in this method.
-        MemoryMetadataManager.add(tableName, isHivePartitioned)
+        SharkEnv.memoryMetadataManager.add(tableName, isHivePartitioned)
       }
 
       queryBlock.setCacheMode(cacheMode)
