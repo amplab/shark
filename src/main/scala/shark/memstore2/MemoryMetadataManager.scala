@@ -27,7 +27,8 @@ import org.apache.spark.storage.StorageLevel
 
 import shark.SharkConfVars
 
-
+// TODO(harvey): Re-evaluate the interfaces to this class. For example, add() could be renamed to
+//               addCreatedTable().
 class MemoryMetadataManager {
 
   private val _keyToMemoryTable: ConcurrentMap[String, MemoryTable] =
@@ -38,6 +39,13 @@ class MemoryMetadataManager {
     new ConcurrentHashMap[String, collection.Map[Int, TablePartitionStats]]
 
   def contains(key: String) = _keyToMemoryTable.contains(key.toLowerCase)
+
+  def isHivePartitioned(key: String): Boolean = {
+    _keyToMemoryTable.get(key.toLowerCase) match {
+      case Some(memoryTable) => return memoryTable.isHivePartitioned
+      case None => return false
+    }
+  }
 
   def add(key: String, isHivePartitioned: Boolean) {
     _keyToMemoryTable.put(key, new MemoryTable(key, isHivePartitioned))
