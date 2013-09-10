@@ -337,8 +337,8 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
 
     // TODO(harvey): Probably don't need this. We might be able to reuse the QB passed into this
     //               method, as long as it was created from getParseContext.getQB after the
-    //               super.analyzeInternal() call. That QB's createTableDesc should have everything
-    //               needed (e.g. isCTAS(), partCols).
+    //               super.analyzeInternal() call. That QB and the createTableDesc should have
+    //               everything (e.g. isCTAS(), partCols).
     var isCTAS = false
     var isHivePartitioned = false
 
@@ -364,10 +364,8 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     //    have an IF NOT EXISTS condition, then an exception will be thrown by
     //    SemanticAnalzyer#analyzeInternal().
     val createTableDesc = getParseContext.getQB.getTableDesc
-    val tableName = createTableDesc.getTableName
-    if (!isCTAS || createTableDesc == null) {
-      return selectStmtASTNode
-    } else {
+    if (isCTAS && createTableDesc != null) {
+      val tableName = createTableDesc.getTableName
       val checkTableName = SharkConfVars.getBoolVar(conf, SharkConfVars.CHECK_TABLENAME_FLAG)
       // Note: the CreateTableDesc's table properties are Java Maps, but the TableDesc's table
       //       properties, which are used during execution, are Java Properties.
@@ -391,8 +389,8 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       if (CacheType.shouldCache(cacheMode)) {
         createTableDesc.setSerName(classOf[ColumnarSerDe].getName)
 
-        // TODO(harvey): Remove once it's supported ...
         if (isHivePartitioned) {
+          // TODO(harvey): Remove once it's supported ...
           throw new SemanticException(
             "Support for cached, Hive-partitioned tables coming soon!")
         }
@@ -401,7 +399,10 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         // by the Hive SemanticAnalyzer's genMapRedTasks and not Hive's DDLSemanticAnalyzer. Since
         // creating tables in Shark doesn't involve too much overhead (we don't support features
         // such as indexing), just directly update the Shark MemoryMetaDataManager in this method.
-        SharkEnv.memoryMetadataManager.add(tableName, isHivePartitioned)
+
+        // Make sure that the table exists.
+        // TODO(harvey): This might have to go in a SparkDDLTask wrapper.
+        // SharkEnv.memoryMetadataManager.add(tableName, isHivePartitioned)
       }
 
       queryBlock.setCacheMode(cacheMode)
