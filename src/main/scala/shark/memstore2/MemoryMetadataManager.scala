@@ -48,7 +48,7 @@ class MemoryMetadataManager {
   }
 
   def add(key: String, isHivePartitioned: Boolean) {
-    _keyToMemoryTable.put(key, new MemoryTable(key, isHivePartitioned))
+    _keyToMemoryTable.put(key.toLowerCase, new MemoryTable(key, isHivePartitioned))
   }
 
   def put(key: String, rdd: RDD[_]) {
