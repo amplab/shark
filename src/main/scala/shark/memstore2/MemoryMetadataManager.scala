@@ -52,10 +52,20 @@ class MemoryMetadataManager {
   }
 
   def put(key: String, rdd: RDD[_]) {
+    if (!_keyToMemoryTable.contains(key.toLowerCase)) {
+      // TODO(harvey): Remove this once CREATE TABLE/CTAS handling involves calling add(). For now,
+      //               CTAS is done in the MemoryStoreSinkOperator, which also "adds" the RDD for
+      //               the created table to MemoryMetadataManager.
+      add(key, false /* isHivePartitioned */)
+    }
     _keyToMemoryTable(key.toLowerCase).tableRDD = rdd
   }
 
   def putHivePartition(key: String, partitionColumn: String, rdd: RDD[_]) {
+    if (!_keyToMemoryTable.contains(key.toLowerCase)) {
+      // TODO(harvey): See comment for put() above.
+      add(key, true /* isHivePartitioned */)
+    }
     _keyToMemoryTable(key.toLowerCase).hivePartitionRDDs(partitionColumn) = rdd
   }
 
