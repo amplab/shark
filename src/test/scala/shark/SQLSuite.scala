@@ -324,6 +324,22 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     expect("select flag, count(*) from checkshort_cached group by flag order by flag asc",
       Array[String]("23\t292", "36\t208"))
   }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Test function based pruning Bug
+  //////////////////////////////////////////////////////////////////////////////
+  
+  test("map pruning with functions in between clause") {
+    sc.sql("drop table if exists mapsplitfunc")
+    sc.sql("drop table if exists mapsplitfunc_cached")
+    sc.sql("create table mapsplitfunc(k bigint, v string)")
+    sc.sql("""load data local inpath '${hiveconf:shark.test.data.path}/kv1.txt' 
+        OVERWRITE INTO TABLE mapsplitfunc""")
+    sc.sql("create table mapsplitfunc_cached as select * from mapsplitfunc")
+    expect("""select count(*) from mapsplitfunc_cached where month(from_unixtime(k)) between "1" and "12" """,Array[String]("500"))
+    expect("""select count(*) from mapsplitfunc_cached where year(from_unixtime(k)) between "2013" and "2014" """,Array[String]("0"))
+  }
+
   //////////////////////////////////////////////////////////////////////////////
   // SharkContext APIs (e.g. sql2rdd, sql)
   //////////////////////////////////////////////////////////////////////////////

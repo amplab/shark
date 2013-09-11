@@ -58,10 +58,17 @@ object MapSplitPruning {
             case _: GenericUDFOPAnd => test(s, e.children(0)) && test(s, e.children(1))
             case _: GenericUDFOPOr => test(s, e.children(0)) || test(s, e.children(1))
             case _: GenericUDFBetween => 
-              testBetweenPredicate(s, e.children(0).asInstanceOf[ExprNodeConstantEvaluator],
-                e.children(1).asInstanceOf[ExprNodeColumnEvaluator],
+              val col = e.children(1)
+              if (col.isInstanceOf[ExprNodeColumnEvaluator]) {
+                testBetweenPredicate(s, e.children(0).asInstanceOf[ExprNodeConstantEvaluator],
+                col.asInstanceOf[ExprNodeColumnEvaluator],
                 e.children(2).asInstanceOf[ExprNodeConstantEvaluator],
                 e.children(3).asInstanceOf[ExprNodeConstantEvaluator])
+              } else {
+                //cannot prune function based evaluators in general.
+                true
+              }
+              
             case _: GenericUDFIn =>
               testInPredicate(s, e.children(0).asInstanceOf[ExprNodeColumnEvaluator], e.children.drop(1))
             case udf: GenericUDFBaseCompare =>
