@@ -118,7 +118,6 @@ object SharkBuild extends Build {
   )
 
   def assemblyProjSettings = Seq(
-    name := "shark-assembly",
     jarName in assembly <<= version map { v => "shark-assembly-" + v + "-hadoop" + HADOOP_VERSION + ".jar" }
   ) ++ assemblySettings ++ extraAssemblySettings
 
