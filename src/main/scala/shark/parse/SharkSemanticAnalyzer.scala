@@ -336,9 +336,11 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     var selectStmtASTNode: Option[ASTNode] = None
 
     // TODO(harvey): Probably don't need this. We might be able to reuse the QB passed into this
-    //               method, as long as it was created from getParseContext.getQB after the
-    //               super.analyzeInternal() call. That QB and the createTableDesc should have
-    //               everything (e.g. isCTAS(), partCols).
+    //               method, as long as it was created after the super.analyzeInternal() call.
+    //               That QB and the createTableDesc should have everything (e.g. isCTAS(),
+    //               partCols). Note that the QB might not be accessible from getParseContext(),
+    //               since the SemanticAnalyzer#analyzeInternal() doesn't set (this.qb = qb) for a
+    //               non-CTAS.
     var isCTAS = false
     var isHivePartitioned = false
 
