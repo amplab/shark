@@ -18,8 +18,9 @@
 package shark.execution
 
 import scala.collection.JavaConversions._
-
-import org.apache.hadoop.hive.ql.exec.{GroupByPostShuffleOperator, GroupByPreShuffleOperator}
+import org.apache.hadoop.hive.ql.exec.{GroupByPostShuffleOperator}
+import org.apache.hadoop.hive.ql.exec.GroupByPreShuffleOperator
+import org.apache.hadoop.hive.ql.exec.{Operator => HOperator}
 import org.apache.hadoop.hive.ql.metadata.HiveException
 
 import org.apache.spark.storage.StorageLevel
@@ -37,20 +38,23 @@ object OperatorFactory extends LogHelper {
    * uses Shark operators. This function automatically finds the Hive terminal
    * operator, and replicate the plan recursively up.
    */
-  def createSharkPlan(hiveOp: HiveOperator): TerminalOperator = {
+  def createSharkPlan[T<:HiveDesc](hiveOp: HOperator[T]): TerminalOperator = {
     val hiveTerminalOp = _findHiveTerminalOperator(hiveOp)
     _createOperatorTree(hiveTerminalOp).asInstanceOf[TerminalOperator]
   }
 
   def createSharkMemoryStoreOutputPlan(
-      hiveTerminalOp: HiveOperator,
+      hiveTerminalOp: HOperator[_<:HiveDesc],
       tableName: String,
       storageLevel: StorageLevel,
       numColumns: Int,
       useTachyon: Boolean,
       useUnionRDD: Boolean): TerminalOperator = {
+    // TODO the terminal operator is the FileSinkOperator in Hive?
+    var hiveOp = hiveTerminalOp.asInstanceOf[org.apache.hadoop.hive.ql.exec.FileSinkOperator]
     val sinkOp = _newOperatorInstance(
-      classOf[MemoryStoreSinkOperator], hiveTerminalOp).asInstanceOf[MemoryStoreSinkOperator]
+      classOf[MemoryStoreSinkOperator], hiveOp).asInstanceOf[MemoryStoreSinkOperator]
+    sinkOp.localHiveOp = hiveOp
     sinkOp.tableName = tableName
     sinkOp.storageLevel = storageLevel
     sinkOp.numColumns = numColumns
@@ -59,74 +63,85 @@ object OperatorFactory extends LogHelper {
     _createAndSetParents(sinkOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }
 
-  def createSharkFileOutputPlan(hiveTerminalOp: HiveOperator): TerminalOperator = {
-    val sinkOp = _newOperatorInstance(classOf[FileSinkOperator], hiveTerminalOp)
-    _createAndSetParents(
-      sinkOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
+  def createSharkFileOutputPlan(hiveTerminalOp: HOperator[_<:HiveDesc]): TerminalOperator = {
+    // TODO the terminal operator is the FileSinkOperator in Hive?
+    var hiveOp = hiveTerminalOp.asInstanceOf[org.apache.hadoop.hive.ql.exec.FileSinkOperator]
+    val sinkOp = _newOperatorInstance(classOf[FileSinkOperator], hiveOp).asInstanceOf[TerminalOperator]
+    sinkOp.localHiveOp = hiveOp
+    _createAndSetParents(sinkOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }
 
-  def createSharkRddOutputPlan(hiveTerminalOp: HiveOperator): TerminalOperator = {
-    val sinkOp = _newOperatorInstance(classOf[TableRddSinkOperator], hiveTerminalOp)
+  def createSharkRddOutputPlan(hiveTerminalOp: HOperator[_<:HiveDesc]): TerminalOperator = {
+    // TODO the terminal operator is the FileSinkOperator in Hive?
+    var hiveOp = hiveTerminalOp.asInstanceOf[org.apache.hadoop.hive.ql.exec.FileSinkOperator]
+    val sinkOp = _newOperatorInstance(classOf[TableRddSinkOperator], hiveOp).asInstanceOf[TableRddSinkOperator]
+    sinkOp.localHiveOp = hiveOp
     _createAndSetParents(sinkOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }
 
   /** Create a Shark operator given the Hive operator. */
-  private def createSingleOperator(hiveOp: HiveOperator): Operator[_] = {
+  private def createSingleOperator[T<:HiveDesc](hiveOp: HOperator[T]): Operator[T] = {
     // This is kind of annoying, but it works with strong typing ...
     val sharkOp = hiveOp match {
       case hop: org.apache.hadoop.hive.ql.exec.TableScanOperator =>
-        _newOperatorInstance(classOf[TableScanOperator], hiveOp)
+        var op = _newOperatorInstance(classOf[TableScanOperator], hop)
+        op.asInstanceOf[TableScanOperator].hiveOp = hop
+        op
       case hop: org.apache.hadoop.hive.ql.exec.SelectOperator =>
-        _newOperatorInstance(classOf[SelectOperator], hiveOp)
+        _newOperatorInstance(classOf[SelectOperator], hop)
       case hop: org.apache.hadoop.hive.ql.exec.FileSinkOperator =>
-        _newOperatorInstance(classOf[TerminalOperator], hiveOp)
+        var op = _newOperatorInstance(classOf[TerminalOperator], hop)
+        op.asInstanceOf[TerminalOperator].localHiveOp = hop
+        op
       case hop: org.apache.hadoop.hive.ql.exec.LimitOperator =>
-        _newOperatorInstance(classOf[LimitOperator], hiveOp)
+        _newOperatorInstance(classOf[LimitOperator], hop)
       case hop: org.apache.hadoop.hive.ql.exec.FilterOperator =>
-        _newOperatorInstance(classOf[FilterOperator], hiveOp)
+        _newOperatorInstance(classOf[FilterOperator], hop)
       case hop: org.apache.hadoop.hive.ql.exec.ReduceSinkOperator =>
-        _newOperatorInstance(classOf[ReduceSinkOperator], hiveOp)
+        _newOperatorInstance(classOf[ReduceSinkOperator], hop)
       case hop: org.apache.hadoop.hive.ql.exec.ExtractOperator =>
-        _newOperatorInstance(classOf[ExtractOperator], hiveOp)
+        _newOperatorInstance(classOf[ExtractOperator], hop)
       case hop: org.apache.hadoop.hive.ql.exec.UnionOperator =>
-        _newOperatorInstance(classOf[UnionOperator], hiveOp)
+        _newOperatorInstance(classOf[UnionOperator], hop)
       case hop: org.apache.hadoop.hive.ql.exec.JoinOperator =>
-        _newOperatorInstance(classOf[JoinOperator], hiveOp)
+        _newOperatorInstance(classOf[JoinOperator], hop)
       case hop: org.apache.hadoop.hive.ql.exec.MapJoinOperator =>
-        _newOperatorInstance(classOf[MapJoinOperator], hiveOp)
+        _newOperatorInstance(classOf[MapJoinOperator], hop)
       case hop: org.apache.hadoop.hive.ql.exec.ScriptOperator =>
-        _newOperatorInstance(classOf[ScriptOperator], hiveOp)
+        var op = _newOperatorInstance(classOf[ScriptOperator], hop)
+        op.asInstanceOf[ScriptOperator].operatorId = hop.getOperatorId()
+        op
       case hop: org.apache.hadoop.hive.ql.exec.LateralViewForwardOperator =>
-        _newOperatorInstance(classOf[LateralViewForwardOperator], hiveOp)
+        _newOperatorInstance(classOf[LateralViewForwardOperator], hop)
       case hop: org.apache.hadoop.hive.ql.exec.LateralViewJoinOperator =>
-        _newOperatorInstance(classOf[LateralViewJoinOperator], hiveOp)
+        _newOperatorInstance(classOf[LateralViewJoinOperator], hop)
       case hop: org.apache.hadoop.hive.ql.exec.UDTFOperator =>
-        _newOperatorInstance(classOf[UDTFOperator], hiveOp)
+        _newOperatorInstance(classOf[UDTFOperator], hop)
       case hop: org.apache.hadoop.hive.ql.exec.ForwardOperator =>
-        _newOperatorInstance(classOf[ForwardOperator], hiveOp)
+        _newOperatorInstance(classOf[ForwardOperator], hop)
       case hop: org.apache.hadoop.hive.ql.exec.GroupByOperator => {
         // For GroupBy, we separate post shuffle from pre shuffle.
         if (GroupByOperator.isPostShuffle(hop)) {
-          _newOperatorInstance(classOf[GroupByPostShuffleOperator], hiveOp)
+          _newOperatorInstance(classOf[GroupByPostShuffleOperator], hop)
         } else {
-          _newOperatorInstance(classOf[GroupByPreShuffleOperator], hiveOp)
+          _newOperatorInstance(classOf[GroupByPreShuffleOperator], hop)
         }
       }
       case _ => throw new HiveException("Unsupported Hive operator: " + hiveOp.getClass.getName)
     }
 
     logDebug("Replacing %s with %s".format(hiveOp.getClass.getName, sharkOp.getClass.getName))
-    sharkOp
+    sharkOp.asInstanceOf[Operator[T]]
   }
 
-  private def _newOperatorInstance[T <: HiveOperator](
-      cls: Class[_ <: Operator[T]], hiveOp: HiveOperator): Operator[_] = {
+  private def _newOperatorInstance[T <: HiveDesc](
+      cls: Class[_ <: Operator[T]], hiveOp: HOperator[T]): Operator[T] = {
     val op = cls.newInstance()
-    op.hiveOp = hiveOp.asInstanceOf[T]
+    op.setDesc(hiveOp.getConf())
     op
   }
 
-  private def _createAndSetParents(op: Operator[_], parents: Seq[HiveOperator]) = {
+  private def _createAndSetParents[T <: HiveDesc](op: Operator[T], parents: Seq[HOperator[_<:HiveDesc]]) = {
     if (parents != null) {
       parents foreach { parent =>
         _createOperatorTree(parent).addChild(op)
@@ -139,7 +154,7 @@ object OperatorFactory extends LogHelper {
    * Given a terminal operator in Hive, create the plan that uses Shark physical
    * operators.
    */
-  private def _createOperatorTree(hiveOp: HiveOperator): Operator[_] = {
+  private def _createOperatorTree[T<:HiveDesc](hiveOp: HOperator[T]): Operator[T] = {
     val current = createSingleOperator(hiveOp)
     val parents = hiveOp.getParentOperators
     if (parents != null) {
@@ -150,7 +165,7 @@ object OperatorFactory extends LogHelper {
     }
   }
 
-  private def _findHiveTerminalOperator(hiveOp: HiveOperator): HiveOperator = {
+  private def _findHiveTerminalOperator(hiveOp: HOperator[_<:HiveDesc]): HOperator[_<:HiveDesc] = {
     if (hiveOp.getChildOperators() == null || hiveOp.getChildOperators().size() == 0) {
       hiveOp
     } else {

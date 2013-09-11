@@ -23,27 +23,35 @@ import scala.reflect.BeanProperty
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory}
 import org.apache.hadoop.hive.ql.exec.{SelectOperator => HiveSelectOperator}
 import org.apache.hadoop.hive.ql.plan.SelectDesc
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 
 
 /**
  * An operator that does projection, i.e. selecting certain columns and
  * filtering out others.
  */
-class SelectOperator extends UnaryOperator[HiveSelectOperator] {
+class SelectOperator extends UnaryOperator[SelectDesc] {
 
   @BeanProperty var conf: SelectDesc = _
 
   @transient var evals: Array[ExprNodeEvaluator] = _
 
   override def initializeOnMaster() {
-    conf = hiveOp.getConf()
+    super.initializeOnMaster()
+    conf = desc
+    initializeEvals(false)
   }
-
-  override def initializeOnSlave() {
+  
+  def initializeEvals(initializeEval: Boolean) {
     if (!conf.isSelStarNoCompute) {
       evals = conf.getColList().map(ExprNodeEvaluatorFactory.get(_)).toArray
-      evals.foreach(_.initialize(objectInspector))
+      if (initializeEval) {
+        evals.foreach(_.initialize(objectInspector))
+      }
     }
+  }
+  override def initializeOnSlave() {
+    initializeEvals(true)
   }
 
   override def processPartition(split: Int, iter: Iterator[_]) = {
@@ -60,5 +68,12 @@ class SelectOperator extends UnaryOperator[HiveSelectOperator] {
         reusedRow
       }
     }
+  }
+  
+  override def outputObjectInspector(): ObjectInspector = {
+    if (conf.isSelStarNoCompute()) 
+      super.outputObjectInspector()
+    else
+      initEvaluatorsAndReturnStruct(evals, conf.getOutputColumnNames(), objectInspector)
   }
 }
