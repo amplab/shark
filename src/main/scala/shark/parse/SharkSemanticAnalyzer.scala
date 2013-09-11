@@ -152,8 +152,9 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     val terminalOpSeq = {
       if (qb.getParseInfo.isInsertToTable && !qb.isCTAS) {
         // Handle an INSERT into a cached table.
-        // TODO(harvey): Detect the RDD's cache mode. It doesn't make sense to change the cache mode
-        //               using an INSERT...
+        // TODO(harvey): Detect the RDD's cache mode. This could be easily be done by using the
+        //               cachedTableName below. The cache mode property could be added to
+        //               MemoryTable.
         hiveSinkOps.map { hiveSinkOp =>
           val tableName = hiveSinkOp.asInstanceOf[HiveFileSinkOperator].getConf().getTableInfo()
             .getTableName()
@@ -175,7 +176,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                     cachedTableName,
                     storageLevel,
                     _resSchema.size,  // numColumns
-                    qb.getCacheMode == CacheType.TACHYON,  // use tachyon
+                    qb.getCacheModeForCreateTable == CacheType.TACHYON,  // use tachyon
                     useUnionRDD)
                 } else {
                   throw new SemanticException(
@@ -190,7 +191,8 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         // For a single output, we have the option of choosing the output
         // destination (e.g. CTAS with table property "shark.cache" = "true").
         Seq {
-          if (qb.isCTAS && qb.getTableDesc != null && CacheType.shouldCache(qb.getCacheMode())) {
+          if (qb.isCTAS && qb.getTableDesc != null &&
+              CacheType.shouldCache(qb.getCacheModeForCreateTable())) {
             val storageLevel = MemoryMetadataManager.getStorageLevelFromString(
               qb.getTableDesc().getTblProps.get("shark.cache.storageLevel"))
             qb.getTableDesc().getTblProps().put(CachedTableRecovery.QUERY_STRING, ctx.getCmd())
@@ -199,7 +201,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
               qb.getTableDesc.getTableName,
               storageLevel,
               _resSchema.size,                // numColumns
-              qb.getCacheMode == CacheType.TACHYON, // use tachyon
+              qb.getCacheModeForCreateTable == CacheType.TACHYON, // use tachyon
               false)
           } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink && !qb.isCTAS) {
             OperatorFactory.createSharkRddOutputPlan(hiveSinkOps.head)
@@ -407,7 +409,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         // SharkEnv.memoryMetadataManager.add(tableName, isHivePartitioned)
       }
 
-      queryBlock.setCacheMode(cacheMode)
+      queryBlock.setCacheModeForCreateTable(cacheMode)
       queryBlock.setTableDesc(createTableDesc)
     }
 

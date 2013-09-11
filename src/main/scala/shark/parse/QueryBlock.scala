@@ -31,11 +31,11 @@ class QueryBlock(outerID: String, alias: String, isSubQuery: Boolean)
     extends HiveQueryBlock(outerID, alias, isSubQuery) {
 
   // The CacheType for the table that will be created from CREATE TABLE/CTAS.
-  private var cacheMode = CacheType.NONE
+  private var cacheModeForCreateTable = CacheType.NONE
 
-  def setCacheMode(cacheModeToSet: CacheType) {
-    cacheMode = cacheModeToSet
+  def setCacheModeForCreateTable(cacheModeToSet: CacheType) {
+    cacheModeForCreateTable = cacheModeToSet
   }
 
-  def getCacheMode(): CacheType = cacheMode
+  def getCacheModeForCreateTable(): CacheType = cacheModeForCreateTable
 }
