@@ -68,7 +68,6 @@ object JoinUtil {
             case None => true
           }
         }
-      }
     }
     val size = valueFields.size
     val a = new Array[AnyRef](size)
