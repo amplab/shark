@@ -45,6 +45,9 @@ object SharkBuild extends Build {
   val excludeKyro = ExclusionRule(organization = "de.javakaffee")
   val excludeHadoop = ExclusionRule(organization = "org.apache.hadoop")
   val excludeNetty = ExclusionRule(organization = "org.jboss.netty")
+  val excludeJackson = ExclusionRule(organization = "org.codehaus.jackson")
+  val excludeAsm = ExclusionRule(organization = "asm")
+  val excludeSnappy = ExclusionRule(organization = "org.xerial.snappy")
 
   def coreSettings = Defaults.defaultSettings ++ Seq(
 
@@ -100,7 +103,7 @@ object SharkBuild extends Build {
       "org.apache.spark" %% "spark-core" % SPARK_VERSION,
       "org.apache.spark" %% "spark-repl" % SPARK_VERSION,
       "com.google.guava" % "guava" % "14.0.1",
-      "org.apache.hadoop" % "hadoop-client" % HADOOP_VERSION excludeAll(excludeNetty),
+      "org.apache.hadoop" % "hadoop-client" % HADOOP_VERSION excludeAll(excludeJackson, excludeNetty, excludeAsm),
       // See https://code.google.com/p/guava-libraries/issues/detail?id=1095
       "com.google.code.findbugs" % "jsr305" % "1.3.+",
 
@@ -112,7 +115,7 @@ object SharkBuild extends Build {
       // Test infrastructure
       "org.scalatest" %% "scalatest" % "1.9.1" % "test",
       "junit" % "junit" % "4.10" % "test",
-      "net.java.dev.jets3t" % "jets3t" % "0.9.0",
+      "net.java.dev.jets3t" % "jets3t" % "0.7.1",
       "com.novocode" % "junit-interface" % "0.8" % "test") ++
       (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.3.0-SNAPSHOT" excludeAll(excludeKyro, excludeHadoop) ) else None).toSeq
   )
