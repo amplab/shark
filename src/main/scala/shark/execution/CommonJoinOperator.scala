@@ -202,6 +202,9 @@ object CommonJoinOperator {
    */
   def isFiltered(row: Any, filters: JavaList[ExprNodeEvaluator], ois: JavaList[ObjectInspector])
   : Boolean = {
+    // if no filter, then will not be filtered
+    if(filters == null || ois == null) return false
+    
     var ret: java.lang.Boolean = false
     var j = 0
     while (j < filters.size) {
