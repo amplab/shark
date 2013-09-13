@@ -114,12 +114,11 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
 
     // There are three places we can load the table from.
     // 1. Tachyon table
-    // 2. Spark heap (block manager)
+    // 2. Spark heap (block manager), accessed through the Shark MemoryMetadataManager
     // 3. Hive table on HDFS (or other Hadoop storage)
-
     val cacheMode = CacheType.fromString(
       tableDesc.getProperties().get("shark.cache").asInstanceOf[String])
-    if (cacheMode == CacheType.heap) {
+    if (cacheMode == CacheType.HEAP) {
       // Table should be in Spark heap (block manager).
       val rdd = SharkEnv.memoryMetadataManager.get(tableKey).getOrElse {
         logError("""|Table %s not found in block manager.
@@ -129,7 +128,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
       }
       logInfo("Loading table " + tableKey + " from Spark block manager")
       createPrunedRdd(tableKey, rdd)
-    } else if (cacheMode == CacheType.tachyon) {
+    } else if (cacheMode == CacheType.TACHYON) {
       // Table is in Tachyon.
       if (!SharkEnv.tachyonUtil.tableExists(tableKey)) {
         throw new TachyonException("Table " + tableKey + " does not exist in Tachyon")

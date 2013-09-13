@@ -1,28 +1,42 @@
+/*
+ * Copyright (C) 2012 The Regents of The University California.
+ * All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package shark.memstore2.column
 
-import org.scalatest.FunSuite
 import org.apache.hadoop.io.Text
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 
+import org.scalatest.FunSuite
 
 class NullableColumnBuilderSuite extends FunSuite {
 
-  test("Perf") {
-    val c = new StringColumnBuilder()
-    c.initialize(1024*1024*8)
-    val oi = PrimitiveObjectInspectorFactory.writableStringObjectInspector
-    Range(0, 1000000).foreach { i =>
-      c.append(new Text("00000000000000000000000000000000" + i), oi)
-    }
+  test("Empty column") {
+    val c = new IntColumnBuilder()
+    c.initialize(4)
     val b = c.build()
-    val i = ColumnIterator.newIterator(b)
-    Range(0, 1000000).foreach { x =>
-      i.next()
-      i.current
-    }
+    // # of nulls
+    assert(b.getInt() === 0)
+    // column type
+    assert(b.getInt() === INT.typeID)
+    assert(b.getInt() === DefaultCompressionType.typeID)
+    assert(!b.hasRemaining)
   }
 
-  test("Grow") {
+  test("Buffer size auto growth") {
     val c = new StringColumnBuilder()
     c.initialize(4)
     val oi = PrimitiveObjectInspectorFactory.writableStringObjectInspector
@@ -35,8 +49,9 @@ class NullableColumnBuilderSuite extends FunSuite {
     c.append(null, oi)
     c.append(new Text("efg"), oi)
     val b = c.build()
+    b.position(4 + 4 * 4)
     val colType = b.getInt()
-    assert(colType == STRING.typeID)
+    assert(colType === STRING.typeID)
   }
 
   test("Null Strings") {
@@ -48,22 +63,27 @@ class NullableColumnBuilderSuite extends FunSuite {
     c.append(new Text("b"), oi)
     c.append(null, oi)
     val b = c.build()
-    //expect first element is col type
-    assert(b.getInt() == STRING.typeID)
-    //next comes # of nulls
-    assert(b.getInt() == 2)
-    //typeID of first null is 1, that of second null is 3
-    assert(b.getInt() == 1)
-    assert(b.getInt() == 3)
-   
-    //next comes the compression type
-    assert(b.getInt() == -1)
-    assert(b.getInt() == 1)
-    assert(b.get() == 97)
-    assert(b.getInt() == 1)
-    assert(b.get() == 98)
+
+    // Number of nulls
+    assert(b.getInt() === 2)
+
+    // First null position is 1, and then 3
+    assert(b.getInt() === 1)
+    assert(b.getInt() === 3)
+
+    // Column data type
+    assert(b.getInt() === STRING.typeID)
+
+    // Compression type
+    assert(b.getInt() === DefaultCompressionType.typeID)
+
+    // Data
+    assert(b.getInt() === 1)
+    assert(b.get() === 97)
+    assert(b.getInt() === 1)
+    assert(b.get() === 98)
   }
-  
+
   test("Null Ints") {
     val c = new IntColumnBuilder()
     c.initialize(4)
@@ -73,17 +93,34 @@ class NullableColumnBuilderSuite extends FunSuite {
     c.append(null, oi)
     c.append(56.asInstanceOf[Object], oi)
     val b = c.build()
-    //expect first element is col type
-    assert(b.getInt() == INT.typeID)
-    //next comes # of nulls
-    assert(b.getInt() == 2)
-    //typeID of first null is 1, that of second null is 3
-    assert(b.getInt() == 1)
-    assert(b.getInt() == 2)
-    assert(b.getInt() == -1)
-    assert(b.getInt() == 123)
+
+    // # of nulls and null positions
+    assert(b.getInt() === 2)
+    assert(b.getInt() === 1)
+    assert(b.getInt() === 2)
+
+    // non nulls
+    assert(b.getInt() === INT.typeID)
+    assert(b.getInt() === DefaultCompressionType.typeID)
+    assert(b.getInt() === 123)
   }
-  
+
+  test("Nullable Ints 2") {
+    val c = new IntColumnBuilder()
+    c.initialize(4)
+    val oi = PrimitiveObjectInspectorFactory.javaIntObjectInspector
+    Range(1, 1000).foreach { x =>
+      c.append(x.asInstanceOf[Object], oi)
+    }
+    val b = c.build()
+    // null count
+    assert(b.getInt() === 0)
+    // column type
+    assert(b.getInt() === INT.typeID)
+    // compression type
+    assert(b.getInt() === DefaultCompressionType.typeID)
+  }
+
   test("Null Longs") {
     val c = new LongColumnBuilder()
     c.initialize(4)
@@ -93,26 +130,16 @@ class NullableColumnBuilderSuite extends FunSuite {
     c.append(null, oi)
     c.append(56L.asInstanceOf[Object], oi)
     val b = c.build()
-    //expect first element is col type
-    assert(b.getInt() == LONG.typeID)
-    //next comes # of nulls
-    assert(b.getInt() == 2)
-    //typeID of first null is 1, that of second null is 3
-    assert(b.getInt() == 1)
-    assert(b.getInt() == 2)
-    assert(b.getInt() == -1)
-    assert(b.getLong() == 123L)
+
+    // # of nulls and null positions
+    assert(b.getInt() === 2)
+    assert(b.getInt() === 1)
+    assert(b.getInt() === 2)
+
+    // non-nulls
+    assert(b.getInt() === LONG.typeID)
+    assert(b.getInt() === DefaultCompressionType.typeID)
+    assert(b.getLong() === 123L)
   }
-  
-  test("Trigger RLE") {
-    val c = new IntColumnBuilder()
-    c.initialize(4)
-    val oi = PrimitiveObjectInspectorFactory.javaIntObjectInspector
-    Range(1,1000).foreach { x =>
-      c.append(x.asInstanceOf[Object], oi)
-    }
-    val b = c.build()
-    assert(b.getInt() == INT.typeID)
-    assert(b.getInt() == RLECompressionType.typeID)
-  }
+
 }
