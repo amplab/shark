@@ -32,7 +32,13 @@ object SharkBuild extends Build {
 
   // Hadoop version to build against. For example, "0.20.2", "0.20.205.0", or
   // "1.0.1" for Apache releases, or "0.20.2-cdh3u3" for Cloudera Hadoop.
-  val HADOOP_VERSION = "1.0.4"
+  val DEFAULT_HADOOP_VERSION = "1.0.4"
+
+  import scala.util.Properties.{ envOrNone => env }
+  lazy val hadoopVersion = env("SHARK_HADOOP_VERSION") orElse
+                           env("SPARK_HADOOP_VERSION") getOrElse
+                           DEFAULT_HADOOP_VERSION
+
 
   // Whether to build Shark with Tachyon jar.
   val TACHYON_ENABLED = false
@@ -103,7 +109,7 @@ object SharkBuild extends Build {
       "org.apache.spark" %% "spark-core" % SPARK_VERSION,
       "org.apache.spark" %% "spark-repl" % SPARK_VERSION,
       "com.google.guava" % "guava" % "14.0.1",
-      "org.apache.hadoop" % "hadoop-client" % HADOOP_VERSION excludeAll(excludeJackson, excludeNetty, excludeAsm),
+      "org.apache.hadoop" % "hadoop-client" % hadoopVersion excludeAll(excludeJackson, excludeNetty, excludeAsm),
       // See https://code.google.com/p/guava-libraries/issues/detail?id=1095
       "com.google.code.findbugs" % "jsr305" % "1.3.+",
 
@@ -121,7 +127,7 @@ object SharkBuild extends Build {
   )
 
   def assemblyProjSettings = Seq(
-    jarName in assembly <<= version map { v => "shark-assembly-" + v + "-hadoop" + HADOOP_VERSION + ".jar" }
+    jarName in assembly <<= version map { v => "shark-assembly-" + v + "-hadoop" + hadoopVersion + ".jar" }
   ) ++ assemblySettings ++ extraAssemblySettings
 
   def extraAssemblySettings() = Seq(
