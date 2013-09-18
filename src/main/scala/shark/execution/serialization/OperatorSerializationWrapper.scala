@@ -17,7 +17,7 @@
 
 package shark.execution.serialization
 
-import shark.execution.HiveOperator
+import shark.execution.HiveDesc
 import shark.execution.Operator
 
 
@@ -28,7 +28,7 @@ import shark.execution.Operator
  *
  * Use OperatorSerializationWrapper(operator) to create a wrapper.
  */
-class OperatorSerializationWrapper[T <: Operator[_ <: HiveOperator]]
+class OperatorSerializationWrapper[T <: Operator[_ <: HiveDesc]]
   extends Serializable with shark.LogHelper {
 
   /** The operator we are going to serialize. */
@@ -69,7 +69,7 @@ class OperatorSerializationWrapper[T <: Operator[_ <: HiveOperator]]
 
 
 object OperatorSerializationWrapper {
-  def apply[T <: Operator[_ <: HiveOperator]](value: T): OperatorSerializationWrapper[T] = {
+  def apply[T <: Operator[_ <: HiveDesc]](value: T): OperatorSerializationWrapper[T] = {
     val wrapper = new OperatorSerializationWrapper[T]
     wrapper.value = value
     wrapper
