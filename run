@@ -106,9 +106,10 @@ SPARK_CLASSPATH+=":$SHARK_HOME/target/scala-$SCALA_VERSION/test-classes"
 
 
 if [ "x$HADOOP_HOME" == "x" ] ; then
-    echo "No HADOOP_HOME specified. Shark will run in local-mode"
+  echo "No HADOOP_HOME specified. Shark will run in local-mode"
 else
-    SPARK_CLASSPATH+=:$HADOOP_HOME/conf
+  SPARK_CLASSPATH+=:$HADOOP_HOME/etc/hadoop
+  SPARK_CLASSPATH+=:$HADOOP_HOME/conf
 fi
 
 
