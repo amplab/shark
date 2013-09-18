@@ -34,6 +34,12 @@ object SharkBuild extends Build {
   // "1.0.1" for Apache releases, or "0.20.2-cdh3u3" for Cloudera Hadoop.
   val HADOOP_VERSION = "1.0.4"
 
+  // Whether to build Shark with Yarn support
+  val YARN_ENABLED = scala.util.Properties.envOrNone("SHARK_YARN") match {
+    case None => false
+    case Some(v) => v.toBoolean
+  }
+
   // Whether to build Shark with Tachyon jar.
   val TACHYON_ENABLED = false
 
@@ -117,6 +123,7 @@ object SharkBuild extends Build {
       "junit" % "junit" % "4.10" % "test",
       "net.java.dev.jets3t" % "jets3t" % "0.7.1",
       "com.novocode" % "junit-interface" % "0.8" % "test") ++
+      (if (YARN_ENABLED) Some("org.apache.spark" %% "spark-yarn" % SPARK_VERSION) else None).toSeq ++
       (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.3.0-SNAPSHOT" excludeAll(excludeKyro, excludeHadoop) ) else None).toSeq
   )
 
@@ -129,6 +136,7 @@ object SharkBuild extends Build {
     mergeStrategy in assembly := {
       case m if m.toLowerCase.endsWith("manifest.mf") => MergeStrategy.discard
       case m if m.toLowerCase.matches("meta-inf.*\\.sf$") => MergeStrategy.discard
+      case "META-INF/services/org.apache.hadoop.fs.FileSystem" => MergeStrategy.concat
       case "reference.conf" => MergeStrategy.concat
       case _ => MergeStrategy.first
     }
