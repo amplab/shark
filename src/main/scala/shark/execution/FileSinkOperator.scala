@@ -163,8 +163,7 @@ class FileSinkOperator extends TerminalOperator with Serializable {
         val rows = rdd.context.runJob(rdd, FileSinkOperator.executeProcessFileSinkPartition(this))
         logInfo("Total number of rows written: " + rows.sum)
     }
-
-    hiveOp.jobClose(localHconf, true, new JobCloseFeedBack)
+    localHiveOp.jobClose(localHconf, true, new JobCloseFeedBack)
     rdd
   }
 }

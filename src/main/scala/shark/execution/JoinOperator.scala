@@ -36,8 +36,7 @@ import org.apache.spark.rdd.RDD
 import shark.execution.serialization.OperatorSerializationWrapper
 
 
-class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
-  with HiveTopOperator {
+class JoinOperator extends CommonJoinOperator[JoinDesc] with ReduceSinkTableDesc {
 
   @BeanProperty var valueTableDescMap: JHashMap[Int, TableDesc] = _
   @BeanProperty var keyTableDesc: TableDesc = _
@@ -48,9 +47,10 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
 
   override def initializeOnMaster() {
     super.initializeOnMaster()
+    var descs = keyValueDescs()
     valueTableDescMap = new JHashMap[Int, TableDesc]
-    valueTableDescMap ++= keyValueTableDescs.map { case(tag, kvdescs) => (tag, kvdescs._2) }
-    keyTableDesc = keyValueTableDescs.head._2._1
+    valueTableDescMap ++= descs.map { case(tag, kvdescs) => (tag, kvdescs._2) }
+    keyTableDesc = descs.head._2._1
 
     // Call initializeOnSlave to initialize the join filters, etc.
     initializeOnSlave()
@@ -113,7 +113,7 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
       op.initializeOnSlave()
 
       val writable = new BytesWritable
-      val nullSafes = op.conf.getNullSafes()
+      val nullSafes = conf.getNullSafes()
 
       val cp = new CartesianProduct[Any](op.numTables)
 
@@ -150,34 +150,49 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
 
     val rowSize = offsets.last
     val outputRow = new Array[Object](rowSize)
+    val tableNotNulls = Array.fill(numTables)(false)
 
     iter.map { elements: Array[Any] =>
       var index = 0
       while (index < numTables) {
         val element = elements(index).asInstanceOf[Array[Byte]]
-        var i = 0
-        if (element == null) {
-          while (i < joinVals.get(index.toByte).size) {
-            outputRow(i + offsets(index)) = null
-            i += 1
-          }
-        } else {
+        tableNotNulls(index) = false
+        
+        if (element != null) {
           bytes.set(element, 0, element.length)
           tmp(1) = tagToValueSer.get(index).deserialize(bytes)
-          val joinVal = joinVals.get(index.toByte)
-          while (i < joinVal.size) {
-            val joinValObjectInspectors = joinValuesObjectInspectors.get(index.toByte)
-            outputRow(i + offsets(index)) = ObjectInspectorUtils.copyToStandardObject(
-              joinVal(i).evaluate(tmp), joinValObjectInspectors(i),
-              ObjectInspectorUtils.ObjectInspectorCopyOption.WRITABLE)
-            i += 1
+
+          if (CommonJoinOperator.isFiltered(tmp,
+            joinFilters.get(index.toByte), joinFilterObjectInspectors.get(index.toByte))) {
+            for (i <- 0 until joinVals.get(index.toByte).size) {
+              // reset the value
+              outputRow(i + offsets(index)) = null
+            }
+          } else {
+            val joinVal = joinVals.get(index.toByte)
+            for (i <- 0 until joinVal.size) {
+              val joinValObjectInspectors = joinValuesObjectInspectors.get(index.toByte)
+              outputRow(i + offsets(index)) = ObjectInspectorUtils.copyToStandardObject(
+                joinVal(i).evaluate(tmp), joinValObjectInspectors(i),
+                ObjectInspectorUtils.ObjectInspectorCopyOption.WRITABLE)
+            }
+            
+            tableNotNulls(index) = true
+          }
+        } else {
+          for (i <- 0 until joinVals.get(index.toByte).size) {
+            // reset the value
+            outputRow(i + offsets(index)) = null
           }
         }
         index += 1
       }
 
-      outputRow
-    }
+      if(tableNotNulls.reduce(_ || _))
+        outputRow
+      else
+        null
+    }.filter(_ != null)
   }
 
   override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] =

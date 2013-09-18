@@ -17,13 +17,15 @@
 
 package shark.execution
 
-import java.util.{List => JavaList}
-
+import java.util.{List => JavaList, Arrays}
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
+import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator
 
 import org.apache.spark.rdd.RDD
 
@@ -31,7 +33,7 @@ import shark.LogHelper
 import shark.execution.serialization.OperatorSerializationWrapper
 
 
-abstract class Operator[T <: HiveOperator] extends LogHelper with Serializable {
+abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
 
   /**
    * Initialize the operator on master node. This can have dependency on other
@@ -60,7 +62,7 @@ abstract class Operator[T <: HiveOperator] extends LogHelper with Serializable {
    */
   def initializeMasterOnAll() {
     _parentOperators.foreach(_.initializeMasterOnAll())
-    objectInspectors ++= hiveOp.getInputObjInspectors()
+    objectInspectors = inputObjectInspectors()
     initializeOnMaster()
   }
 
@@ -79,18 +81,18 @@ abstract class Operator[T <: HiveOperator] extends LogHelper with Serializable {
    * Return the parent operators as a Java List. This is for interoperability
    * with Java. We use this in explain's Java code.
    */
-  def parentOperatorsAsJavaList: JavaList[Operator[_]] = _parentOperators
+  def parentOperatorsAsJavaList: JavaList[Operator[_<:HiveDesc]] = _parentOperators
 
-  def addParent(parent: Operator[_]) {
+  def addParent(parent: Operator[_<:HiveDesc]) {
     _parentOperators += parent
     parent.childOperators += this
   }
 
-  def addChild(child: Operator[_]) {
+  def addChild(child: Operator[_<:HiveDesc]) {
     child.addParent(this)
   }
 
-  def returnTerminalOperators(): Seq[Operator[_]] = {
+  def returnTerminalOperators(): Seq[Operator[_<:HiveDesc]] = {
     if (_childOperators == null || _childOperators.size == 0) {
       Seq(this)
     } else {
@@ -106,13 +108,130 @@ abstract class Operator[T <: HiveOperator] extends LogHelper with Serializable {
     }
   }
 
-  @transient var hiveOp: T = _
-  @transient private val _childOperators = new ArrayBuffer[Operator[_]]()
-  @transient private val _parentOperators = new ArrayBuffer[Operator[_]]()
-  @transient var objectInspectors = new ArrayBuffer[ObjectInspector]
+  def desc() = _desc
+  // TODO subclassing
+  def setDesc[B >: T](d: B) {_desc = d.asInstanceOf[T]}
+  
+  @transient private[this] var _desc: T = _
+  @transient private[this] val _childOperators = new ArrayBuffer[Operator[_<:HiveDesc]]()
+  @transient private[this] val _parentOperators = new ArrayBuffer[Operator[_<:HiveDesc]]()
+  @transient var objectInspectors: Array[ObjectInspector] =_
 
   protected def executeParents(): Seq[(Int, RDD[_])] = {
     parentOperators.map(p => (p.getTag, p.execute()))
+  }
+  
+  protected def inputObjectInspectors(): Array[ObjectInspector] ={
+    if(null != _parentOperators)
+      _parentOperators.sortBy(_.getTag).map(_.outputObjectInspector).toArray
+    else
+      null
+  }
+  
+  // derived classes can set this to different object if needed, default is the first input OI
+  def outputObjectInspector(): ObjectInspector = objectInspectors(0)
+  
+  /**
+   * Copy from the org.apache.hadoop.hive.ql.exec.ReduceSinkOperator
+   * Initializes array of ExprNodeEvaluator. Adds Union field for distinct
+   * column indices for group by.
+   * Puts the return values into a StructObjectInspector with output column
+   * names.
+   *
+   * If distinctColIndices is empty, the object inspector is same as
+   * {@link Operator#initEvaluatorsAndReturnStruct(ExprNodeEvaluator[], List, ObjectInspector)}
+   */
+  protected def initEvaluatorsAndReturnStruct(
+      evals: Array[ExprNodeEvaluator] , distinctColIndices: JavaList[JavaList[Integer]] ,
+      outputColNames: JavaList[String], length: Int, rowInspector: ObjectInspector): StructObjectInspector = {
+
+    var fieldObjectInspectors = initEvaluators(evals, 0, length, rowInspector);
+    initEvaluatorsAndReturnStruct(evals, fieldObjectInspectors, distinctColIndices, outputColNames, length, rowInspector)
+  }
+  
+  /**
+   * Copy from the org.apache.hadoop.hive.ql.exec.ReduceSinkOperator
+   * Initializes array of ExprNodeEvaluator. Adds Union field for distinct
+   * column indices for group by.
+   * Puts the return values into a StructObjectInspector with output column
+   * names.
+   *
+   * If distinctColIndices is empty, the object inspector is same as
+   * {@link Operator#initEvaluatorsAndReturnStruct(ExprNodeEvaluator[], List, ObjectInspector)}
+   */
+  protected def initEvaluatorsAndReturnStruct(
+      evals: Array[ExprNodeEvaluator], fieldObjectInspectors: Array[ObjectInspector], distinctColIndices: JavaList[JavaList[Integer]] ,
+      outputColNames: JavaList[String], length: Int, rowInspector: ObjectInspector): StructObjectInspector = {
+
+    var inspectorLen = if (evals.length > length) length + 1 else evals.length
+    
+    var sois = new ArrayBuffer[ObjectInspector](inspectorLen)
+
+    // keys
+    // var fieldObjectInspectors = initEvaluators(evals, 0, length, rowInspector);
+    sois++=fieldObjectInspectors
+
+    if (evals.length > length) {
+      // union keys
+      var uois = new ArrayBuffer[ObjectInspector]()
+      for (/*List<Integer>*/ distinctCols <- distinctColIndices) {
+        var names = new ArrayBuffer[String]()
+        var eois = new ArrayBuffer[ObjectInspector]()
+        var numExprs = 0
+        for (i <- distinctCols) {
+          names.add(HiveConf.getColumnInternalName(numExprs))
+          eois.add(evals(i).initialize(rowInspector))
+          numExprs += 1
+        }
+        uois.add(ObjectInspectorFactory.getStandardStructObjectInspector(names, eois));
+      }
+      
+      sois.add(ObjectInspectorFactory.getStandardUnionObjectInspector(uois))
+    }
+    
+    ObjectInspectorFactory.getStandardStructObjectInspector(outputColNames, sois )
+  }
+  
+  /**
+   * Initialize an array of ExprNodeEvaluator and return the result
+   * ObjectInspectors.
+   */
+  protected def initEvaluators(evals: Array[ExprNodeEvaluator],
+      rowInspector: ObjectInspector): Array[ObjectInspector] = {
+    var result = new Array[ObjectInspector](evals.length)
+    for (i <- 0 to evals.length -1) {
+      result(i) = evals(i).initialize(rowInspector)
+    }
+    
+    result
+  }
+  
+  /**
+   * Initialize an array of ExprNodeEvaluator from start, for specified length
+   * and return the result ObjectInspectors.
+   */
+  protected def initEvaluators(evals: Array[ExprNodeEvaluator],
+      start: Int, length: Int,rowInspector: ObjectInspector): Array[ObjectInspector] = {
+    var result = new Array[ObjectInspector](length)
+    
+    for (i <- 0 to length - 1) {
+      result(i) = evals(start + i).initialize(rowInspector);
+    }
+    
+    result
+  }
+  
+  /**
+   * Initialize an array of ExprNodeEvaluator and put the return values into a
+   * StructObjectInspector with integer field names.
+   */
+  protected def initEvaluatorsAndReturnStruct(
+      evals: Array[ExprNodeEvaluator], outputColName: JavaList[String],
+      rowInspector: ObjectInspector): StructObjectInspector = {
+    import scala.collection.JavaConversions.JListWrapper
+    var fieldObjectInspectors = initEvaluators(evals, rowInspector)
+    return ObjectInspectorFactory.getStandardStructObjectInspector(
+        outputColName, fieldObjectInspectors.toList)
   }
 }
 
@@ -132,7 +251,7 @@ abstract class Operator[T <: HiveOperator] extends LogHelper with Serializable {
  * processPartition before sending it downstream.
  *
  */
-abstract class NaryOperator[T <: HiveOperator] extends Operator[T] {
+abstract class NaryOperator[T <: HiveDesc] extends Operator[T] {
 
   /** Process a partition. Called on slaves. */
   def processPartition(split: Int, iter: Iterator[_]): Iterator[_]
@@ -168,7 +287,7 @@ abstract class NaryOperator[T <: HiveOperator] extends Operator[T] {
  * processPartition before sending it downstream.
  *
  */
-abstract class UnaryOperator[T <: HiveOperator] extends Operator[T] {
+abstract class UnaryOperator[T <: HiveDesc] extends Operator[T] {
 
   /** Process a partition. Called on slaves. */
   def processPartition(split: Int, iter: Iterator[_]): Iterator[_]
@@ -192,7 +311,7 @@ abstract class UnaryOperator[T <: HiveOperator] extends Operator[T] {
 }
 
 
-abstract class TopOperator[T <: HiveOperator] extends UnaryOperator[T]
+abstract class TopOperator[T <: HiveDesc] extends UnaryOperator[T]
 
 
 object Operator extends LogHelper {
@@ -205,7 +324,7 @@ object Operator extends LogHelper {
    * to do logging, but calling logging automatically adds a reference to the
    * operator (which is not serializable by Java) in the Spark closure.
    */
-  def executeProcessPartition(operator: Operator[_ <: HiveOperator], rdd: RDD[_]): RDD[_] = {
+  def executeProcessPartition(operator: Operator[_ <: HiveDesc], rdd: RDD[_]): RDD[_] = {
     val op = OperatorSerializationWrapper(operator)
     rdd.mapPartitionsWithIndex { case(split, partition) =>
       op.logDebug("Started executing mapPartitions for operator: " + op)
