@@ -21,6 +21,8 @@ import Keys._
 import sbtassembly.Plugin._
 import AssemblyKeys._
 
+import scala.util.Properties.{ envOrNone => env }
+
 object SharkBuild extends Build {
 
   // Shark version
@@ -34,17 +36,12 @@ object SharkBuild extends Build {
   // "1.0.1" for Apache releases, or "0.20.2-cdh3u3" for Cloudera Hadoop.
   val DEFAULT_HADOOP_VERSION = "1.0.4"
 
-  import scala.util.Properties.{ envOrNone => env }
   lazy val hadoopVersion = env("SHARK_HADOOP_VERSION") orElse
                            env("SPARK_HADOOP_VERSION") getOrElse
                            DEFAULT_HADOOP_VERSION
 
-
   // Whether to build Shark with Yarn support
-  val YARN_ENABLED = scala.util.Properties.envOrNone("SHARK_YARN") match {
-    case None => false
-    case Some(v) => v.toBoolean
-  }
+  val YARN_ENABLED = env("SHARK_YARN").getOrElse("false").toBoolean
 
   // Whether to build Shark with Tachyon jar.
   val TACHYON_ENABLED = false
