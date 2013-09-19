@@ -128,7 +128,7 @@ object SharkBuild extends Build {
       "com.novocode" % "junit-interface" % "0.8" % "test") ++
       (if (YARN_ENABLED) Some("org.apache.spark" %% "spark-yarn" % SPARK_VERSION) else None).toSeq ++
       (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.3.0-SNAPSHOT" excludeAll(excludeKyro, excludeHadoop) ) else None).toSeq
-  )
+  ) ++ org.scalastyle.sbt.ScalastylePlugin.Settings
 
   def assemblyProjSettings = Seq(
     jarName in assembly <<= version map { v => "shark-assembly-" + v + "-hadoop" + hadoopVersion + ".jar" }
