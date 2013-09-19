@@ -22,7 +22,7 @@ import scala.collection.mutable.ArrayBuffer
 import shark.SharkEnv
 import shark.memstore2.{TablePartitionStats, TablePartition, TablePartitionBuilder}
 import shark.util.HiveUtils
-import spark.RDD
+import org.apache.spark.rdd.RDD
 
 
 class RDDTableFunctions(self: RDD[Product], manifests: Seq[ClassManifest[_]]) {
