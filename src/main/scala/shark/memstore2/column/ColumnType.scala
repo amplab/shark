@@ -28,31 +28,73 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive._
 import org.apache.hadoop.io._
 
 
-abstract class ColumnType[T, V](val typeID: Int, val defaultSize: Int) {
+/**
+ * @param typeID A unique ID representing the type.
+ * @param defaultSize Default size in bytes for one element of type T (e.g. Int = 4).
+ * @tparam T Scala data type for the column.
+ * @tparam V Writable data type for the column.
+ */
+sealed abstract class ColumnType[T : ClassManifest, V : ClassManifest](
+    val typeID: Int, val defaultSize: Int) {
 
-  def extract(currentPos: Int, buffer: ByteBuffer): T
+  /**
+   * Scala class manifest. Can be used to create primitive arrays and hash tables.
+   */
+  def scalaManifest: ClassManifest[T] = classManifest[T]
 
+  /**
+   * Scala class manifest for the writable type. Can be used to create primitive arrays and
+   * hash tables.
+   */
+  def writableManifest: ClassManifest[V] = classManifest[V]
+
+  /**
+   * Extract a value out of the buffer at the buffer's current position.
+   */
+  def extract(buffer: ByteBuffer): T
+
+  /**
+   * Append the given value v of type T into the given ByteBuffer.
+   */
   def append(v: T, buffer: ByteBuffer)
 
+  /**
+   * Return the Scala data representation of the given object, using an object inspector.
+   */
   def get(o: Object, oi: ObjectInspector): T
 
-  def actualSize(v: T) = defaultSize
+  /**
+   * Return the size of the value. This is used to calculate the size of variable length types
+   * such as byte arrays and strings.
+   */
+  def actualSize(v: T): Int = defaultSize
 
-  def extractInto(currentPos: Int, buffer: ByteBuffer, writable: V)
+  /**
+   * Extract a value out of the buffer at the buffer's current position, and put it in the writable
+   * object. This is used as an optimization to reduce the temporary objects created, since the
+   * writable object can be reused.
+   */
+  def extractInto(buffer: ByteBuffer, writable: V)
 
+  /**
+   * Create a new writable object corresponding to this type.
+   */
   def newWritable(): V
 
+  /**
+   * Create a duplicated copy of the value.
+   */
   def clone(v: T): T = v
 }
 
 
 object INT extends ColumnType[Int, IntWritable](0, 4) {
 
-  override def append(v: Int, buffer: ByteBuffer) = {
+  override def append(v: Int, buffer: ByteBuffer) {
     buffer.putInt(v)
   }
 
-  override def extract(currentPos: Int, buffer: ByteBuffer) = {
+  override def extract(buffer: ByteBuffer) = {
     buffer.getInt()
   }
 
@@ -60,8 +102,8 @@ object INT extends ColumnType[Int, IntWritable](0, 4) {
     oi.asInstanceOf[IntObjectInspector].get(o)
   }
 
-  override def extractInto(currentPos: Int, buffer: ByteBuffer, writable: IntWritable) = {
-    writable.set(extract(currentPos, buffer))
+  override def extractInto(buffer: ByteBuffer, writable: IntWritable) {
+    writable.set(extract(buffer))
   }
 
   override def newWritable() = new IntWritable
@@ -70,11 +112,11 @@ object INT extends ColumnType[Int, IntWritable](0, 4) {
 
 object LONG extends ColumnType[Long, LongWritable](1, 8) {
 
-  override def append(v: Long, buffer: ByteBuffer) = {
+  override def append(v: Long, buffer: ByteBuffer) {
     buffer.putLong(v)
   }
 
-  override def extract(currentPos: Int, buffer: ByteBuffer) = {
+  override def extract(buffer: ByteBuffer) = {
     buffer.getLong()
   }
 
@@ -82,21 +124,21 @@ object LONG extends ColumnType[Long, LongWritable](1, 8) {
     oi.asInstanceOf[LongObjectInspector].get(o)
   }
 
-  def extractInto(currentPos: Int, buffer: ByteBuffer, writable: LongWritable) = {
-    writable.set(extract(currentPos, buffer))
+  override def extractInto(buffer: ByteBuffer, writable: LongWritable) {
+    writable.set(extract(buffer))
   }
 
-  def newWritable() = new LongWritable
+  override def newWritable() = new LongWritable
 }
 
 
 object FLOAT extends ColumnType[Float, FloatWritable](2, 4) {
 
-  override def append(v: Float, buffer: ByteBuffer) = {
+  override def append(v: Float, buffer: ByteBuffer) {
     buffer.putFloat(v)
   }
 
-  override def extract(currentPos: Int, buffer: ByteBuffer) = {
+  override def extract(buffer: ByteBuffer) = {
     buffer.getFloat()
   }
 
@@ -104,42 +146,43 @@ object FLOAT extends ColumnType[Float, FloatWritable](2, 4) {
     oi.asInstanceOf[FloatObjectInspector].get(o)
   }
 
-  def extractInto(currentPos: Int, buffer: ByteBuffer, writable: FloatWritable) = {
-    writable.set(extract(currentPos, buffer))
+  override def extractInto(buffer: ByteBuffer, writable: FloatWritable) {
+    writable.set(extract(buffer))
   }
 
-  def newWritable() = new FloatWritable
+  override def newWritable() = new FloatWritable
 }
 
 
 object DOUBLE extends ColumnType[Double, DoubleWritable](3, 8) {
 
-  override def append(v: Double, buffer: ByteBuffer) = {
+  override def append(v: Double, buffer: ByteBuffer) {
     buffer.putDouble(v)
   }
 
-  override def extract(currentPos: Int, buffer: ByteBuffer) = {
+  override def extract(buffer: ByteBuffer) = {
     buffer.getDouble()
   }
+
   override def get(o: Object, oi: ObjectInspector): Double = {
     oi.asInstanceOf[DoubleObjectInspector].get(o)
   }
 
-  def extractInto(currentPos: Int, buffer: ByteBuffer, writable: DoubleWritable) = {
-    writable.set(extract(currentPos, buffer))
+  override def extractInto(buffer: ByteBuffer, writable: DoubleWritable) {
+    writable.set(extract(buffer))
   }
 
-  def newWritable() = new DoubleWritable
+  override def newWritable() = new DoubleWritable
 }
 
 
 object BOOLEAN extends ColumnType[Boolean, BooleanWritable](4, 1) {
 
-  override def append(v: Boolean, buffer: ByteBuffer) = {
+  override def append(v: Boolean, buffer: ByteBuffer) {
     buffer.put(if (v) 1.toByte else 0.toByte)
   }
 
-  override def extract(currentPos: Int, buffer: ByteBuffer) = {
+  override def extract(buffer: ByteBuffer) = {
     if (buffer.get() == 1) true else false
   }
 
@@ -147,42 +190,42 @@ object BOOLEAN extends ColumnType[Boolean, BooleanWritable](4, 1) {
     oi.asInstanceOf[BooleanObjectInspector].get(o)
   }
 
-  def extractInto(currentPos: Int, buffer: ByteBuffer, writable: BooleanWritable) = {
-    writable.set(extract(currentPos, buffer))
+  override def extractInto(buffer: ByteBuffer, writable: BooleanWritable) {
+    writable.set(extract(buffer))
   }
 
-  def newWritable() = new BooleanWritable
+  override def newWritable() = new BooleanWritable
 }
 
 
 object BYTE extends ColumnType[Byte, ByteWritable](5, 1) {
 
-  override def append(v: Byte, buffer: ByteBuffer) = {
+  override def append(v: Byte, buffer: ByteBuffer) {
     buffer.put(v)
   }
 
-  override def extract(currentPos: Int, buffer: ByteBuffer) = {
+  override def extract(buffer: ByteBuffer) = {
     buffer.get()
   }
   override def get(o: Object, oi: ObjectInspector): Byte = {
     oi.asInstanceOf[ByteObjectInspector].get(o)
   }
 
-  def extractInto(currentPos: Int, buffer: ByteBuffer, writable: ByteWritable) = {
-    writable.set(extract(currentPos, buffer))
+  override def extractInto(buffer: ByteBuffer, writable: ByteWritable) {
+    writable.set(extract(buffer))
   }
 
-  def newWritable() = new ByteWritable
+  override def newWritable() = new ByteWritable
 }
 
 
 object SHORT extends ColumnType[Short, ShortWritable](6, 2) {
 
-  override def append(v: Short, buffer: ByteBuffer) = {
+  override def append(v: Short, buffer: ByteBuffer) {
     buffer.putShort(v)
   }
 
-  override def extract(currentPos: Int, buffer: ByteBuffer) = {
+  override def extract(buffer: ByteBuffer) = {
     buffer.getShort()
   }
 
@@ -190,8 +233,8 @@ object SHORT extends ColumnType[Short, ShortWritable](6, 2) {
     oi.asInstanceOf[ShortObjectInspector].get(o)
   }
 
-  def extractInto(currentPos: Int, buffer: ByteBuffer, writable: ShortWritable) = {
-    writable.set(extract(currentPos, buffer))
+  def extractInto(buffer: ByteBuffer, writable: ShortWritable) {
+    writable.set(extract(buffer))
   }
 
   def newWritable() = new ShortWritable
@@ -200,15 +243,15 @@ object SHORT extends ColumnType[Short, ShortWritable](6, 2) {
 
 object VOID extends ColumnType[Void, NullWritable](7, 0) {
 
-  override def append(v: Void, buffer: ByteBuffer) = {}
+  override def append(v: Void, buffer: ByteBuffer) {}
 
-  override def extract(currentPos: Int, buffer: ByteBuffer) = {
+  override def extract(buffer: ByteBuffer) = {
     throw new UnsupportedOperationException()
   }
 
   override def get(o: Object, oi: ObjectInspector) = null
 
-  override def extractInto(currentPos: Int, buffer: ByteBuffer, writable: NullWritable) = {}
+  override def extractInto(buffer: ByteBuffer, writable: NullWritable) {}
 
   override def newWritable() = NullWritable.get
 }
@@ -234,9 +277,9 @@ object STRING extends ColumnType[Text, Text](8, 8) {
     buffer.put(v.getBytes(), 0, length)
   }
 
-  override def extract(currentPos: Int, buffer: ByteBuffer) = {
+  override def extract(buffer: ByteBuffer) = {
     val t = new Text()
-    extractInto(currentPos, buffer, t)
+    extractInto(buffer, t)
     t
   }
 
@@ -246,7 +289,7 @@ object STRING extends ColumnType[Text, Text](8, 8) {
 
   override def actualSize(v: Text) = v.getLength() + 4
 
-  def extractInto(currentPos: Int, buffer: ByteBuffer, writable: Text) = {
+  override def extractInto(buffer: ByteBuffer, writable: Text) {
     val length = buffer.getInt()
     var b = _bytesFld.get(writable).asInstanceOf[Array[Byte]]
     if (b == null || b.length < length) {
@@ -257,7 +300,8 @@ object STRING extends ColumnType[Text, Text](8, 8) {
     _lengthFld.set(writable, length)
   }
 
-  def newWritable() = new Text
+  override def newWritable() = new Text
+
   override def clone(v: Text) = {
     val t = new Text()
     t.set(v)
@@ -268,12 +312,12 @@ object STRING extends ColumnType[Text, Text](8, 8) {
 
 object TIMESTAMP extends ColumnType[Timestamp, TimestampWritable](9, 12) {
 
-  override def append(v: Timestamp, buffer: ByteBuffer) = {
+  override def append(v: Timestamp, buffer: ByteBuffer) {
     buffer.putLong(v.getTime())
     buffer.putInt(v.getNanos())
   }
 
-  override def extract(currentPos: Int, buffer: ByteBuffer) = {
+  override def extract(buffer: ByteBuffer) = {
     val ts = new Timestamp(0)
     ts.setTime(buffer.getLong())
     ts.setNanos(buffer.getInt())
@@ -284,11 +328,11 @@ object TIMESTAMP extends ColumnType[Timestamp, TimestampWritable](9, 12) {
     oi.asInstanceOf[TimestampObjectInspector].getPrimitiveJavaObject(o)
   }
 
-  def extractInto(currentPos: Int, buffer: ByteBuffer, writable: TimestampWritable) = {
-    writable.set(extract(currentPos, buffer))
+  override def extractInto(buffer: ByteBuffer, writable: TimestampWritable) {
+    writable.set(extract(buffer))
   }
 
-  def newWritable() = new TimestampWritable
+  override def newWritable() = new TimestampWritable
 }
 
 
@@ -306,13 +350,13 @@ object BINARY extends ColumnType[BytesWritable, BytesWritable](10, 16) {
     f
   }
 
-  override def append(v: BytesWritable, buffer: ByteBuffer) = {
+  override def append(v: BytesWritable, buffer: ByteBuffer) {
     val length = v.getLength()
     buffer.putInt(length)
     buffer.put(v.getBytes(), 0, length)
   }
 
-  override def extract(currentPos: Int, buffer: ByteBuffer) = {
+  override def extract(buffer: ByteBuffer) = {
     throw new UnsupportedOperationException()
   }
 
@@ -324,7 +368,7 @@ object BINARY extends ColumnType[BytesWritable, BytesWritable](10, 16) {
     }
   }
 
-  def extractInto(currentPos: Int, buffer: ByteBuffer, writable: BytesWritable) = {
+  override def extractInto(buffer: ByteBuffer, writable: BytesWritable) {
     val length = buffer.getInt()
     var b = _bytesFld.get(writable).asInstanceOf[Array[Byte]]
     if (b == null || b.length < length) {
@@ -335,7 +379,7 @@ object BINARY extends ColumnType[BytesWritable, BytesWritable](10, 16) {
     _lengthFld.set(writable, length)
   }
 
-  def newWritable() = new BytesWritable
+  override def newWritable() = new BytesWritable
   
   override def actualSize(v: BytesWritable) = v.getLength() + 4
 }
@@ -349,7 +393,7 @@ object GENERIC extends ColumnType[ByteStream.Output, ByteArrayRef](11, 16) {
     buffer.put(v.getData(), 0, length)
   }
 
-  override def extract(currentPos: Int, buffer: ByteBuffer) = {
+  override def extract(buffer: ByteBuffer) = {
     throw new UnsupportedOperationException()
   }
 
@@ -357,12 +401,12 @@ object GENERIC extends ColumnType[ByteStream.Output, ByteArrayRef](11, 16) {
     o.asInstanceOf[ByteStream.Output]
   }
 
-  def extractInto(currentPos: Int, buffer: ByteBuffer, writable: ByteArrayRef) = {
+  override def extractInto(buffer: ByteBuffer, writable: ByteArrayRef) {
     val length = buffer.getInt()
     val a = new Array[Byte](length)
     buffer.get(a, 0, length)
     writable.setData(a)
   }
 
-  def newWritable() = new ByteArrayRef
+  override def newWritable() = new ByteArrayRef
 }

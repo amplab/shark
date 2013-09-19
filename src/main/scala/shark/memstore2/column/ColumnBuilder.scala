@@ -61,12 +61,12 @@ trait ColumnBuilder[T] {
     _buffer.order(ByteOrder.nativeOrder())
     _buffer.putInt(t.typeID)
   }
-  
+
   protected def growIfNeeded(orig: ByteBuffer, size: Int): ByteBuffer = {
     val capacity = orig.capacity()
     if (orig.remaining() < size) {
-      //grow in steps of initial size 
-      var additionalSize = capacity/8 + 1
+      // grow in steps of initial size
+      val additionalSize = capacity / 8 + 1
       var newSize = capacity + additionalSize
       if (additionalSize  < size) {
         newSize = capacity + size
@@ -82,7 +82,7 @@ trait ColumnBuilder[T] {
   }
 }
 
-class DefaultColumnBuilder[T](val stats: ColumnStats[T], val t: ColumnType[T, _]) 
+class DefaultColumnBuilder[T](val stats: ColumnStats[T], val t: ColumnType[T, _])
   extends CompressedColumnBuilder[T] with NullableColumnBuilder[T]{}
 
 
@@ -105,7 +105,7 @@ trait CompressedColumnBuilder[T] extends ColumnBuilder[T] {
 
   override def build() = {
     val b = super.build()
-    
+
     if (compressionSchemes.isEmpty) {
       new NoCompression().compress(b, t)
     } else {
@@ -136,9 +136,9 @@ object ColumnBuilder {
           case PrimitiveCategory.BYTE      => new ByteColumnBuilder
           case PrimitiveCategory.TIMESTAMP => new TimestampColumnBuilder
           case PrimitiveCategory.BINARY    => new BinaryColumnBuilder
-         
+
           // TODO: add decimal column.
-          case _ => throw new Exception(
+          case _ => throw new MemoryStoreException(
             "Invalid primitive object inspector category" + columnOi.getCategory)
         }
       }
