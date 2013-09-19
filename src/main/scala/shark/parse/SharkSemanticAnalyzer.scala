@@ -90,11 +90,13 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       // Do post-Hive analysis of the CREATE TABLE (e.g detect caching mode).
       analyzeCreateTable(ast, qb) match {
         case Some(selectStmtASTNode) => {
-          // The 'child' is set to the SELECT statement root node, with is a HiveParer.HIVE_QUERY.
+          // Set the 'child' to reference the SELECT statement root node, with is a
+          // HiveParer.HIVE_QUERY.
           child = selectStmtASTNode
-          // Hive will generate MapReduce tasks for the SELECT. Avoid executing those tasks by
-          // reset()-ing some Hive SemanticAnalyzer state after phase 1 of analysis below.
-          // TODO(harvey): This might be too much. SharkSemanticAnalyzer could directly clear
+          // Hive's super.analyzeInternal() generates MapReduce tasks for the SELECT. Avoid
+          // executing those tasks by reset()-ing some Hive SemanticAnalyzer state after phase 1 of
+          // analysis below.
+          // TODO(harvey): This might be too much. SharkSemanticAnalyzer could just clear
           //               'rootTasks', since it's a protected field.
           shouldReset = true
         }
@@ -108,12 +110,10 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       SessionState.get().setCommandType(HiveOperation.QUERY)
     }
 
-    // Invariant: At this point, the command includes a query - it's ASTNode has a
-    //            HiveParser.TOK_QUERY somewhere).
+    // Invariant: At this point, the command will execute a query (i.e., its AST contains a
+    //            HiveParser.TOK_QUERY node).
 
     // Continue analyzing from the child ASTNode.
-    // TODO(harvey): Look into whether doPhase1() can be skipped for CTAS. The
-    //               'super.analyzeInternal()' call above already calls it.
     if (!doPhase1(child, qb, initPhase1Ctx())) {
       return
     }
@@ -156,9 +156,6 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     val terminalOpSeq = {
       if (qb.getParseInfo.isInsertToTable && !qb.isCTAS) {
         // Handle an INSERT into a cached table.
-        // TODO(harvey): Detect the RDD's cache mode. This could be easily be done by using the
-        //               cachedTableName below. The cache mode property could be added to
-        //               MemoryTable.
         hiveSinkOps.map { hiveSinkOp =>
           val tableName = hiveSinkOp.asInstanceOf[HiveFileSinkOperator].getConf().getTableInfo()
             .getTableName()
@@ -341,12 +338,11 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     // SELECT statement
     var selectStmtASTNode: Option[ASTNode] = None
 
-    // TODO(harvey): Probably don't need this. We might be able to reuse the QB passed into this
-    //               method, as long as it was created after the super.analyzeInternal() call.
-    //               That QB and the createTableDesc should have everything (e.g. isCTAS(),
-    //               partCols). Note that the QB might not be accessible from getParseContext(),
-    //               since the SemanticAnalyzer#analyzeInternal() doesn't set (this.qb = qb) for a
-    //               non-CTAS.
+    // TODO(harvey): We might be able to reuse the QB passed into this method, as long as it was
+    //               created after the super.analyzeInternal() call. That QB and the createTableDesc
+    //               should have everything (e.g. isCTAS(), partCols). Note that the QB might not be
+    //               accessible from getParseContext(), since the SemanticAnalyzer#analyzeInternal()
+    //               doesn't set (this.qb = qb) for a non-CTAS.
     var isCTAS = false
     var isHivePartitioned = false
 
@@ -364,10 +360,10 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     }
 
     // The 'createTableDesc' can be NULL if the command is a ...
-    // 1) syntactically valid CREATE TABLE statement. The table specified may or may not already
-    //    exist. If the table already exists, then an exception is thrown by the DDLTask that's
-    //    executed after semantic analysis.
-    // 2) valid CTAS statement with an IF NOT EXISTS condition, and the specified table already
+    // 1) syntactically valid CREATE TABLE statement. Note that the table specified may or may not
+    //    already exist. If the table already exists, then an exception is thrown by the DDLTask
+    //    that's executed after semantic analysis.
+    // 2) valid CTAS statement with an IF NOT EXISTS condition and the specified table already
     //    exists. If the table to-be-created already exists, and the CTAS statement does not
     //    have an IF NOT EXISTS condition, then an exception will be thrown by
     //    SemanticAnalzyer#analyzeInternal().
@@ -375,8 +371,8 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     if (isCTAS && createTableDesc != null) {
       val tableName = createTableDesc.getTableName
       val checkTableName = SharkConfVars.getBoolVar(conf, SharkConfVars.CHECK_TABLENAME_FLAG)
-      // Note: the CreateTableDesc's table properties are Java Maps, but the TableDesc's table
-      //       properties, which are used during execution, are Java Properties.
+      // The CreateTableDesc's table properties are Java Maps, but the TableDesc's table properties,
+      // which are used during execution, are Java Properties.
       val createTableProperties: JavaMap[String, String] = createTableDesc.getTblProps()
 
       // There are two cases that will enable caching:

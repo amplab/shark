@@ -54,8 +54,8 @@ class MemoryMetadataManager {
   def put(key: String, rdd: RDD[_]) {
     if (!_keyToMemoryTable.contains(key.toLowerCase)) {
       // TODO(harvey): Remove this once CREATE TABLE/CTAS handling involves calling add(). For now,
-      //               CTAS is done in the MemoryStoreSinkOperator, which also "adds" the RDD for
-      //               the created table to MemoryMetadataManager.
+      //               CTAS result caching is done by MemoryStoreSinkOperator, which calls this
+      //               put() method.
       add(key, false /* isHivePartitioned */)
     }
     _keyToMemoryTable(key.toLowerCase).tableRDD = rdd
@@ -101,7 +101,7 @@ class MemoryMetadataManager {
    * @param key Name of the table to drop.
    * @return Option::isEmpty() is true of there is no MemoryTable corresponding to 'key' in
    *         _keyToMemoryTable. For MemoryTables that are Hive-partitioned, the RDD returned will be
-   *         a UnionRDD comprising all RDDs for all Hive-partitions.
+   *         a UnionRDD comprising RDDs that represent the Hive-partitions.
    */
   def unpersist(key: String): Option[RDD[_]] = {
     def unpersistRDD(rdd: RDD[_]) {
