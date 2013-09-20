@@ -53,24 +53,23 @@ class RDDTableFunctions(self: RDD[Product], manifests: Seq[ClassManifest[_]]) {
       Iterator(builder.build())
     }.persist()
 
+    val isDDLStatementSuccessful = HiveUtils.createTable(tableName, fields, manifests)
+
     // Put the table in the metastore. Only proceed if the DDL statement is executed successfully.
-    if (HiveUtils.createTable(tableName, fields, manifests)) {
+    if (isDDLStatementSuccessful) {
       // Force evaluate to put the data in memory.
       SharkEnv.memoryMetadataManager.put(tableName, rdd)
       rdd.context.runJob(rdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
 
       // Gather the partition statistics.
       SharkEnv.memoryMetadataManager.putStats(tableName, statsAcc.value.toMap)
-
-      true
-    } else {
-      false
     }
+    return isDDLStatementSuccessful
   }
 }
 
 
-object RDDTable {
+object RDDToTable {
 
   private type M[T] = ClassManifest[T]
   private def m[T](implicit m : ClassManifest[T]) = classManifest[T](m)
