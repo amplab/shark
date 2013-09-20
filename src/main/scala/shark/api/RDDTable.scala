@@ -51,25 +51,36 @@ class RDDTableFunctions(self: RDD[Product], manifests: Seq[ClassManifest[_]]) {
 
       statsAcc += Tuple2(partitionIndex, builder.asInstanceOf[TablePartitionBuilder].stats)
       Iterator(builder.build())
-    }.persist()
+    }.persist(self.getStorageLevel)
 
-    val isDDLStatementSuccessful = HiveUtils.createTable(tableName, fields, manifests)
+    var isSucessfulCreateTable = HiveUtils.createTableInHive(tableName, fields, manifests)
 
     // Put the table in the metastore. Only proceed if the DDL statement is executed successfully.
-    if (isDDLStatementSuccessful) {
+    if (isSucessfulCreateTable) {
       // Force evaluate to put the data in memory.
       SharkEnv.memoryMetadataManager.put(tableName, rdd)
-      rdd.context.runJob(rdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
+      try {
+        rdd.context.runJob(rdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
+      } catch {
+        case _ => {
+          // Intercept the exception thrown by SparkContext#runJob() and return silently. The
+          // exception message should be printed to the console by DDLTask#execute().
+          HiveUtils.dropTableInHive(tableName)
+          // Drop the table entry from MemoryMetadataManager.
+          SharkEnv.unpersist(tableName)
+          isSucessfulCreateTable = false
+        }
+      }
 
       // Gather the partition statistics.
       SharkEnv.memoryMetadataManager.putStats(tableName, statsAcc.value.toMap)
     }
-    return isDDLStatementSuccessful
+    return isSucessfulCreateTable
   }
 }
 
 
-object RDDToTable {
+object RDDTable {
 
   private type M[T] = ClassManifest[T]
   private def m[T](implicit m : ClassManifest[T]) = classManifest[T](m)
