@@ -51,7 +51,7 @@ class RDDTableFunctions(self: RDD[Product], manifests: Seq[ClassManifest[_]]) {
 
       statsAcc += Tuple2(partitionIndex, builder.asInstanceOf[TablePartitionBuilder].stats)
       Iterator(builder.build())
-    }.persist(self.getStorageLevel)
+    }.persist()
 
     var isSucessfulCreateTable = HiveUtils.createTableInHive(tableName, fields, manifests)
 
