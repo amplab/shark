@@ -83,7 +83,7 @@ private[shark] object HiveUtils {
     // Setup the drop table descriptor with necessary information.
     val dropTblDesc = new DropTableDesc(
       tableName,
-      false /* expectView. Should probably be named "isView".*/,
+      false /* expectView */,
       false /* ifExists */,
       false /* stringPartitionColumns */)
 
