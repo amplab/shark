@@ -55,8 +55,7 @@ private[shark] object HiveUtils {
   def createTable(
       tableName: String,
       columnNames: Seq[String],
-      columnTypes: Seq[ClassManifest[_]]): Boolean =
-  {
+      columnTypes: Seq[ClassManifest[_]]): Boolean = {
     val schema = columnNames.zip(columnTypes).map { case (colName, manifest) =>
       new FieldSchema(colName, DataTypes.fromManifest(manifest).hiveName, "")
     }
@@ -78,6 +77,8 @@ private[shark] object HiveUtils {
     task.setWork(work)
 
     // Hive returns 0 if the create table command is executed successfully.
-    task.execute(null) == 0
+    val taskExecutionStatus: Int = task.execute(null)
+
+    return taskExecutionStatus
   }
 }
