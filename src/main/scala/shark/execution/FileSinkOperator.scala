@@ -160,7 +160,7 @@ class FileSinkOperator extends TerminalOperator with Serializable {
               numPartsToTry = (limit * partsFetched / rowsFetched).toInt
             }
           }
-          numPartsToTry = math.max(0, totalParts - 2)  // guard against negative num of partitions
+          numPartsToTry = math.max(0, numPartsToTry)  // guard against negative num of partitions
 
           rowsFetched += rdd.context.runJob(
             rdd,
