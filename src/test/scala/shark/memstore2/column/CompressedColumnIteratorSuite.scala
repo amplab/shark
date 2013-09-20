@@ -153,6 +153,22 @@ class CompressedColumnIteratorSuite extends FunSuite {
     val expectedLen = (Short.MaxValue.toInt + 1) * (4 + 4)
     testList(ints, INT, new RLE, expectedLen, shouldNotCompress = true)
   }
+
+  test("BooleanBitSet Boolean (shorter)") {
+    // 1 Long worth of Booleans, in addtion to the length field: 4+8
+    val bools = Seq(true, true, false, false)
+    testList(bools, BOOLEAN, new BooleanBitSetCompression, 4+8)
+  }
+
+  test("BooleanBitSet Boolean (longer)") {
+    // 2 Longs worth of Booleans, in addtion to the length field: 4+8+8
+    val bools = Seq(true, true, false, false, true, true, false, false,true, true, false, false,true, true, false, false,
+      true, true, false, false,true, true, false, false, true, true, false, false,true, true, false, false,
+      true, true, false, false,true, true, false, false, true, true, false, false,true, true, false, false,
+      true, true, false, false,true, true, false, false, true, true, false, false,true, true, false, false,
+      true, true, false, false,true, true, false, false, true, true, false, false,true, true, false, false)
+    testList(bools, BOOLEAN, new BooleanBitSetCompression, 4+8+8)
+  }
 }
 
 
