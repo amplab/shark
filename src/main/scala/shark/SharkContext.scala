@@ -24,8 +24,6 @@ import scala.collection.Map
 import scala.collection.JavaConversions._
 
 import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.hadoop.hive.common.LogUtils
-import org.apache.hadoop.hive.common.LogUtils.LogInitializationException
 import org.apache.hadoop.hive.ql.Driver
 import org.apache.hadoop.hive.ql.processors.CommandProcessor
 import org.apache.hadoop.hive.ql.processors.CommandProcessorFactory
@@ -181,12 +179,6 @@ object SharkContext {
 
   @transient val hiveconf = new HiveConf(classOf[SessionState])
   Utils.setAwsCredentials(hiveconf)
-
-  try {
-    LogUtils.initHiveLog4j()
-  } catch {
-    case e: LogInitializationException => // Ignore the error.
-  }
 
   @transient val sessionState = new SessionState(hiveconf)
   sessionState.out = new PrintStream(System.out, true, "UTF-8")
