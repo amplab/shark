@@ -143,24 +143,36 @@ class FileSinkOperator extends TerminalOperator with Serializable {
 
     parentOperators.head match {
       case op: LimitOperator =>
-        // If there is a limit operator, let's only run one partition at a time to avoid
-        // launching too many tasks.
+        // If there is a limit operator, let's run two partitions first. Once we finished running
+        // the first two partitions, we use that to estimate how many more partitions we need to
+        // run to satisfy the limit.
+
         val limit = op.limit
-        val numPartitions = rdd.partitions.length
-        var totalRows = 0
-        var nextPartition = 0
-        while (totalRows < limit && nextPartition < numPartitions) {
-          // Run one partition and get back the number of rows processed there.
-          totalRows += rdd.context.runJob(
+        val totalParts = rdd.partitions.length
+        var rowsFetched = 0L
+        var partsFetched = 0
+        while (rowsFetched < limit && partsFetched < totalParts) {
+          var numPartsToTry = 2
+          if (partsFetched > 0) {
+            if (rowsFetched == 0) {
+              numPartsToTry = totalParts - 2
+            } else {
+              numPartsToTry = (limit * partsFetched / rowsFetched).toInt
+            }
+          }
+          numPartsToTry = math.max(0, totalParts - 2)  // guard against negative num of partitions
+
+          rowsFetched += rdd.context.runJob(
             rdd,
             FileSinkOperator.executeProcessFileSinkPartition(this),
-            Seq(nextPartition),
+            partsFetched until math.min(partsFetched + numPartsToTry, totalParts),
             allowLocal = false).sum
-          nextPartition += 1
+          partsFetched += numPartsToTry
         }
 
       case _ =>
-        val rows = rdd.context.runJob(rdd, FileSinkOperator.executeProcessFileSinkPartition(this))
+        val rows: Array[Long] = rdd.context.runJob(
+          rdd, FileSinkOperator.executeProcessFileSinkPartition(this))
         logInfo("Total number of rows written: " + rows.sum)
     }
 
@@ -171,9 +183,10 @@ class FileSinkOperator extends TerminalOperator with Serializable {
 
 
 object FileSinkOperator {
+  // Write each partition's output to HDFS, and return the number of rows written.
   def executeProcessFileSinkPartition(operator: FileSinkOperator) = {
     val op = OperatorSerializationWrapper(operator)
-    def writeFiles(context: TaskContext, iter: Iterator[_]): Int = {
+    def writeFiles(context: TaskContext, iter: Iterator[_]): Long = {
       op.logDebug("Started executing mapPartitions for operator: " + op)
       op.logDebug("Input object inspectors: " + op.objectInspectors)
 
