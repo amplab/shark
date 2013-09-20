@@ -26,27 +26,27 @@ import org.apache.hadoop.hive.ql.hooks.{ReadEntity, WriteEntity}
 import org.apache.hadoop.hive.ql.plan.{CreateTableDesc, DDLDesc, DDLWork, DropTableDesc}
 import org.apache.hadoop.hive.metastore.api.FieldSchema
 
-import shark.api.DataTypes
+import shark.api.{DataType, DataTypes}
 import org.apache.hadoop.hive.ql.exec.DDLTask
 import org.apache.hadoop.hive.conf.HiveConf
 
 
 private[shark] object HiveUtils {
 
-  private val timestampManfiest = classManifest[java.sql.Timestamp]
-  private val stringManifest = classManifest[String]
+  def getJavaPrimitiveObjectInspector(m: ClassManifest[_]): PrimitiveObjectInspector = {
+    getJavaPrimitiveObjectInspector(DataTypes.fromManifest(m))
+  }
 
-  def getJavaPrimitiveObjectInspector(m: ClassManifest[_]): PrimitiveObjectInspector = m match {
-    case Manifest.Boolean => PrimitiveObjectInspectorFactory.javaBooleanObjectInspector
-    case Manifest.Byte => PrimitiveObjectInspectorFactory.javaByteObjectInspector
-    case Manifest.Short => PrimitiveObjectInspectorFactory.javaShortObjectInspector
-    case Manifest.Int => PrimitiveObjectInspectorFactory.javaIntObjectInspector
-    case Manifest.Long => PrimitiveObjectInspectorFactory.javaLongObjectInspector
-    case Manifest.Float => PrimitiveObjectInspectorFactory.javaFloatObjectInspector
-    case Manifest.Double => PrimitiveObjectInspectorFactory.javaDoubleObjectInspector
-    case Manifest.Unit => PrimitiveObjectInspectorFactory.javaVoidObjectInspector
-    case `timestampManfiest` => PrimitiveObjectInspectorFactory.javaTimestampObjectInspector
-    case `stringManifest` => PrimitiveObjectInspectorFactory.javaStringObjectInspector
+  def getJavaPrimitiveObjectInspector(t: DataType): PrimitiveObjectInspector = t match {
+    case DataTypes.BOOLEAN => PrimitiveObjectInspectorFactory.javaBooleanObjectInspector
+    case DataTypes.TINYINT => PrimitiveObjectInspectorFactory.javaByteObjectInspector
+    case DataTypes.SMALLINT => PrimitiveObjectInspectorFactory.javaShortObjectInspector
+    case DataTypes.INT => PrimitiveObjectInspectorFactory.javaIntObjectInspector
+    case DataTypes.BIGINT => PrimitiveObjectInspectorFactory.javaLongObjectInspector
+    case DataTypes.FLOAT => PrimitiveObjectInspectorFactory.javaFloatObjectInspector
+    case DataTypes.DOUBLE => PrimitiveObjectInspectorFactory.javaDoubleObjectInspector
+    case DataTypes.TIMESTAMP => PrimitiveObjectInspectorFactory.javaTimestampObjectInspector
+    case DataTypes.STRING => PrimitiveObjectInspectorFactory.javaStringObjectInspector
   }
 
   /**
@@ -83,7 +83,7 @@ private[shark] object HiveUtils {
     // Setup the drop table descriptor with necessary information.
     val dropTblDesc = new DropTableDesc(
       tableName,
-      false /* expectView. Should probably be named "isView".*/,
+      false /* expectView */,
       false /* ifExists */,
       false /* stringPartitionColumns */)
 

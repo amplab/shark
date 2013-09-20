@@ -63,8 +63,8 @@ class RDDTableFunctions(self: RDD[Product], manifests: Seq[ClassManifest[_]]) {
         rdd.context.runJob(rdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
       } catch {
         case _ => {
-          // Intercept the exception thrown by SparkContext#runJob() and return silently. The
-          // exception message should be printed to the console by DDLTask#execute().
+          // Intercept the exception thrown by SparkContext#runJob() and handle it silently. The
+          // exception message should already be printed to the console by DDLTask#execute().
           HiveUtils.dropTableInHive(tableName)
           // Drop the table entry from MemoryMetadataManager.
           SharkEnv.unpersist(tableName)
