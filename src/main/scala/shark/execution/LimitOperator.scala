@@ -22,9 +22,9 @@ import scala.reflect.BeanProperty
 
 import org.apache.hadoop.hive.ql.exec.{LimitOperator => HiveLimitOperator}
 
-import shark.SharkEnv
-import spark.RDD
+import org.apache.spark.rdd.RDD
 
+import shark.SharkEnv
 
 class LimitOperator extends UnaryOperator[HiveLimitOperator] {
 

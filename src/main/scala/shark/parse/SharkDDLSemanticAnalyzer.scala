@@ -2,9 +2,11 @@ package shark.parse
 
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.parse.{ASTNode, BaseSemanticAnalyzer, DDLSemanticAnalyzer, HiveParser}
+
+import org.apache.spark.rdd.{UnionRDD, RDD}
+
 import shark.{LogHelper, SharkEnv}
-import spark.RDD
-import spark.rdd.UnionRDD
+
 
 class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf) with LogHelper {
 

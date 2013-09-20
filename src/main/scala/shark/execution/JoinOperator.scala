@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,13 +26,14 @@ import scala.reflect.BeanProperty
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{JoinOperator => HiveJoinOperator}
 import org.apache.hadoop.hive.ql.plan.{JoinDesc, TableDesc}
-import org.apache.hadoop.hive.serde2.{Deserializer, SerDeUtils}
-import org.apache.hadoop.hive.serde2.objectinspector.StandardStructObjectInspector
+import org.apache.hadoop.hive.serde2.{Deserializer, Serializer, SerDeUtils}
+import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspectorUtils, StandardStructObjectInspector}
 import org.apache.hadoop.io.BytesWritable
 
-import shark.execution.serialization.OperatorSerializationWrapper
+import org.apache.spark.{CoGroupedRDD, HashPartitioner}
+import org.apache.spark.rdd.RDD
 
-import spark.{CoGroupedRDD, HashPartitioner, RDD}
+import shark.execution.serialization.OperatorSerializationWrapper
 
 
 class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
@@ -165,7 +166,10 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
           tmp(1) = tagToValueSer.get(index).deserialize(bytes)
           val joinVal = joinVals.get(index.toByte)
           while (i < joinVal.size) {
-            outputRow(i + offsets(index)) = joinVal(i).evaluate(tmp)
+            val joinValObjectInspectors = joinValuesObjectInspectors.get(index.toByte)
+            outputRow(i + offsets(index)) = ObjectInspectorUtils.copyToStandardObject(
+              joinVal(i).evaluate(tmp), joinValObjectInspectors(i),
+              ObjectInspectorUtils.ObjectInspectorCopyOption.WRITABLE)
             i += 1
           }
         }

@@ -24,13 +24,13 @@ import scala.reflect.BeanProperty
 
 import org.apache.hadoop.io.Writable
 
+import org.apache.spark.rdd.RDD
+import org.apache.spark.storage.StorageLevel
+
 import shark.{SharkConfVars, SharkEnv}
 import shark.execution.serialization.{OperatorSerializationWrapper, JavaSerializer}
 import shark.memstore2._
 import shark.tachyon.TachyonTableWriter
-
-import spark.RDD
-import spark.storage.StorageLevel
 
 
 /**
@@ -134,6 +134,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
           SharkEnv.memoryMetadataManager.get(tableName).get.asInstanceOf[RDD[TablePartition]])
       }
       SharkEnv.memoryMetadataManager.put(tableName, rdd)
+      rdd.setName(tableName)
 
       // Run a job on the original RDD to force it to go into cache.
       origRdd.context.runJob(origRdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))

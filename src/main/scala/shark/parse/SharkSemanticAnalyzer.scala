@@ -20,6 +20,7 @@ package shark.parse
 import java.lang.reflect.Method
 import java.util.ArrayList
 import java.util.{List => JavaList}
+import java.util.{Map => JavaMap}
 
 import scala.collection.JavaConversions._
 
@@ -35,12 +36,12 @@ import org.apache.hadoop.hive.ql.parse._
 import org.apache.hadoop.hive.ql.plan._
 import org.apache.hadoop.hive.ql.session.SessionState
 
+import org.apache.spark.storage.StorageLevel
+
 import shark.{CachedTableRecovery, LogHelper, SharkConfVars, SharkEnv,  Utils}
 import shark.execution.{HiveOperator, Operator, OperatorFactory, RDDUtils, ReduceSinkOperator,
   SparkWork, TerminalOperator}
 import shark.memstore2.{CacheType, ColumnarSerDe, MemoryMetadataManager}
-
-import spark.storage.StorageLevel
 
 
 /**
@@ -76,7 +77,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
 
     //TODO: can probably reuse Hive code for this
     // analyze create table command
-    var cacheMode = CacheType.none
+    var cacheMode = CacheType.NONE
     var isCTAS = false
     var shouldReset = false
 
@@ -95,27 +96,36 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
 
       // If the table descriptor can be null if the CTAS has an
       // "if not exists" condition.
-      val td = getParseContext.getQB.getTableDesc
-      if (!isCTAS || td == null) {
+      val createTableDesc = getParseContext.getQB.getTableDesc
+      if (!isCTAS || createTableDesc == null) {
         return
       } else {
         val checkTableName = SharkConfVars.getBoolVar(conf, SharkConfVars.CHECK_TABLENAME_FLAG)
-        val cacheType = CacheType.fromString(td.getTblProps().get("shark.cache"))
-        if (cacheType == CacheType.heap ||
-          (td.getTableName.endsWith("_cached") && checkTableName)) {
-          cacheMode = CacheType.heap
-          td.getTblProps().put("shark.cache", cacheMode.toString)
-        } else if (cacheType == CacheType.tachyon ||
-          (td.getTableName.endsWith("_tachyon") && checkTableName)) {
-          cacheMode = CacheType.tachyon
-          td.getTblProps().put("shark.cache", cacheMode.toString)
+        // Note: the CreateTableDesc's table properties are Java Maps, but the TableDesc's table
+        //       properties, which are used during execution, are Java Properties.
+        val createTableProperties: JavaMap[String, String] = createTableDesc.getTblProps()
+
+        // There are two cases that will enable caching:
+        // 1) Table name includes "_cached" or "_tachyon".
+        // 2) The "shark.cache" table property is "true", or the string representation of a supported
+        //   cache mode (heap, Tachyon).
+        cacheMode = CacheType.fromString(createTableProperties.get("shark.cache"))
+        // Continue planning based on the 'cacheMode' read.
+        if (cacheMode == CacheType.HEAP ||
+            (createTableDesc.getTableName.endsWith("_cached") && checkTableName)) {
+          cacheMode = CacheType.HEAP
+          createTableProperties.put("shark.cache", cacheMode.toString)
+        } else if (cacheMode == CacheType.TACHYON ||
+          (createTableDesc.getTableName.endsWith("_tachyon") && checkTableName)) {
+          cacheMode = CacheType.TACHYON
+          createTableProperties.put("shark.cache", cacheMode.toString)
         }
 
         if (CacheType.shouldCache(cacheMode)) {
-          td.setSerName(classOf[ColumnarSerDe].getName)
+          createTableDesc.setSerName(classOf[ColumnarSerDe].getName)
         }
 
-        qb.setTableDesc(td)
+        qb.setTableDesc(createTableDesc)
         shouldReset = true
       }
     } else {
@@ -191,7 +201,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                     cachedTableName,
                     storageLevel,
                     _resSchema.size,                // numColumns
-                    cacheMode == CacheType.tachyon, // use tachyon
+                    cacheMode == CacheType.TACHYON, // use tachyon
                     useUnionRDD)
                 } else {
                   throw new SemanticException(
@@ -215,7 +225,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
               qb.getTableDesc.getTableName,
               storageLevel,
               _resSchema.size,                // numColumns
-              cacheMode == CacheType.tachyon, // use tachyon
+              cacheMode == CacheType.TACHYON, // use tachyon
               false)
           } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink && !qb.isCTAS) {
             OperatorFactory.createSharkRddOutputPlan(hiveSinkOps.head)

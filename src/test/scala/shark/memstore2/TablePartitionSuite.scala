@@ -21,7 +21,7 @@ import java.nio.ByteBuffer
 
 import org.scalatest.FunSuite
 
-import spark.{JavaSerializer, KryoSerializer}
+import org.apache.spark.serializer.{JavaSerializer, KryoSerializer}
 
 
 class TablePartitionSuite extends FunSuite {
