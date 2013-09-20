@@ -152,12 +152,17 @@ class FileSinkOperator extends TerminalOperator with Serializable {
         var rowsFetched = 0L
         var partsFetched = 0
         while (rowsFetched < limit && partsFetched < totalParts) {
+          // The number of partitions to try in this iteration. It is ok for this number to be
+          // greater than totalParts because we actually cap it at totalParts in runJob.
           var numPartsToTry = 2
           if (partsFetched > 0) {
+            // If we didn't find any rows after the first iteration, just try all partitions next.
+            // Otherwise, interpolate the number of partitions we need to try, but overestimate it
+            // by 50%.
             if (rowsFetched == 0) {
               numPartsToTry = totalParts - 2
             } else {
-              numPartsToTry = (limit * partsFetched / rowsFetched).toInt
+              numPartsToTry = (1.5 * limit * partsFetched / rowsFetched).toInt
             }
           }
           numPartsToTry = math.max(0, numPartsToTry)  // guard against negative num of partitions
