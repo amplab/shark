@@ -23,7 +23,7 @@ import scala.collection.JavaConversions._
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.hive.ql.hooks.{ReadEntity, WriteEntity}
-import org.apache.hadoop.hive.ql.plan.{CreateTableDesc, DDLDesc, DDLWork, DropTableDesc}
+import org.apache.hadoop.hive.ql.plan.{CreateTableDesc, DDLWork, DropTableDesc}
 import org.apache.hadoop.hive.metastore.api.FieldSchema
 
 import shark.api.{DataType, DataTypes}
