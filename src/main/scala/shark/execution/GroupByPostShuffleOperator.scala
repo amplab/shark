@@ -231,7 +231,7 @@ class GroupByPostShuffleOperator extends GroupByPreShuffleOperator with HiveTopO
   }
 
   def sortAggregate(iter: Iterator[_]) = {
-    logInfo("Running Post Shuffle Group-By")
+    logDebug("Running Post Shuffle Group-By")
 
     if (iter.hasNext) {
       // Sort based aggregation iterator.
@@ -401,7 +401,7 @@ class GroupByPostShuffleOperator extends GroupByPreShuffleOperator with HiveTopO
   def hashAggregate(iter: Iterator[_]) = {
     // TODO: use MutableBytesWritable to avoid the array copy.
     val bytes = new BytesWritable()
-    logInfo("Running Post Shuffle Group-By")
+    logDebug("Running Post Shuffle Group-By")
     val outputCache = new Array[Object](keyFields.length + aggregationEvals.length)
 
     // The reusedRow is used to conform to Hive's expected row format.
