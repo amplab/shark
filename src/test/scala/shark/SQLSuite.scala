@@ -250,14 +250,6 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     }
   }
 
-  ignore("drop partition") {
-    sc.runSql("create table foo_cached(key int, val string) partitioned by (dt string)")
-    sc.runSql("insert overwrite table foo_cached partition(dt='100') select * from test")
-    expectSql("select count(*) from foo_cached", "500")
-    sc.runSql("alter table foo_cached drop partition(dt='100')")
-    expectSql("select count(*) from foo_cached", "0")
-  }
-
   test("create cached table with 'shark.cache' flag in table properties") {
     sc.runSql("drop table if exists ctas_tbl_props")
     sc.runSql("""create table ctas_tbl_props TBLPROPERTIES ('shark.cache'='true') as
@@ -322,6 +314,62 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       select * from test""")
     sc.runSql("drop table sharkTest5Cached")
     assert(!SharkEnv.memoryMetadataManager.contains("sharkTest5Cached"))
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Caching Hive-partititioned tables
+  //////////////////////////////////////////////////////////////////////////////
+  test("create cached, partitioned table using regular CREATE TABLE and '_cached' suffix") {
+    sc.runSql("drop table srcpart")
+    sc.runSql("create table srcpart_cached(key int, val string) partitioned by (keypart int)")
+    assert(SharkEnv.memoryMetadataManager.contains("srcpart"))
+  }
+
+  test("create cached, partitioned table using regular CREATE TABLE and table properties") {
+    sc.runSql("drop table srcpart")
+    sc.runSql("create table srcpart_cached(key int, val string) partitioned by (keypart int)")
+  }
+
+  test("drop cached, partitioned table that has a single partition") {
+    assert(true)
+  }
+
+  test("drop cached, partitioned table that has multiple partitions") {
+    assert(true)
+  }
+
+  test("drop cached, partitioned table that has a UnionRDD partition") {
+    assert(true)
+  }
+
+  test("alter cached table by adding a new partition") {
+    sc.runSql("drop table srcpart")
+    sc.runSql("create table srcpart_cached(key int, val string) partitioned by (keypart int)")
+    sc.runSql("insert overwrite table srcpart_cached partition(keypart = 1) select * from test")
+  }
+
+  test("alter cached table by dropping a partition") {
+    assert(true)
+  }
+
+  test("insert into a partition of a cached table") {
+    assert(true)
+  }
+
+  test("insert overwrite a partition of a cached table") {
+    assert(true)
+  }
+
+  test("scan cached, partitioned table that's empty") {
+    assert(true)
+  }
+
+  test("scan cached, partitioned table that has a single partition") {
+    assert(true)
+  }
+
+  test("scan cached, partitioned table that has multiple partitions") {
+    assert(true)
   }
 
   //////////////////////////////////////////////////////////////////////////////
