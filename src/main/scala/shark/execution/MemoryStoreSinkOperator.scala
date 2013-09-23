@@ -42,6 +42,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
   @BeanProperty var shouldCompress: Boolean = _
   @BeanProperty var storageLevel: StorageLevel = _
   @BeanProperty var tableName: String = _
+  @BeanProperty var partitionColumnValues: String = _  // delimited by '/'
   @transient var cacheMode: CacheType.CacheType = _
   @transient var useUnionRDD: Boolean = _
   @transient var numColumns: Int = _

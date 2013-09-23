@@ -73,14 +73,14 @@ class MemoryMetadataManager {
 
   def putHivePartition(
       key: String,
-      partitionColumn: String,
+      partitionColumnValues: String,
       rdd: RDD[_],
       cacheMode: CacheType.CacheType) {
     if (!_keyToMemoryTable.contains(key.toLowerCase)) {
       // TODO(harvey): See comment for put() above.
       add(key, true /* isHivePartitioned */, cacheMode)
     }
-    _keyToMemoryTable(key.toLowerCase).hivePartitionRDDs(partitionColumn) = rdd
+    _keyToMemoryTable(key.toLowerCase).hivePartitionRDDs(partitionColumnValues) = rdd
   }
 
   def get(key: String): Option[RDD[_]] = {
@@ -88,8 +88,8 @@ class MemoryMetadataManager {
     return memoryTableValue.flatMap(_.tableRDD)
   }
 
-  def getHivePartition(key: String, partitionColumn: String): Option[RDD[_]] = {
-    return _keyToMemoryTable(key.toLowerCase).hivePartitionRDDs.get(partitionColumn)
+  def getHivePartition(key: String, partitionColumnValues: String): Option[RDD[_]] = {
+    return _keyToMemoryTable(key.toLowerCase).hivePartitionRDDs.get(partitionColumnValues)
   }
 
   def putStats(key: String, stats: collection.Map[Int, TablePartitionStats]) {
