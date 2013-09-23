@@ -23,8 +23,6 @@ import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.hadoop.hive.ql.plan._
 import org.apache.hadoop.hive.ql.plan.api.StageType
 
-import org.apache.spark.SparkEnv
-
 import shark.{LogHelper, SharkEnv}
 import shark.memstore2.CacheType
 
@@ -37,18 +35,17 @@ private[shark] class SparkDDLWork(val ddlDesc: DDLDesc) extends java.io.Serializ
 private[shark] class SparkDDLTask extends HiveTask[SparkDDLWork] with Serializable with LogHelper {
 
   override def execute(driverContext: DriverContext): Int = {
-    val sparkEnv = SparkEnv.get
     val hiveMetadataDb = Hive.get(conf)
 
     work.ddlDesc match {
       case creatTblDesc: CreateTableDesc => {
-        createTable(sparkEnv, hiveMetadataDb, creatTblDesc, work.cacheMode)
+        createTable(hiveMetadataDb, creatTblDesc, work.cacheMode)
       }
       case addPartitionDesc: AddPartitionDesc => {
-        addPartition(sparkEnv, hiveMetadataDb, addPartitionDesc)
+        addPartition(hiveMetadataDb, addPartitionDesc)
       }
       case dropTableDesc: DropTableDesc => {
-        dropTable(sparkEnv, hiveMetadataDb, dropTableDesc)
+        dropTable(hiveMetadataDb, dropTableDesc)
       }
       case _ => {
         throw new UnsupportedOperationException(
@@ -62,25 +59,23 @@ private[shark] class SparkDDLTask extends HiveTask[SparkDDLWork] with Serializab
   }
 
   def createTable(
-      sparkEnv: SparkEnv,
       hiveMetadataDb: Hive,
       createTblDesc: CreateTableDesc,
-      cacheMode: CacheType.CacheType): Int = {
-    return 0
+      cacheMode: CacheType.CacheType) {
+    val isHivePartitioned = (createTblDesc.getPartCols.size > 0)
+    SharkEnv.memoryMetadataManager.add(createTblDesc.getTableName, isHivePartitioned, cacheMode)
   }
 
   def addPartition(
-      sparkEnv: SparkEnv,
       hiveMetadataDb: Hive,
-      addPartitionDesc: AddPartitionDesc): Int = {
-    return 0
+      addPartitionDesc: AddPartitionDesc) {
+    Unit
   }
 
   def dropTable(
-      sparkEnv: SparkEnv,
       hiveMetadataDb: Hive,
-      dropTableDesc: DropTableDesc): Int = {
-    return 0
+      dropTableDesc: DropTableDesc) {
+    Unit
   }
 
   override def getType = StageType.DDL

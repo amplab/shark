@@ -39,8 +39,6 @@ class MemoryMetadataManager {
   private val _keyToStats: ConcurrentMap[String, collection.Map[Int, TablePartitionStats]] =
     new ConcurrentHashMap[String, collection.Map[Int, TablePartitionStats]]
 
-  def contains(key: String) = _keyToMemoryTable.contains(key.toLowerCase)
-
   def getCacheMode(key: String): CacheType.CacheType = {
     _keyToMemoryTable.get(key.toLowerCase) match {
       case Some(memoryTable) => return memoryTable.cacheMode
@@ -54,6 +52,8 @@ class MemoryMetadataManager {
       case None => return false
     }
   }
+
+  def contains(key: String) = _keyToMemoryTable.contains(key.toLowerCase)
 
   def add(key: String, isHivePartitioned: Boolean, cacheMode: CacheType.CacheType) {
     val memoryTable = new MemoryTable(key, isHivePartitioned)
