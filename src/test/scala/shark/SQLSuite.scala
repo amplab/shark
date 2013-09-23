@@ -319,8 +319,21 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   //////////////////////////////////////////////////////////////////////////////
   // Caching Hive-partititioned tables
   //////////////////////////////////////////////////////////////////////////////
-  test("Use regular CREATE TABLE to create cached table") {
-    assert(true)
+  test("Use regular CREATE TABLE and '_cached' suffix to create cached table") {
+    sc.runSql("drop table if exists empty_table_cached")
+    sc.runSql("create table empty_table_cached(key string, value string)")
+    assert(SharkEnv.memoryMetadataManager.contains("empty_table_cached"))
+    assert(!SharkEnv.memoryMetadataManager.isHivePartitioned("empty_table_cached"))
+    sc.runSql("drop table if exists empty_table_cached")
+  }
+
+  test("Use regular CREATE TABLE and table properties to create cached table") {
+    sc.runSql("drop table if exists empty_table_cached_tbl_props")
+    sc.runSql("""create table empty_table_cached_tbl_props(key string, value string)
+      TBLPROPERTIES('shark.cache' = 'true')""")
+    assert(SharkEnv.memoryMetadataManager.contains("empty_table_cached_tbl_props"))
+    assert(!SharkEnv.memoryMetadataManager.isHivePartitioned("empty_table_cached_tbl_props"))
+    sc.runSql("drop table if exists empty_table_cached_tbl_props")
   }
 
   test("Insert into empty cached table") {
@@ -328,16 +341,21 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   test("Use regular CREATE TABLE and '_cached' suffix to create cached, partitioned table") {
-    sc.runSql("drop table if exists srcpart_cached")
-    sc.runSql("create table srcpart_cached(key int, val string) partitioned by (keypart int)")
-    // assert(SharkEnv.memoryMetadataManager.contains("srcpart"))
-    assert(true)
+    sc.runSql("drop table if exists empty_part_table_cached")
+    sc.runSql("""create table empty_part_table_cached(key int, val string)
+      partitioned by (keypart int)""")
+    assert(SharkEnv.memoryMetadataManager.contains("empty_part_table_cached"))
+    assert(SharkEnv.memoryMetadataManager.isHivePartitioned("empty_part_table_cached"))
+    sc.runSql("drop table if exists empty_part_table_cached")
   }
 
   test("Use regular CREATE TABLE and table properties to create cached, partitioned table") {
-    sc.runSql("drop table if exists srcpart_cached")
-    sc.runSql("create table srcpart_cached(key int, val string) partitioned by (keypart int)")
-    assert(true)
+    sc.runSql("drop table if exists empty_part_table_cached_tbl_props")
+    sc.runSql("""create table empty_part_table_cached_tbl_props(key int, val string)
+      partitioned by (keypart int)""")
+    assert(SharkEnv.memoryMetadataManager.contains("empty_part_table_cached_tbl_props"))
+    assert(SharkEnv.memoryMetadataManager.isHivePartitioned("empty_part_table_cached_tbl_props"))
+    sc.runSql("drop table if exists empty_part_table_cached_tbl_props")
   }
 
   test("drop cached, partitioned table that has a single partition") {
@@ -357,8 +375,6 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
 
   test("alter cached table by adding a new partition") {
     sc.runSql("drop table if exists srcpart_cached")
-    // sc.runSql("create table srcpart_cached(key int, val string) partitioned by (keypart int)")
-    // sc.runSql("insert overwrite table srcpart_cached partition(keypart = 1) select * from test")
     assert(true)
   }
 

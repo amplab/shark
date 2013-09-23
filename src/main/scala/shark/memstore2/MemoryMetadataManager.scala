@@ -136,7 +136,7 @@ class MemoryMetadataManager {
         val hivePartitionRDDs =
           memoryTable.hivePartitionRDDs.values.toSeq.asInstanceOf[Seq[RDD[Any]]]
         if (hivePartitionRDDs.size > 0) {
-          return Some(new UnionRDD(hivePartitionRDDs.head.context, hivePartitionRDDs))
+          return Some(unpersistRDD(new UnionRDD(hivePartitionRDDs.head.context, hivePartitionRDDs)))
         }
         return None
       } else {

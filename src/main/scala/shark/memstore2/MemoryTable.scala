@@ -36,7 +36,8 @@ import org.apache.spark.rdd.RDD
  *               such as HivePartitionedTable or TachyonTable, subclass it. For now, there isn't
  *               too much metadata to track, so it should be okay to have a single MemoryTable.
  */
-private[shark] class MemoryTable(
+private[shark]
+class MemoryTable(
     val tableName: String,
     val isHivePartitioned: Boolean) {
 
