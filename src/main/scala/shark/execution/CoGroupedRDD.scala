@@ -72,10 +72,10 @@ class CoGroupedRDD[K](@transient var rdds: Seq[RDD[(_, _)]], part: Partitioner)
   override def getDependencies: Seq[Dependency[_]] = {
     rdds.map { rdd =>
       if (rdd.partitioner == Some(part)) {
-        logInfo("Adding one-to-one dependency with " + rdd)
+        logDebug("Adding one-to-one dependency with " + rdd)
         new OneToOneDependency(rdd)
       } else {
-        logInfo("Adding shuffle dependency with " + rdd)
+        logDebug("Adding shuffle dependency with " + rdd)
         new ShuffleDependency[Any, Any](rdd, part, SharkEnv.shuffleSerializerName)
       }
     }
