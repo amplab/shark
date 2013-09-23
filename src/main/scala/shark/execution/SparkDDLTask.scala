@@ -26,11 +26,15 @@ import org.apache.hadoop.hive.ql.plan.api.StageType
 import org.apache.spark.SparkEnv
 
 import shark.{LogHelper, SharkEnv}
+import shark.memstore2.CacheType
 
 
-class SparkDDLWork(val ddlDesc: DDLDesc) extends java.io.Serializable
+private[shark] class SparkDDLWork(val ddlDesc: DDLDesc) extends java.io.Serializable {
+  // Used only for CREATE TABLE.
+  var cacheMode: CacheType.CacheType = _
+}
 
-class SparkDDLTask extends HiveTask[SparkDDLWork] with Serializable with LogHelper {
+private[shark] class SparkDDLTask extends HiveTask[SparkDDLWork] with Serializable with LogHelper {
 
   override def execute(driverContext: DriverContext): Int = {
     val sparkEnv = SparkEnv.get
@@ -38,13 +42,10 @@ class SparkDDLTask extends HiveTask[SparkDDLWork] with Serializable with LogHelp
 
     work.ddlDesc match {
       case creatTblDesc: CreateTableDesc => {
-        createTable(sparkEnv, hiveMetadataDb, creatTblDesc)
+        createTable(sparkEnv, hiveMetadataDb, creatTblDesc, work.cacheMode)
       }
       case addPartitionDesc: AddPartitionDesc => {
         addPartition(sparkEnv, hiveMetadataDb, addPartitionDesc)
-      }
-      case renamePartitionDesc: RenamePartitionDesc => {
-        renamePartition(sparkEnv, hiveMetadataDb, renamePartitionDesc)
       }
       case dropTableDesc: DropTableDesc => {
         dropTable(sparkEnv, hiveMetadataDb, dropTableDesc)
@@ -60,7 +61,11 @@ class SparkDDLTask extends HiveTask[SparkDDLWork] with Serializable with LogHelp
     return 0
   }
 
-  def createTable(sparkEnv: SparkEnv, hiveMetadataDb: Hive, createTblDesc: CreateTableDesc): Int = {
+  def createTable(
+      sparkEnv: SparkEnv,
+      hiveMetadataDb: Hive,
+      createTblDesc: CreateTableDesc,
+      cacheMode: CacheType.CacheType): Int = {
     return 0
   }
 
@@ -71,14 +76,10 @@ class SparkDDLTask extends HiveTask[SparkDDLWork] with Serializable with LogHelp
     return 0
   }
 
-  def renamePartition(
+  def dropTable(
       sparkEnv: SparkEnv,
       hiveMetadataDb: Hive,
-      renamePartitionDesc: RenamePartitionDesc): Int = {
-    return 0
-  }
-
-  def dropTable(sparkEnv: SparkEnv, hiveMetadataDb: Hive, dropTableDesc: DropTableDesc): Int = {
+      dropTableDesc: DropTableDesc): Int = {
     return 0
   }
 

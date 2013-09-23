@@ -12,9 +12,22 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
 
   override def analyzeInternal(node: ASTNode): Unit = {
     super.analyzeInternal(node)
-    //handle drop table query
-    if (node.getToken().getType() == HiveParser.TOK_DROPTABLE) {
-      SharkEnv.unpersist(getTableName(node))
+
+    node.getToken.getType match {
+      case HiveParser.TOK_DROPTABLE => {
+        SharkEnv.unpersist(getTableName(node))
+      }
+      // Handle ALTER TABLE for cached, Hive-partitioned tables
+      case HiveParser.TOK_ALTERTABLE_ADDPARTS => {
+        Unit
+      }
+      case HiveParser.TOK_ALTERTABLE_DROPPARTS => {
+        Unit
+      }
+      case HiveParser.TOK_ALTERTABLE_PARTITION => {
+        Unit
+      }
+      case _ => Unit
     }
   }
 

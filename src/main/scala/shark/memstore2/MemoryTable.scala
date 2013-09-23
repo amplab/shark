@@ -36,7 +36,9 @@ import org.apache.spark.rdd.RDD
  *               such as HivePartitionedTable or TachyonTable, subclass it. For now, there isn't
  *               too much metadata to track, so it should be okay to have a single MemoryTable.
  */
-private[shark] class MemoryTable(val tableName: String, val isHivePartitioned: Boolean) {
+private[shark] class MemoryTable(
+    val tableName: String,
+    val isHivePartitioned: Boolean) {
 
   // Should only be used if the table is not Hive-partitioned. _tableRDD.isEmpty() is true if the
   // table does not contain any data (e.g. it was created from a CREATE TABLE command, but never
@@ -46,6 +48,14 @@ private[shark] class MemoryTable(val tableName: String, val isHivePartitioned: B
   // Should only be used if a cached table is Hive-partitioned.
   private val _hivePartitionRDDs: Map[String, RDD[_]] =
     if (isHivePartitioned) { new JavaHashMap[String, RDD[_]]() } else { null }
+
+  private var _cacheMode: CacheType.CacheType = CacheType.NONE
+
+  def cacheMode = _cacheMode
+
+  def cacheMode_= (value: CacheType.CacheType) {
+    _cacheMode = value
+  }
 
   def tableRDD: Option[RDD[_]] = {
     assert (

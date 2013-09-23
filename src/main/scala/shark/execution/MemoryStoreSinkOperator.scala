@@ -42,7 +42,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
   @BeanProperty var shouldCompress: Boolean = _
   @BeanProperty var storageLevel: StorageLevel = _
   @BeanProperty var tableName: String = _
-  @transient var useTachyon: Boolean = _
+  @transient var cacheMode: CacheType.CacheType = _
   @transient var useUnionRDD: Boolean = _
   @transient var numColumns: Int = _
 
@@ -65,7 +65,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     val op = OperatorSerializationWrapper(this)
 
     val tachyonWriter: TachyonTableWriter =
-      if (useTachyon) {
+      if (cacheMode == CacheType.TACHYON) {
         // Use an additional row to store metadata (e.g. number of rows in each partition).
         SharkEnv.tachyonUtil.createTableWriter(tableName, numColumns + 1)
       } else {
@@ -100,7 +100,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       // Put the table in Tachyon.
       op.logInfo("Putting RDD for %s in Tachyon".format(tableName))
 
-      SharkEnv.memoryMetadataManager.put(tableName, rdd)
+      SharkEnv.memoryMetadataManager.put(tableName, rdd, cacheMode)
 
       tachyonWriter.createTable(ByteBuffer.allocate(0))
       rdd = rdd.mapPartitionsWithIndex { case(partitionIndex, iter) =>
@@ -133,7 +133,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         rdd = rdd.union(
           SharkEnv.memoryMetadataManager.get(tableName).get.asInstanceOf[RDD[TablePartition]])
       }
-      SharkEnv.memoryMetadataManager.put(tableName, rdd)
+      SharkEnv.memoryMetadataManager.put(tableName, rdd, cacheMode)
       rdd.setName(tableName)
 
       // Run a job on the original RDD to force it to go into cache.

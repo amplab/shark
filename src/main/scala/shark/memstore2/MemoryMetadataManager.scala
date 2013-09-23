@@ -27,6 +27,7 @@ import org.apache.spark.storage.StorageLevel
 
 import shark.SharkConfVars
 
+
 // TODO(harvey): Re-evaluate the interfaces to this class. For example, add() could be renamed to
 //               addCreatedTable().
 class MemoryMetadataManager {
@@ -40,6 +41,13 @@ class MemoryMetadataManager {
 
   def contains(key: String) = _keyToMemoryTable.contains(key.toLowerCase)
 
+  def getCacheMode(key: String): CacheType.CacheType = {
+    _keyToMemoryTable.get(key.toLowerCase) match {
+      case Some(memoryTable) => return memoryTable.cacheMode
+      case _ => return CacheType.NONE
+    }
+  }
+
   def isHivePartitioned(key: String): Boolean = {
     _keyToMemoryTable.get(key.toLowerCase) match {
       case Some(memoryTable) => return memoryTable.isHivePartitioned
@@ -47,24 +55,30 @@ class MemoryMetadataManager {
     }
   }
 
-  def add(key: String, isHivePartitioned: Boolean) {
-    _keyToMemoryTable.put(key.toLowerCase, new MemoryTable(key, isHivePartitioned))
+  def add(key: String, isHivePartitioned: Boolean, cacheMode: CacheType.CacheType) {
+    val memoryTable = new MemoryTable(key, isHivePartitioned)
+    _keyToMemoryTable.put(key.toLowerCase, memoryTable)
+    memoryTable.cacheMode = cacheMode
   }
 
-  def put(key: String, rdd: RDD[_]) {
+  def put(key: String, rdd: RDD[_], cacheMode: CacheType.CacheType) {
     if (!_keyToMemoryTable.contains(key.toLowerCase)) {
       // TODO(harvey): Remove this once CREATE TABLE/CTAS handling involves calling add(). For now,
       //               CTAS result caching is done by MemoryStoreSinkOperator, which calls this
       //               put() method.
-      add(key, false /* isHivePartitioned */)
+      add(key, false /* isHivePartitioned */, cacheMode)
     }
     _keyToMemoryTable(key.toLowerCase).tableRDD = rdd
   }
 
-  def putHivePartition(key: String, partitionColumn: String, rdd: RDD[_]) {
+  def putHivePartition(
+      key: String,
+      partitionColumn: String,
+      rdd: RDD[_],
+      cacheMode: CacheType.CacheType) {
     if (!_keyToMemoryTable.contains(key.toLowerCase)) {
       // TODO(harvey): See comment for put() above.
-      add(key, true /* isHivePartitioned */)
+      add(key, true /* isHivePartitioned */, cacheMode)
     }
     _keyToMemoryTable(key.toLowerCase).hivePartitionRDDs(partitionColumn) = rdd
   }
@@ -99,9 +113,9 @@ class MemoryMetadataManager {
    * as well.
    *
    * @param key Name of the table to drop.
-   * @return Option::isEmpty() is true of there is no MemoryTable corresponding to 'key' in
-   *         _keyToMemoryTable. For MemoryTables that are Hive-partitioned, the RDD returned will be
-   *         a UnionRDD comprising RDDs that represent the Hive-partitions.
+   * @return Option::isEmpty() is true of there is no MemoryTable (and RDD) corresponding to 'key'
+   *         in _keyToMemoryTable. For MemoryTables that are Hive-partitioned, the RDD returned will
+   *         be a UnionRDD comprising RDDs that represent the table's Hive-partitions.
    */
   def unpersist(key: String): Option[RDD[_]] = {
     def unpersistRDD(rdd: RDD[_]) {

@@ -150,8 +150,10 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
 
     // TODO: clean the following code. It's too messy to understand...
     val terminalOpSeq = {
-      if (qb.getParseInfo.isInsertToTable && !qb.isCTAS) {
-        // Handle an INSERT into a cached table.
+      val qbParseInfo = qb.getParseInfo
+      if (qbParseInfo.isInsertToTable && !qb.isCTAS) {
+        // Handle INSERT. There can be multiple Hive sink operators if the single command comprises
+        // multiple INSERTs.
         hiveSinkOps.map { hiveSinkOp =>
           val tableName = hiveSinkOp.asInstanceOf[HiveFileSinkOperator].getConf().getTableInfo()
             .getTableName()
@@ -166,14 +168,15 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
               case Some(rdd) => {
                 if (hiveSinkOps.size == 1) {
                   // If useUnionRDD is false, the sink op is for INSERT OVERWRITE.
-                  val useUnionRDD = qb.getParseInfo.isInsertIntoTable(cachedTableName)
+                  val useUnionRDD = qbParseInfo.isInsertIntoTable(cachedTableName)
                   val storageLevel = RDDUtils.getStorageLevelOfCachedTable(rdd)
+                  val cacheMode = SharkEnv.memoryMetadataManager.getCacheMode(cachedTableName)
                   OperatorFactory.createSharkMemoryStoreOutputPlan(
                     hiveSinkOp,
                     cachedTableName,
                     storageLevel,
                     _resSchema.size,  // numColumns
-                    qb.getCacheModeForCreateTable == CacheType.TACHYON,  // use tachyon
+                    cacheMode,
                     useUnionRDD)
                 } else {
                   throw new SemanticException(
@@ -198,7 +201,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
               qb.getTableDesc.getTableName,
               storageLevel,
               _resSchema.size,                // numColumns
-              qb.getCacheModeForCreateTable == CacheType.TACHYON, // use tachyon
+              qb.getCacheModeForCreateTable,
               false)
           } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink && !qb.isCTAS) {
             OperatorFactory.createSharkRddOutputPlan(hiveSinkOps.head)
@@ -396,6 +399,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         // Shark metadata is updated only if the Hive task execution is successful.
         val hiveDDLTask = ddlTasks.head;
         val sharkDDLWork = new SparkDDLWork(createTableDesc)
+        sharkDDLWork.cacheMode = cacheMode
         hiveDDLTask.addDependentTask(TaskFactory.get(sharkDDLWork, conf))
       }
 

@@ -25,6 +25,7 @@ import org.apache.hadoop.hive.ql.metadata.HiveException
 import org.apache.spark.storage.StorageLevel
 
 import shark.LogHelper
+import shark.memstore2.CacheType._
 
 
 /**
@@ -47,14 +48,14 @@ object OperatorFactory extends LogHelper {
       tableName: String,
       storageLevel: StorageLevel,
       numColumns: Int,
-      useTachyon: Boolean,
+      cacheMode: CacheType,
       useUnionRDD: Boolean): TerminalOperator = {
     val sinkOp = _newOperatorInstance(
       classOf[MemoryStoreSinkOperator], hiveTerminalOp).asInstanceOf[MemoryStoreSinkOperator]
     sinkOp.tableName = tableName
     sinkOp.storageLevel = storageLevel
     sinkOp.numColumns = numColumns
-    sinkOp.useTachyon = useTachyon
+    sinkOp.cacheMode = cacheMode
     sinkOp.useUnionRDD = useUnionRDD
     _createAndSetParents(sinkOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }
