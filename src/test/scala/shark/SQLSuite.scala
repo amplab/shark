@@ -319,14 +319,22 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   //////////////////////////////////////////////////////////////////////////////
   // Caching Hive-partititioned tables
   //////////////////////////////////////////////////////////////////////////////
-  test("create cached, partitioned table using regular CREATE TABLE and '_cached' suffix") {
+  test("Use regular CREATE TABLE to create cached table") {
+    assert(true)
+  }
+
+  test("Insert into empty cached table") {
+    assert(true)
+  }
+
+  test("Use regular CREATE TABLE and '_cached' suffix to create cached, partitioned table") {
     sc.runSql("drop table if exists srcpart_cached")
     sc.runSql("create table srcpart_cached(key int, val string) partitioned by (keypart int)")
     // assert(SharkEnv.memoryMetadataManager.contains("srcpart"))
     assert(true)
   }
 
-  test("create cached, partitioned table using regular CREATE TABLE and table properties") {
+  test("Use regular CREATE TABLE and table properties to create cached, partitioned table") {
     sc.runSql("drop table if exists srcpart_cached")
     sc.runSql("create table srcpart_cached(key int, val string) partitioned by (keypart int)")
     assert(true)
