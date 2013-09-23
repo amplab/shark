@@ -35,7 +35,8 @@ import org.apache.hadoop.util.StringUtils
 
 import shark.api.TableRDD
 import shark.api.QueryExecutionException
-import shark.execution.{SharkExplainTask, SharkExplainWork, SparkTask, SparkWork}
+import shark.execution.{SharkExplainTask, SharkExplainWork, SparkDDLTask, SparkDDLWork, SparkTask,
+  SparkWork}
 import shark.memstore2.ColumnarSerDe
 import shark.parse.{QueryContext, SharkSemanticAnalyzerFactory}
 
@@ -62,6 +63,7 @@ private[shark] object SharkDriver extends LogHelper {
 
   // Task factory. Add Shark specific tasks.
   TaskFactory.taskvec.addAll(Seq(
+    new TaskFactory.taskTuple(classOf[SparkDDLWork], classOf[SparkDDLTask]),
     new TaskFactory.taskTuple(classOf[SparkWork], classOf[SparkTask]),
     new TaskFactory.taskTuple(classOf[SharkExplainWork], classOf[SharkExplainTask])))
 

@@ -40,7 +40,7 @@ import org.apache.spark.storage.StorageLevel
 
 import shark.{CachedTableRecovery, LogHelper, SharkConfVars, SharkEnv,  Utils}
 import shark.execution.{HiveOperator, Operator, OperatorFactory, RDDUtils, ReduceSinkOperator,
-  SparkWork, TerminalOperator}
+  SparkDDLWork, SparkWork, TerminalOperator}
 import shark.memstore2.{CacheType, ColumnarSerDe, MemoryMetadataManager}
 
 
@@ -89,20 +89,16 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       super.analyzeInternal(ast)
       // Do post-Hive analysis of the CREATE TABLE (e.g detect caching mode).
       analyzeCreateTable(ast, qb) match {
-        case Some(selectStmtASTNode) => {
+        case Some(queryStmtASTNode) => {
           // Set the 'child' to reference the SELECT statement root node, with is a
           // HiveParer.HIVE_QUERY.
-          child = selectStmtASTNode
-          // Hive's super.analyzeInternal() generates MapReduce tasks for the SELECT. Avoid
-          // executing those tasks by reset()-ing some Hive SemanticAnalyzer state after phase 1 of
-          // analysis below.
-          // TODO(harvey): This might be too much. SharkSemanticAnalyzer could just clear
-          //               'rootTasks', since it's a protected field.
+          child = queryStmtASTNode
+          // Hive's super.analyzeInternal() might generate MapReduce tasks. Avoid executing those
+          // tasks by reset()-ing some Hive SemanticAnalyzer state after doPhase1().
           shouldReset = true
         }
         case None => {
-          // Done with semantic analysis if the CREATE TABLE statement isn't a CTAS. The DDLTask
-          // created from 'super.analyzeInternal()' will be used to create the table.
+          // Done with semantic analysis if the CREATE TABLE statement isn't a CTAS.
           return
         }
       }
@@ -332,43 +328,44 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     }
   }
 
-
   def analyzeCreateTable(rootAST: ASTNode, queryBlock: QueryBlock): Option[ASTNode] = {
-    // If we detect that the CREATE TABLE is part of a CTAS, then this is set to the root node of the
-    // SELECT statement
-    var selectStmtASTNode: Option[ASTNode] = None
+    // If we detect that the CREATE TABLE is part of a CTAS, then this is set to the root node of
+    // the query command (i.e., the root node of the SELECT statement).
+    var queryStmtASTNode: Option[ASTNode] = None
 
     // TODO(harvey): We might be able to reuse the QB passed into this method, as long as it was
     //               created after the super.analyzeInternal() call. That QB and the createTableDesc
     //               should have everything (e.g. isCTAS(), partCols). Note that the QB might not be
     //               accessible from getParseContext(), since the SemanticAnalyzer#analyzeInternal()
     //               doesn't set (this.qb = qb) for a non-CTAS.
-    var isCTAS = false
+    var isRegularCreateTable = true
     var isHivePartitioned = false
 
     for (ch <- rootAST.getChildren) {
       ch.asInstanceOf[ASTNode].getToken.getType match {
         case HiveParser.TOK_QUERY => {
-          isCTAS = true
-          selectStmtASTNode = Some(ch.asInstanceOf[ASTNode])
-        }
-        case HiveParser.TOK_TABLEPARTCOLS => {
-          isHivePartitioned = true
+        isRegularCreateTable = false
+          queryStmtASTNode = Some(ch.asInstanceOf[ASTNode])
         }
         case _ => Unit
       }
     }
 
-    // The 'createTableDesc' can be NULL if the command is a ...
-    // 1) syntactically valid CREATE TABLE statement. Note that the table specified may or may not
-    //    already exist. If the table already exists, then an exception is thrown by the DDLTask
-    //    that's executed after semantic analysis.
-    // 2) valid CTAS statement with an IF NOT EXISTS condition and the specified table already
-    //    exists. If the table to-be-created already exists, and the CTAS statement does not
-    //    have an IF NOT EXISTS condition, then an exception will be thrown by
-    //    SemanticAnalzyer#analyzeInternal().
-    val createTableDesc = getParseContext.getQB.getTableDesc
-    if (isCTAS && createTableDesc != null) {
+    // Invariant: At this point, the command is either a CTAS or a CREATE TABLE.
+    var ddlTasks: Seq[DDLTask] = Nil
+    val createTableDesc =
+      if (isRegularCreateTable) {
+        // Unfortunately, we have to comb the root tasks because for CREATE TABLE,
+        // SemanticAnalyzer#analyzeCreateTable() does't set the CreateTableDesc in its QB.
+        ddlTasks = rootTasks.filter(_.isInstanceOf[DDLTask]).asInstanceOf[Seq[DDLTask]]
+        if (ddlTasks.isEmpty) null else ddlTasks.head.getWork.getCreateTblDesc
+      }
+      else {
+        getParseContext.getQB.getTableDesc
+      }
+
+    // Can be NULL if there is an IF NOTE EXISTS condition and the table already exists.
+    if (createTableDesc != null) {
       val tableName = createTableDesc.getTableName
       val checkTableName = SharkConfVars.getBoolVar(conf, SharkConfVars.CHECK_TABLENAME_FLAG)
       // The CreateTableDesc's table properties are Java Maps, but the TableDesc's table properties,
@@ -390,30 +387,26 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         createTableProperties.put("shark.cache", cacheMode.toString)
       }
 
+      // For CTAS, the SparkTask's MemoryStoreSinkOperator will create the table and the Hive
+      // DDLTask will be a dependent of the SparkTask. SparkTasks are created in genMapRedTasks().
+      if (isRegularCreateTable) {
+        // In Hive, a CREATE TABLE command is handled by a DDLTask, created by
+        // SemanticAnalyzer#analyzeCreateTable(). The DDL tasks' execution succeeds only if the
+        // CREATE TABLE is valid. So, hook a SharkDDLTask as a dependent of the Hive DDLTask so that
+        // Shark metadata is updated only if the Hive task execution is successful.
+        val hiveDDLTask = ddlTasks.head;
+        val sharkDDLWork = new SparkDDLWork(createTableDesc)
+        hiveDDLTask.addDependentTask(TaskFactory.get(sharkDDLWork, conf))
+      }
+
       if (CacheType.shouldCache(cacheMode)) {
         createTableDesc.setSerName(classOf[ColumnarSerDe].getName)
-
-        if (isHivePartitioned) {
-          // TODO(harvey): Remove once it's supported ...
-          throw new SemanticException(
-            "Support for cached, Hive-partitioned tables coming soon!")
-        }
-
-        // In Hive, a CREATE TABLE command is handled by a DDLTask, which in this case, is created
-        // by the Hive SemanticAnalyzer's genMapRedTasks and not Hive's DDLSemanticAnalyzer. Since
-        // creating tables in Shark doesn't involve too much overhead (we don't support features
-        // such as indexing), just directly update the Shark MemoryMetaDataManager in this method.
-
-        // Make sure that the table exists.
-        // TODO(harvey): This might have to go in a SparkDDLTask wrapper.
-        // SharkEnv.memoryMetadataManager.add(tableName, isHivePartitioned)
       }
 
       queryBlock.setCacheModeForCreateTable(cacheMode)
       queryBlock.setTableDesc(createTableDesc)
     }
-
-    return selectStmtASTNode
+    return queryStmtASTNode
   }
 }
 
