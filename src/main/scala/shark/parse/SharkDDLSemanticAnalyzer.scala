@@ -1,37 +1,86 @@
 package shark.parse
 
+import java.util.{Map => JavaMap}
+
+import scala.collection.JavaConversions._
+
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.parse.{ASTNode, BaseSemanticAnalyzer, DDLSemanticAnalyzer, HiveParser}
+import org.apache.hadoop.hive.ql.plan.DDLWork
 
 import org.apache.spark.rdd.{UnionRDD, RDD}
 
+import shark.execution.EmptyRDD
 import shark.{LogHelper, SharkEnv}
 
 
 class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf) with LogHelper {
 
-  override def analyzeInternal(node: ASTNode): Unit = {
-    super.analyzeInternal(node)
+  override def analyzeInternal(ast: ASTNode): Unit = {
+    super.analyzeInternal(ast)
 
-    node.getToken.getType match {
+    ast.getToken.getType match {
       case HiveParser.TOK_DROPTABLE => {
-        SharkEnv.unpersist(getTableName(node))
+        SharkEnv.unpersist(getTableName(ast))
       }
       // Handle ALTER TABLE for cached, Hive-partitioned tables
       case HiveParser.TOK_ALTERTABLE_ADDPARTS => {
-        Unit
+        alterTableAddParts(ast)
       }
       case HiveParser.TOK_ALTERTABLE_DROPPARTS => {
-        Unit
-      }
-      case HiveParser.TOK_ALTERTABLE_PARTITION => {
-        Unit
+        alterTableDropParts(ast)
       }
       case _ => Unit
     }
   }
 
+  def alterTableAddParts(ast: ASTNode) {
+    val tableName = getTableName(ast)
+    val table = db.getTable(db.getCurrentDatabase(), tableName, false /* throwException */);
+    val partitionColumns = table.getPartCols.map(_.getName)
+    if (SharkEnv.memoryMetadataManager.contains(tableName)) {
+      // Hive's DDLSemanticAnalyzer#analyzeInternal() will only populate rootTasks with DDLTasks
+      // and DDLWorks that contain AddPartitionDesc objects.
+      val addPartitionDescs = rootTasks.map(_.getWork.asInstanceOf[DDLWork].getAddPartitionDesc)
+
+      for (addPartitionDesc <- addPartitionDescs) {
+        val partitionColumnToValue = addPartitionDesc.getPartSpec
+        val keyStr = makePartitionKeyStr(partitionColumns, partitionColumnToValue)
+        SharkEnv.memoryMetadataManager.putHivePartition(tableName, keyStr, new EmptyRDD(SharkEnv.sc))
+      }
+    }
+  }
+
+  def alterTableDropParts(ast: ASTNode) {
+    val tableName = getTableName(ast)
+    val table = db.getTable(db.getCurrentDatabase(), tableName, false /* throwException */);
+    val partitionColumns = table.getPartCols.map(_.getName)
+    if (SharkEnv.memoryMetadataManager.contains(tableName)) {
+      // Hive's DDLSemanticAnalyzer#analyzeInternal() will only populate rootTasks with a DDLTask
+      // and a DDLWork that contains a DropTableDesc object.
+      val partSpecs = rootTasks.map(
+        _.getWork.asInstanceOf[DDLWork].getDropTblDesc).head.getPartSpecs
+      for (partSpec <- partSpecs) {
+        val partitionColumnToValue = partSpec.getPartSpecWithoutOperator
+        val keyStr = makePartitionKeyStr(partitionColumns, partitionColumnToValue)
+        SharkEnv.memoryMetadataManager.putHivePartition(tableName, keyStr, new EmptyRDD(SharkEnv.sc))
+      }
+    }
+  }
+
   private def getTableName(node: ASTNode): String = {
     BaseSemanticAnalyzer.getUnescapedName(node.getChild(0).asInstanceOf[ASTNode])
+  }
+
+  private def makePartitionKeyStr(
+      partitionColumns: Seq[String],
+      partitionColumnToValue: JavaMap[String, String]): String = {
+    // The keyStr is the string 'col1=value1/col2=value2'.
+    var keyStr = ""
+    for (partitionColumn <- partitionColumns) {
+      keyStr += "%s=%s/".format(partitionColumn, partitionColumnToValue(partitionColumn))
+    }
+    keyStr = keyStr.dropRight(1)
+    return keyStr
   }
 }

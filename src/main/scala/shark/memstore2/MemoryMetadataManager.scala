@@ -45,7 +45,6 @@ class MemoryMetadataManager {
     val memoryTable = new MemoryTable(key.toLowerCase, isHivePartitioned)
     if (isHivePartitioned) {
       memoryTable.keyToHivePartitions = new JavaHashMap[String, RDD[_]]()
-      memoryTable.keyToCacheModes = new JavaHashMap[String, CacheType.CacheType]()
     }
     memoryTable.cacheMode = cacheMode
     _keyToMemoryTable(key.toLowerCase) = memoryTable
@@ -65,12 +64,12 @@ class MemoryMetadataManager {
     }
   }
 
-  def contains(key: String) = _keyToMemoryTable.contains(key.toLowerCase)
+  def contains(key: String): Boolean = _keyToMemoryTable.contains(key.toLowerCase)
 
-  def containsHivePartition(key: String, partitionColumnValues: String) = {
+  def containsHivePartition(key: String, partitionColumnValues: String): Boolean = {
     val containsTable = _keyToMemoryTable.contains(key.toLowerCase)
-    return containsTable &&
-           _keyToMemoryTable(key.toLowerCase).keyToHivePartitions.contains(partitionColumnValues)
+    return (containsTable &&
+            _keyToMemoryTable(key.toLowerCase).keyToHivePartitions.contains(partitionColumnValues))
   }
 
   def put(key: String, rdd: RDD[_]) {
@@ -81,10 +80,13 @@ class MemoryMetadataManager {
   def putHivePartition(
       key: String,
       partitionColumnValues: String,
-      rdd: RDD[_],
-      cacheMode: CacheType.CacheType) {
+      rdd: RDD[_]) {
     _keyToMemoryTable(key.toLowerCase).keyToHivePartitions(partitionColumnValues) = rdd
-    _keyToMemoryTable(key.toLowerCase).keyToCacheModes(partitionColumnValues) = cacheMode
+  }
+
+  def dropHivePartition(key: String, partitionColumnValues: String) {
+    val rdd = _keyToMemoryTable(key.toLowerCase).keyToHivePartitions.remove(partitionColumnValues)
+    unpersistRDD(rdd.get)
   }
 
   def get(key: String): Option[RDD[_]] = {
@@ -124,19 +126,6 @@ class MemoryMetadataManager {
    *         be a UnionRDD comprising RDDs that represent the table's Hive-partitions.
    */
   def unpersist(key: String): Option[RDD[_]] = {
-    def unpersistRDD(rdd: RDD[_]): RDD[_] = {
-      rdd match {
-        case u: UnionRDD[_] => {
-          // Recursively unpersist() all RDDs that compose the UnionRDD.
-          u.unpersist()
-          u.rdds.map {
-            r => r.unpersist()
-          }
-        }
-        case r => r.unpersist()
-      }
-      return rdd
-    }
     def unpersistMemoryTable(memoryTable: MemoryTable): Option[RDD[_]] = {
       var unpersistedRDD: Option[RDD[_]] = None
       if (memoryTable.isHivePartitioned) {
@@ -158,6 +147,20 @@ class MemoryMetadataManager {
 
     val memoryTableValue: Option[MemoryTable] = _keyToMemoryTable.remove(key.toLowerCase)
     return memoryTableValue.flatMap(unpersistMemoryTable(_))
+  }
+
+  def unpersistRDD(rdd: RDD[_]): RDD[_] = {
+    rdd match {
+      case u: UnionRDD[_] => {
+        // Recursively unpersist() all RDDs that compose the UnionRDD.
+        u.unpersist()
+        u.rdds.map {
+          r => r.unpersist()
+        }
+      }
+      case r => r.unpersist()
+    }
+    return rdd
   }
 }
 
