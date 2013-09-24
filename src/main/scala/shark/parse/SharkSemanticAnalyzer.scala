@@ -172,7 +172,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                   val storageLevel = RDDUtils.getStorageLevelOfCachedRDD(rdd)
                   val cacheMode = SharkEnv.memoryMetadataManager.getCacheMode(cachedTableName)
                   val table = db.getTable(
-                    db.getCurrentDatabase(), tableName, false /* throwException */)
+                    db.getCurrentDatabase(), cachedTableName, false /* throwException */)
                   var hivePartitionKey = new String
                   if (table.isPartitioned) {
                     if (cacheMode == CacheType.TACHYON) {
@@ -416,9 +416,9 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         // CREATE TABLE is valid. So, hook a SharkDDLTask as a dependent of the Hive DDLTask so that
         // Shark metadata is updated only if the Hive task execution is successful.
         val hiveDDLTask = ddlTasks.head;
-        val sharkDDLWork = new SparkDDLWork(createTableDesc)
-        sharkDDLWork.cacheMode = cacheMode
-        hiveDDLTask.addDependentTask(TaskFactory.get(sharkDDLWork, conf))
+        val sparkDDLWork = new SparkDDLWork(createTableDesc)
+        sparkDDLWork.cacheMode = cacheMode
+        hiveDDLTask.addDependentTask(TaskFactory.get(sparkDDLWork, conf))
       }
 
       queryBlock.setCacheModeForCreateTable(cacheMode)

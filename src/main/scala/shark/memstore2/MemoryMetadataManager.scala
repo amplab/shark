@@ -81,11 +81,13 @@ class MemoryMetadataManager {
       key: String,
       partitionColumnValues: String,
       rdd: RDD[_]) {
-    _keyToMemoryTable(key.toLowerCase).keyToHivePartitions(partitionColumnValues) = rdd
+    val keyToHivePartitions = _keyToMemoryTable(key.toLowerCase).keyToHivePartitions
+    keyToHivePartitions(partitionColumnValues) = rdd
   }
 
   def dropHivePartition(key: String, partitionColumnValues: String) {
-    val rdd = _keyToMemoryTable(key.toLowerCase).keyToHivePartitions.remove(partitionColumnValues)
+    val keyToHivePartitions = _keyToMemoryTable(key.toLowerCase).keyToHivePartitions
+    val rdd = keyToHivePartitions.remove(partitionColumnValues)
     unpersistRDD(rdd.get)
   }
 
@@ -97,7 +99,8 @@ class MemoryMetadataManager {
   }
 
   def getHivePartition(key: String, partitionColumnValues: String): Option[RDD[_]] = {
-    return _keyToMemoryTable(key.toLowerCase).keyToHivePartitions.get(partitionColumnValues)
+    val keyToHivePartitions = _keyToMemoryTable(key.toLowerCase).keyToHivePartitions
+    keyToHivePartitions.get(partitionColumnValues)
   }
 
   def putStats(key: String, stats: collection.Map[Int, TablePartitionStats]) {

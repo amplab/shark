@@ -17,6 +17,8 @@
 
 package shark.execution
 
+import scala.collection.JavaConversions._
+
 import org.apache.hadoop.hive.ql.{Context, DriverContext}
 import org.apache.hadoop.hive.ql.exec.{Task => HiveTask, TaskExecutionException}
 import org.apache.hadoop.hive.ql.metadata.Hive
@@ -24,7 +26,7 @@ import org.apache.hadoop.hive.ql.plan._
 import org.apache.hadoop.hive.ql.plan.api.StageType
 
 import shark.{LogHelper, SharkEnv}
-import shark.memstore2.CacheType
+import shark.memstore2.{CacheType, MemoryMetadataManager}
 
 
 private[shark] class SparkDDLWork(val ddlDesc: DDLDesc) extends java.io.Serializable {
@@ -40,6 +42,12 @@ private[shark] class SparkDDLTask extends HiveTask[SparkDDLWork] with Serializab
     work.ddlDesc match {
       case creatTblDesc: CreateTableDesc => {
         createTable(hiveMetadataDb, creatTblDesc, work.cacheMode)
+      }
+      case addPartitionDesc: AddPartitionDesc => {
+        addPartition(hiveMetadataDb, addPartitionDesc)
+      }
+      case dropTableDesc: DropTableDesc => {
+        dropTable(hiveMetadataDb, dropTableDesc)
       }
       case _ => {
         throw new UnsupportedOperationException(
@@ -60,6 +68,33 @@ private[shark] class SparkDDLTask extends HiveTask[SparkDDLWork] with Serializab
     val tableName = createTblDesc.getTableName
     SharkEnv.memoryMetadataManager.add(tableName, isHivePartitioned, cacheMode)
     SharkEnv.memoryMetadataManager.put(tableName, new EmptyRDD(SharkEnv.sc))
+  }
+
+  def addPartition(
+      hiveMetadataDb: Hive,
+      addPartitionDesc: AddPartitionDesc) {
+    val tableName = addPartitionDesc.getTableName
+    val table = db.getTable(db.getCurrentDatabase(), tableName, false /* throwException */);
+    val partitionColumns = table.getPartCols.map(_.getName)
+    val partitionColumnToValue = addPartitionDesc.getPartSpec
+    val keyStr = MemoryMetadataManager.makeHivePartitionKeyStr(
+      partitionColumns, partitionColumnToValue)
+    SharkEnv.memoryMetadataManager.putHivePartition(tableName, keyStr, new EmptyRDD(SharkEnv.sc))
+  }
+
+  def dropTable(
+      hiveMetadataDb: Hive,
+      dropTableDesc: DropTableDesc) {
+    val tableName = dropTableDesc.getTableName
+    val table = db.getTable(db.getCurrentDatabase(), tableName, false /* throwException */);
+    val partitionColumns = table.getPartCols.map(_.getName)
+    val partSpecs = dropTableDesc.getPartSpecs
+    for (partSpec <- partSpecs) {
+      val partitionColumnToValue = partSpec.getPartSpecWithoutOperator
+      val keyStr = MemoryMetadataManager.makeHivePartitionKeyStr(
+        partitionColumns, partitionColumnToValue)
+      SharkEnv.memoryMetadataManager.dropHivePartition(tableName, keyStr)
+    }
   }
 
   override def getType = StageType.DDL

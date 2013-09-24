@@ -3,12 +3,13 @@ package shark.parse
 import scala.collection.JavaConversions._
 
 import org.apache.hadoop.hive.conf.HiveConf
+import org.apache.hadoop.hive.ql.exec.TaskFactory
 import org.apache.hadoop.hive.ql.parse.{ASTNode, BaseSemanticAnalyzer, DDLSemanticAnalyzer, HiveParser}
 import org.apache.hadoop.hive.ql.plan.DDLWork
 
 import org.apache.spark.rdd.{UnionRDD, RDD}
 
-import shark.execution.EmptyRDD
+import shark.execution.{EmptyRDD, SparkDDLWork}
 import shark.{LogHelper, SharkEnv}
 import shark.memstore2.MemoryMetadataManager
 
@@ -20,11 +21,14 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
 
     ast.getToken.getType match {
       case HiveParser.TOK_DROPTABLE => {
+        // TODO(harvey): Execute this in SparkDDLTask. This somewhat works right now because
+        //               unpersist() returns silently when the table doesn't exist. However, it
+        //               ignores any drop protections.
         SharkEnv.unpersist(getTableName(ast))
       }
       // Handle ALTER TABLE for cached, Hive-partitioned tables
       case HiveParser.TOK_ALTERTABLE_ADDPARTS => {
-        alterTableAddParts(ast)
+        analyzeAlterTableAddParts(ast)
       }
       case HiveParser.TOK_ALTERTABLE_DROPPARTS => {
         alterTableDropParts(ast)
@@ -33,38 +37,30 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
     }
   }
 
-  def alterTableAddParts(ast: ASTNode) {
+  def analyzeAlterTableAddParts(ast: ASTNode) {
     val tableName = getTableName(ast)
-    val table = db.getTable(db.getCurrentDatabase(), tableName, false /* throwException */);
-    val partitionColumns = table.getPartCols.map(_.getName)
+    // Create a SparkDDLTask only if the table is cached.
     if (SharkEnv.memoryMetadataManager.contains(tableName)) {
       // Hive's DDLSemanticAnalyzer#analyzeInternal() will only populate rootTasks with DDLTasks
       // and DDLWorks that contain AddPartitionDesc objects.
-      val addPartitionDescs = rootTasks.map(_.getWork.asInstanceOf[DDLWork].getAddPartitionDesc)
-
-      for (addPartitionDesc <- addPartitionDescs) {
-        val partitionColumnToValue = addPartitionDesc.getPartSpec
-        val keyStr = MemoryMetadataManager.makeHivePartitionKeyStr(
-          partitionColumns, partitionColumnToValue)
-        SharkEnv.memoryMetadataManager.putHivePartition(tableName, keyStr, new EmptyRDD(SharkEnv.sc))
+      for (ddlTask <- rootTasks) {
+        val addPartitionDesc = ddlTask.getWork.asInstanceOf[DDLWork].getAddPartitionDesc
+        val sparkDDLWork = new SparkDDLWork(addPartitionDesc)
+        ddlTask.addDependentTask(TaskFactory.get(sparkDDLWork, conf))
       }
     }
   }
 
   def alterTableDropParts(ast: ASTNode) {
     val tableName = getTableName(ast)
-    val table = db.getTable(db.getCurrentDatabase(), tableName, false /* throwException */);
-    val partitionColumns = table.getPartCols.map(_.getName)
+    // Create a SparkDDLTask only if the table is cached.
     if (SharkEnv.memoryMetadataManager.contains(tableName)) {
-      // Hive's DDLSemanticAnalyzer#analyzeInternal() will only populate rootTasks with a DDLTask
-      // and a DDLWork that contains a DropTableDesc object.
-      val partSpecs = rootTasks.map(
-        _.getWork.asInstanceOf[DDLWork].getDropTblDesc).head.getPartSpecs
-      for (partSpec <- partSpecs) {
-        val partitionColumnToValue = partSpec.getPartSpecWithoutOperator
-        val keyStr = MemoryMetadataManager.makeHivePartitionKeyStr(
-          partitionColumns, partitionColumnToValue)
-        SharkEnv.memoryMetadataManager.putHivePartition(tableName, keyStr, new EmptyRDD(SharkEnv.sc))
+      // Hive's DDLSemanticAnalyzer#analyzeInternal() will only populate rootTasks with DDLTasks
+      // and DDLWorks that contain AddPartitionDesc objects.
+      for (ddlTask <- rootTasks) {
+        val dropTableDesc = ddlTask.getWork.asInstanceOf[DDLWork].getDropTblDesc
+        val sparkDDLWork = new SparkDDLWork(dropTableDesc)
+        ddlTask.addDependentTask(TaskFactory.get(sparkDDLWork, conf))
       }
     }
   }

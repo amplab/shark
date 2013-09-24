@@ -369,12 +369,12 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   // TODO(harvey): Create hadoop file for this.
-  test("alter cached table by adding a new partition, with a provided location") {
-    sc.runSql("drop table if exists alter_part_location_cached")
-    sc.runSql("""create table alter_part_location_cached(key int, val string)
-      partitioned by (keypart int)""")
-    sc.runSql("""alter table alter_part_location_cached add partition(keypart = 1)""")
-  }
+  // test("alter cached table by adding a new partition, with a provided location") {
+  //   sc.runSql("drop table if exists alter_part_location_cached")
+  //   sc.runSql("""create table alter_part_location_cached(key int, val string)
+  //     partitioned by (keypart int)""")
+  //   sc.runSql("""alter table alter_part_location_cached add partition(keypart = 1)""")
+  // }
 
   test("alter cached table by dropping a partition") {
     sc.runSql("drop table if exists alter_drop_part_cached")
