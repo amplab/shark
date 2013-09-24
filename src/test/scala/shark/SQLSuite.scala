@@ -359,53 +359,116 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   test("alter cached table by adding a new partition") {
-    sc.runSql("drop table if exists srcpart_cached")
-    assert(true)
+    sc.runSql("drop table if exists alter_part_cached")
+    sc.runSql("""create table alter_part_cached(key int, val string)
+      partitioned by (keypart int)""")
+    sc.runSql("""alter table alter_part_cached add partition(keypart = 1)""")
+    val tableName = alter_part_cached
+    val partitionColumn = "keypart=1"
+    assert(SharkEnv.memoryMetadataManager.containsHivePartition(tableName, partitionColumn))
+  }
+
+  // TODO(harvey): Create hadoop file for this.
+  test("alter cached table by adding a new partition, with a provided location") {
+    sc.runSql("drop table if exists alter_part_location_cached")
+    sc.runSql("""create table alter_part_location_cached(key int, val string)
+      partitioned by (keypart int)""")
+    sc.runSql("""alter table alter_part_location_cached add partition(keypart = 1)""")
   }
 
   test("alter cached table by dropping a partition") {
-    sc.runSql("drop table if exists srcpart_cached")
-    assert(true)
+    sc.runSql("drop table if exists alter_drop_part_cached")
+    sc.runSql("""create table alter_drop_part_cached(key int, val string)
+      partitioned by (keypart int)""")
+    sc.runSql("""alter table alter_drop_part_cached add partition(keypart = 1)""")
+    val tableName = alter_part_cached
+    val partitionColumn = "keypart=1"
+    assert(SharkEnv.memoryMetadataManager.containsHivePartition(tableName, partitionColumn))
+    sc.runSql("""alter table alter_drop_part_cached drop partition(keypart = 1)""")
+    assert(!SharkEnv.memoryMetadataManager.containsHivePartition(tableName, partitionColumn))
   }
 
   test("insert into a partition of a cached table") {
-    sc.runSql("drop table if exists srcpart_cached")
-    assert(true)
+    sc.runSql("drop table if exists insert_part_cached")
+    sc.runSql("""create table insert_part_cached(key int, val string)
+      partitioned by (keypart int)""")
+    sc.runSql("insert into table insert_part_cached partition(keypart = 1) select * from test")
+    expectSql("select value from insert_part_cached where key = 407 and keypart = 1", "val_407")
+
   }
 
   test("insert overwrite a partition of a cached table") {
-    sc.runSql("drop table if exists srcpart_cached")
-    assert(true)
+    sc.runSql("drop table if exists insert_over_part_cached")
+    sc.runSql("""create table insert_over_part_cached(key int, val string)
+      partitioned by (keypart int)""")
+    sc.runSql("""insert into table insert_over_part_cached partition(keypart = 1)
+      select * from test""")
+    expectSql("""select value from insert_over_part_cached
+      where key = 407 and keypart = 1", "val_407""")
+
+    sc.runSql("""insert overwrite table insert_over_part_cached partition(keypart = 1)
+      select value, -1 from test""")
+    expectSql("select value from insert_over_part_cached where key = 407 and keypart = 1", "-1")
   }
 
   test("scan cached, partitioned table that's empty") {
-    sc.runSql("drop table if exists srcpart_cached")
-    assert(true)
+    sc.runSql("drop table if exists empty_part_table_cached")
+    sc.runSql("""create table empty_part_table_cached(key int, val string)
+      partitioned by (keypart int)""")
+    sc.runSql("select * from empty_part_table_cached", "")
   }
 
   test("scan cached, partitioned table that has a single partition") {
-    sc.runSql("drop table if exists srcpart_cached")
-    assert(true)
+    sc.runSql("drop table if exists scan_single_part_cached")
+    sc.runSql("""create table scan_single_part_cached(key int, val string)
+      partitioned by (keypart int)""")
+    sc.runSql("insert into table scan_single_part_cached partition(keypart = 1) select * from test")
+    expectSql("select value from scan_single_part_cached where key = 407", "val_407")
   }
 
   test("scan cached, partitioned table that has multiple partitions") {
-    sc.runSql("drop table if exists srcpart_cached")
-    assert(true)
+    sc.runSql("drop table if exists scan_mult_part_cached")
+    sc.runSql("""create table scan_single_part_cached(key int, val string)
+      partitioned by (keypart int)""")
+    sc.runSql("insert into table scan_mult_part_cached partition(keypart = 1) select * from test")
+    sc.runSql("insert into table scan_mult_part_cached partition(keypart = 5) select * from test")
+    sc.runSql("insert into table scan_mult_part_cached partition(keypart = 9) select * from test")
+    expectSql("select value, keypart from scan_mult_part_cached where key = 407 order by keypart",
+      Array("val_407\t1", "val_407\t5", "val_407\t9"))
   }
 
-  test("drop cached, partitioned table that has a single partition") {
-    sc.runSql("drop table if exists srcpart_cached")
-    assert(true)
+  test("drop/unpersist cached, partitioned table that has multiple partitions") {
+    sc.runSql("drop table if exists drop_mult_part_cached")
+    sc.runSql("""create table drop_mult_part_cached(key int, val string)
+      partitioned by (keypart int)""")
+    sc.runSql("insert into table drop_mult_part_cached partition(keypart = 1) select * from test")
+    sc.runSql("insert into table drop_mult_part_cached partition(keypart = 5) select * from test")
+    sc.runSql("insert into table drop_mult_part_cached partition(keypart = 9) select * from test")
+    val tableName = "drop_mult_part_cached"
+    val keypart1RDD = SharkEnv.memoryMetadataManager.getHivePartition(tableName, "keypart=1")
+    val keypart5RDD = SharkEnv.memoryMetadataManager.getHivePartition(tableName, "keypart=5")
+    val keypart9RDD = SharkEnv.memoryMetadataManager.getHivePartition(tableName, "keypart=9")
+    sc.runSql("drop drop_mult_part_cached table ")
+    assert(!SharkEnv.memoryMetadataManager.contains("empty_part_table_cached_tbl_props"))
+    // All RDDs should have been unpersisted.
+    assert(keypart1RDD.getStorageLevel == StorageLevel.NONE)
+    assert(keypart5RDD.getStorageLevel == StorageLevel.NONE)
+    assert(keypart9RDD.getStorageLevel == StorageLevel.NONE)
   }
 
-  test("drop cached, partitioned table that has multiple partitions") {
-    sc.runSql("drop table if exists srcpart_cached")
-    assert(true)
-  }
-
-  test("drop cached, partitioned table that has a UnionRDD partition") {
-    sc.runSql("drop table if exists srcpart_cached")
-    assert(true)
+  test("drop cached partition represented by a UnionRDD (i.e., the result of multiple inserts)") {
+    sc.runSql("drop table if exists drop_union_part_cached")
+    sc.runSql("""create table drop_union_part_cached(key int, val string)
+      partitioned by (keypart int)""")
+    sc.runSql("insert into table drop_union_part_cached partition(keypart = 1) select * from test")
+    sc.runSql("insert into table drop_union_part_cached partition(keypart = 1) select * from test")
+    sc.runSql("insert into table drop_union_part_cached partition(keypart = 1) select * from test")
+    val tableName = "drop_union_part_cached"
+    val keypart1RDD = SharkEnv.memoryMetadataManager.getHivePartition(tableName, "keypart=1")
+    sc.runSql("drop drop_union_part_cached table ")
+    assert(!SharkEnv.memoryMetadataManager.contains("drop_union_part_cached"))
+    // All RDDs should have been unpersisted.
+    assert(keypart1RDD.getStorageLevel == StorageLevel.NONE)
   }
 
   //////////////////////////////////////////////////////////////////////////////

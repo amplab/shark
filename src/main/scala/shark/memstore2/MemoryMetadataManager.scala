@@ -50,6 +50,12 @@ class MemoryMetadataManager {
 
   def contains(key: String) = _keyToMemoryTable.contains(key.toLowerCase)
 
+  def containsHivePartition(key: String, partitionColumnValues: String) = {
+    val containsTable = _keyToMemoryTable.contains(key.toLowerCase)
+    return containsTable &&
+           _keyToMemoryTable(key.toLowerCase).keyToHivePartitions.contains(partitionColumnValues)
+  }
+
   def add(key: String, isHivePartitioned: Boolean) {
     val memoryTable = new MemoryTable(key.toLowerCase, isHivePartitioned)
     if (isHivePartitioned) {
@@ -66,7 +72,9 @@ class MemoryMetadataManager {
     }
   }
 
-  def getPartitionCacheMode(key: String, partitionColumnValues: String): CacheType.CacheType = {
+  def getHivePartitionCacheMode(
+      key: String,
+      partitionColumnValues: String): CacheType.CacheType = {
     _keyToMemoryTable.get(key.toLowerCase) match {
       case Some(memoryTable) => return memoryTable.keyToCacheModes(partitionColumnValues)
       case _ => return CacheType.NONE
