@@ -344,7 +344,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   //////////////////////////////////////////////////////////////////////////////
   test("Use regular CREATE TABLE and '_cached' suffix to create cached, partitioned table") {
     sc.runSql("drop table if exists empty_part_table_cached")
-    sc.runSql("""create table empty_part_table_cached(key int, val string)
+    sc.runSql("""create table empty_part_table_cached(key int, value string)
       partitioned by (keypart int)""")
     assert(SharkEnv.memoryMetadataManager.contains("empty_part_table_cached"))
     assert(SharkEnv.memoryMetadataManager.isHivePartitioned("empty_part_table_cached"))
@@ -352,7 +352,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
 
   test("Use regular CREATE TABLE and table properties to create cached, partitioned table") {
     sc.runSql("drop table if exists empty_part_table_cached_tbl_props")
-    sc.runSql("""create table empty_part_table_cached_tbl_props(key int, val string)
+    sc.runSql("""create table empty_part_table_cached_tbl_props(key int, value string)
       partitioned by (keypart int) TBLPROPERTIES('shark.cache' = 'true')""")
     assert(SharkEnv.memoryMetadataManager.contains("empty_part_table_cached_tbl_props"))
     assert(SharkEnv.memoryMetadataManager.isHivePartitioned("empty_part_table_cached_tbl_props"))
@@ -360,7 +360,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
 
   test("alter cached table by adding a new partition") {
     sc.runSql("drop table if exists alter_part_cached")
-    sc.runSql("""create table alter_part_cached(key int, val string)
+    sc.runSql("""create table alter_part_cached(key int, value string)
       partitioned by (keypart int)""")
     sc.runSql("""alter table alter_part_cached add partition(keypart = 1)""")
     val tableName = "alter_part_cached"
@@ -378,7 +378,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
 
   test("alter cached table by dropping a partition") {
     sc.runSql("drop table if exists alter_drop_part_cached")
-    sc.runSql("""create table alter_drop_part_cached(key int, val string)
+    sc.runSql("""create table alter_drop_part_cached(key int, value string)
       partitioned by (keypart int)""")
     sc.runSql("""alter table alter_drop_part_cached add partition(keypart = 1)""")
     val tableName = "alter_drop_part_cached"
@@ -390,7 +390,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
 
   test("insert into a partition of a cached table") {
     sc.runSql("drop table if exists insert_part_cached")
-    sc.runSql("""create table insert_part_cached(key int, val string)
+    sc.runSql("""create table insert_part_cached(key int, value string)
       partitioned by (keypart int)""")
     sc.runSql("insert into table insert_part_cached partition(keypart = 1) select * from test")
     expectSql("select value from insert_part_cached where key = 407 and keypart = 1", "val_407")
@@ -399,7 +399,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
 
   test("insert overwrite a partition of a cached table") {
     sc.runSql("drop table if exists insert_over_part_cached")
-    sc.runSql("""create table insert_over_part_cached(key int, val string)
+    sc.runSql("""create table insert_over_part_cached(key int, value string)
       partitioned by (keypart int)""")
     sc.runSql("""insert into table insert_over_part_cached partition(keypart = 1)
       select * from test""")
@@ -413,14 +413,14 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
 
   test("scan cached, partitioned table that's empty") {
     sc.runSql("drop table if exists empty_part_table_cached")
-    sc.runSql("""create table empty_part_table_cached(key int, val string)
+    sc.runSql("""create table empty_part_table_cached(key int, value string)
       partitioned by (keypart int)""")
-    expectSql("select * from empty_part_table_cached", "")
+    expectSql("select count(*) from empty_part_table_cached", "0")
   }
 
   test("scan cached, partitioned table that has a single partition") {
     sc.runSql("drop table if exists scan_single_part_cached")
-    sc.runSql("""create table scan_single_part_cached(key int, val string)
+    sc.runSql("""create table scan_single_part_cached(key int, value string)
       partitioned by (keypart int)""")
     sc.runSql("insert into table scan_single_part_cached partition(keypart = 1) select * from test")
     expectSql("select value from scan_single_part_cached where key = 407", "val_407")
@@ -428,7 +428,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
 
   test("scan cached, partitioned table that has multiple partitions") {
     sc.runSql("drop table if exists scan_mult_part_cached")
-    sc.runSql("""create table scan_single_part_cached(key int, val string)
+    sc.runSql("""create table scan_single_part_cached(key int, value string)
       partitioned by (keypart int)""")
     sc.runSql("insert into table scan_mult_part_cached partition(keypart = 1) select * from test")
     sc.runSql("insert into table scan_mult_part_cached partition(keypart = 5) select * from test")
@@ -439,7 +439,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
 
   test("drop/unpersist cached, partitioned table that has multiple partitions") {
     sc.runSql("drop table if exists drop_mult_part_cached")
-    sc.runSql("""create table drop_mult_part_cached(key int, val string)
+    sc.runSql("""create table drop_mult_part_cached(key int, value string)
       partitioned by (keypart int)""")
     sc.runSql("insert into table drop_mult_part_cached partition(keypart = 1) select * from test")
     sc.runSql("insert into table drop_mult_part_cached partition(keypart = 5) select * from test")
@@ -448,7 +448,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     val keypart1RDD = SharkEnv.memoryMetadataManager.getHivePartition(tableName, "keypart=1")
     val keypart5RDD = SharkEnv.memoryMetadataManager.getHivePartition(tableName, "keypart=5")
     val keypart9RDD = SharkEnv.memoryMetadataManager.getHivePartition(tableName, "keypart=9")
-    sc.runSql("drop drop_mult_part_cached table ")
+    sc.runSql("drop table drop_mult_part_cached table ")
     assert(!SharkEnv.memoryMetadataManager.contains("empty_part_table_cached_tbl_props"))
     // All RDDs should have been unpersisted.
     //assert(keypart1RDD.get.getStorageLevel == StorageLevel.NONE)
@@ -458,14 +458,14 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
 
   test("drop cached partition represented by a UnionRDD (i.e., the result of multiple inserts)") {
     sc.runSql("drop table if exists drop_union_part_cached")
-    sc.runSql("""create table drop_union_part_cached(key int, val string)
+    sc.runSql("""create table drop_union_part_cached(key int, value string)
       partitioned by (keypart int)""")
     sc.runSql("insert into table drop_union_part_cached partition(keypart = 1) select * from test")
     sc.runSql("insert into table drop_union_part_cached partition(keypart = 1) select * from test")
     sc.runSql("insert into table drop_union_part_cached partition(keypart = 1) select * from test")
     val tableName = "drop_union_part_cached"
     val keypart1RDD = SharkEnv.memoryMetadataManager.getHivePartition(tableName, "keypart=1")
-    sc.runSql("drop drop_union_part_cached table ")
+    sc.runSql("drop table drop_union_part_cached table ")
     assert(!SharkEnv.memoryMetadataManager.contains("drop_union_part_cached"))
     // All RDDs should have been unpersisted.
     //assert(keypart1RDD.getStorageLevel == StorageLevel.NONE)

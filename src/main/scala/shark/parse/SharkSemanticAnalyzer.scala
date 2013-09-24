@@ -171,16 +171,13 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                   val useUnionRDD = qbParseInfo.isInsertIntoTable(cachedTableName)
                   val storageLevel = RDDUtils.getStorageLevelOfCachedRDD(rdd)
                   val cacheMode = SharkEnv.memoryMetadataManager.getCacheMode(cachedTableName)
-                  val table = db.getTable(
-                    db.getCurrentDatabase(), cachedTableName, false /* throwException */)
                   var hivePartitionKey = new String
-                  if (table.isPartitioned) {
+                  if (SharkEnv.memoryMetadataManager.isHivePartitioned(cachedTableName)) {
                     if (cacheMode == CacheType.TACHYON) {
                       throw new SemanticException(
                         "Shark does not support caching Hive-partitioned table(s) in Tachyon.")
                     }
-                    hivePartitionKey = SharkSemanticAnalyzer.getHivePartitionKey(
-                        table.getPartCols.map(_.getName), qb)
+                    hivePartitionKey = SharkSemanticAnalyzer.getHivePartitionKey(qb)
                   }
                   OperatorFactory.createSharkMemoryStoreOutputPlan(
                     hiveSinkOp,
@@ -444,9 +441,11 @@ object SharkSemanticAnalyzer extends LogHelper {
   private val viewsExpandedField = classOf[SemanticAnalyzer].getDeclaredField("viewsExpanded")
   viewsExpandedField.setAccessible(true)
 
-  private def getHivePartitionKey(partitionColumns: Seq[String], qb: QB): String = {
-    val selectClauseKey = qb.getParseInfo.getClauseNamesForDest.first
-    val partitionColumnToValue = qb.getMetaData.getPartSpecForAlias(selectClauseKey)
+  private def getHivePartitionKey(qb: QB): String = {
+    val selectClauseKey = qb.getParseInfo.getClauseNamesForDest.head
+    val destPartition = qb.getMetaData.getDestPartitionForAlias(selectClauseKey)
+    val partitionColumns = destPartition.getTable.getPartCols.map(_.getName)
+    val partitionColumnToValue = destPartition.getSpec
     return MemoryMetadataManager.makeHivePartitionKeyStr(partitionColumns, partitionColumnToValue)
   }
   

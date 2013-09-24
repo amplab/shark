@@ -42,12 +42,42 @@ class MemoryTable(
     val isHivePartitioned: Boolean) {
 
   // Should only be used if the table is not Hive-partitioned.
-  var tableRDD: RDD[_] = _
+  private var _tableRDD: RDD[_] = _
+
+  // Should only be used if a cached table is Hive-partitioned.
+  private var _keyToHivePartitions: Map[String, RDD[_]] = _
 
   // CacheMode for the table.
   // This is common to all Hive-partitions (if applicable).
   var cacheMode: CacheType.CacheType = _
 
-  // Should only be used if a cached table is Hive-partitioned.
-  var keyToHivePartitions: Map[String, RDD[_]] = _
+  def tableRDD: RDD[_] = {
+    assert (
+      !isHivePartitioned,
+      "Table " + tableName + " is Hive-partitioned. Use MemoryTableDesc::hivePartitionRDDs() " +
+      "to get RDDs corresponding to partition columns"
+    )
+    return _tableRDD
+  }
+
+  def tableRDD_= (value: RDD[_]) {
+    assert(
+      !isHivePartitioned,
+      "Table " + tableName + " is Hive-partitioned. Pass in a map of <partition key, RDD> pairs " +
+      "to the 'keyToHivePartitions =' setter."
+    )
+    _tableRDD = value
+  }
+
+  def keyToHivePartitions: Map[String, RDD[_]] = {
+    assert(isHivePartitioned,
+           "Table " + tableName + " is not Hive-partitioned. Use tableRDD() to get its RDD.")
+    _keyToHivePartitions
+  }
+
+  def keyToHivePartitions_= (value: Map[String, RDD[_]]) {
+    assert(isHivePartitioned,
+       "Table " + tableName + " is not Hive-partitioned. Use 'tableRDD =' to set the RDD.")
+    _keyToHivePartitions = value
+  }
 }

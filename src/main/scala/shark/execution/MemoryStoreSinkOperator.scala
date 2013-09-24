@@ -97,6 +97,8 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       }
     }
 
+    val isHivePartitioned = SharkEnv.memoryMetadataManager.isHivePartitioned(tableName)
+
     if (tachyonWriter != null) {
       // Put the table in Tachyon.
       op.logInfo("Putting RDD for %s in Tachyon".format(tableName))
@@ -126,25 +128,33 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
       val origRdd = rdd
       if (useUnionRDD) {
+        val oldRdd: Option[RDD[_]] =
+          if (isHivePartitioned) {
+            SharkEnv.memoryMetadataManager.getHivePartition(tableName, hivePartitionKey)
+          } else {
+            SharkEnv.memoryMetadataManager.get(tableName)
+          }
         // If this is an insert, find the existing RDD and create a union of the two, and then
         // put the union into the meta data tracker.
-        rdd = rdd.union(
-          SharkEnv.memoryMetadataManager.get(tableName).get.asInstanceOf[RDD[TablePartition]])
+        rdd = oldRdd match {
+          case Some(definedRdd) => rdd.union(oldRdd.get.asInstanceOf[RDD[TablePartition]])
+          // The oldRdd can be missing if this is an INSERT into a new Hive-partition.
+          case None => rdd
+        }
       }
-      rdd.setName(tableName)
-
       // Run a job on the original RDD to force it to go into cache.
       origRdd.context.runJob(origRdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
     }
-
-    if (SharkEnv.memoryMetadataManager.isHivePartitioned(tableName)) {
+    if (isHivePartitioned) {
       SharkEnv.memoryMetadataManager.putHivePartition(tableName, hivePartitionKey, rdd)
+      rdd.setName(tableName + "(" + hivePartitionKey + ")")
     } else {
       if (!SharkEnv.memoryMetadataManager.contains(tableName)) {
         // This is a CTAS. Add a new table entry to the Shark metadata.
         SharkEnv.memoryMetadataManager.add(tableName, false /* isHivePartitioned */, cacheMode)
       }
       SharkEnv.memoryMetadataManager.put(tableName, rdd)
+      rdd.setName(tableName)
     }
 
     // Report remaining memory.
