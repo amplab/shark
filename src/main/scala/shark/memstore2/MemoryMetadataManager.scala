@@ -41,6 +41,23 @@ class MemoryMetadataManager {
   private val _keyToStats: ConcurrentMap[String, collection.Map[Int, TablePartitionStats]] =
     new ConcurrentHashMap[String, collection.Map[Int, TablePartitionStats]]
 
+  def add(key: String, isHivePartitioned: Boolean, cacheMode: CacheType.CacheType) {
+    val memoryTable = new MemoryTable(key.toLowerCase, isHivePartitioned)
+    if (isHivePartitioned) {
+      memoryTable.keyToHivePartitions = new JavaHashMap[String, RDD[_]]()
+      memoryTable.keyToCacheModes = new JavaHashMap[String, CacheType.CacheType]()
+    }
+    memoryTable.cacheMode = cacheMode
+    _keyToMemoryTable(key.toLowerCase) = memoryTable
+  }
+
+  def getCacheMode(key: String): CacheType.CacheType = {
+    _keyToMemoryTable.get(key.toLowerCase) match {
+      case Some(memoryTable) => return memoryTable.cacheMode
+      case _ => return CacheType.NONE
+    }
+  }
+
   def isHivePartitioned(key: String): Boolean = {
     _keyToMemoryTable.get(key.toLowerCase) match {
       case Some(memoryTable) => return memoryTable.isHivePartitioned
@@ -56,35 +73,9 @@ class MemoryMetadataManager {
            _keyToMemoryTable(key.toLowerCase).keyToHivePartitions.contains(partitionColumnValues)
   }
 
-  def add(key: String, isHivePartitioned: Boolean) {
-    val memoryTable = new MemoryTable(key.toLowerCase, isHivePartitioned)
-    if (isHivePartitioned) {
-      memoryTable.keyToHivePartitions = new JavaHashMap[String, RDD[_]]()
-      memoryTable.keyToCacheModes = new JavaHashMap[String, CacheType.CacheType]()
-    }
-    _keyToMemoryTable(key.toLowerCase) = memoryTable
-  }
-
-  def getCacheMode(key: String): CacheType.CacheType = {
-    _keyToMemoryTable.get(key.toLowerCase) match {
-      case Some(memoryTable) => return memoryTable.cacheMode
-      case _ => return CacheType.NONE
-    }
-  }
-
-  def getHivePartitionCacheMode(
-      key: String,
-      partitionColumnValues: String): CacheType.CacheType = {
-    _keyToMemoryTable.get(key.toLowerCase) match {
-      case Some(memoryTable) => return memoryTable.keyToCacheModes(partitionColumnValues)
-      case _ => return CacheType.NONE
-    }
-  }
-
-  def put(key: String, rdd: RDD[_], cacheMode: CacheType.CacheType) {
+  def put(key: String, rdd: RDD[_]) {
     val memoryTable = _keyToMemoryTable(key.toLowerCase)
     memoryTable.tableRDD = rdd
-    memoryTable.cacheMode = cacheMode
   }
 
   def putHivePartition(

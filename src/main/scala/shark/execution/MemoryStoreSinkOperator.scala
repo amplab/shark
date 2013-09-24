@@ -138,13 +138,13 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     }
 
     if (!SharkEnv.memoryMetadataManager.contains(tableName)) {
-      SharkEnv.memoryMetadataManager.add(tableName, partitionColumnValues.isDefined)
+      // This is a CTAS. Add a new table entry to the Shark metadata.
+      SharkEnv.memoryMetadataManager.add(tableName, partitionColumnValues.isDefined, cacheMode)
     }
     if (SharkEnv.memoryMetadataManager.isHivePartitioned(tableName)) {
-      SharkEnv.memoryMetadataManager.putHivePartition(
-        tableName, partitionColumnValues.get, rdd, cacheMode)
+      SharkEnv.memoryMetadataManager.putHivePartition(tableName, partitionColumnValues.get, rdd)
     } else {
-      SharkEnv.memoryMetadataManager.put(tableName, rdd, cacheMode)
+      SharkEnv.memoryMetadataManager.put(tableName, rdd)
     }
 
     // Report remaining memory.

@@ -44,12 +44,10 @@ class MemoryTable(
   // Should only be used if the table is not Hive-partitioned.
   var tableRDD: RDD[_] = _
 
-  // CacheMode for the tableRDD.
+  // CacheMode for the table.
+  // This is common to all Hive-partitions (if applicable).
   var cacheMode: CacheType.CacheType = _
 
   // Should only be used if a cached table is Hive-partitioned.
   var keyToHivePartitions: Map[String, RDD[_]] = _
-
-  // Map from Hive-Partition key to the cache mode for its RDD.
-  var keyToCacheModes: Map[String, CacheType.CacheType] = _
 }
