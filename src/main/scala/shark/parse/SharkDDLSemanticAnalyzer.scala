@@ -1,7 +1,5 @@
 package shark.parse
 
-import java.util.{Map => JavaMap}
-
 import scala.collection.JavaConversions._
 
 import org.apache.hadoop.hive.conf.HiveConf
@@ -12,6 +10,7 @@ import org.apache.spark.rdd.{UnionRDD, RDD}
 
 import shark.execution.EmptyRDD
 import shark.{LogHelper, SharkEnv}
+import shark.memstore2.MemoryMetadataManager
 
 
 class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf) with LogHelper {
@@ -45,7 +44,8 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
 
       for (addPartitionDesc <- addPartitionDescs) {
         val partitionColumnToValue = addPartitionDesc.getPartSpec
-        val keyStr = makePartitionKeyStr(partitionColumns, partitionColumnToValue)
+        val keyStr = MemoryMetadataManager.makeHivePartitionKeyStr(
+          partitionColumns, partitionColumnToValue)
         SharkEnv.memoryMetadataManager.putHivePartition(tableName, keyStr, new EmptyRDD(SharkEnv.sc))
       }
     }
@@ -62,7 +62,8 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
         _.getWork.asInstanceOf[DDLWork].getDropTblDesc).head.getPartSpecs
       for (partSpec <- partSpecs) {
         val partitionColumnToValue = partSpec.getPartSpecWithoutOperator
-        val keyStr = makePartitionKeyStr(partitionColumns, partitionColumnToValue)
+        val keyStr = MemoryMetadataManager.makeHivePartitionKeyStr(
+          partitionColumns, partitionColumnToValue)
         SharkEnv.memoryMetadataManager.putHivePartition(tableName, keyStr, new EmptyRDD(SharkEnv.sc))
       }
     }
@@ -70,17 +71,5 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
 
   private def getTableName(node: ASTNode): String = {
     BaseSemanticAnalyzer.getUnescapedName(node.getChild(0).asInstanceOf[ASTNode])
-  }
-
-  private def makePartitionKeyStr(
-      partitionColumns: Seq[String],
-      partitionColumnToValue: JavaMap[String, String]): String = {
-    // The keyStr is the string 'col1=value1/col2=value2'.
-    var keyStr = ""
-    for (partitionColumn <- partitionColumns) {
-      keyStr += "%s=%s/".format(partitionColumn, partitionColumnToValue(partitionColumn))
-    }
-    keyStr = keyStr.dropRight(1)
-    return keyStr
   }
 }

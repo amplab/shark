@@ -42,7 +42,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
   @BeanProperty var shouldCompress: Boolean = _
   @BeanProperty var storageLevel: StorageLevel = _
   @BeanProperty var tableName: String = _
-  @BeanProperty var partitionColumnValues: Option[String] = None  // delimited by '/'
+  @BeanProperty var hivePartitionKey: String = _
   @transient var cacheMode: CacheType.CacheType = _
   @transient var useUnionRDD: Boolean = _
   @transient var numColumns: Int = _
@@ -137,13 +137,13 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       origRdd.context.runJob(origRdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
     }
 
-    if (!SharkEnv.memoryMetadataManager.contains(tableName)) {
-      // This is a CTAS. Add a new table entry to the Shark metadata.
-      SharkEnv.memoryMetadataManager.add(tableName, partitionColumnValues.isDefined, cacheMode)
-    }
     if (SharkEnv.memoryMetadataManager.isHivePartitioned(tableName)) {
-      SharkEnv.memoryMetadataManager.putHivePartition(tableName, partitionColumnValues.get, rdd)
+      SharkEnv.memoryMetadataManager.putHivePartition(tableName, hivePartitionKey, rdd)
     } else {
+      if (!SharkEnv.memoryMetadataManager.contains(tableName)) {
+        // This is a CTAS. Add a new table entry to the Shark metadata.
+        SharkEnv.memoryMetadataManager.add(tableName, false /* isHivePartitioned */, cacheMode)
+      }
       SharkEnv.memoryMetadataManager.put(tableName, rdd)
     }
 

@@ -18,7 +18,7 @@
 package shark.memstore2
 
 import java.util.concurrent.ConcurrentHashMap
-import java.util.{HashMap => JavaHashMap}
+import java.util.{HashMap => JavaHashMap, Map => JavaMap}
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ConcurrentMap
@@ -166,6 +166,18 @@ class MemoryMetadataManager {
 
 
 object MemoryMetadataManager {
+
+  def makeHivePartitionKeyStr(
+      partitionColumns: Seq[String],
+      partitionColumnToValue: JavaMap[String, String]): String = {
+    // The keyStr is the string 'col1=value1/col2=value2'.
+    var keyStr = ""
+    for (partitionColumn <- partitionColumns) {
+      keyStr += "%s=%s/".format(partitionColumn, partitionColumnToValue(partitionColumn))
+    }
+    keyStr = keyStr.dropRight(1)
+    return keyStr
+  }
 
   /** Return a StorageLevel corresponding to its String name. */
   def getStorageLevelFromString(s: String): StorageLevel = {

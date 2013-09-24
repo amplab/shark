@@ -171,11 +171,23 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                   val useUnionRDD = qbParseInfo.isInsertIntoTable(cachedTableName)
                   val storageLevel = RDDUtils.getStorageLevelOfCachedRDD(rdd)
                   val cacheMode = SharkEnv.memoryMetadataManager.getCacheMode(cachedTableName)
+                  val table = db.getTable(
+                    db.getCurrentDatabase(), tableName, false /* throwException */)
+                  var hivePartitionKey = new String
+                  if (table.isPartitioned) {
+                    if (cacheMode == CacheType.TACHYON) {
+                      throw new SemanticException(
+                        "Shark does not support caching Hive-partitioned table(s) in Tachyon.")
+                    }
+                    hivePartitionKey = SharkSemanticAnalyzer.getHivePartitionKey(
+                        table.getPartCols.map(_.getName), qb)
+                  }
                   OperatorFactory.createSharkMemoryStoreOutputPlan(
                     hiveSinkOp,
                     cachedTableName,
                     storageLevel,
-                    _resSchema.size,  // numColumns
+                    _resSchema.size,  /* numColumns */
+                    hivePartitionKey,
                     cacheMode,
                     useUnionRDD)
                 } else {
@@ -200,9 +212,10 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
               hiveSinkOps.head,
               qb.getTableDesc.getTableName,
               storageLevel,
-              _resSchema.size,                // numColumns
+              _resSchema.size,  /* numColumns */
+              new String,  /* hivePartitionKey */
               qb.getCacheModeForCreateTable,
-              false)
+              false  /* useUnionRDD */)
           } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink && !qb.isCTAS) {
             OperatorFactory.createSharkRddOutputPlan(hiveSinkOps.head)
           } else {
@@ -417,7 +430,6 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
 
 
 object SharkSemanticAnalyzer extends LogHelper {
-
   /**
    * The reflection object used to invoke convertRowSchemaToViewSchema.
    */
@@ -432,6 +444,12 @@ object SharkSemanticAnalyzer extends LogHelper {
   private val viewsExpandedField = classOf[SemanticAnalyzer].getDeclaredField("viewsExpanded")
   viewsExpandedField.setAccessible(true)
 
+  private def getHivePartitionKey(partitionColumns: Seq[String], qb: QB): String = {
+    val selectClauseKey = qb.getParseInfo.getClauseNamesForDest.first
+    val partitionColumnToValue = qb.getMetaData.getPartSpecForAlias(selectClauseKey)
+    return MemoryMetadataManager.makeHivePartitionKeyStr(partitionColumns, partitionColumnToValue)
+  }
+  
   /**
    * Given a Hive top operator (e.g. TableScanOperator), find all the file sink
    * operators (aka file output operator).
