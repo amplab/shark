@@ -26,6 +26,7 @@ import scala.collection.mutable.ConcurrentMap
 import org.apache.spark.rdd.{RDD, UnionRDD}
 import org.apache.spark.storage.StorageLevel
 
+import shark.execution.RDDUtils
 import shark.SharkConfVars
 import shark.SharkEnv
 
@@ -116,6 +117,15 @@ class MemoryMetadataManager {
    */
   def getAllKeyStrings(): Seq[String] = {
     _keyToMemoryTable.keys.collect { case k: String => k } toSeq
+  }
+
+  def getStorageLevel(key: String): StorageLevel = {
+    if (isHivePartitioned(key)) {
+      val hivePartitionRDDs = _keyToMemoryTable(key.toLowerCase).keyToHivePartitions.values
+      return RDDUtils.getStorageLevelOfCachedRDDs(hivePartitionRDDs.toSeq)
+    } else {
+      return RDDUtils.getStorageLevelOfCachedRDD(get(key.toLowerCase).get)
+    }
   }
 
   /**

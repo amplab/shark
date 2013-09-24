@@ -164,35 +164,34 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
           } else {
             // Otherwise, check if we are inserting into a table that was cached.
             val cachedTableName = tableName.split('.')(1) // Ignore the database name
-            SharkEnv.memoryMetadataManager.get(cachedTableName) match {
-              case Some(rdd) => {
-                if (hiveSinkOps.size == 1) {
-                  // If useUnionRDD is false, the sink op is for INSERT OVERWRITE.
-                  val useUnionRDD = qbParseInfo.isInsertIntoTable(cachedTableName)
-                  val storageLevel = RDDUtils.getStorageLevelOfCachedRDD(rdd)
-                  val cacheMode = SharkEnv.memoryMetadataManager.getCacheMode(cachedTableName)
-                  var hivePartitionKey = new String
-                  if (SharkEnv.memoryMetadataManager.isHivePartitioned(cachedTableName)) {
-                    if (cacheMode == CacheType.TACHYON) {
-                      throw new SemanticException(
-                        "Shark does not support caching Hive-partitioned table(s) in Tachyon.")
-                    }
-                    hivePartitionKey = SharkSemanticAnalyzer.getHivePartitionKey(qb)
+            if (SharkEnv.memoryMetadataManager.contains(cachedTableName)) {
+              if (hiveSinkOps.size == 1) {
+                // If useUnionRDD is false, the sink op is for INSERT OVERWRITE.
+                val useUnionRDD = qbParseInfo.isInsertIntoTable(cachedTableName)
+                val cacheMode = SharkEnv.memoryMetadataManager.getCacheMode(cachedTableName)
+                var hivePartitionKey = new String
+                if (SharkEnv.memoryMetadataManager.isHivePartitioned(cachedTableName)) {
+                  if (cacheMode == CacheType.TACHYON) {
+                    throw new SemanticException(
+                      "Shark does not support caching Hive-partitioned table(s) in Tachyon.")
                   }
-                  OperatorFactory.createSharkMemoryStoreOutputPlan(
-                    hiveSinkOp,
-                    cachedTableName,
-                    storageLevel,
-                    _resSchema.size,  /* numColumns */
-                    hivePartitionKey,
-                    cacheMode,
-                    useUnionRDD)
-                } else {
-                  throw new SemanticException(
-                    "Shark does not support updating cached table(s) with multiple INSERTs")
+                  hivePartitionKey = SharkSemanticAnalyzer.getHivePartitionKey(qb)
                 }
+                val storageLevel = SharkEnv.memoryMetadataManager.getStorageLevel(cachedTableName)
+                OperatorFactory.createSharkMemoryStoreOutputPlan(
+                  hiveSinkOp,
+                  cachedTableName,
+                  storageLevel,
+                  _resSchema.size,  /* numColumns */
+                  hivePartitionKey,
+                  cacheMode,
+                  useUnionRDD)
+              } else {
+                throw new SemanticException(
+                  "Shark does not support updating cached table(s) with multiple INSERTs")
               }
-              case None => OperatorFactory.createSharkFileOutputPlan(hiveSinkOp)
+            } else {
+              OperatorFactory.createSharkFileOutputPlan(hiveSinkOp)
             }
           }
         }
