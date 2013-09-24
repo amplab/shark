@@ -17,10 +17,20 @@
 
 package shark.repl
 
+import org.apache.hadoop.hive.common.LogUtils
+import org.apache.hadoop.hive.common.LogUtils.LogInitializationException
+
+
 /**
  * Shark's REPL entry point.
  */
 object Main {
+
+  try {
+    LogUtils.initHiveLog4j()
+  } catch {
+    case e: LogInitializationException => // Ignore the error.
+  }
 
   private var _interp: SharkILoop = null
 
