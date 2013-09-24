@@ -169,7 +169,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                 if (hiveSinkOps.size == 1) {
                   // If useUnionRDD is false, the sink op is for INSERT OVERWRITE.
                   val useUnionRDD = qbParseInfo.isInsertIntoTable(cachedTableName)
-                  val storageLevel = RDDUtils.getStorageLevelOfCachedTable(rdd)
+                  val storageLevel = RDDUtils.getStorageLevelOfCachedRDD(rdd)
                   val cacheMode = SharkEnv.memoryMetadataManager.getCacheMode(cachedTableName)
                   OperatorFactory.createSharkMemoryStoreOutputPlan(
                     hiveSinkOp,
@@ -390,9 +390,14 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         createTableProperties.put("shark.cache", cacheMode.toString)
       }
 
+      val shouldCache = CacheType.shouldCache(cacheMode)
+      if (shouldCache) {
+        createTableDesc.setSerName(classOf[ColumnarSerDe].getName)
+      }
+
       // For CTAS, the SparkTask's MemoryStoreSinkOperator will create the table and the Hive
       // DDLTask will be a dependent of the SparkTask. SparkTasks are created in genMapRedTasks().
-      if (isRegularCreateTable) {
+      if (isRegularCreateTable && shouldCache) {
         // In Hive, a CREATE TABLE command is handled by a DDLTask, created by
         // SemanticAnalyzer#analyzeCreateTable(). The DDL tasks' execution succeeds only if the
         // CREATE TABLE is valid. So, hook a SharkDDLTask as a dependent of the Hive DDLTask so that
@@ -401,10 +406,6 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         val sharkDDLWork = new SparkDDLWork(createTableDesc)
         sharkDDLWork.cacheMode = cacheMode
         hiveDDLTask.addDependentTask(TaskFactory.get(sharkDDLWork, conf))
-      }
-
-      if (CacheType.shouldCache(cacheMode)) {
-        createTableDesc.setSerName(classOf[ColumnarSerDe].getName)
       }
 
       queryBlock.setCacheModeForCreateTable(cacheMode)

@@ -63,7 +63,11 @@ private[shark] class SparkDDLTask extends HiveTask[SparkDDLWork] with Serializab
       createTblDesc: CreateTableDesc,
       cacheMode: CacheType.CacheType) {
     val isHivePartitioned = (createTblDesc.getPartCols.size > 0)
-    SharkEnv.memoryMetadataManager.add(createTblDesc.getTableName, isHivePartitioned, cacheMode)
+    val tableName = createTblDesc.getTableName
+    SharkEnv.memoryMetadataManager.add(tableName, isHivePartitioned)
+    if (!isHivePartitioned) {
+      SharkEnv.memoryMetadataManager.put(tableName, new EmptyRDD(SharkEnv.sc), cacheMode)
+    }
   }
 
   def addPartition(

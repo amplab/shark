@@ -118,6 +118,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     // 3. Hive table on HDFS (or other Hadoop storage)
     val cacheMode = CacheType.fromString(
       tableDesc.getProperties().get("shark.cache").asInstanceOf[String])
+    // TODO(harvey): Pruning Hive-partitioned, cached tables aren't supported yet.
     if (cacheMode == CacheType.HEAP) {
       // Table should be in Spark heap (block manager).
       val rdd = SharkEnv.memoryMetadataManager.get(tableKey).getOrElse {

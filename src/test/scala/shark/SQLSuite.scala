@@ -222,6 +222,28 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   //////////////////////////////////////////////////////////////////////////////
   // cache DDL
   //////////////////////////////////////////////////////////////////////////////
+  test("Use regular CREATE TABLE and '_cached' suffix to create cached table") {
+    sc.runSql("drop table if exists empty_table_cached")
+    sc.runSql("create table empty_table_cached(key string, value string)")
+    assert(SharkEnv.memoryMetadataManager.contains("empty_table_cached"))
+    assert(!SharkEnv.memoryMetadataManager.isHivePartitioned("empty_table_cached"))
+  }
+
+  test("Use regular CREATE TABLE and table properties to create cached table") {
+    sc.runSql("drop table if exists empty_table_cached_tbl_props")
+    sc.runSql("""create table empty_table_cached_tbl_props(key string, value string)
+      TBLPROPERTIES('shark.cache' = 'true')""")
+    assert(SharkEnv.memoryMetadataManager.contains("empty_table_cached_tbl_props"))
+    assert(!SharkEnv.memoryMetadataManager.isHivePartitioned("empty_table_cached_tbl_props"))
+  }
+
+  test("Insert into empty cached table") {
+    sc.runSql("drop table if exists new_table_cached")
+    sc.runSql("create table new_table_cached(key string, value string)")
+    sc.runSql("insert into table new_table_cached select * from test where key > -1 limit 499")
+    expectSql("select count(*) from new_table_cached", "499")
+  }
+
   test("insert into cached tables") {
     sc.runSql("drop table if exists test1_cached")
     sc.runSql("create table test1_cached as select * from test")
@@ -318,59 +340,22 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
 
   //////////////////////////////////////////////////////////////////////////////
   // Caching Hive-partititioned tables
+  // Note: references to 'partition' for this section refer to a Hive-partition.
   //////////////////////////////////////////////////////////////////////////////
-  test("Use regular CREATE TABLE and '_cached' suffix to create cached table") {
-    sc.runSql("drop table if exists empty_table_cached")
-    sc.runSql("create table empty_table_cached(key string, value string)")
-    assert(SharkEnv.memoryMetadataManager.contains("empty_table_cached"))
-    assert(!SharkEnv.memoryMetadataManager.isHivePartitioned("empty_table_cached"))
-    sc.runSql("drop table if exists empty_table_cached")
-  }
-
-  test("Use regular CREATE TABLE and table properties to create cached table") {
-    sc.runSql("drop table if exists empty_table_cached_tbl_props")
-    sc.runSql("""create table empty_table_cached_tbl_props(key string, value string)
-      TBLPROPERTIES('shark.cache' = 'true')""")
-    assert(SharkEnv.memoryMetadataManager.contains("empty_table_cached_tbl_props"))
-    assert(!SharkEnv.memoryMetadataManager.isHivePartitioned("empty_table_cached_tbl_props"))
-    sc.runSql("drop table if exists empty_table_cached_tbl_props")
-  }
-
-  test("Insert into empty cached table") {
-    assert(true)
-  }
-
   test("Use regular CREATE TABLE and '_cached' suffix to create cached, partitioned table") {
     sc.runSql("drop table if exists empty_part_table_cached")
     sc.runSql("""create table empty_part_table_cached(key int, val string)
       partitioned by (keypart int)""")
     assert(SharkEnv.memoryMetadataManager.contains("empty_part_table_cached"))
     assert(SharkEnv.memoryMetadataManager.isHivePartitioned("empty_part_table_cached"))
-    sc.runSql("drop table if exists empty_part_table_cached")
   }
 
   test("Use regular CREATE TABLE and table properties to create cached, partitioned table") {
     sc.runSql("drop table if exists empty_part_table_cached_tbl_props")
     sc.runSql("""create table empty_part_table_cached_tbl_props(key int, val string)
-      partitioned by (keypart int)""")
+      partitioned by (keypart int) TBLPROPERTIES('shark.cache' = 'true')""")
     assert(SharkEnv.memoryMetadataManager.contains("empty_part_table_cached_tbl_props"))
     assert(SharkEnv.memoryMetadataManager.isHivePartitioned("empty_part_table_cached_tbl_props"))
-    sc.runSql("drop table if exists empty_part_table_cached_tbl_props")
-  }
-
-  test("drop cached, partitioned table that has a single partition") {
-    sc.runSql("drop table if exists srcpart_cached")
-    assert(true)
-  }
-
-  test("drop cached, partitioned table that has multiple partitions") {
-    sc.runSql("drop table if exists srcpart_cached")
-    assert(true)
-  }
-
-  test("drop cached, partitioned table that has a UnionRDD partition") {
-    sc.runSql("drop table if exists srcpart_cached")
-    assert(true)
   }
 
   test("alter cached table by adding a new partition") {
@@ -408,6 +393,21 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     assert(true)
   }
 
+  test("drop cached, partitioned table that has a single partition") {
+    sc.runSql("drop table if exists srcpart_cached")
+    assert(true)
+  }
+
+  test("drop cached, partitioned table that has multiple partitions") {
+    sc.runSql("drop table if exists srcpart_cached")
+    assert(true)
+  }
+
+  test("drop cached, partitioned table that has a UnionRDD partition") {
+    sc.runSql("drop table if exists srcpart_cached")
+    assert(true)
+  }
+
   //////////////////////////////////////////////////////////////////////////////
   // Tableau bug
   //////////////////////////////////////////////////////////////////////////////
@@ -434,7 +434,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   // various data types
   //////////////////////////////////////////////////////////////////////////////
   
-  test("various data types") {
+  test("boolean data type") {
     sc.sql("drop table if exists checkboolean")
     sc.sql("""create table checkboolean TBLPROPERTIES ("shark.cache" = "true") as
       select key, val, true as flag from test where key < "300" """)
@@ -442,7 +442,9 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       select key, val, false as flag from test where key > "300" """)
     expectSql("select flag, count(*) from checkboolean group by flag order by flag asc",
       Array[String]("false\t208", "true\t292"))
+  }
 
+  test("byte data type") {
     sc.sql("drop table if exists checkbyte")
     sc.sql("drop table if exists checkbyte_cached")
     sc.sql("""create table checkbyte (key string, val string, flag tinyint) """)
@@ -453,7 +455,9 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.sql("""create table checkbyte_cached as select * from checkbyte""")
     expectSql("select flag, count(*) from checkbyte_cached group by flag order by flag asc",
       Array[String]("0\t208", "1\t292"))
+  }
     
+  test("binary data type") {
     sc.sql("drop table if exists checkbinary")
     sc.sql("drop table if exists checkbinary_cached")
     sc.sql("""create table checkbinary (key string, flag binary) """)
@@ -464,7 +468,9 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.sql("create table checkbinary_cached as select key, flag from checkbinary")
     expectSql("select cast(flag as string) as f from checkbinary_cached order by f asc limit 2",
       Array[String]("val_0", "val_0"))
+  }
       
+  test("short data type") {
     sc.sql("drop table if exists checkshort")
     sc.sql("drop table if exists checkshort_cached")
     sc.sql("""create table checkshort (key string, val string, flag smallint) """)

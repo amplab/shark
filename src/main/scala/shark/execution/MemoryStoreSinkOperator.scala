@@ -42,7 +42,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
   @BeanProperty var shouldCompress: Boolean = _
   @BeanProperty var storageLevel: StorageLevel = _
   @BeanProperty var tableName: String = _
-  @BeanProperty var partitionColumnValues: String = _  // delimited by '/'
+  @BeanProperty var partitionColumnValues: Option[String] = None  // delimited by '/'
   @transient var cacheMode: CacheType.CacheType = _
   @transient var useUnionRDD: Boolean = _
   @transient var numColumns: Int = _
@@ -100,9 +100,6 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     if (tachyonWriter != null) {
       // Put the table in Tachyon.
       op.logInfo("Putting RDD for %s in Tachyon".format(tableName))
-
-      SharkEnv.memoryMetadataManager.put(tableName, rdd, cacheMode)
-
       tachyonWriter.createTable(ByteBuffer.allocate(0))
       rdd = rdd.mapPartitionsWithIndex { case(partitionIndex, iter) =>
         val partition = iter.next()
@@ -134,11 +131,20 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         rdd = rdd.union(
           SharkEnv.memoryMetadataManager.get(tableName).get.asInstanceOf[RDD[TablePartition]])
       }
-      SharkEnv.memoryMetadataManager.put(tableName, rdd, cacheMode)
       rdd.setName(tableName)
 
       // Run a job on the original RDD to force it to go into cache.
       origRdd.context.runJob(origRdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
+    }
+
+    if (!SharkEnv.memoryMetadataManager.contains(tableName)) {
+      SharkEnv.memoryMetadataManager.add(tableName, partitionColumnValues.isDefined)
+    }
+    if (SharkEnv.memoryMetadataManager.isHivePartitioned(tableName)) {
+      SharkEnv.memoryMetadataManager.putHivePartition(
+        tableName, partitionColumnValues.get, rdd, cacheMode)
+    } else {
+      SharkEnv.memoryMetadataManager.put(tableName, rdd, cacheMode)
     }
 
     // Report remaining memory.
@@ -160,9 +166,13 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         // Combine stats for the two tables being combined.
         val numPartitions = statsAcc.value.toMap.size
         val currentStats = statsAcc.value
-        val otherIndexToStats = SharkEnv.memoryMetadataManager.getStats(tableName).get
-        for ((otherIndex, tableStats) <- otherIndexToStats) {
-          currentStats.append((otherIndex + numPartitions, tableStats))
+        SharkEnv.memoryMetadataManager.getStats(tableName) match {
+          case Some(otherIndexToStats) => {
+            for ((otherIndex, tableStats) <- otherIndexToStats) {
+              currentStats.append((otherIndex + numPartitions, tableStats))
+            }
+          }
+          case _ => Unit
         }
         currentStats.toMap
       } else {
