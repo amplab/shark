@@ -54,7 +54,7 @@ class SparkTask extends HiveTask[SparkWork] with Serializable with LogHelper {
   def tableRdd: Option[TableRDD] = _tableRdd
 
   override def execute(driverContext: DriverContext): Int = {
-    logInfo("Executing " + this.getClass.getName)
+    logDebug("Executing " + this.getClass.getName)
 
     val ctx = driverContext.getCtx()
 

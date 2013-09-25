@@ -64,7 +64,7 @@ class ScriptOperator extends UnaryOperator[HiveScriptOperator] {
     val (command, envs) = getCommandAndEnvs()
     val outRecordReaderClass: Class[_ <: RecordReader] = hiveOp.getConf().getOutRecordReaderClass()
     val inRecordWriterClass: Class[_ <: RecordWriter] = hiveOp.getConf().getInRecordWriterClass()
-    logInfo("Using %s and %s".format(outRecordReaderClass, inRecordWriterClass))
+    logDebug("Using %s and %s".format(outRecordReaderClass, inRecordWriterClass))
 
     // Deserialize the output from script back to what Hive understands.
     inputRdd.mapPartitions { part =>
