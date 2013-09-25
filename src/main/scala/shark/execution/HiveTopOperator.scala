@@ -51,14 +51,14 @@ trait HiveTopOperator extends LogHelper {
    * Initialize the Hive operator when all input object inspectors are ready.
    */
   def initializeHiveTopOperator() {
-    logInfo("Started executing " + self + " initializeHiveTopOperator()")
+    logDebug("Started executing " + self + " initializeHiveTopOperator()")
 
     // Call initializeDownStreamHiveOperators() of upstream operators that are
     // ReduceSink so we can get the proper input object inspectors and serdes.
     val reduceSinkParents = self.parentOperators.filter(_.isInstanceOf[ReduceSinkOperator])
     reduceSinkParents.foreach { parent =>
       parent.asInstanceOf[ReduceSinkOperator].initializeDownStreamHiveOperator()
-      logInfo("parent : " + parent)
+      logDebug("parent : " + parent)
     }
     
     // Only do initialize if all our input inspectors are ready. We use >
@@ -86,7 +86,7 @@ trait HiveTopOperator extends LogHelper {
       self.hiveOp.initialize(hconf, objectInspectorArray)
     }
     
-    logInfo("Finished executing " + self + " initializeHiveTopOperator()")
+    logDebug("Finished executing " + self + " initializeHiveTopOperator()")
   }
 
   def setInputObjectInspector(tag: Int, objectInspector: ObjectInspector) {
