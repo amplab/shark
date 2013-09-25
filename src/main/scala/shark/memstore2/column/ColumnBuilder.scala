@@ -145,7 +145,7 @@ object ColumnBuilder {
       case _ => new GenericColumnBuilder(columnOi)
     }
     if (shouldCompress) {
-      v.compressionSchemes = Seq(new RLE())
+      v.compressionSchemes = Seq(new RLE(), new BooleanBitSetCompression())
     }
     v
   }
