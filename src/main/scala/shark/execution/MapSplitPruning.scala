@@ -57,11 +57,18 @@ object MapSplitPruning {
           e.genericUDF match {
             case _: GenericUDFOPAnd => test(s, e.children(0)) && test(s, e.children(1))
             case _: GenericUDFOPOr => test(s, e.children(0)) || test(s, e.children(1))
-            case _: GenericUDFBetween => 
-              testBetweenPredicate(s, e.children(0).asInstanceOf[ExprNodeConstantEvaluator],
-                e.children(1).asInstanceOf[ExprNodeColumnEvaluator],
-                e.children(2).asInstanceOf[ExprNodeConstantEvaluator],
-                e.children(3).asInstanceOf[ExprNodeConstantEvaluator])
+            case _: GenericUDFBetween =>
+              val col = e.children(1)
+              if (col.isInstanceOf[ExprNodeColumnEvaluator]) {
+                testBetweenPredicate(s, e.children(0).asInstanceOf[ExprNodeConstantEvaluator],
+                  col.asInstanceOf[ExprNodeColumnEvaluator],
+                  e.children(2).asInstanceOf[ExprNodeConstantEvaluator],
+                  e.children(3).asInstanceOf[ExprNodeConstantEvaluator])
+              } else {
+                //cannot prune function based evaluators in general.
+                true
+              }
+
             case _: GenericUDFIn =>
               testInPredicate(s, e.children(0).asInstanceOf[ExprNodeColumnEvaluator], e.children.drop(1))
             case udf: GenericUDFBaseCompare =>
@@ -93,20 +100,20 @@ object MapSplitPruning {
       true
     }
   }
-  
+
   def testBetweenPredicate(
     s: TablePartitionStats,
     invertEval: ExprNodeConstantEvaluator,
     columnEval: ExprNodeColumnEvaluator,
     leftEval: ExprNodeConstantEvaluator,
     rightEval: ExprNodeConstantEvaluator): Boolean = {
-    
+
     val field = columnEval.field.asInstanceOf[IDStructField]
     val columnStats = s.stats(field.fieldID)
     val leftValue: Object = leftEval.expr.getValue
     val rightValue: Object = rightEval.expr.getValue
     val invertValue: Boolean = invertEval.expr.getValue.asInstanceOf[Boolean]
-    
+
     if (columnStats != null) {
        val exists = (columnStats :>< (leftValue , rightValue))
        if (invertValue) !exists else exists
