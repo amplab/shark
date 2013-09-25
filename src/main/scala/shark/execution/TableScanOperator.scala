@@ -269,12 +269,17 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
       val serializedHconf = XmlSerializer.serialize(localHconf, localHconf)
       
       hivePartitionRDD.get.mapPartitions { iter =>
-        val rowWithPartArr = new Array[Object](2)
-        // Map each tuple to a row object
-        iter.map { value =>
-          rowWithPartArr.update(0, value.asInstanceOf[Object])
-          rowWithPartArr.update(1, partValues)
-          rowWithPartArr.asInstanceOf[Object]
+        if (iter.hasNext) {
+          // Map each tuple to a row object
+          val rowWithPartArr = new Array[Object](2)
+          val tablePartition = iter.next.asInstanceOf[TablePartition]
+          tablePartition.iterator.map { value =>
+            rowWithPartArr.update(0, value.asInstanceOf[Object])
+            rowWithPartArr.update(1, partValues)
+            rowWithPartArr.asInstanceOf[Object]
+          }
+        } else {
+         Iterator()
         }
       }
     }
@@ -284,7 +289,6 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
       new EmptyRDD(SharkEnv.sc)
     }
   }
-
 
   /**
    * Create an RDD for every partition column specified in the query. Note that for on-disk Hive
