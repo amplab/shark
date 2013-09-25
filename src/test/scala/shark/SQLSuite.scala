@@ -405,9 +405,8 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       select * from test""")
     expectSql("""select value from insert_over_part_cached
       where key = 407 and keypart = 1""", "val_407")
-
     sc.runSql("""insert overwrite table insert_over_part_cached partition(keypart = 1)
-      select value, -1 from test""")
+      select key, -1 from test""")
     expectSql("select value from insert_over_part_cached where key = 407 and keypart = 1", "-1")
   }
 
@@ -423,18 +422,18 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.runSql("""create table scan_single_part_cached(key int, value string)
       partitioned by (keypart int)""")
     sc.runSql("insert into table scan_single_part_cached partition(keypart = 1) select * from test")
-    expectSql("select value from scan_single_part_cached where key = 407", "val_407")
+    expectSql("select * from scan_single_part_cached where key = 407", "407\tval_407\t1")
   }
 
   test("scan cached, partitioned table that has multiple partitions") {
     sc.runSql("drop table if exists scan_mult_part_cached")
-    sc.runSql("""create table scan_single_part_cached(key int, value string)
+    sc.runSql("""create table scan_mult_part_cached(key int, value string)
       partitioned by (keypart int)""")
     sc.runSql("insert into table scan_mult_part_cached partition(keypart = 1) select * from test")
     sc.runSql("insert into table scan_mult_part_cached partition(keypart = 5) select * from test")
     sc.runSql("insert into table scan_mult_part_cached partition(keypart = 9) select * from test")
-    expectSql("select value, keypart from scan_mult_part_cached where key = 407 order by keypart",
-      Array("val_407\t1", "val_407\t5", "val_407\t9"))
+    expectSql("select * from scan_mult_part_cached where key = 407 order by keypart",
+      Array("407\tval_407\t1", "407\tval_407\t5", "407\tval_407\t9"))
   }
 
   test("drop/unpersist cached, partitioned table that has multiple partitions") {
@@ -448,8 +447,8 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     val keypart1RDD = SharkEnv.memoryMetadataManager.getHivePartition(tableName, "keypart=1")
     val keypart5RDD = SharkEnv.memoryMetadataManager.getHivePartition(tableName, "keypart=5")
     val keypart9RDD = SharkEnv.memoryMetadataManager.getHivePartition(tableName, "keypart=9")
-    sc.runSql("drop table drop_mult_part_cached table ")
-    assert(!SharkEnv.memoryMetadataManager.contains("empty_part_table_cached_tbl_props"))
+    sc.runSql("drop table drop_mult_part_cached ")
+    assert(!SharkEnv.memoryMetadataManager.contains("drop_mult_part_cached"))
     // All RDDs should have been unpersisted.
     //assert(keypart1RDD.get.getStorageLevel == StorageLevel.NONE)
     //assert(keypart5RDD.get.getStorageLevel == StorageLevel.NONE)
@@ -465,7 +464,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.runSql("insert into table drop_union_part_cached partition(keypart = 1) select * from test")
     val tableName = "drop_union_part_cached"
     val keypart1RDD = SharkEnv.memoryMetadataManager.getHivePartition(tableName, "keypart=1")
-    sc.runSql("drop table drop_union_part_cached table ")
+    sc.runSql("drop table drop_union_part_cached")
     assert(!SharkEnv.memoryMetadataManager.contains("drop_union_part_cached"))
     // All RDDs should have been unpersisted.
     //assert(keypart1RDD.getStorageLevel == StorageLevel.NONE)

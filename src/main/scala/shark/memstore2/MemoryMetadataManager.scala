@@ -120,7 +120,7 @@ class MemoryMetadataManager {
   }
 
   def getStorageLevel(key: String): StorageLevel = {
-    if (isHivePartitioned(key)) {
+    if (isHivePartitioned(key.toLowerCase)) {
       val hivePartitionRDDs = _keyToMemoryTable(key.toLowerCase).keyToHivePartitions.values
       return RDDUtils.getStorageLevelOfCachedRDDs(hivePartitionRDDs.toSeq)
     } else {

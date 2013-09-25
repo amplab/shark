@@ -128,7 +128,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         throw(new QueryExecutionException("Cached table not found"))
       }
       if (SharkEnv.memoryMetadataManager.isHivePartitioned(tableKey)) {
-        // Get a union of the Hive partition RDDs.
+        // Get the union of RDDs repesenting the selected Hive partition(s).
         makeCachedPartitionRDD(tableKey, parts)
       } else {
         val rdd = SharkEnv.memoryMetadataManager.get(tableKey).get
@@ -221,8 +221,9 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
    * Create a RDD representing the table (with or without partitions).
    */
   override def preprocessRdd(rdd: RDD[_]): RDD[_] = {
+    val tableKey: String = tableDesc.getTableName.split('.')(1)
     if (table.isPartitioned) {
-      logInfo("Making %d Hive partitions".format(parts.size))
+      logInfo("Making %d Hive partitions for table %s".format(parts.size, tableKey))
       makePartitionRDD(parts)
     } else {
       val tablePath = table.getPath.toString
@@ -261,7 +262,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
           if (partSpec == null) {
             new String
           } else {
-            partSpec.get(key).toArray
+            new String(partSpec.get(key))
           }
         }.toArray
       val partKeyStr = MemoryMetadataManager.makeHivePartitionKeyStr(partColumns, partSpec)
@@ -286,7 +287,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     if (hivePartitionRDDSeq.size > 0) {
       new UnionRDD(hivePartitionRDDSeq.head.context, hivePartitionRDDSeq)
     } else {
-      new EmptyRDD(SharkEnv.sc)
+      SharkEnv.sc.makeRDD(Seq[Object]())
     }
   }
 
