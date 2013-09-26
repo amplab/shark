@@ -19,6 +19,8 @@ package shark.memstore2.column
 
 import java.nio.ByteBuffer
 
+import org.apache.hadoop.io.BooleanWritable
+
 import shark.memstore2.column.Implicits._
 
 /**
@@ -41,6 +43,7 @@ trait CompressedColumnIterator extends ColumnIterator {
       case DefaultCompressionType => new DefaultDecoder(buffer, columnType)
       case RLECompressionType => new RLDecoder(buffer, columnType)
       case DictionaryCompressionType => new DictDecoder(buffer, columnType)
+      case BooleanBitSetCompressionType => new BooleanBitSetDecoder(buffer, columnType)
       case _ => throw new UnsupportedOperationException()
     }
   }
@@ -123,3 +126,35 @@ class DictDecoder[V](buffer: ByteBuffer, columnType: ColumnType[_, V]) extends I
     _dictionary(index)
   }
 }
+
+/**
+ * Boolean BitSet encoding.
+ */
+class BooleanBitSetDecoder[V](
+    buffer: ByteBuffer,
+    columnType: ColumnType[_, V],
+    var _pos: Int,
+    var _uncompressedSize: Int,
+    var _curValue: Long,
+    var _writable: BooleanWritable
+  ) extends Iterator[V] {
+
+  def this(buffer: ByteBuffer, columnType: ColumnType[_, V])
+      = this(buffer, columnType, 0, buffer.getInt(), 0, new BooleanWritable())
+
+  override def hasNext = _pos < _uncompressedSize
+
+  override def next(): V = {
+    val offset = _pos % BooleanBitSetCompression.BOOLEANS_PER_LONG
+
+    if (offset == 0) {
+      _curValue = buffer.getLong()
+    }
+
+    val retval: Boolean = (_curValue & (1 << offset)) != 0
+    _pos += 1
+    _writable.set(retval)
+    _writable.asInstanceOf[V]
+  }
+}
+

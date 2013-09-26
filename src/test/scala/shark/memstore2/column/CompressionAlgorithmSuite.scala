@@ -258,4 +258,34 @@ class CompressionAlgorithmSuite extends FunSuite {
     assert(newBuffer.getInt() === STRING.typeID)
     assert(newBuffer.getInt() === DefaultCompressionType.typeID)
   }
+
+  test("BooleanBitSet encoding") {
+    val bbs = new BooleanBitSetCompression()
+    val b = ByteBuffer.allocate(4 + 64 + 2)
+    b.order(ByteOrder.nativeOrder())
+    b.putInt(BOOLEAN.typeID)
+    for(_ <- 1 to 5) {
+      b.put(0.toByte)
+      b.put(1.toByte)
+      bbs.gatherStatsForCompressibility(false, BOOLEAN)
+      bbs.gatherStatsForCompressibility(true, BOOLEAN)
+    }
+    for(_ <- 1 to 54) {
+      b.put(0.toByte)
+      bbs.gatherStatsForCompressibility(false, BOOLEAN)
+    }
+    b.put(0.toByte)
+    b.put(1.toByte)
+    bbs.gatherStatsForCompressibility(false, BOOLEAN)
+    bbs.gatherStatsForCompressibility(true, BOOLEAN)
+    b.limit(b.position())
+    b.rewind()
+    val compressedBuffer = bbs.compress(b, BOOLEAN)
+    assert(compressedBuffer.getInt() === BOOLEAN.typeID)
+    assert(compressedBuffer.getInt() === BooleanBitSetCompressionType.typeID)
+    assert(compressedBuffer.getInt() === 64 + 2)
+    assert(compressedBuffer.getLong() === 682)
+    assert(compressedBuffer.getLong() === 2)
+    assert(!compressedBuffer.hasRemaining)
+  }
 }
