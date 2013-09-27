@@ -108,6 +108,6 @@ object SharkBuild extends Build {
       "junit" % "junit" % "4.10" % "test",
       "net.java.dev.jets3t" % "jets3t" % "0.9.0",
       "com.novocode" % "junit-interface" % "0.8" % "test") ++
-      (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.3.0-SNAPSHOT" excludeAll(excludeKyro, excludeHadoop) ) else None).toSeq
+      (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.3.0-SNAPSHOT" excludeAll(excludeKyro, excludeHadoop, excludeNetty) ) else None).toSeq
   )
 }
