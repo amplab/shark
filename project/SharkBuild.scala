@@ -42,6 +42,7 @@ object SharkBuild extends Build {
   val excludeKyro = ExclusionRule(organization = "de.javakaffee")
   val excludeHadoop = ExclusionRule(organization = "org.apache.hadoop")
   val excludeNetty = ExclusionRule(organization = "org.jboss.netty")
+  val excludeCurator = ExclusionRule(organization = "org.apache.curator")
 
   def coreSettings = Defaults.defaultSettings ++ Seq(
 
@@ -108,6 +109,6 @@ object SharkBuild extends Build {
       "junit" % "junit" % "4.10" % "test",
       "net.java.dev.jets3t" % "jets3t" % "0.9.0",
       "com.novocode" % "junit-interface" % "0.8" % "test") ++
-      (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.3.0-SNAPSHOT" excludeAll(excludeKyro, excludeHadoop, excludeNetty) ) else None).toSeq
+      (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.3.0-SNAPSHOT" excludeAll(excludeKyro, excludeHadoop, excludeNetty, excludeCurator) ) else None).toSeq
   )
 }
