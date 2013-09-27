@@ -15,18 +15,7 @@
  * limitations under the License.
  */
 
-package shark.execution
-
-import org.apache.hadoop.hive.ql.exec.{LateralViewForwardOperator => HiveLateralViewForwardOperator}
-
-import org.apache.spark.rdd.RDD
+package shark.memstore2.column
 
 
-class LateralViewForwardOperator extends UnaryOperator[HiveLateralViewForwardOperator] {
-
-  override def execute(): RDD[_] = executeParents().head._2
-
-  override def processPartition(split: Int, iter: Iterator[_]) = iter
-
-}
-
+class MemoryStoreException(message: String) extends Exception(message)

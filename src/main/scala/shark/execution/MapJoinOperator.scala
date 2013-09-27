@@ -28,10 +28,13 @@ import org.apache.hadoop.hive.ql.exec.{MapJoinOperator => HiveMapJoinOperator}
 import org.apache.hadoop.hive.ql.plan.MapJoinDesc
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 
+import org.apache.spark.SparkEnv
+import org.apache.spark.rdd.RDD
+import org.apache.spark.storage.StorageLevel
+
 import shark.SharkEnv
 import shark.execution.serialization.{OperatorSerializationWrapper, SerializableWritable}
-import spark.{RDD, SparkEnv}
-import spark.storage.StorageLevel
+
 
 /**
  * A join operator optimized for joining a large table with a number of small
@@ -89,8 +92,8 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
   }
 
   override def combineMultipleRdds(rdds: Seq[(Int, RDD[_])]): RDD[_] = {
-    logInfo("%d small tables to map join a large table (%d)".format(rdds.size - 1, posBigTable))
-    logInfo("Big table alias " + bigTableAlias)
+    logDebug("%d small tables to map join a large table (%d)".format(rdds.size - 1, posBigTable))
+    logDebug("Big table alias " + bigTableAlias)
 
     val op1 = OperatorSerializationWrapper(this)
 
@@ -99,7 +102,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
     // Build hash tables for the small tables.
     val hashtables = rdds.zipWithIndex.filter(_._2 != bigTableAlias).map { case ((_, rdd), pos) =>
 
-      logInfo("Creating hash table for input %d".format(pos))
+      logDebug("Creating hash table for input %d".format(pos))
 
       // First compute the keys and values of the small RDDs on slaves.
       // We need to do this before collecting the RDD because the RDD might
@@ -138,7 +141,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
       if(storageLevel == StorageLevel.NONE)
         rddForHash.unpersist()
 
-      logInfo("wrappedRows size:" + wrappedRows.size)
+      logDebug("wrappedRows size:" + wrappedRows.size)
       val collectTime = System.currentTimeMillis() - startCollect
       logInfo("HashTable collect took " + collectTime + " ms")
 

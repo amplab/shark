@@ -30,9 +30,10 @@ import org.apache.hadoop.hive.ql.plan.{PlanUtils, PartitionDesc}
 import org.apache.hadoop.hive.ql.plan.api.StageType
 import org.apache.hadoop.hive.ql.session.SessionState
 
+import org.apache.spark.rdd.RDD
+
 import shark.api.TableRDD
 import shark.{LogHelper, SharkEnv}
-import spark.RDD
 
 
 class SparkWork(
@@ -53,7 +54,7 @@ class SparkTask extends HiveTask[SparkWork] with Serializable with LogHelper {
   def tableRdd: Option[TableRDD] = _tableRdd
 
   override def execute(driverContext: DriverContext): Int = {
-    logInfo("Executing " + this.getClass.getName)
+    logDebug("Executing " + this.getClass.getName)
 
     val ctx = driverContext.getCtx()
 

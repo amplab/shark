@@ -34,12 +34,12 @@ import org.apache.hadoop.hive.serde2.Deserializer
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils
 import org.apache.hadoop.io.BytesWritable
 
+import org.apache.spark.{Aggregator, HashPartitioner}
+import org.apache.spark.rdd.{RDD, ShuffledRDD}
+
 import shark.SharkEnv
 import shark.execution._
 import shark.execution.serialization.OperatorSerializationWrapper
-
-import spark.{Aggregator, HashPartitioner, RDD}
-import spark.rdd.ShuffledRDD
 
 
 // The final phase of group by.
@@ -231,7 +231,7 @@ class GroupByPostShuffleOperator extends GroupByPreShuffleOperator with HiveTopO
   }
 
   def sortAggregate(iter: Iterator[_]) = {
-    logInfo("Running Post Shuffle Group-By")
+    logDebug("Running Post Shuffle Group-By")
 
     if (iter.hasNext) {
       // Sort based aggregation iterator.
@@ -401,7 +401,7 @@ class GroupByPostShuffleOperator extends GroupByPreShuffleOperator with HiveTopO
   def hashAggregate(iter: Iterator[_]) = {
     // TODO: use MutableBytesWritable to avoid the array copy.
     val bytes = new BytesWritable()
-    logInfo("Running Post Shuffle Group-By")
+    logDebug("Running Post Shuffle Group-By")
     val outputCache = new Array[Object](keyFields.length + aggregationEvals.length)
 
     // The reusedRow is used to conform to Hive's expected row format.

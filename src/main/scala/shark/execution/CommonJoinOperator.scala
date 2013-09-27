@@ -31,11 +31,10 @@ import org.apache.hadoop.hive.ql.plan.{ExprNodeDesc, JoinCondDesc, JoinDesc, Tab
 import org.apache.hadoop.hive.serde2.Deserializer
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, PrimitiveObjectInspector}
 
-import shark.SharkConfVars
+import org.apache.spark.rdd.{RDD, UnionRDD}
+import org.apache.spark.SparkContext.rddToPairRDDFunctions
 
-import spark.RDD
-import spark.rdd.UnionRDD
-import spark.SparkContext.rddToPairRDDFunctions
+import shark.SharkConfVars
 
 
 abstract class CommonJoinOperator[JOINDESCTYPE <: JoinDesc, T <: HiveCommonJoinOperator[JOINDESCTYPE]]

@@ -20,9 +20,10 @@ package shark.tachyon
 import java.nio.ByteBuffer
 import java.util.BitSet
 
+import org.apache.spark.rdd.RDD
+
 import shark.memstore2.TablePartition
 
-import spark.RDD
 
 
 /**
