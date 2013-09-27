@@ -1,0 +1,20 @@
+# Included Makefiles.  Platform Makefiles + BuildyBlocks Makefiles
+add yinst pkg buildyblocks_makerules    1.11       1.9999
+
+# BuildyBlocks.
+add yinst pkg buildyblocks              1.76      1.9999
+
+# Build tools
+add yinst pkg dist_tools                3.174     3.9999
+add yinst pkg git                       1.7.12    1.9999
+add yinst pkg gitzip                    0.3.4     0.9999
+
+add yinst pkg yjava_jdk                 1.7.0_13.66 1.7.9999999
+add yinst pkg miners_scala              2.9.3.0     2.99999
+
+add yinst pkg miners_spark_devel	0.7.2.100.2	*
+add yinst pkg miners_hive_devel		0.9.0.4.hadoop23	0.9.0.4.hadoop23
+add yinst pkg yahoo_cfg_dev		4.0.100		*
+
+# Needed to force the version to match what is outside the yroot
+add yinst pkg ylock_kern                1.98.0.16
