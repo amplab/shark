@@ -15,7 +15,7 @@ SHARK_PROJ_DIR_DEFAULT="$(cd `dirname $0`/../../; pwd)"
 SPARK_MEM_DEFAULT=4g
 SHARK_MASTER_MEM_DEFAULT=4g
 SPARK_KV_JAVA_OPTS_DEFAULT=("-Dspark.local.dir=/tmp " "-Dspark.kryoserializer.buffer.mb=10 ")
-SPARK_GIT_URL_DEFAULT="https://github.com/mesos/spark.git"
+SPARK_GIT_URL_DEFAULT="https://github.com/apache/incubator-spark.git -b branch-0.8"
 HIVE_GIT_URL_DEFAULT="https://github.com/amplab/hive.git -b shark-0.9"
 SPARK_HADOOP_VERSION_DEFAULT="1.0.4"
 SPARK_WITH_YARN_DEFAULT=false
