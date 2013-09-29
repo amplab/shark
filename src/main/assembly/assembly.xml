@@ -25,25 +25,25 @@
   <fileSets>
     <fileSet>
       <includes>
-        <include>README</include>
+        <include>README.md</include>
       </includes>
     </fileSet>
-    <!--<fileSet>-->
-      <!--<directory>-->
-        <!--${project.parent.basedir}/core/src/main/resources/org/apache/spark/ui/static/-->
-      <!--</directory>-->
-      <!--<outputDirectory>/ui-resources/org/apache/spark/ui/static</outputDirectory>-->
-      <!--<includes>-->
-        <!--<include>**/*</include>-->
-      <!--</includes>-->
-    <!--</fileSet>-->
     <fileSet>
       <directory>
-        ${project.parent.basedir}
+        ${project.basedir}/bin
       </directory>
       <outputDirectory>/bin</outputDirectory>
+      <excludes>
+        <exclude>dev/**</exclude>
+      </excludes>
+    </fileSet>
+    <fileSet>
+      <directory>
+        ${project.basedir}/conf
+      </directory>
+      <outputDirectory>/conf</outputDirectory>
       <includes>
-        <include>run</include>
+        <include>*</include>
       </includes>
     </fileSet>
   </fileSets>
