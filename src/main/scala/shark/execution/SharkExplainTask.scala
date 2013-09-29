@@ -50,7 +50,7 @@ class SharkExplainTask extends Task[SharkExplainWork] with java.io.Serializable 
   val hiveExplainTask = new ExplainTask
 
   override def execute(driverContext: DriverContext): Int = {
-    logInfo("Executing " + this.getClass.getName())
+    logDebug("Executing " + this.getClass.getName())
     hiveExplainTask.setWork(work)
 
     try {

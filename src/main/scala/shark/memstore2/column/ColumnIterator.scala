@@ -53,6 +53,7 @@ object Implicits {
     case DefaultCompressionType.typeID => DefaultCompressionType
     case RLECompressionType.typeID => RLECompressionType
     case DictionaryCompressionType.typeID => DictionaryCompressionType
+    case BooleanBitSetCompressionType.typeID => BooleanBitSetCompressionType
     case _ => throw new MemoryStoreException("Unknown compression type " + i)
   }
 

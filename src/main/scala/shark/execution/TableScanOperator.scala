@@ -229,7 +229,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
       val tablePath = table.getPath.toString
       val ifc = table.getInputFormatClass
           .asInstanceOf[java.lang.Class[InputFormat[Writable, Writable]]]
-      logInfo("Table input: %s".format(tablePath))
+      logDebug("Table input: %s".format(tablePath))
       createHadoopRdd(tablePath, ifc)
     }
   }
