@@ -107,8 +107,8 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
 
         // There are two cases that will enable caching:
         // 1) Table name includes "_cached" or "_tachyon".
-        // 2) The "shark.cache" table property is "true", or the string representation of a supported
-        //   cache mode (heap, Tachyon).
+        // 2) The "shark.cache" table property is "true", or the string representation of a 
+        //   supported cache mode (heap, Tachyon).
         cacheMode = CacheType.fromString(createTableProperties.get("shark.cache"))
         // Continue planning based on the 'cacheMode' read.
         if (cacheMode == CacheType.HEAP ||
@@ -377,7 +377,8 @@ object SharkSemanticAnalyzer extends LogHelper {
    * Given a Hive top operator (e.g. TableScanOperator), find all the file sink
    * operators (aka file output operator).
    */
-  private def findAllHiveFileSinkOperators(op: HiveOperator[_<: HiveDesc]): Seq[HiveOperator[_<: HiveDesc]] = {
+  private def findAllHiveFileSinkOperators(op: HiveOperator[_<: HiveDesc]): 
+    Seq[HiveOperator[_<: HiveDesc]] = {
     if (op.getChildOperators() == null || op.getChildOperators().size() == 0) {
       Seq[HiveOperator[_<: HiveDesc]](op)
     } else {

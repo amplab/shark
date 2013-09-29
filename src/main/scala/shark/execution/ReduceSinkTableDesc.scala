@@ -23,10 +23,12 @@ import org.apache.hadoop.hive.ql.plan.TableDesc
 trait ReduceSinkTableDesc extends LogHelper {
   self: Operator[_ <: HiveDesc] =>
   
-  def keyValueDescs() = {
+  // Seq(tag, (Key TableDesc, Value TableDesc))
+  def keyValueDescs(): Seq[(Int, (TableDesc, TableDesc))] = {
     // get the parent ReduceSinkOperator and sort it by tag
-    var reduceSinkOps = for(op <- self.parentOperators; if(op.isInstanceOf[ReduceSinkOperator]))
-        yield op.asInstanceOf[ReduceSinkOperator]
+    var reduceSinkOps = for(op <- self.parentOperators.toSeq; 
+        if(op.isInstanceOf[ReduceSinkOperator]))
+          yield op.asInstanceOf[ReduceSinkOperator]
     
     reduceSinkOps.map(f=>(f.getTag, f.getKeyValueTableDescs))
   }
