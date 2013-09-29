@@ -19,13 +19,16 @@ package org.apache.hadoop.hive.ql.exec
 // Put this file in Hive's exec package to access package level visible fields and methods.
 
 import java.util.{ArrayList => JArrayList, HashMap => JHashMap, HashSet => JHashSet, Set => JSet}
+
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
+
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.plan.{ExprNodeColumnDesc, TableDesc}
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator.AggregationBuffer
-import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorUtils,StandardStructObjectInspector, StructObjectInspector, UnionObject}
+import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorUtils,
+  StandardStructObjectInspector, StructObjectInspector, UnionObject}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption
 import org.apache.hadoop.hive.serde2.Deserializer
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils

@@ -19,6 +19,7 @@ package shark.execution
 
 import scala.collection.Iterator
 import scala.reflect.BeanProperty
+
 import org.apache.hadoop.hive.ql.exec.{LimitOperator => HiveLimitOperator}
 import org.apache.hadoop.hive.ql.plan.LimitDesc
 

@@ -29,7 +29,8 @@ import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.{FieldSchema, MetaException}
 import org.apache.hadoop.hive.metastore.Warehouse
 import org.apache.hadoop.hive.ql.exec.{DDLTask, FetchTask, MoveTask, TaskFactory}
-import org.apache.hadoop.hive.ql.exec.{FileSinkOperator => HiveFileSinkOperator, Operator => HiveOperator}
+import org.apache.hadoop.hive.ql.exec.{FileSinkOperator => HiveFileSinkOperator,
+  Operator => HiveOperator}
 import org.apache.hadoop.hive.ql.metadata.HiveException
 import org.apache.hadoop.hive.ql.optimizer.Optimizer
 import org.apache.hadoop.hive.ql.parse._
@@ -454,7 +455,8 @@ object SharkSemanticAnalyzer extends LogHelper {
    * Given a Hive top operator (e.g. TableScanOperator), find all the file sink
    * operators (aka file output operator).
    */
-  private def findAllHiveFileSinkOperators(op: HiveOperator[_<: HiveDesc]): Seq[HiveOperator[_<: HiveDesc]] = {
+  private def findAllHiveFileSinkOperators(op: HiveOperator[_<: HiveDesc]): 
+    Seq[HiveOperator[_<: HiveDesc]] = {
     if (op.getChildOperators() == null || op.getChildOperators().size() == 0) {
       Seq[HiveOperator[_<: HiveDesc]](op)
     } else {

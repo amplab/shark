@@ -18,15 +18,17 @@
 package shark.execution
 
 import scala.reflect.BeanProperty
+
 import org.apache.hadoop.hive.conf.HiveConf
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory}
 import org.apache.hadoop.hive.ql.exec.{ExtractOperator => HiveExtractOperator}
 import org.apache.hadoop.hive.ql.plan.{ExtractDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.Deserializer
 import org.apache.hadoop.io.BytesWritable
 import org.apache.spark.rdd.RDD
+
 import shark.SharkConfVars
-import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 
 
 class ExtractOperator extends UnaryOperator[ExtractDesc] 
