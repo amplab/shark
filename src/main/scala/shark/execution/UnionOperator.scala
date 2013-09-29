@@ -31,6 +31,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
 import org.apache.hadoop.hive.serde2.objectinspector.StandardStructObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.StructField
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
+
 import org.apache.spark.rdd.{RDD, UnionRDD}
 
 import shark.execution.serialization.OperatorSerializationWrapper
@@ -42,8 +43,8 @@ import shark.execution.serialization.OperatorSerializationWrapper
  */
 class UnionOperator extends NaryOperator[UnionDesc] {
 
-  @transient var parentFields: Array[JavaList[_ <: StructField]] = _
-  @transient var parentObjInspectors: Array[StructObjectInspector] = _
+  @transient var parentFields: Seq[JavaList[_ <: StructField]] = _
+  @transient var parentObjInspectors: Seq[StructObjectInspector] = _
   @transient var columnTypeResolvers: Array[ReturnObjectInspectorResolver] = _
   @transient var outputObjInspector: ObjectInspector = _
 

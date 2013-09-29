@@ -113,19 +113,19 @@ abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
   def setDesc[B >: T](d: B) {_desc = d.asInstanceOf[T]}
   
   @transient private[this] var _desc: T = _
-  @transient private[this] val _childOperators = new ArrayBuffer[Operator[_<:HiveDesc]]()
-  @transient private[this] val _parentOperators = new ArrayBuffer[Operator[_<:HiveDesc]]()
-  @transient var objectInspectors: Array[ObjectInspector] =_
+  @transient private val _childOperators = new ArrayBuffer[Operator[_<:HiveDesc]]()
+  @transient private val _parentOperators = new ArrayBuffer[Operator[_<:HiveDesc]]()
+  @transient var objectInspectors: Seq[ObjectInspector] =_
 
   protected def executeParents(): Seq[(Int, RDD[_])] = {
     parentOperators.map(p => (p.getTag, p.execute()))
   }
   
-  protected def inputObjectInspectors(): Array[ObjectInspector] ={
+  protected def inputObjectInspectors(): Seq[ObjectInspector] = {
     if(null != _parentOperators)
-      _parentOperators.sortBy(_.getTag).map(_.outputObjectInspector).toArray
+      _parentOperators.sortBy(_.getTag).map(_.outputObjectInspector)
     else
-      null
+      Seq.empty[ObjectInspector]
   }
   
   // derived classes can set this to different object if needed, default is the first input OI
@@ -143,10 +143,12 @@ abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
    */
   protected def initEvaluatorsAndReturnStruct(
       evals: Array[ExprNodeEvaluator] , distinctColIndices: JavaList[JavaList[Integer]] ,
-      outputColNames: JavaList[String], length: Int, rowInspector: ObjectInspector): StructObjectInspector = {
+      outputColNames: JavaList[String], length: Int, rowInspector: ObjectInspector): 
+      StructObjectInspector = {
 
     var fieldObjectInspectors = initEvaluators(evals, 0, length, rowInspector);
-    initEvaluatorsAndReturnStruct(evals, fieldObjectInspectors, distinctColIndices, outputColNames, length, rowInspector)
+    initEvaluatorsAndReturnStruct(evals, fieldObjectInspectors, distinctColIndices, 
+        outputColNames, length, rowInspector)
   }
   
   /**
@@ -160,8 +162,9 @@ abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
    * {@link Operator#initEvaluatorsAndReturnStruct(ExprNodeEvaluator[], List, ObjectInspector)}
    */
   protected def initEvaluatorsAndReturnStruct(
-      evals: Array[ExprNodeEvaluator], fieldObjectInspectors: Array[ObjectInspector], distinctColIndices: JavaList[JavaList[Integer]] ,
-      outputColNames: JavaList[String], length: Int, rowInspector: ObjectInspector): StructObjectInspector = {
+      evals: Array[ExprNodeEvaluator], fieldObjectInspectors: Array[ObjectInspector], 
+      distinctColIndices: JavaList[JavaList[Integer]], outputColNames: JavaList[String], 
+      length: Int, rowInspector: ObjectInspector): StructObjectInspector = {
 
     var inspectorLen = if (evals.length > length) length + 1 else evals.length
     

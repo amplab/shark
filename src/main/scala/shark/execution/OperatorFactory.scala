@@ -18,6 +18,7 @@
 package shark.execution
 
 import scala.collection.JavaConversions._
+
 import org.apache.hadoop.hive.ql.exec.{GroupByPostShuffleOperator}
 import org.apache.hadoop.hive.ql.exec.GroupByPreShuffleOperator
 import org.apache.hadoop.hive.ql.exec.{Operator => HOperator}
@@ -69,7 +70,8 @@ object OperatorFactory extends LogHelper {
   def createSharkFileOutputPlan(hiveTerminalOp: HOperator[_<:HiveDesc]): TerminalOperator = {
     // TODO the terminal operator is the FileSinkOperator in Hive?
     var hiveOp = hiveTerminalOp.asInstanceOf[org.apache.hadoop.hive.ql.exec.FileSinkOperator]
-    val sinkOp = _newOperatorInstance(classOf[FileSinkOperator], hiveOp).asInstanceOf[TerminalOperator]
+    val sinkOp = _newOperatorInstance(classOf[FileSinkOperator], 
+        hiveOp).asInstanceOf[TerminalOperator]
     sinkOp.localHiveOp = hiveOp
     _createAndSetParents(sinkOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }
@@ -77,7 +79,8 @@ object OperatorFactory extends LogHelper {
   def createSharkRddOutputPlan(hiveTerminalOp: HOperator[_<:HiveDesc]): TerminalOperator = {
     // TODO the terminal operator is the FileSinkOperator in Hive?
     var hiveOp = hiveTerminalOp.asInstanceOf[org.apache.hadoop.hive.ql.exec.FileSinkOperator]
-    val sinkOp = _newOperatorInstance(classOf[TableRddSinkOperator], hiveOp).asInstanceOf[TableRddSinkOperator]
+    val sinkOp = _newOperatorInstance(classOf[TableRddSinkOperator], 
+        hiveOp).asInstanceOf[TableRddSinkOperator]
     sinkOp.localHiveOp = hiveOp
     _createAndSetParents(sinkOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }
@@ -144,7 +147,8 @@ object OperatorFactory extends LogHelper {
     op
   }
 
-  private def _createAndSetParents[T <: HiveDesc](op: Operator[T], parents: Seq[HOperator[_<:HiveDesc]]) = {
+  private def _createAndSetParents[T <: HiveDesc](op: Operator[T], 
+      parents: Seq[HOperator[_<:HiveDesc]]) = {
     if (parents != null) {
       parents foreach { parent =>
         _createOperatorTree(parent).addChild(op)
