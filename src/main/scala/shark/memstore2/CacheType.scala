@@ -17,28 +17,39 @@
 
 package shark.memstore2
 
-
+/*
+ * Enumerations and static helper functions for caches supported by Shark.
+ */
 object CacheType extends Enumeration {
 
+  /*
+   * The CacheTypes:
+   * - NONE: On-disk storage (e.g. a Hive table that is stored in HDFS ).
+   * - HEAP: refers to Spark's block manager, which coordinates in-memory and on-disk RDD storage.
+   * - TACHYON: A distributed storage system that manages an in-memory cache for sharing files and
+   *            RDDs across cluster frameworks.
+   */
   type CacheType = Value
-  val none, heap, tachyon = Value
+  val NONE, HEAP, TACHYON = Value
 
-  def shouldCache(c: CacheType): Boolean = (c != none)
+  def shouldCache(c: CacheType): Boolean = (c != NONE)
 
   /** Get the cache type object from a string representation. */
   def fromString(name: String): CacheType = {
-    if (name == null || name == "") {
-      none
+    if (name == null || name == "" || name.toLowerCase == "false") {
+      NONE
     } else if (name.toLowerCase == "true") {
-      heap
+      HEAP
     } else {
       try {
-        withName(name.toLowerCase)
+        // Try to use Scala's Enumeration::withName() to interpret 'name'.
+        withName(name.toUpperCase)
       } catch {
         case e: java.util.NoSuchElementException => throw new InvalidCacheTypeException(name)
       }
     }
   }
 
-  class InvalidCacheTypeException(name: String) extends Exception("Invalid cache type " + name)
+  class InvalidCacheTypeException(name: String)
+    extends Exception("Invalid string representation of cache type " + name)
 }

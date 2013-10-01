@@ -17,8 +17,6 @@
 
 package shark.execution
 
-import scala.collection.Map
-import scala.collection.mutable.ArrayBuffer
 import scala.reflect.BeanProperty
 
 import org.apache.hadoop.fs.FileSystem
@@ -26,14 +24,15 @@ import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{FileSinkOperator => HiveFileSinkOperator}
 import org.apache.hadoop.hive.ql.exec.JobCloseFeedBack
+import org.apache.hadoop.hive.shims.ShimLoader
 import org.apache.hadoop.mapred.TaskID
 import org.apache.hadoop.mapred.TaskAttemptID
-import org.apache.hadoop.mapred.HadoopWriter
+import org.apache.hadoop.mapred.SparkHadoopWriter
+
+import org.apache.spark.TaskContext
+import org.apache.spark.rdd.RDD
 
 import shark.execution.serialization.OperatorSerializationWrapper
-
-import spark.RDD
-import spark.TaskContext
 
 
 class FileSinkOperator extends TerminalOperator with Serializable {
@@ -54,7 +53,7 @@ class FileSinkOperator extends TerminalOperator with Serializable {
   def setConfParams(conf: HiveConf, context: TaskContext) {
     val jobID = context.stageId
     val splitID = context.splitId
-    val jID = HadoopWriter.createJobID(now, jobID)
+    val jID = SparkHadoopWriter.createJobID(now, jobID)
     val taID = new TaskAttemptID(new TaskID(jID, true, splitID), 0)
     conf.set("mapred.job.id", jID.toString)
     conf.set("mapred.tip.id", taID.getTaskID.toString)
@@ -69,7 +68,11 @@ class FileSinkOperator extends TerminalOperator with Serializable {
   }
 
   override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
+
+    var numRows = 0
+
     iter.foreach { row =>
+      numRows += 1
       localHiveOp.processOp(row, 0)
     }
 
@@ -103,37 +106,99 @@ class FileSinkOperator extends TerminalOperator with Serializable {
           createFilesMethod.invoke(localHiveOp, fileSystemPaths)
           finalPath = finalPaths(idx)
         }
-        if (!fileSystem.exists(finalPath.getParent())) fileSystem.mkdirs(finalPath.getParent())
+        if (!fileSystem.exists(finalPath.getParent)) {
+          fileSystem.mkdirs(finalPath.getParent)
+        }
       }
     }
 
     localHiveOp.closeOp(false)
-    iter
+    Iterator(numRows)
   }
 
   override def execute(): RDD[_] = {
     val inputRdd = if (parentOperators.size == 1) executeParents().head._2 else null
-    val rddPreprocessed = preprocessRdd(inputRdd)
-    rddPreprocessed.context.runJob(
-      rddPreprocessed, FileSinkOperator.executeProcessFileSinkPartition(this))
+    val rdd = preprocessRdd(inputRdd)
+
+    val hiveIslocal = ShimLoader.getHadoopShims.isLocalMode(hconf)
+    if (!rdd.context.isLocal && hiveIslocal) {
+      val warnMessage = "Hive Hadoop shims detected local mode, but Shark is not running locally."
+      logWarning(warnMessage)
+
+      // Try to fix this without bothering user
+      val newValue = "Spark_%s".format(System.currentTimeMillis())
+      for (k <- Seq("mapred.job.tracker", "mapreduce.framework.name")) {
+        val v = hconf.get(k)
+        if (v == null || v == "" || v == "local") {
+          hconf.set(k, newValue)
+          logWarning("Setting %s to '%s' (was '%s')".format(k, newValue, v))
+        }
+      }
+
+      // If still not fixed, bail out
+      if (ShimLoader.getHadoopShims.isLocalMode(hconf)) {
+        throw new Exception(warnMessage)
+      }
+    }
+
+    parentOperators.head match {
+      case op: LimitOperator =>
+        // If there is a limit operator, let's run two partitions first. Once we finished running
+        // the first two partitions, we use that to estimate how many more partitions we need to
+        // run to satisfy the limit.
+
+        val limit = op.limit
+        val totalParts = rdd.partitions.length
+        var rowsFetched = 0L
+        var partsFetched = 0
+        while (rowsFetched < limit && partsFetched < totalParts) {
+          // The number of partitions to try in this iteration. It is ok for this number to be
+          // greater than totalParts because we actually cap it at totalParts in runJob.
+          var numPartsToTry = 2
+          if (partsFetched > 0) {
+            // If we didn't find any rows after the first iteration, just try all partitions next.
+            // Otherwise, interpolate the number of partitions we need to try, but overestimate it
+            // by 50%.
+            if (rowsFetched == 0) {
+              numPartsToTry = totalParts - 2
+            } else {
+              numPartsToTry = (1.5 * limit * partsFetched / rowsFetched).toInt
+            }
+          }
+          numPartsToTry = math.max(0, numPartsToTry)  // guard against negative num of partitions
+
+          rowsFetched += rdd.context.runJob(
+            rdd,
+            FileSinkOperator.executeProcessFileSinkPartition(this),
+            partsFetched until math.min(partsFetched + numPartsToTry, totalParts),
+            allowLocal = false).sum
+          partsFetched += numPartsToTry
+        }
+
+      case _ =>
+        val rows: Array[Long] = rdd.context.runJob(
+          rdd, FileSinkOperator.executeProcessFileSinkPartition(this))
+        logInfo("Total number of rows written: " + rows.sum)
+    }
+
     hiveOp.jobClose(localHconf, true, new JobCloseFeedBack)
-    rddPreprocessed
+    rdd
   }
 }
 
 
 object FileSinkOperator {
+  // Write each partition's output to HDFS, and return the number of rows written.
   def executeProcessFileSinkPartition(operator: FileSinkOperator) = {
     val op = OperatorSerializationWrapper(operator)
-    def writeFiles(context: TaskContext, iter: Iterator[_]): Boolean = {
+    def writeFiles(context: TaskContext, iter: Iterator[_]): Long = {
       op.logDebug("Started executing mapPartitions for operator: " + op)
       op.logDebug("Input object inspectors: " + op.objectInspectors)
 
       op.initializeOnSlave(context)
-      val newPart = op.processPartition(-1, iter)
+      val numRows = op.processPartition(-1, iter).next().asInstanceOf[Int]
       op.logDebug("Finished executing mapPartitions for operator: " + op)
-
-      true
+      numRows
     }
     writeFiles _
   }

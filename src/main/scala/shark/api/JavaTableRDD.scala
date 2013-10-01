@@ -17,16 +17,14 @@
 
 package shark.api
 
-import spark.api.java.function.{Function => JFunction}
-import spark.api.java.JavaRDDLike
-import spark.RDD
-import spark.storage.StorageLevel
+import org.apache.spark.api.java.function.{Function => JFunction}
+import org.apache.spark.api.java.JavaRDDLike
+import org.apache.spark.rdd.RDD
+import org.apache.spark.storage.StorageLevel
 
-import java.util.{List => JavaList}
 
-import org.apache.hadoop.hive.metastore.api.FieldSchema
-
-class JavaTableRDD(val rdd: RDD[Row], val schema: JavaList[FieldSchema]) extends JavaRDDLike[Row, JavaTableRDD] {
+class JavaTableRDD(val rdd: RDD[Row], val schema: Array[ColumnDesc])
+  extends JavaRDDLike[Row, JavaTableRDD] {
 
   override def wrapRDD(rdd: RDD[Row]): JavaTableRDD = new JavaTableRDD(rdd, schema)
 

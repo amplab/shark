@@ -17,26 +17,19 @@
 
 package shark.execution
 
-import scala.collection.Iterator
-import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
 import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.hadoop.hive.ql.metadata.HiveException
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory}
 import org.apache.hadoop.hive.ql.exec.{ExtractOperator => HiveExtractOperator}
 import org.apache.hadoop.hive.ql.plan.{ExtractDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.Deserializer
 import org.apache.hadoop.io.BytesWritable
 
-import shark.RDDUtils
-
-import spark.RDD
-import spark.SparkContext._
+import org.apache.spark.rdd.RDD
 
 
-class ExtractOperator extends UnaryOperator[HiveExtractOperator]
-with HiveTopOperator {
+class ExtractOperator extends UnaryOperator[HiveExtractOperator] with HiveTopOperator {
 
   @BeanProperty var conf: ExtractDesc = _
   @BeanProperty var valueTableDesc: TableDesc = _
@@ -66,76 +59,74 @@ with HiveTopOperator {
       case _ => false
     }
 
-    val isTotalOrder = parentOperator match {
+    // Whether to consolidate all data to one partition.
+    val consolidate = parentOperator match {
       case op: ReduceSinkOperator => op.getConf.getNumReducers == 1
       case _ => false
     }
 
-    val limit =
+    // If no limit is set, -1 is returned.
+    val limit: Int =
       if (childOperators.size == 1) {
         childOperators.head match {
-          case op: LimitOperator => Some(op.limit)
-          case _ => None
+          case op: LimitOperator => op.limit
+          case _ => -1
         }
       } else {
-        None
+        -1
       }
 
-    if (hasOrder) {
-      limit match {
-        case Some(l) => {
-          logInfo("Pushing limit (%d) down to sorting".format(l))
-          if (isTotalOrder) {
-            logInfo("Performing Order By Limit")
-            RDDUtils.sortLeastKByKey(rdd.asInstanceOf[RDD[(ReduceKey, Any)]], l)
-          } else {
-            // We always do a distribute by. I'm not sure if we need to if there are no distribution keys.
-            val distributedRdd = rdd.asInstanceOf[RDD[(ReduceKey, Any)]].partitionBy(
-              new ReduceKeyPartitioner(rdd.partitions.size))
-            logInfo("Performing Sort By Limit")
-            RDDUtils.partialSortLeastKByKey(distributedRdd, l)
+    if (hasOrder && limit >= 0) {
+      if (consolidate) {
+        // Example: SELECT * FROM table ORDER BY col LIMIT 10;
+        // Need to make a copy of each row. Otherwise, the rows are reused so topK won't work.
+        val clonedRdd: RDD[(ReduceKey, BytesWritable)] =
+          rdd.asInstanceOf[RDD[(ReduceKeyMapSide, BytesWritable)]].map { case(k, v) =>
+            val value = new BytesWritable
+            value.set(v.getBytes, 0, v.getLength)
+            (k.createDeepCopy(), value)
           }
-        }
-        case None => {
-          if (isTotalOrder) {
-            logInfo("Performing Order By")
-            processOrderedRDD(rdd)
-          } else {
-            // We always do a distribute by. I'm not sure if we need to if there are no distribution keys.
-            logInfo("Performing Distribute By Sort By")
-            val clusteredRdd = rdd.asInstanceOf[RDD[(ReduceKey, Any)]].partitionBy(
-              new ReduceKeyPartitioner(rdd.partitions.size))
-            clusteredRdd.mapPartitions { partition => partition.toSeq.sortWith(_._1 < _._1).iterator }
-            // Not sure if toSeq is better than toArray
-          }
-        }
-      }
-    } else {
-      if (isTotalOrder) {
-        logInfo("Partitioning data to a single reducer")
-        rdd.asInstanceOf[RDD[(ReduceKey, Any)]].partitionBy(new ReduceKeyPartitioner(1))
+        RDDUtils.topK(clonedRdd, limit)
       } else {
-        logInfo("Performing Distribute By")
-        rdd.asInstanceOf[RDD[(ReduceKey, Any)]].partitionBy(
-          new ReduceKeyPartitioner(rdd.partitions.size))
+        val distributedRdd = RDDUtils.repartition(rdd.asInstanceOf[RDD[(ReduceKey, Any)]],
+          new ReduceKeyPartitioner(rdd.partitions.length))
+        // Don't need to make a copy of each row because after a shuffle (repartition),
+        // rows are not reused.
+        RDDUtils.partitionTopK(distributedRdd, limit)
       }
+    } else if (hasOrder && limit < 0) {
+      if (consolidate) {
+        rdd match {
+          case r: RDD[(ReduceKey, Any)] => RDDUtils.sortByKey(r)
+          case _ => rdd
+        }
+      } else {
+        val clusteredRdd = RDDUtils.repartition(rdd.asInstanceOf[RDD[(ReduceKey, Any)]],
+          new ReduceKeyPartitioner(rdd.partitions.length))
+        clusteredRdd.mapPartitions { partition =>
+          partition.toSeq.sortWith((x, y) => x._1.compareTo(y._1) < 0).iterator
+        }
+      }
+    } else { // i.e. !hasOrder
+      // Example for consolidate = true:
+      //   SELECT count(*) FROM (SELECT * FROM table LIMIT 10) tbl;
+      val numParts = if (consolidate) 1 else rdd.partitions.length
+      RDDUtils.repartition(rdd.asInstanceOf[RDD[(ReduceKey, Any)]],
+        new ReduceKeyPartitioner(numParts))
     }
   }
 
   override def processPartition(split: Int, iter: Iterator[_]) = {
-    val bytes = new BytesWritable()
+    // TODO: use MutableBytesWritable to avoid the array copy.
+    val writable = new BytesWritable
     iter map {
       case (key, value: Array[Byte]) => {
-        bytes.set(value)
-        valueDeser.deserialize(bytes)
+        writable.set(value, 0, value.length)
+        valueDeser.deserialize(writable)
       }
-    }
-  }
-
-  def processOrderedRDD[K <% Ordered[K]: ClassManifest, V: ClassManifest, T](rdd: RDD[_]): RDD[_] = {
-    rdd match {
-      case r: RDD[(K, V)] => r.sortByKey()
-      case _ => rdd
+      case unrecognizedObj => {
+        throw new RuntimeException("Did not find key, value pair: " + unrecognizedObj.toString)
+      }
     }
   }
 }

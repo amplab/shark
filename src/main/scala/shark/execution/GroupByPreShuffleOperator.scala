@@ -18,25 +18,21 @@
 package org.apache.hadoop.hive.ql.exec
 // Put this file in Hive's exec package to access package level visible fields and methods.
 
-import java.util.{ArrayList, HashMap => JHashMap}
+import java.util.{ArrayList => JArrayList, HashMap => JHashMap}
 
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{GroupByOperator => HiveGroupByOperator}
-import org.apache.hadoop.hive.ql.plan.{AggregationDesc, ExprNodeDesc, ExprNodeColumnDesc, GroupByDesc}
+import org.apache.hadoop.hive.ql.plan.{AggregationDesc, ExprNodeDesc, GroupByDesc}
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator.AggregationBuffer
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorFactory,
-    ObjectInspectorUtils, StandardStructObjectInspector, StructObjectInspector}
+    ObjectInspectorUtils, StructObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption
 
-import shark.SharkEnvSlave
 import shark.execution.UnaryOperator
-
-import spark.RDD
-import spark.SparkContext._
 
 
 /**
@@ -61,6 +57,8 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
 
   @transient var aggregationParameterFields: Array[Array[ExprNodeEvaluator]] = _
   @transient var aggregationParameterObjectInspectors: Array[Array[ObjectInspector]] = _
+  @transient var aggregationParameterStandardObjectInspectors: Array[Array[ObjectInspector]] = _
+
   @transient var aggregationIsDistinct: Array[Boolean] = _
 
   override def initializeOnMaster() {
@@ -75,11 +73,9 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
     rowInspector = objectInspector.asInstanceOf[StructObjectInspector]
     keyFields = conf.getKeys().map(k => ExprNodeEvaluatorFactory.get(k)).toArray
     val keyObjectInspectors: Array[ObjectInspector] = keyFields.map(k => k.initialize(rowInspector))
-    val currentKeyObjectInspectors = SharkEnvSlave.objectInspectorLock.synchronized {
-      keyObjectInspectors.map { k =>
+    val currentKeyObjectInspectors = keyObjectInspectors.map { k =>
         ObjectInspectorUtils.getStandardObjectInspector(k, ObjectInspectorCopyOption.WRITABLE)
       }
-    }
 
     aggregationParameterFields = conf.getAggregators.toArray.map { aggr =>
       aggr.asInstanceOf[AggregationDesc].getParameters.toArray.map { param =>
@@ -89,20 +85,23 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
     aggregationParameterObjectInspectors = aggregationParameterFields.map { aggr =>
       aggr.map { param => param.initialize(rowInspector) }
     }
+    aggregationParameterStandardObjectInspectors = aggregationParameterObjectInspectors.map { ois =>
+      ois.map { oi =>
+        ObjectInspectorUtils.getStandardObjectInspector(oi, ObjectInspectorCopyOption.WRITABLE)
+      }
+    }
 
-    val aggObjInspectors = aggregationEvals.zipWithIndex.map { pair =>
+    aggregationEvals.zipWithIndex.map { pair =>
       pair._1.init(conf.getAggregators.get(pair._2).getMode,
         aggregationParameterObjectInspectors(pair._2))
     }
 
     val keyFieldNames = conf.getOutputColumnNames.slice(0, keyFields.length)
     val totalFields = keyFields.length + aggregationEvals.length
-    val keyois = new ArrayList[ObjectInspector](totalFields)
+    val keyois = new JArrayList[ObjectInspector](totalFields)
     keyObjectInspectors.foreach(keyois.add(_))
 
-    keyObjectInspector = SharkEnvSlave.objectInspectorLock.synchronized {
-      ObjectInspectorFactory.getStandardStructObjectInspector(keyFieldNames, keyois)
-    }
+    keyObjectInspector = ObjectInspectorFactory.getStandardStructObjectInspector(keyFieldNames, keyois)
 
     keyFactory = new KeyWrapperFactory(keyFields, keyObjectInspectors, currentKeyObjectInspectors)
   }
@@ -134,7 +133,11 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
         hashAggregations.put(newKeyProber, aggs)
         numRowsHashTbl += 1
       }
-      aggregate(row, aggs, isNewKey)
+      if (isNewKey) {
+        aggregateNewKey(row, aggs)
+      } else {
+        aggregateExistingKey(row, aggs)
+      }
 
       // Disable partial hash-based aggregation if desired minimum reduction is
       // not observed after initial interval.
@@ -172,7 +175,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
       newKeys.getNewKey(row, rowInspector)
       val newAggrKey = newKeys.copyKey()
       val aggrs = newAggregations()
-      aggregate(row, aggrs, true)
+      aggregateNewKey(row, aggrs)
       val keyArr = newAggrKey.getKeyArray()
       var i = 0
       while (i < keyArr.length) {
@@ -188,12 +191,23 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
     }
   }
 
-  protected def aggregate(row: AnyRef, aggregations: Array[AggregationBuffer], isNewKey: Boolean) {
+  @inline protected final
+  def aggregateNewKey(row: Object, aggregations: Array[AggregationBuffer]) {
     var i = 0
     while (i < aggregations.length) {
-      if (!aggregationIsDistinct(i) || isNewKey) {
-        val parameters = aggregationParameterFields(i).map(_.evaluate(row))
-        aggregationEvals(i).aggregate(aggregations(i), parameters)
+      aggregationEvals(i).aggregate(
+        aggregations(i), aggregationParameterFields(i).map(_.evaluate(row)))
+      i += 1
+    }
+  }
+
+  @inline protected final
+  def aggregateExistingKey(row: AnyRef, aggregations: Array[AggregationBuffer]) {
+    var i = 0
+    while (i < aggregations.length) {
+      if (!aggregationIsDistinct(i)) {
+        aggregationEvals(i).aggregate(
+          aggregations(i), aggregationParameterFields(i).map(_.evaluate(row)))
       }
       i += 1
     }

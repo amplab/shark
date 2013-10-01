@@ -17,12 +17,8 @@
 
 package shark.memstore2
 
-import java.nio.ByteBuffer
-
-import scala.collection.immutable.BitSet
-
+import java.util.BitSet
 import shark.memstore2.column.ColumnIterator
-import shark.memstore2.column.ColumnIteratorFactory
 
 
 /**
@@ -36,8 +32,13 @@ import shark.memstore2.column.ColumnIteratorFactory
 class TablePartitionIterator(
     val numRows: Long,
     val columnIterators: Array[ColumnIterator],
-    val columnUsed: BitSet = null)
+    val columnUsed: BitSet)
   extends Iterator[ColumnarStruct] {
+
+  def this(numRows: Long, 
+      columnIterators: Array[ColumnIterator]) {
+    this(numRows, columnIterators, TablePartitionIterator.newBitSet(columnIterators.size))
+  }
 
   private val _struct = new ColumnarStruct(columnIterators)
 
@@ -47,20 +48,24 @@ class TablePartitionIterator(
 
   def next(): ColumnarStruct = {
     _position += 1
-    var i = 0
-    while (i < _columnIteratorsToAdvance.size) {
-      _columnIteratorsToAdvance(i).next
-      i += 1
+    var i = columnUsed.nextSetBit(0)
+    while (i > -1) {
+      columnIterators(i).next
+      i = columnUsed.nextSetBit(i + 1)
     }
     _struct
   }
+}
 
-  // Track the list of columns we need to call next on.
-  private val _columnIteratorsToAdvance: Array[ColumnIterator] = {
-    if (columnUsed == null) {
-      columnIterators
-    } else {
-      columnUsed.map(colId => columnIterators(colId)).toArray
+object TablePartitionIterator {
+  
+  def newBitSet(numCols: Int): BitSet = {
+    val b = new BitSet(numCols)
+    var i = numCols 
+    while (i > 0) {
+      i -= 1
+      b.set(i, true)
     }
+    b
   }
 }

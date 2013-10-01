@@ -19,10 +19,10 @@ package shark.repl
 
 import java.io.PrintWriter
 
-import shark.{SharkContext, SharkEnv}
+import org.apache.spark.{SparkContext, SparkEnv}
+import org.apache.spark.repl.SparkILoop
 
-import spark.{SparkContext, SparkEnv}
-import spark.repl.SparkILoop
+import shark.{SharkContext, SharkEnv}
 
 
 /**
@@ -36,17 +36,18 @@ class SharkILoop extends SparkILoop(None, new PrintWriter(Console.out, true), No
     // "spark.repl.class.uri" set to invoke Spark's ExecutorClassLoader.
     intp.beQuietDuring {
       command("""
-        spark.repl.Main.interp.out.println("Creating SparkContext...");
-        spark.repl.Main.interp.out.flush();
-        shark.SharkEnv.initWithSharkContext("sharkJob")
-        @transient val sc = shark.SharkEnv.sc.asInstanceOf[shark.SharkContext]
-        @transient val sparkContext = sc
-        spark.repl.Main.interp.out.println("Shark context available as sc.");
+        org.apache.spark.repl.Main.interp.out.println("Creating SparkContext...");
+        org.apache.spark.repl.Main.interp.out.flush();
+        shark.SharkEnv.initWithSharkContext("shark-shell");
+        @transient val sparkContext = shark.SharkEnv.sc;
+        org.apache.spark.repl.Main.interp.sparkContext = sparkContext;
+        @transient val sc = sparkContext.asInstanceOf[shark.SharkContext];
+        org.apache.spark.repl.Main.interp.out.println("Shark context available as sc.");
         import sc._;
         def s = sql2console _;
-        spark.repl.Main.interp.out.flush();
+        org.apache.spark.repl.Main.interp.out.flush();
         """)
-      command("import spark.SparkContext._");
+      command("import org.apache.spark.SparkContext._");
     }
     Console.println("Type in expressions to have them evaluated.")
     Console.println("Type :help for more information.")
