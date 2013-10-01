@@ -15,12 +15,13 @@
     <maven.compiler.target>1.7</maven.compiler.target>
     <encoding>UTF-8</encoding>
     <scala.version>2.9.3</scala.version>
+    <scala.binary.version>${scala.version}</scala.binary.version>
     <hive.version>0.9.0-csd-22</hive.version>
-    <spark.version>0.8.0RC1-csd-1-SNAPSHOT</spark.version>
+    <spark.version>0.8.0-csd-1-SNAPSHOT</spark.version>
     <cdh.version>4.1.2</cdh.version>
-    <hadoop.version>2.0.0-mr1-cdh${cdh.version}</hadoop.version>
     <java.version>1.5</java.version>
     <hbase.version>0.94.5-csd-30</hbase.version>
+    <hadoop.version>2.0.0-mr1-cdh${cdh.version}</hadoop.version>
 
     <deb.pkg.name>shark</deb.pkg.name>
     <deb.install.path>/usr/share/shark</deb.install.path>
@@ -46,7 +47,7 @@
   </properties>
   <scm>
     <connection>scm:git:git@github.com:clearstorydata/shark.git</connection>
-    <url>http://github.com/clearstorydata/shark/tree/master</url>
+    <url>http://github.com/clearstorydata/shark/tree/master-csd</url>
   </scm>
 
   <repositories>
@@ -143,13 +144,13 @@
 
     <!-- Hive -->
     <dependency>
-      <groupId>org.apache.hive</groupId>
+      <groupId>edu.berkeley.cs.shark</groupId>
       <artifactId>hive-common</artifactId>
       <version>${hive.version}</version>
       <optional>true</optional>
     </dependency>
     <dependency>
-      <groupId>org.apache.hive</groupId>
+      <groupId>edu.berkeley.cs.shark</groupId>
       <artifactId>hive-exec</artifactId>
       <version>${hive.version}</version>
       <optional>true</optional>
@@ -165,13 +166,13 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>org.apache.hive</groupId>
+      <groupId>edu.berkeley.cs.shark</groupId>
       <artifactId>hive-cli</artifactId>
       <version>${hive.version}</version>
       <optional>true</optional>
     </dependency>
     <dependency>
-      <groupId>org.apache.hive</groupId>
+      <groupId>edu.berkeley.cs.shark</groupId>
       <artifactId>hive-serde</artifactId>
       <version>${hive.version}</version>
       <optional>true</optional>
@@ -183,7 +184,7 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>org.apache.hive</groupId>
+      <groupId>edu.berkeley.cs.shark</groupId>
       <artifactId>hive-metastore</artifactId>
       <version>${hive.version}</version>
       <optional>true</optional>
@@ -199,19 +200,19 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>org.apache.hive</groupId>
+      <groupId>edu.berkeley.cs.shark</groupId>
       <artifactId>hive-service</artifactId>
       <version>${hive.version}</version>
       <optional>true</optional>
     </dependency>
     <dependency>
-      <groupId>org.apache.hive</groupId>
+      <groupId>edu.berkeley.cs.shark</groupId>
       <artifactId>hive-builtins</artifactId>
       <version>${hive.version}</version>
       <optional>true</optional>
     </dependency>
     <dependency>
-      <groupId>org.apache.hive</groupId>
+      <groupId>edu.berkeley.cs.shark</groupId>
       <artifactId>hive-jdbc</artifactId>
       <version>${hive.version}</version>
       <optional>true</optional>
@@ -220,17 +221,34 @@
       <groupId>org.tachyonproject</groupId>
       <artifactId>tachyon</artifactId>
       <version>0.3.0-csd-1-SNAPSHOT</version>
-      <exclusions>
-        <exclusion>
-          <groupId>org.apache.hadoop</groupId>
-          <artifactId>hadoop-test</artifactId>
-        </exclusion>
-      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.scala-lang</groupId>
       <artifactId>jline</artifactId>
-      <version>${scala.version}</version>
+      <version>${scala.binary.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-client</artifactId>
+      <version>${hadoop.version}</version>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.spark</groupId>
+      <artifactId>spark-core_${scala.binary.version}</artifactId>
+      <version>${spark.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.spark</groupId>
+      <artifactId>spark-repl_${scala.binary.version}</artifactId>
+      <version>${spark.version}</version>
+    </dependency>
+    <!-- HBase -->
+    <dependency>
+      <groupId>org.apache.hbase</groupId>
+      <artifactId>hbase</artifactId>
+      <version>${hbase.version}</version>
     </dependency>
 
     <!-- Testing -->
@@ -243,7 +261,7 @@
     </dependency>
     <dependency>
       <groupId>org.scalatest</groupId>
-      <artifactId>scalatest_${scala.version}</artifactId>
+      <artifactId>scalatest_${scala.binary.version}</artifactId>
       <version>1.9.1</version>
       <scope>test</scope>
     </dependency>
@@ -255,7 +273,7 @@
     </dependency>
     <dependency>
       <!-- This is needed so we can use a Mini ZooKeeper cluster -->
-      <groupId>org.apache.hive</groupId>
+      <groupId>edu.berkeley.cs.shark</groupId>
       <artifactId>hive-hbase-handler</artifactId>
       <version>${hive.version}</version>
       <exclusions>
@@ -267,46 +285,11 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.apache.hive</groupId>
+      <groupId>edu.berkeley.cs.shark</groupId>
       <artifactId>hive-exec-test</artifactId>
       <version>${hive.version}</version>
       <scope>test</scope>
     </dependency>
-    <dependency>
-      <groupId>org.apache.hadoop</groupId>
-      <artifactId>hadoop-client</artifactId>
-      <version>${hadoop.version}</version>
-      <optional>true</optional>
-    </dependency>
-    <!-- Spark -->
-    <dependency>
-      <groupId>org.apache.spark</groupId>
-      <artifactId>spark-core</artifactId>
-      <version>${spark.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.spark</groupId>
-      <artifactId>spark-repl</artifactId>
-      <version>${spark.version}</version>
-    </dependency>
-    <!-- HBase -->
-    <dependency>
-      <groupId>org.apache.hbase</groupId>
-      <artifactId>hbase</artifactId>
-      <version>${hbase.version}</version>
-      <exclusions>
-        <exclusion>
-          <groupId>asm</groupId>
-          <artifactId>asm</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>net.java.dev.jets3t</groupId>
-      <artifactId>jets3t</artifactId>
-      <version>0.9.0</version>
-    </dependency>
-    <!-- Test -->
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-test</artifactId>
@@ -522,12 +505,13 @@
         <version>2.0-csd-2</version>
         <configuration>
           <shadedArtifactAttached>true</shadedArtifactAttached>
+          <shadedClassifierName>shaded</shadedClassifierName>
           <artifactSet>
             <excludes>
               <!-- Old Netty versions break Akka. The new groupId is io.netty. -->
               <exclude>org.jboss.netty:*</exclude>
               <!-- Hive is included separately, not as part of the fat jar. -->
-              <exclude>org.apache.hive:*</exclude>
+              <exclude>edu.berkeley.cs.shark:*</exclude>
             </excludes>
           </artifactSet>
           <filters>
@@ -605,7 +589,7 @@
                 <artifactItem>
                   <groupId>org.scala-lang</groupId>
                   <artifactId>jline</artifactId>
-                  <version>${scala.version}</version>
+                  <version>${scala.binary.version}</version>
                   <type>jar</type>
                 </artifactItem>
               </artifactItems>
@@ -620,6 +604,7 @@
     </plugins>
   </build>
 
+  <!-- Separate profiles for Hadoop 1 and 2 -->
   <profiles>
     <profile>
       <id>deb</id>
