@@ -222,6 +222,16 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   //////////////////////////////////////////////////////////////////////////////
   // cache DDL
   //////////////////////////////////////////////////////////////////////////////
+  test("rename cached table") {
+    sc.runSql("drop table if exists test_oldname_cached")
+    sc.runSql("drop table if exists test_rename")
+    sc.runSql("create table test_oldname_cached as select * from test")
+    sc.runSql("alter table test_oldname_cached rename to test_rename")
+    assert(!SharkEnv.memoryMetadataManager.contains("test_oldname_cached"))
+    assert(SharkEnv.memoryMetadataManager.contains("test_rename"))
+    expectSql("select count(*) from test_rename", "500")
+  }
+
   test("insert into cached tables") {
     sc.runSql("drop table if exists test1_cached")
     sc.runSql("create table test1_cached as select * from test")
