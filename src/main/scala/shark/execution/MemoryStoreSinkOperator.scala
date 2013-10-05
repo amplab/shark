@@ -124,7 +124,6 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
       // Force evaluate so the data gets put into Spark block manager.
       rdd.persist(storageLevel)
-      rdd.context.runJob(rdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
 
       val origRdd = rdd
       if (useUnionRDD) {

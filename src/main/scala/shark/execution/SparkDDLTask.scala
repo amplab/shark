@@ -49,9 +49,12 @@ private[shark] class SparkDDLTask extends HiveTask[SparkDDLWork] with Serializab
       case dropTableDesc: DropTableDesc => {
         dropTable(hiveMetadataDb, dropTableDesc)
       }
+      case alterTableDesc: AlterTableDesc => {
+        alterTable(hiveMetadataDb, alterTableDesc)
+      }
       case _ => {
         throw new UnsupportedOperationException(
-          "Shark does not require a DDL task for: " + work.ddlDesc.getClass.getName)
+          "Shark does not require a Spark DDL task for: " + work.ddlDesc.getClass.getName)
       }
     }
 
@@ -97,6 +100,13 @@ private[shark] class SparkDDLTask extends HiveTask[SparkDDLWork] with Serializab
         partitionColumns, partitionColumnToValue)
       SharkEnv.memoryMetadataManager.dropHivePartition(tableName, keyStr)
     }
+
+  def alterTable(
+      hiveMetadataDb: Hive,
+      alterTableDesc: AlterTableDesc) {
+    val oldName = alterTableDesc.getOldName
+    val newName = alterTableDesc.getNewName
+    SharkEnv.memoryMetadataManager.rename(oldName, newName)
   }
 
   override def getType = StageType.DDL

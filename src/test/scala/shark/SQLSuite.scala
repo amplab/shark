@@ -242,6 +242,15 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.runSql("create table new_table_cached(key string, value string)")
     sc.runSql("insert into table new_table_cached select * from test where key > -1 limit 499")
     expectSql("select count(*) from new_table_cached", "499")
+
+  test("rename cached table") {
+    sc.runSql("drop table if exists test_oldname_cached")
+    sc.runSql("drop table if exists test_rename")
+    sc.runSql("create table test_oldname_cached as select * from test")
+    sc.runSql("alter table test_oldname_cached rename to test_rename")
+    assert(!SharkEnv.memoryMetadataManager.contains("test_oldname_cached"))
+    assert(SharkEnv.memoryMetadataManager.contains("test_rename"))
+    expectSql("select count(*) from test_rename", "500")
   }
 
   test("insert into cached tables") {

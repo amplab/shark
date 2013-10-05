@@ -35,7 +35,7 @@ import org.apache.hadoop.util.StringUtils
 
 import shark.api.TableRDD
 import shark.api.QueryExecutionException
-import shark.execution.{SharkExplainTask, SharkExplainWork, SparkDDLTask, SparkDDLWork, SparkTask,
+import shark.execution.{SparkDDLTask, SparkDDLWork, SharkExplainTask, SharkExplainWork, SparkTask,
   SparkWork}
 import shark.memstore2.ColumnarSerDe
 import shark.parse.{QueryContext, SharkSemanticAnalyzerFactory}
