@@ -20,6 +20,9 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
     super.analyzeInternal(astNode)
 
     astNode.getToken.getType match {
+      case HiveParser.TOK_DROPTABLE => {
+        SharkEnv.unpersist(getTableName(astNode))
+      }
       case HiveParser.TOK_ALTERTABLE_RENAME => {
         analyzeAlterTableRename(astNode)
       }
