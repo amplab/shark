@@ -225,9 +225,11 @@ class DictionaryEncoding extends CompressionAlgorithm {
 
   override def compressionType = DictionaryCompressionType
 
-  override def supportsType(t: ColumnType[_, _]) = t match {
-    case STRING | LONG | INT => true
-    case _ => false
+  override def supportsType(t: ColumnType[_, _]) = {
+    t match {
+      case STRING | LONG | INT => true
+      case _ => false
+    }
   }
 
   override def gatherStatsForCompressibility[T](v: T, t: ColumnType[T, _]) {
@@ -248,8 +250,8 @@ class DictionaryEncoding extends CompressionAlgorithm {
         } else {
           // Overflown. Release the dictionary immediately to lower memory pressure.
           _overflow = true
-          _dictionary = null
           _values = null
+          _dictionary = null
         }
       }
     }
@@ -365,8 +367,8 @@ class BooleanBitSetCompression extends CompressionAlgorithm {
 /**
   * Delta encoding for numeric columns. This algorithm encodes values into a single byte whenever
   * the difference from the previous value (Delta) is small enough.
-  * A flag byte is always used for each value. 
-  * 
+  * A flag byte is always used for each value.
+  *
   * The first bit of that flag byte acts as an escape code that identifies whether the next few
   * bytes (fixed number based on Numeric Type) should be used or not.
   *  0 implies there is a new baseValue in the following byte
@@ -388,9 +390,11 @@ class ByteDeltaEncoding[T: Numeric] extends CompressionAlgorithm {
 
   override def compressionType = ByteDeltaCompressionType
 
-  override def supportsType(t: ColumnType[_, _]) = t match {
-    case LONG | INT | SHORT => true
-    case _ => false
+  override def supportsType(t: ColumnType[_, _]) = { 
+    t match {
+      case LONG | INT | SHORT => true
+      case _ => false
+    }
   }
 
   var _compressedSize: Int = 0
@@ -420,7 +424,6 @@ class ByteDeltaEncoding[T: Numeric] extends CompressionAlgorithm {
   }
 
   override def gatherStatsForCompressibility[V](v: V, t: ColumnType[V, _]) {
-
     val closureFull = () => { _compressedSize += (1 + valueSize(v, t)) }
     val closureDelta = () => { _compressedSize += 1 }
     val current = t.clone(v)

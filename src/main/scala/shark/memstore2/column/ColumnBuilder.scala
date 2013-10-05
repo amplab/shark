@@ -24,6 +24,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
 
+import shark.LogHelper
 
 trait ColumnBuilder[T] {
 
@@ -86,7 +87,7 @@ class DefaultColumnBuilder[T](val stats: ColumnStats[T], val t: ColumnType[T, _]
   extends CompressedColumnBuilder[T] with NullableColumnBuilder[T]{}
 
 
-trait CompressedColumnBuilder[T] extends ColumnBuilder[T] {
+trait CompressedColumnBuilder[T] extends ColumnBuilder[T] with LogHelper {
 
   var compressionSchemes: Seq[CompressionAlgorithm] = Seq()
 
@@ -107,9 +108,12 @@ trait CompressedColumnBuilder[T] extends ColumnBuilder[T] {
     val b = super.build()
 
     if (compressionSchemes.isEmpty) {
+      logInfo("Compression scheme chosen is -1 - no compression")
       new NoCompression().compress(b, t)
     } else {
       val candidateScheme = compressionSchemes.minBy(_.compressionRatio)
+      logInfo("Compression scheme chosen is %d with ratio %f".
+        format(candidateScheme.compressionType.typeID, candidateScheme.compressionRatio))
       if (shouldApply(candidateScheme)) {
         candidateScheme.compress(b, t)
       } else {
@@ -127,12 +131,21 @@ object ColumnBuilder {
       case ObjectInspector.Category.PRIMITIVE => {
         columnOi.asInstanceOf[PrimitiveObjectInspector].getPrimitiveCategory match {
           case PrimitiveCategory.BOOLEAN   => new BooleanColumnBuilder
-          case PrimitiveCategory.INT       => new IntColumnBuilder
-          case PrimitiveCategory.LONG      => new LongColumnBuilder
+          case PrimitiveCategory.INT       => {
+            bde = new ByteDeltaEncoding[Int]
+            new IntColumnBuilder
+          }
+          case PrimitiveCategory.LONG      => {
+            bde = new ByteDeltaEncoding[Long]
+            new LongColumnBuilder
+          }
           case PrimitiveCategory.FLOAT     => new FloatColumnBuilder
           case PrimitiveCategory.DOUBLE    => new DoubleColumnBuilder
           case PrimitiveCategory.STRING    => new StringColumnBuilder
-          case PrimitiveCategory.SHORT     => new ShortColumnBuilder
+          case PrimitiveCategory.SHORT     => {
+            bde = new ByteDeltaEncoding[Short]
+            new ShortColumnBuilder
+          }
           case PrimitiveCategory.BYTE      => new ByteColumnBuilder
           case PrimitiveCategory.TIMESTAMP => new TimestampColumnBuilder
           case PrimitiveCategory.BINARY    => new BinaryColumnBuilder
@@ -145,7 +158,13 @@ object ColumnBuilder {
       case _ => new GenericColumnBuilder(columnOi)
     }
     if (shouldCompress) {
-      v.compressionSchemes = Seq(new RLE(), new BooleanBitSetCompression())
+      v.compressionSchemes = Seq(new NoCompression,
+        new RLE,
+        new BooleanBitSetCompression,
+        new DictionaryEncoding)
+      if(bde != null) { 
+        v.compressionSchemes = bde +: v.compressionSchemes
+      }
     }
     v
   }

@@ -191,7 +191,7 @@ class CompressionAlgorithmSuite extends FunSuite {
     b.order(ByteOrder.nativeOrder())
     b.putInt(INT.typeID)
 
-    val bde = new ByteDeltaEncoding[Int]()
+    val bde = new ByteDeltaEncoding[Int]
 
     val x = 1
     b.putInt(x)
@@ -311,8 +311,9 @@ class CompressionAlgorithmSuite extends FunSuite {
       b.putInt(u.typeID)
       val de = new DictionaryEncoding()
       l.foreach { item =>
+        assert(de.supportsType(u))
         u.append(item, b)
-        de.gatherStatsForCompressibility(item, u.asInstanceOf[ColumnType[Any, _]])
+        de.gatherStatsForCompressibility(item, u)
       }
       b.limit(b.position())
       b.rewind()
