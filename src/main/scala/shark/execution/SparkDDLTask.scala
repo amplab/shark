@@ -100,13 +100,16 @@ private[shark] class SparkDDLTask extends HiveTask[SparkDDLWork] with Serializab
         partitionColumns, partitionColumnToValue)
       SharkEnv.memoryMetadataManager.dropHivePartition(tableName, keyStr)
     }
+  }
 
   def alterTable(
       hiveMetadataDb: Hive,
       alterTableDesc: AlterTableDesc) {
-    val oldName = alterTableDesc.getOldName
-    val newName = alterTableDesc.getNewName
-    SharkEnv.memoryMetadataManager.rename(oldName, newName)
+    if (alterTableDesc.getOp() == AlterTableDesc.AlterTableTypes.RENAME) {
+      val oldName = alterTableDesc.getOldName
+      val newName = alterTableDesc.getNewName
+      SharkEnv.memoryMetadataManager.rename(oldName, newName)
+    }
   }
 
   override def getType = StageType.DDL

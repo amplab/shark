@@ -118,10 +118,10 @@ class MemoryMetadataManager {
       val newKeyToLowerCase = newKey.toLowerCase
 
       val statsValueEntry = _keyToStats.remove(oldKeyToLowerCase).get
-      val rddValueEntry = _keyToRdd.remove(oldKeyToLowerCase).get
+      val rddValueEntry = _keyToMemoryTable.remove(oldKeyToLowerCase).get
 
       _keyToStats.put(newKeyToLowerCase, statsValueEntry)
-      _keyToRdd.put(newKeyToLowerCase, rddValueEntry)
+      _keyToMemoryTable.put(newKeyToLowerCase, rddValueEntry)
     }
   }
 

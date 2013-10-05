@@ -34,7 +34,7 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
         alterTableDropParts(ast)
       }
       case HiveParser.TOK_ALTERTABLE_RENAME => {
-        analyzeAlterTableRename(astNode)
+        analyzeAlterTableRename(ast)
       }
       case _ => Unit
     }

@@ -242,6 +242,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.runSql("create table new_table_cached(key string, value string)")
     sc.runSql("insert into table new_table_cached select * from test where key > -1 limit 499")
     expectSql("select count(*) from new_table_cached", "499")
+  }
 
   test("rename cached table") {
     sc.runSql("drop table if exists test_oldname_cached")
