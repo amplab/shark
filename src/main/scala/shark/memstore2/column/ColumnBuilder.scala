@@ -127,6 +127,8 @@ trait CompressedColumnBuilder[T] extends ColumnBuilder[T] with LogHelper {
 object ColumnBuilder {
 
   def create(columnOi: ObjectInspector, shouldCompress: Boolean = true): ColumnBuilder[_] = {
+    var bde: CompressionAlgorithm = null
+
     val v = columnOi.getCategory match {
       case ObjectInspector.Category.PRIMITIVE => {
         columnOi.asInstanceOf[PrimitiveObjectInspector].getPrimitiveCategory match {
