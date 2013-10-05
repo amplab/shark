@@ -122,8 +122,7 @@ object SharkEnv extends LogHelper {
         logWarning("Failed to remove table " + key + " from Tachyon.");
       }
     }
-
-    memoryMetadataManager.unpersist(key)
+    return memoryMetadataManager.unpersist(key)
   }
 
   /** Cleans up and shuts down the Shark environments. */

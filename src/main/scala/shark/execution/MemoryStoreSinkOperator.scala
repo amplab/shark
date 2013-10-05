@@ -42,7 +42,8 @@ class MemoryStoreSinkOperator extends TerminalOperator {
   @BeanProperty var shouldCompress: Boolean = _
   @BeanProperty var storageLevel: StorageLevel = _
   @BeanProperty var tableName: String = _
-  @transient var useTachyon: Boolean = _
+  @BeanProperty var hivePartitionKey: String = _
+  @transient var cacheMode: CacheType.CacheType = _
   @transient var useUnionRDD: Boolean = _
   @transient var numColumns: Int = _
 
@@ -65,7 +66,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     val op = OperatorSerializationWrapper(this)
 
     val tachyonWriter: TachyonTableWriter =
-      if (useTachyon) {
+      if (cacheMode == CacheType.TACHYON) {
         // Use an additional row to store metadata (e.g. number of rows in each partition).
         SharkEnv.tachyonUtil.createTableWriter(tableName, numColumns + 1)
       } else {
@@ -96,12 +97,11 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       }
     }
 
+    val isHivePartitioned = SharkEnv.memoryMetadataManager.isHivePartitioned(tableName)
+
     if (tachyonWriter != null) {
       // Put the table in Tachyon.
       op.logInfo("Putting RDD for %s in Tachyon".format(tableName))
-
-      SharkEnv.memoryMetadataManager.put(tableName, rdd)
-
       tachyonWriter.createTable(ByteBuffer.allocate(0))
       rdd = rdd.mapPartitionsWithIndex { case(partitionIndex, iter) =>
         val partition = iter.next()
@@ -127,16 +127,33 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
       val origRdd = rdd
       if (useUnionRDD) {
+        val oldRdd: Option[RDD[_]] =
+          if (isHivePartitioned) {
+            SharkEnv.memoryMetadataManager.getHivePartition(tableName, hivePartitionKey)
+          } else {
+            SharkEnv.memoryMetadataManager.get(tableName)
+          }
         // If this is an insert, find the existing RDD and create a union of the two, and then
         // put the union into the meta data tracker.
-        rdd = rdd.union(
-          SharkEnv.memoryMetadataManager.get(tableName).get.asInstanceOf[RDD[TablePartition]])
+        rdd = oldRdd match {
+          case Some(definedRdd) => rdd.union(oldRdd.get.asInstanceOf[RDD[TablePartition]])
+          // The oldRdd can be missing if this is an INSERT into a new Hive-partition.
+          case None => rdd
+        }
+      }
+      // Run a job on the original RDD to force it to go into cache.
+      origRdd.context.runJob(origRdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
+    }
+    if (isHivePartitioned) {
+      SharkEnv.memoryMetadataManager.putHivePartition(tableName, hivePartitionKey, rdd)
+      rdd.setName(tableName + "(" + hivePartitionKey + ")")
+    } else {
+      if (!SharkEnv.memoryMetadataManager.contains(tableName)) {
+        // This is a CTAS. Add a new table entry to the Shark metadata.
+        SharkEnv.memoryMetadataManager.add(tableName, false /* isHivePartitioned */, cacheMode)
       }
       SharkEnv.memoryMetadataManager.put(tableName, rdd)
       rdd.setName(tableName)
-
-      // Run a job on the original RDD to force it to go into cache.
-      origRdd.context.runJob(origRdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
     }
 
     // Report remaining memory.
@@ -158,9 +175,13 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         // Combine stats for the two tables being combined.
         val numPartitions = statsAcc.value.toMap.size
         val currentStats = statsAcc.value
-        val otherIndexToStats = SharkEnv.memoryMetadataManager.getStats(tableName).get
-        for ((otherIndex, tableStats) <- otherIndexToStats) {
-          currentStats.append((otherIndex + numPartitions, tableStats))
+        SharkEnv.memoryMetadataManager.getStats(tableName) match {
+          case Some(otherIndexToStats) => {
+            for ((otherIndex, tableStats) <- otherIndexToStats) {
+              currentStats.append((otherIndex + numPartitions, tableStats))
+            }
+          }
+          case _ => Unit
         }
         currentStats.toMap
       } else {
