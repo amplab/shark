@@ -95,5 +95,5 @@ private[shark] class LRUCachePolicy[K <: AnyRef, V <: AnyRef] extends CachePolic
     cache.get(key)
   }
   
-  override def getKeysOfCachedEntries: Seq[K] = cache.asMap.keySet.toSeq  
+  override def getKeysOfCachedEntries: Seq[K] = cache.asMap.keySet.toSeq
 }

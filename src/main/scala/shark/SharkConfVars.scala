@@ -43,6 +43,13 @@ object SharkConfVars {
   // Default storage level for cached tables.
   val STORAGE_LEVEL = new ConfVar("shark.cache.storageLevel", "MEMORY_AND_DISK")
 
+  // Class name of the default cache policy for cached, Hive-partitioned tables.
+  val CACHE_POLICY = new ConfVar(
+    "shark.cache.partition.cachePolicy.class", "shark.memstore2.LRUCachePolicy")
+
+  // Max size of the cache for the "shark.cache.partition.cachePolicy".
+  val MAX_CACHE_SIZE = new ConfVar("shark.cache.partition.cachePolicy.maxSize", "10")
+
   // If true, then cache any table whose name ends in "_cached".
   val CHECK_TABLENAME_FLAG = new ConfVar("shark.cache.flag.checkTableName", true)
 

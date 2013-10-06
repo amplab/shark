@@ -75,6 +75,8 @@ class PartitionedMemoryTable(
 
   private var _partitionCachePolicyName: String = "None"
 
+  def containsPartition(partitionKey: String): Boolean = _keyToPartitions.contains(partitionKey)
+
   def getPartition(partitionKey: String): Option[RDD[_]] = {
     val rddFound = _keyToPartitions.get(partitionKey)
     if (rddFound.isDefined) _partitionCachePolicy.notifyGet(partitionKey)

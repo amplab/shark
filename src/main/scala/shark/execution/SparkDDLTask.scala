@@ -25,7 +25,7 @@ import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.hadoop.hive.ql.plan._
 import org.apache.hadoop.hive.ql.plan.api.StageType
 
-import shark.{LogHelper, SharkEnv}
+import shark.{LogHelper, SharkConfVars, SharkEnv}
 import shark.memstore2.{CacheType, MemoryMetadataManager}
 
 
@@ -71,8 +71,10 @@ private[shark] class SparkDDLTask extends HiveTask[SparkDDLWork] with Serializab
     val isHivePartitioned = (createTblDesc.getPartCols.size > 0)
     if (isHivePartitioned) {
       val tblProps = createTblDesc.getTblProps
-      val cachePolicyStr = tblProps.get("shark.cache.partition.cachePolicy")
-      val maxCacheSize = tblProps.get("shark.cache.partition.cachePolicy.maxSize").toLong
+      val cachePolicyStr = tblProps.getOrElse("shark.cache.partition.cachePolicy.class",
+        SharkConfVars.CACHE_POLICY.defaultVal)
+      val maxCacheSize = tblProps.getOrElse("shark.cache.partition.cachePolicy.maxSize",
+        SharkConfVars.MAX_CACHE_SIZE.defaultVal).toLong
       SharkEnv.memoryMetadataManager.createPartitionedMemoryTable(
         tableName, cacheMode, cachePolicyStr, maxCacheSize)
     } else {

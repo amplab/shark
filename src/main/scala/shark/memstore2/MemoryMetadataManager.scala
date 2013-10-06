@@ -48,7 +48,7 @@ class MemoryMetadataManager {
     _keyToTable.put(tableName.toLowerCase, newTable)
     return newTable
   }
-  
+
   def createPartitionedMemoryTable(
       tableName: String,
       cacheMode: CacheType.CacheType,
