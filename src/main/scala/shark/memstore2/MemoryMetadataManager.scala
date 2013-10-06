@@ -73,11 +73,21 @@ class MemoryMetadataManager {
   def getTable(tableName: String): Option[Table] = _keyToTable.get(tableName.toLowerCase)
 
   def getMemoryTable(tableName: String): Option[MemoryTable] = {
-    _keyToTable.get(tableName.toLowerCase).asInstanceOf[Option[MemoryTable]]
+   val tableFound = _keyToTable.get(tableName.toLowerCase)
+   tableFound.foreach(table =>
+     assert(table.isInstanceOf[MemoryTable],
+       "getMemoryTable() called for a partitioned table."))
+
+   tableFound.asInstanceOf[Option[MemoryTable]]
   }
 
   def getPartitionedTable(tableName: String): Option[PartitionedMemoryTable] = {
-    _keyToTable.get(tableName.toLowerCase).asInstanceOf[Option[PartitionedMemoryTable]]
+   val tableFound = _keyToTable.get(tableName.toLowerCase)
+   tableFound.foreach(table =>
+     assert(table.isInstanceOf[PartitionedMemoryTable],
+       "getPartitionedTable() called for a non-partitioned table."))
+
+   tableFound.asInstanceOf[Option[PartitionedMemoryTable]]
   }
 
   def putStats(key: String, stats: collection.Map[Int, TablePartitionStats]) {
@@ -124,7 +134,7 @@ class MemoryMetadataManager {
 
     def unpersistTable(table: Table): Option[RDD[_]] = {
       var unpersistedRDD: Option[RDD[_]] = None
-      if (isHivePartitioned(lowerCaseTableName)) {
+      if (table.isInstanceOf[PartitionedMemoryTable]) {
         val partitionedTable = table.asInstanceOf[PartitionedMemoryTable]
         // unpersist() all RDDs for all Hive-partitions.
         val unpersistedRDDs =  partitionedTable.getAllPartitions.map(
