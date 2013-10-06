@@ -23,6 +23,9 @@ import scala.collection.JavaConversions._
 import scala.collection.mutable.ConcurrentMap
 
 import org.apache.spark.rdd.RDD
+import org.apache.spark.storage.StorageLevel
+
+import shark.execution.RDDUtils
 
 
 /**
@@ -37,7 +40,15 @@ import org.apache.spark.rdd.RDD
  *               too much metadata to track, so it should be okay to have a single MemoryTable.
  */
 
-private[shark] abstract class Table(val tableName: String, val cacheMode: CacheType.CacheType)
+private[shark] abstract class Table(val tableName: String, val cacheMode: CacheType.CacheType) {
+  def getStorageLevel: StorageLevel
+}
+
+object Table {
+
+  def isHivePartitioned(table: Table) = table.isInstanceOf[PartitionedMemoryTable]
+
+}
 
 private[shark]
 class MemoryTable(
@@ -47,6 +58,8 @@ class MemoryTable(
 
   // RDD that contains the contents of this table.
   var tableRDD: RDD[_] = _
+
+  override def getStorageLevel: StorageLevel = RDDUtils.getStorageLevelOfCachedRDD(tableRDD)
 }
 
 private[shark]
@@ -87,4 +100,10 @@ class PartitionedMemoryTable(
   }
 
   def partitionCachePolicy: CachePolicy[String, RDD[_]] = _partitionCachePolicy
+
+  def getAllPartitions = _keyToPartitions.values.toSeq
+
+  def getAllPartitionKeys = _keyToPartitions.keys.toSeq
+
+  def getStorageLevel: StorageLevel = RDDUtils.getStorageLevelOfCachedRDDs(getAllPartitions)
 }

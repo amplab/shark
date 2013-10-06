@@ -46,7 +46,7 @@ private[shark] class LRUCachePolicy[K <: AnyRef, V <: AnyRef] extends CachePolic
   var cache: LoadingCache[K, V] = _
 
   override def initialize(): Unit = {
-	var builder = CacheBuilder.newBuilder().maximumSize(maxCacheSize)
+    var builder = CacheBuilder.newBuilder().maximumSize(maxCacheSize)
 
     val removalListener =
       new RemovalListener[K, V] {
@@ -74,5 +74,4 @@ private[shark] class LRUCachePolicy[K <: AnyRef, V <: AnyRef] extends CachePolic
   }
   
   protected def getKeysOfCachedEntries: Seq[K] = cache.asMap.keySet.toSeq
-
 }
