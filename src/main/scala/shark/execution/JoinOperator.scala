@@ -148,7 +148,7 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
     throw new UnsupportedOperationException("JoinOperator.processPartition()")
 
   class TupleIterator(iter: Iterator[Array[Any]]) extends Iterator[Object] {
-    val tupleSizes = (0 until joinVals.size).map { i => joinVals.get(i.toByte).size() }.toIndexedSeq
+    val tupleSizes = joinVals.map((e) => e.size).toIndexedSeq
     val offsets = tupleSizes.scanLeft(0)(_ + _)
 
     val rowSize = offsets.last
@@ -236,7 +236,7 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
       var leftFiltered = if(index == 0) {
         // check the join filter (true for discard the data)
         CommonJoinOperator.isFiltered(leftTable,
-          joinFilters.get(index.toByte), joinFilterObjectInspectors.get(index.toByte))
+          joinFilters(index), joinFilterObjectInspectors(index.toByte))
       } else {
         previousRightFiltered
       }
@@ -250,8 +250,8 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
         var rightTable = deserColumns(elements(rightTableIndex).asInstanceOf[Array[Byte]], 
             tagToValueSer.get(rightTableIndex))
         var rightFiltered = CommonJoinOperator.isFiltered(rightTable,
-          joinFilters.get(rightTableIndex.toByte), 
-          joinFilterObjectInspectors.get(rightTableIndex.toByte))
+          joinFilters(rightTableIndex.toByte), 
+          joinFilterObjectInspectors(rightTableIndex.toByte))
 
         joinCondition.getType() match {
           case CommonJoinOperator.FULL_OUTER_JOIN => {
@@ -349,8 +349,8 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
     private def setColumnValues(data: Object, outputRow: Array[Object], tblIdx: Byte,
                                 offsets: IndexedSeq[Int]) {
 
-      val joinVal = joinVals.get(tblIdx)
-      val joinValOIs = joinValuesObjectInspectors.get(tblIdx)
+      val joinVal = joinVals(tblIdx)
+      val joinValOIs = joinValuesObjectInspectors(tblIdx)
       
       var idx = 0
       val size = joinVal.size()
