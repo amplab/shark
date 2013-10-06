@@ -40,20 +40,16 @@ import shark.execution.RDDUtils
  *               too much metadata to track, so it should be okay to have a single MemoryTable.
  */
 
-private[shark] abstract class Table(val tableName: String, val cacheMode: CacheType.CacheType) {
+private[shark] abstract class Table(
+    var tableName: String,
+    var cacheMode: CacheType.CacheType) {
   def getStorageLevel: StorageLevel
-}
-
-object Table {
-
-  def isHivePartitioned(table: Table) = table.isInstanceOf[PartitionedMemoryTable]
-
 }
 
 private[shark]
 class MemoryTable(
-    val tableName: String,
-    val cacheMode: CacheType.CacheType)
+    tableName: String,
+    cacheMode: CacheType.CacheType)
   extends Table(tableName, cacheMode) {
 
   // RDD that contains the contents of this table.
@@ -64,8 +60,8 @@ class MemoryTable(
 
 private[shark]
 class PartitionedMemoryTable(
-    val tableName: String,
-    val cacheMode: CacheType.CacheType)
+    tableName: String,
+    cacheMode: CacheType.CacheType)
   extends Table(tableName, cacheMode) {
 
   // A map from the Hive-partition key to the RDD that contains contents of that partition.
@@ -76,6 +72,8 @@ class PartitionedMemoryTable(
   // can be set from the CLI:
   //   'TBLPROPERTIES("shark.partition.cachePolicy", "LRUCachePolicy")'.
   private var _partitionCachePolicy: CachePolicy[String, RDD[_]] = _
+
+  private var _partitionCachePolicyName: String = "None"
 
   def getPartition(partitionKey: String): Option[RDD[_]] = {
     val rddFound = _keyToPartitions.get(partitionKey)
@@ -94,12 +92,22 @@ class PartitionedMemoryTable(
     return rddRemoved
   }
 
-  def partitionCachePolicy_= (value: String) {
+  def setPartitionCachePolicy(cachePolicyStr: String, maxSize: Long) {
     _partitionCachePolicy =
-      Class.forName(value).newInstance.asInstanceOf[CachePolicy[String, RDD[_]]]
+      Class.forName(cachePolicyStr).newInstance.asInstanceOf[CachePolicy[String, RDD[_]]]
+    val loadFunc: String => RDD[_] =
+      (partitionKey: String) => {
+        val partitionRDD = _keyToPartitions.get(partitionKey).get
+        partitionRDD.persist(RDDUtils.getStorageLevelOfCachedRDDs(getAllPartitions))
+        partitionRDD
+      }
+    val evictionFunc: (String, RDD[_]) => Unit =
+      (partitionKey: String, partition: RDD[_]) => partition.unpersist()
+    _partitionCachePolicy.initialize(maxSize, loadFunc, evictionFunc)
+    _partitionCachePolicyName = cachePolicyStr
   }
 
-  def partitionCachePolicy: CachePolicy[String, RDD[_]] = _partitionCachePolicy
+  def getPartitionCachePolicy: String = _partitionCachePolicyName
 
   def getAllPartitions = _keyToPartitions.values.toSeq
 
@@ -107,3 +115,4 @@ class PartitionedMemoryTable(
 
   def getStorageLevel: StorageLevel = RDDUtils.getStorageLevelOfCachedRDDs(getAllPartitions)
 }
+

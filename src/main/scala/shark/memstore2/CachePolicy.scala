@@ -24,54 +24,76 @@ import scala.collection.JavaConversions._
 
 private[shark] abstract class CachePolicy[K, V] {
 
-  var maxCacheSize: Long = _
+  protected var maxSize: Long = _
 
-  var loadFunction: (K => V) = _
+  protected var loadFunc: (K => V) = _
 
-  var evictionFunction: ((K, V) => Unit) = _
+  protected var evictionFunc: (K, V) => Unit = _
 
-  def initialize(): Unit
+  def initialize(
+	  maxSize: Long,
+	  loadFunc: (K => V),
+	  evictionFunc: (K, V) => Unit
+    ): Unit = {
+    this.maxSize = maxSize
+    this.loadFunc = loadFunc
+    this.evictionFunc = evictionFunc
+  }
   
   def notifyPut(key: K, value: V): Unit
-  
+
   def notifyRemove(key: K, value: V): Unit
 
   def notifyGet(key: K): Unit
   
   def getKeysOfCachedEntries: Seq[K]
+
+  def getMaxSize = maxSize
 }
 
 private[shark] class LRUCachePolicy[K <: AnyRef, V <: AnyRef] extends CachePolicy[K, V] {
 
+  var isInitialized = false
   var cache: LoadingCache[K, V] = _
 
-  override def initialize(): Unit = {
-    var builder = CacheBuilder.newBuilder().maximumSize(maxCacheSize)
+  override def initialize(
+	  maxSize: Long,
+	  loadFunc: (K => V),
+	  evictionFunc: (K, V) => Unit
+    ): Unit = {
+    super.initialize(maxSize, loadFunc, evictionFunc)
+
+    var builder = CacheBuilder.newBuilder().maximumSize(maxSize)
 
     val removalListener =
       new RemovalListener[K, V] {
-        def onRemoval(removal: RemovalNotification[K, V]): Unit =
-          evictionFunction(removal.getKey, removal.getValue)
+        def onRemoval(removal: RemovalNotification[K, V]): Unit = {
+          evictionFunc(removal.getKey, removal.getValue)
+        }
       }
     val cacheLoader =
       new CacheLoader[K, V] {
-        def load(key: K): V = loadFunction(key)
+        def load(key: K): V = loadFunc(key)
       }
 
     cache = builder.removalListener(removalListener).build(cacheLoader)
+    isInitialized = true
   }
 
   override def notifyPut(key: K, value: V): Unit = {
+    assert(isInitialized, "LRUCachePolicy must be initialize()'d.")
     cache.put(key, value)
   }
 
   override def notifyRemove(key: K, value: V): Unit = {
+    assert(isInitialized, "LRUCachePolicy must be initialize()'d.")
     cache.invalidate(key, value)
   }
 
   override def notifyGet(key: K): Unit = {
+    assert(isInitialized, "LRUCachePolicy must be initialize()'d.")
     cache.get(key)
   }
   
-  protected def getKeysOfCachedEntries: Seq[K] = cache.asMap.keySet.toSeq
+  override def getKeysOfCachedEntries: Seq[K] = cache.asMap.keySet.toSeq  
 }

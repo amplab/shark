@@ -127,14 +127,15 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
       val origRdd = rdd
       if (useUnionRDD) {
-        val oldRdd: Option[RDD[_]] =
+        var oldRdd: Option[RDD[_]] =
           if (isHivePartitioned) {
-            SharkEnv.memoryMetadataManager.getHivePartition(tableName, hivePartitionKey)
+            SharkEnv.memoryMetadataManager.getPartitionedTable(tableName)
+              .flatMap(_.getPartition(hivePartitionKey))
           } else {
-            SharkEnv.memoryMetadataManager.get(tableName)
+            SharkEnv.memoryMetadataManager.getMemoryTable(tableName).map(_.tableRDD)
           }
         // If this is an insert, find the existing RDD and create a union of the two, and then
-        // put the union into the meta data tracker.
+        // put the union into the metadata tracker.
         rdd = oldRdd match {
           case Some(definedRdd) => rdd.union(oldRdd.get.asInstanceOf[RDD[TablePartition]])
           // The oldRdd can be missing if this is an INSERT into a new Hive-partition.
@@ -144,16 +145,17 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       // Run a job on the original RDD to force it to go into cache.
       origRdd.context.runJob(origRdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
     }
+
     if (isHivePartitioned) {
-      SharkEnv.memoryMetadataManager.putHivePartition(tableName, hivePartitionKey, rdd)
-      rdd.setName(tableName + "(" + hivePartitionKey + ")")
-    } else {
-      if (!SharkEnv.memoryMetadataManager.contains(tableName)) {
-        // This is a CTAS. Add a new table entry to the Shark metadata.
-        SharkEnv.memoryMetadataManager.add(tableName, false /* isHivePartitioned */, cacheMode)
+      SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).foreach{ table =>
+        table.putPartition(hivePartitionKey, rdd)
+        rdd.setName(tableName + "(" + hivePartitionKey + ")")
       }
-      SharkEnv.memoryMetadataManager.put(tableName, rdd)
+    } else {
+      val table = SharkEnv.memoryMetadataManager.getMemoryTable(tableName).getOrElse(
+        SharkEnv.memoryMetadataManager.createMemoryTable(tableName, cacheMode))
       rdd.setName(tableName)
+      table.tableRDD = rdd
     }
 
     // Report remaining memory.

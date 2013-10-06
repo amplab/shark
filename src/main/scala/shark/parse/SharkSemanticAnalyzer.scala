@@ -164,11 +164,12 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
           } else {
             // Otherwise, check if we are inserting into a table that was cached.
             val cachedTableName = tableName.split('.')(1) // Ignore the database name
-            if (SharkEnv.memoryMetadataManager.contains(cachedTableName)) {
+            if (SharkEnv.memoryMetadataManager.containsTable(cachedTableName)) {
               if (hiveSinkOps.size == 1) {
                 // If useUnionRDD is false, the sink op is for INSERT OVERWRITE.
                 val useUnionRDD = qbParseInfo.isInsertIntoTable(cachedTableName)
-                val cacheMode = SharkEnv.memoryMetadataManager.getCacheMode(cachedTableName)
+                val table = SharkEnv.memoryMetadataManager.getTable(cachedTableName).get
+                val cacheMode = table.cacheMode
                 var hivePartitionKey = new String
                 if (SharkEnv.memoryMetadataManager.isHivePartitioned(cachedTableName)) {
                   if (cacheMode == CacheType.TACHYON) {
@@ -177,7 +178,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                   }
                   hivePartitionKey = SharkSemanticAnalyzer.getHivePartitionKey(qb)
                 }
-                val storageLevel = SharkEnv.memoryMetadataManager.getStorageLevel(cachedTableName)
+                val storageLevel = table.getStorageLevel
                 OperatorFactory.createSharkMemoryStoreOutputPlan(
                   hiveSinkOp,
                   cachedTableName,

@@ -43,7 +43,7 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
   def analyzeAlterTableAddParts(ast: ASTNode) {
     val tableName = getTableName(ast)
     // Create a SparkDDLTask only if the table is cached.
-    if (SharkEnv.memoryMetadataManager.contains(tableName)) {
+    if (SharkEnv.memoryMetadataManager.containsTable(tableName)) {
       // Hive's DDLSemanticAnalyzer#analyzeInternal() will only populate rootTasks with DDLTasks
       // and DDLWorks that contain AddPartitionDesc objects.
       for (ddlTask <- rootTasks) {
@@ -57,7 +57,7 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
   def alterTableDropParts(ast: ASTNode) {
     val tableName = getTableName(ast)
     // Create a SparkDDLTask only if the table is cached.
-    if (SharkEnv.memoryMetadataManager.contains(tableName)) {
+    if (SharkEnv.memoryMetadataManager.containsTable(tableName)) {
       // Hive's DDLSemanticAnalyzer#analyzeInternal() will only populate rootTasks with DDLTasks
       // and DDLWorks that contain AddPartitionDesc objects.
       for (ddlTask <- rootTasks) {
@@ -70,7 +70,7 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
 
   private def analyzeAlterTableRename(astNode: ASTNode) {
     val oldTableName = getTableName(astNode)
-    if (SharkEnv.memoryMetadataManager.contains(oldTableName)) {
+    if (SharkEnv.memoryMetadataManager.containsTable(oldTableName)) {
       val newTableName = BaseSemanticAnalyzer.getUnescapedName(
         astNode.getChild(1).asInstanceOf[ASTNode])
 

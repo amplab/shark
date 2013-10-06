@@ -121,7 +121,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     // TODO(harvey): Pruning Hive-partitioned, cached tables isn't supported yet.
     if (cacheMode == CacheType.HEAP) {
       // Table should be in Spark heap (block manager).
-      if (!SharkEnv.memoryMetadataManager.contains(tableKey)) {
+      if (!SharkEnv.memoryMetadataManager.containsTable(tableKey)) {
         logError("""|Table %s not found in block manager.
                     |Are you trying to access a cached table from a Shark session other than
                     |the one in which it was created?""".stripMargin.format(tableKey))
@@ -131,7 +131,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         // Get the union of RDDs repesenting the selected Hive partition(s).
         makeCachedPartitionRDD(tableKey, parts)
       } else {
-        val rdd = SharkEnv.memoryMetadataManager.get(tableKey).get
+        val rdd = SharkEnv.memoryMetadataManager.getMemoryTable(tableKey).get.tableRDD
         logInfo("Loading table " + tableKey + " from Spark block manager")
         createPrunedRdd(tableKey, rdd)
       }
@@ -266,7 +266,8 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
           }
         }.toArray
       val partKeyStr = MemoryMetadataManager.makeHivePartitionKeyStr(partColumns, partSpec)
-      val hivePartitionRDD = SharkEnv.memoryMetadataManager.getHivePartition(tableKey, partKeyStr)
+      val hivePartitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableKey).get
+      val hivePartitionRDD = hivePartitionedTable.getPartition(partKeyStr)
       val serializedHconf = XmlSerializer.serialize(localHconf, localHconf)
       
       hivePartitionRDD.get.mapPartitions { iter =>
