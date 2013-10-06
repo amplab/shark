@@ -17,10 +17,10 @@
 
 package shark.memstore2
 
-import java.util.{HashMap => JavaHashMap}
+import java.util.concurrent.{ConcurrentHashMap => ConcurrentJavaHashMap}
 
 import scala.collection.JavaConversions._
-import scala.collection.mutable.Map
+import scala.collection.mutable.ConcurrentMap
 
 import org.apache.spark.rdd.RDD
 
@@ -36,48 +36,55 @@ import org.apache.spark.rdd.RDD
  *               such as HivePartitionedTable or TachyonTable, subclass it. For now, there isn't
  *               too much metadata to track, so it should be okay to have a single MemoryTable.
  */
+
+private[shark] abstract class Table(val tableName: String, val cacheMode: CacheType.CacheType)
+
 private[shark]
 class MemoryTable(
     val tableName: String,
-    val isHivePartitioned: Boolean) {
+    val cacheMode: CacheType.CacheType)
+  extends Table(tableName, cacheMode) {
 
-  // Should only be used if the table is not Hive-partitioned.
-  private var _tableRDD: RDD[_] = _
+  // RDD that contains the contents of this table.
+  var tableRDD: RDD[_] = _
+}
 
-  // Should only be used if a cached table is Hive-partitioned.
-  private var _keyToHivePartitions: Map[String, RDD[_]] = _
+private[shark]
+class PartitionedMemoryTable(
+    val tableName: String,
+    val cacheMode: CacheType.CacheType)
+  extends Table(tableName, cacheMode) {
 
-  // CacheMode for the table.
-  // This is common to all Hive-partitions (if applicable).
-  var cacheMode: CacheType.CacheType = _
+  // A map from the Hive-partition key to the RDD that contains contents of that partition.
+  private var _keyToPartitions: ConcurrentMap[String, RDD[_]] =
+    new ConcurrentJavaHashMap[String, RDD[_]]()
 
-  def tableRDD: RDD[_] = {
-    assert (
-      !isHivePartitioned,
-      "Table " + tableName + " is Hive-partitioned. Use MemoryTableDesc::hivePartitionRDDs() " +
-      "to get RDDs corresponding to partition columns"
-    )
-    return _tableRDD
+  // The eviction policy for this table's cached Hive-partitions. An example of how this
+  // can be set from the CLI:
+  //   'TBLPROPERTIES("shark.partition.cachePolicy", "LRUCachePolicy")'.
+  private var _partitionCachePolicy: CachePolicy[String, RDD[_]] = _
+
+  def getPartition(partitionKey: String): Option[RDD[_]] = {
+    val rddFound = _keyToPartitions.get(partitionKey)
+    if (rddFound.isDefined) _partitionCachePolicy.notifyGet(partitionKey)
+    return rddFound
   }
 
-  def tableRDD_= (value: RDD[_]) {
-    assert(
-      !isHivePartitioned,
-      "Table " + tableName + " is Hive-partitioned. Pass in a map of <partition key, RDD> pairs " +
-      "to the 'keyToHivePartitions =' setter."
-    )
-    _tableRDD = value
+  def putPartition(partitionKey: String, rdd: RDD[_]): Option[RDD[_]] = {
+    _partitionCachePolicy.notifyPut(partitionKey, rdd)
+    _keyToPartitions.put(partitionKey, rdd)
   }
 
-  def keyToHivePartitions: Map[String, RDD[_]] = {
-    assert(isHivePartitioned,
-           "Table " + tableName + " is not Hive-partitioned. Use tableRDD() to get its RDD.")
-    _keyToHivePartitions
+  def removePartition(partitionKey: String): Option[RDD[_]] = {
+    val rddRemoved = _keyToPartitions.remove(partitionKey)
+    if (rddRemoved.isDefined) _partitionCachePolicy.notifyRemove(partitionKey, rddRemoved.get)
+    return rddRemoved
   }
 
-  def keyToHivePartitions_= (value: Map[String, RDD[_]]) {
-    assert(isHivePartitioned,
-       "Table " + tableName + " is not Hive-partitioned. Use 'tableRDD =' to set the RDD.")
-    _keyToHivePartitions = value
+  def partitionCachePolicy_= (value: String) {
+    _partitionCachePolicy =
+      Class.forName(value).newInstance.asInstanceOf[CachePolicy[String, RDD[_]]]
   }
+
+  def partitionCachePolicy: CachePolicy[String, RDD[_]] = _partitionCachePolicy
 }
