@@ -40,7 +40,7 @@ trait CompressedColumnIterator extends ColumnIterator {
 
   def buffer: ByteBuffer
 
-  def columnType: ColumnType[_,_]
+  def columnType: ColumnType[_, _]
 
   override def init() {
     val compressionType: CompressionType = buffer.getInt()
@@ -137,12 +137,12 @@ class DictDecoder[V](buffer: ByteBuffer, columnType: ColumnType[_, V]) extends I
  * Boolean BitSet encoding.
  */
 class BooleanBitSetDecoder[V](
-  buffer: ByteBuffer,
-  columnType: ColumnType[_, V],
-  var _pos: Int,
-  var _uncompressedSize: Int,
-  var _curValue: Long,
-  var _writable: BooleanWritable) extends Iterator[V] {
+    buffer: ByteBuffer,
+    columnType: ColumnType[_, V],
+    var _pos: Int,
+    var _uncompressedSize: Int,
+    var _curValue: Long,
+    var _writable: BooleanWritable) extends Iterator[V] {
 
   def this(buffer: ByteBuffer, columnType: ColumnType[_, V]) =
     this(buffer, columnType, 0, buffer.getInt(), 0, new BooleanWritable())

@@ -165,7 +165,7 @@ class RLE extends CompressionAlgorithm {
   }
 
   @tailrec private final def encode[T](currentBuffer: ByteBuffer,
-    compressedBuffer: ByteBuffer, currentRun: (T, Int), t: ColumnType[T, _]) {
+      compressedBuffer: ByteBuffer, currentRun: (T, Int), t: ColumnType[T, _]) {
     def writeOutRun() {
       t.append(currentRun._1, compressedBuffer)
       compressedBuffer.putInt(currentRun._2)
