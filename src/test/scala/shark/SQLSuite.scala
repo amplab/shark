@@ -20,6 +20,8 @@ package shark
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.FunSuite
 
+import org.apache.spark.storage.StorageLevel
+
 import shark.api.QueryExecutionException
 
 
@@ -363,7 +365,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   test("Use regular CREATE TABLE and table properties to create cached, partitioned table") {
     sc.runSql("drop table if exists empty_part_table_cached_tbl_props")
     sc.runSql("""create table empty_part_table_cached_tbl_props(key int, value string)
-      partitioned by (keypart int) TBLPROPERTIES('shark.cache' = 'true')""")
+      partitioned by (keypart int) tblproperties('shark.cache' = 'true')""")
     assert(SharkEnv.memoryMetadataManager.containsTable("empty_part_table_cached_tbl_props"))
     assert(SharkEnv.memoryMetadataManager.isHivePartitioned("empty_part_table_cached_tbl_props"))
   }
@@ -379,14 +381,6 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
     assert(partitionedTable.containsPartition(partitionColumn))
   }
-
-  // TODO(harvey): Create hadoop file for this.
-  // test("alter cached table by adding a new partition, with a provided location") {
-  //   sc.runSql("drop table if exists alter_part_location_cached")
-  //   sc.runSql("""create table alter_part_location_cached(key int, val string)
-  //     partitioned by (keypart int)""")
-  //   sc.runSql("""alter table alter_part_location_cached add partition(keypart = 1)""")
-  // }
 
   test("alter cached table by dropping a partition") {
     sc.runSql("drop table if exists alter_drop_part_cached")
@@ -460,15 +454,15 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     val tableName = "drop_mult_part_cached"
     assert(SharkEnv.memoryMetadataManager.containsTable("drop_mult_part_cached"))
     val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
-    val keypart1RDD = partitionedTable.containsPartition("keypart=1")
-    val keypart5RDD = partitionedTable.containsPartition("keypart=5")
-    val keypart9RDD = partitionedTable.containsPartition("keypart=9")
+    val keypart1RDD = partitionedTable.getPartition("keypart=1")
+    val keypart5RDD = partitionedTable.getPartition("keypart=5")
+    val keypart9RDD = partitionedTable.getPartition("keypart=9")
     sc.runSql("drop table drop_mult_part_cached ")
     assert(!SharkEnv.memoryMetadataManager.containsTable(tableName))
     // All RDDs should have been unpersisted.
-    //assert(keypart1RDD.get.getStorageLevel == StorageLevel.NONE)
-    //assert(keypart5RDD.get.getStorageLevel == StorageLevel.NONE)
-    //assert(keypart9RDD.get.getStorageLevel == StorageLevel.NONE)
+    assert(keypart1RDD.get.getStorageLevel == StorageLevel.NONE)
+    assert(keypart5RDD.get.getStorageLevel == StorageLevel.NONE)
+    assert(keypart9RDD.get.getStorageLevel == StorageLevel.NONE)
   }
 
   test("drop cached partition represented by a UnionRDD (i.e., the result of multiple inserts)") {
@@ -485,9 +479,123 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.runSql("drop table drop_union_part_cached")
     assert(!SharkEnv.memoryMetadataManager.containsTable(tableName))
     // All RDDs should have been unpersisted.
-    //assert(keypart1RDD.getStorageLevel == StorageLevel.NONE)
+    assert(keypart1RDD.get.getStorageLevel == StorageLevel.NONE)
   }
 
+  //////////////////////////////////////////////////////////////////////////////
+  // RDD(partition) eviction policy for cached Hive-partititioned tables
+  //////////////////////////////////////////////////////////////////////////////
+  test("LRU: RDDs are evicted when the max size is reached.") {
+    sc.runSql("drop table if exists evict_partitions_maxSize_cached")
+    sc.runSql("""
+      create table evict_partitions_maxSize_cached(key int, value string)
+        partitioned by (keypart int)
+        tblproperties('shark.cache.partition.cachePolicy.maxSize' = '3',
+                      'shark.cache.partition.cachePolicy.class' = 'shark.memstore2.LRUCachePolicy',
+                      'shark.cache.storageLevel' = 'MEMORY_AND_DISK')
+      """)
+    sc.runSql("insert into table evict_partitions_maxSize_cached partition(keypart = 1) select * from test")
+    sc.runSql("insert into table evict_partitions_maxSize_cached partition(keypart = 2) select * from test")
+    sc.runSql("insert into table evict_partitions_maxSize_cached partition(keypart = 3) select * from test")
+    val tableName = "evict_partitions_maxSize_cached"
+    assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
+    val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
+    val keypart1RDD = partitionedTable.getPartition("keypart=1")
+    assert(keypart1RDD.get.getStorageLevel == StorageLevel.MEMORY_AND_DISK)
+    sc.runSql("insert into table evict_partitions_maxSize_cached partition(keypart = 4) select * from test")
+    assert(keypart1RDD.get.getStorageLevel == StorageLevel.NONE)
+  }
+
+  test("LRU: RDD eviction accounts for get()s.") {
+    sc.runSql("drop table if exists evict_partitions_get_ordering_cached")
+    sc.runSql("""
+      create table evict_partitions_get_order_cached(key int, value string)
+        partitioned by (keypart int)
+        tblproperties('shark.cache.partition.cachePolicy.maxSize' = '3',
+                      'shark.cache.partition.cachePolicy.class' = 'shark.memstore2.LRUCachePolicy',
+                      'shark.cache.storageLevel' = 'MEMORY_AND_DISK')
+      """)
+    sc.runSql("""insert into table evict_partitions_get_order_cached partition(keypart = 1)
+      select * from test""")
+    sc.runSql("""insert into table evict_partitions_get_order_cached partition(keypart = 2)
+      select * from test""")
+    sc.runSql("""insert into table evict_partitions_get_order_cached partition(keypart = 3)
+      select * from test""")
+    val tableName = "evict_partitions_get_order_cached"
+    assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
+    val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
+    val keypart1RDD = partitionedTable.getPartition("keypart=1")
+    val keypart2RDD = partitionedTable.getPartition("keypart=1")
+    assert(keypart1RDD.get.getStorageLevel == StorageLevel.MEMORY_AND_DISK)
+    assert(keypart2RDD.get.getStorageLevel == StorageLevel.MEMORY_AND_DISK)
+    sc.runSql("select count(1) from evict_partitions_get_order_cached where keypart = 1")
+    sc.runSql("""insert into table evict_partitions_get_order_cached partition(keypart = 4)
+      select * from test""")
+    assert(keypart1RDD.get.getStorageLevel == StorageLevel.MEMORY_AND_DISK)
+    assert(keypart2RDD.get.getStorageLevel == StorageLevel.NONE)
+  }
+
+  test("LRU: RDD eviction accounts for put()s.") {
+    sc.runSql("drop table if exists evict_partitions_get_ordering_cached")
+    sc.runSql("""
+      create table evict_partitions_get_order_cached(key int, value string)
+        partitioned by (keypart int)
+        tblproperties('shark.cache.partition.cachePolicy.maxSize' = '3',
+                      'shark.cache.partition.cachePolicy.class' = 'shark.memstore2.LRUCachePolicy',
+                      'shark.cache.storageLevel' = 'MEMORY_AND_DISK')
+      """)
+    sc.runSql("""insert into table evict_partitions_get_order_cached partition(keypart = 1)
+      select * from test""")
+    sc.runSql("""insert into table evict_partitions_get_order_cached partition(keypart = 2)
+      select * from test""")
+    sc.runSql("""insert into table evict_partitions_get_order_cached partition(keypart = 3)
+      select * from test""")
+    val tableName = "evict_partitions_get_order_cached"
+    assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
+    val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
+    val keypart1RDD = partitionedTable.getPartition("keypart=1")
+    val keypart2RDD = partitionedTable.getPartition("keypart=1")
+    assert(keypart1RDD.get.getStorageLevel == StorageLevel.MEMORY_AND_DISK)
+    assert(keypart2RDD.get.getStorageLevel == StorageLevel.MEMORY_AND_DISK)
+    sc.runSql("""insert into table evict_partitions_get_order_cached partition(keypart = 1)
+      select * from test""")
+    sc.runSql("""insert into table evict_partitions_get_order_cached partition(keypart = 4)
+      select * from test""")
+    assert(keypart1RDD.get.getStorageLevel == StorageLevel.MEMORY_AND_DISK)
+    assert(keypart2RDD.get.getStorageLevel == StorageLevel.NONE)
+  }
+
+  test("LRU: get() reloads an RDD previously unpersist()'d.") {
+    sc.runSql("drop table if exists reload_evicted_partition_cached")
+    sc.runSql("""
+      create table reload_evicted_partition_cached(key int, value string)
+        partitioned by (keypart int)
+        tblproperties('shark.cache.partition.cachePolicy.maxSize' = '3',
+                      'shark.cache.partition.cachePolicy.class' = 'shark.memstore2.LRUCachePolicy',
+                      'shark.cache.storageLevel' = 'MEMORY_AND_DISK')
+      """)
+    sc.runSql("""insert into table reload_evicted_partition_cached partition(keypart = 1)
+      select * from test""")
+    sc.runSql("""insert into table reload_evicted_partition_cached partition(keypart = 2)
+      select * from test""")
+    sc.runSql("""insert into table reload_evicted_partition_cached partition(keypart = 3)
+      select * from test""")
+    val tableName = "reload_evicted_partition_cached"
+    assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
+    val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
+    val keypart1RDD = partitionedTable.getPartition("keypart=1")
+    assert(keypart1RDD.get.getStorageLevel == StorageLevel.MEMORY_AND_DISK)
+    sc.runSql("""insert into table reload_evicted_partition_cached partition(keypart = 4)
+      select * from test""")
+    assert(keypart1RDD.get.getStorageLevel == StorageLevel.NONE)
+
+    // Scanning (keypart = 1) should reload it into the cache, and (keypart = 2)
+    // should have been evicted
+    sc.runSql("select count(1) from reload_evicted_partition_cached where keypart = 1")
+    assert(keypart1RDD.get.getStorageLevel == StorageLevel.MEMORY_AND_DISK)
+    val keypart2RDD = partitionedTable.getPartition("keypart=1")
+    assert(keypart2RDD.get.getStorageLevel == StorageLevel.NONE)
+  }
   //////////////////////////////////////////////////////////////////////////////
   // Tableau bug
   //////////////////////////////////////////////////////////////////////////////
