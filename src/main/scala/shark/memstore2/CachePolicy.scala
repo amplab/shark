@@ -32,7 +32,8 @@ trait CachePolicy[K, V] {
   def initialize(
 	  maxSize: Long,
 	  loadFunc: (K => V),
-	  evictionFunc: (K, V) => Unit
+	  evictionFunc: (K, V) => Unit,
+    shouldRecordStats: Boolean
     ): Unit = {
     this.maxSize = maxSize
     this.loadFunc = loadFunc
@@ -62,20 +63,12 @@ class LRUCachePolicy[K <: AnyRef, V <: AnyRef] extends CachePolicy[K, V] {
   var cacheStats: Option[CacheStats] = None
 
   override def initialize(
-      maxSize: Long,
-      loadFunc: (K => V),
-      evictionFunc: (K, V) => Unit
-    ): Unit = {
-    initialize(maxSize, loadFunc, evictionFunc, false)
-  }
-
-  def initialize(
 	    maxSize: Long,
 	    loadFunc: (K => V),
 	    evictionFunc: (K, V) => Unit,
 	    shouldRecordStats: Boolean
     ): Unit = {
-    super.initialize(maxSize, loadFunc, evictionFunc)
+    super.initialize(maxSize, loadFunc, evictionFunc, shouldRecordStats)
 
     var builder = CacheBuilder.newBuilder().maximumSize(maxSize)
     if (shouldRecordStats) {

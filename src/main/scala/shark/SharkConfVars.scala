@@ -47,8 +47,12 @@ object SharkConfVars {
   val CACHE_POLICY = new ConfVar(
     "shark.cache.partition.cachePolicy.class", "shark.memstore2.LRUCachePolicy")
 
-  // Max size of the cache for the "shark.cache.partition.cachePolicy".
+  // Max size of the cache specified by the "shark.cache.partition.cachePolicy" property.
   val MAX_CACHE_SIZE = new ConfVar("shark.cache.partition.cachePolicy.maxSize", "10")
+
+  // Whether the cache specified by "shark.cache.partition.cachePolicy" should record statistics.
+  val SHOULD_RECORD_CACHE_STATS = new ConfVar(
+    "shark.cache.partition.cachePolicy.shouldRecordStats", false)
 
   // If true, then cache any table whose name ends in "_cached".
   val CHECK_TABLENAME_FLAG = new ConfVar("shark.cache.flag.checkTableName", true)

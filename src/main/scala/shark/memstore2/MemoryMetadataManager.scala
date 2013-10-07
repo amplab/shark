@@ -53,10 +53,11 @@ class MemoryMetadataManager {
       tableName: String,
       cacheMode: CacheType.CacheType,
       cachePolicyStr: String,
-      cachePolicyMaxSize: Long
+      cachePolicyMaxSize: Long,
+      shouldRecordStats: Boolean
     ): PartitionedMemoryTable = {
     var newTable = new PartitionedMemoryTable(tableName.toLowerCase, cacheMode)
-    newTable.setPartitionCachePolicy(cachePolicyStr, cachePolicyMaxSize)
+    newTable.setPartitionCachePolicy(cachePolicyStr, cachePolicyMaxSize, shouldRecordStats)
     _keyToTable.put(tableName.toLowerCase, newTable)
     return newTable
   }

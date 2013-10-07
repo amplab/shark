@@ -494,15 +494,19 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
                       'shark.cache.partition.cachePolicy.class' = 'shark.memstore2.LRUCachePolicy',
                       'shark.cache.storageLevel' = 'MEMORY_AND_DISK')
       """)
-    sc.runSql("insert into table evict_partitions_maxSize_cached partition(keypart = 1) select * from test")
-    sc.runSql("insert into table evict_partitions_maxSize_cached partition(keypart = 2) select * from test")
-    sc.runSql("insert into table evict_partitions_maxSize_cached partition(keypart = 3) select * from test")
+    sc.runSql("""insert into table evict_partitions_maxSize_cached partition(keypart = 1)
+      select * from test""")
+    sc.runSql("""insert into table evict_partitions_maxSize_cached partition(keypart = 2)
+      select * from test""")
+    sc.runSql("""insert into table evict_partitions_maxSize_cached partition(keypart = 3)
+      select * from test""")
     val tableName = "evict_partitions_maxSize_cached"
     assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
     val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
     val keypart1RDD = partitionedTable.getPartition("keypart=1")
     assert(keypart1RDD.get.getStorageLevel == StorageLevel.MEMORY_AND_DISK)
-    sc.runSql("insert into table evict_partitions_maxSize_cached partition(keypart = 4) select * from test")
+    sc.runSql("""insert into table evict_partitions_maxSize_cached partition(keypart = 4)
+      select * from test""")
     assert(keypart1RDD.get.getStorageLevel == StorageLevel.NONE)
   }
 
@@ -589,13 +593,14 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       select * from test""")
     assert(keypart1RDD.get.getStorageLevel == StorageLevel.NONE)
 
-    // Scanning (keypart = 1) should reload it into the cache, and (keypart = 2)
-    // should have been evicted
+    // Scanning partition (keypart = 1) should reload the corresponding RDD into the cache, and
+    // cause eviction of the RDD for partition (keypart = 2).
     sc.runSql("select count(1) from reload_evicted_partition_cached where keypart = 1")
     assert(keypart1RDD.get.getStorageLevel == StorageLevel.MEMORY_AND_DISK)
     val keypart2RDD = partitionedTable.getPartition("keypart=1")
     assert(keypart2RDD.get.getStorageLevel == StorageLevel.NONE)
   }
+
   //////////////////////////////////////////////////////////////////////////////
   // Tableau bug
   //////////////////////////////////////////////////////////////////////////////

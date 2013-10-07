@@ -34,12 +34,7 @@ import shark.execution.RDDUtils
  * Note that a Hive-partition of a table is different from an RDD partition. Each Hive-partition
  * is stored as a subdirectory of the table subdirectory in the warehouse directory
  * (e.g. /user/hive/warehouse). So, every Hive-Partition is loaded into Shark as an RDD.
- *
- * TODO(harvey): It could be useful to make MemoryTable a parent class, and have other table types,
- *               such as HivePartitionedTable or TachyonTable, subclass it. For now, there isn't
- *               too much metadata to track, so it should be okay to have a single MemoryTable.
  */
-
 private[shark] abstract class Table(
     var tableName: String,
     var cacheMode: CacheType.CacheType) {
@@ -94,7 +89,11 @@ class PartitionedMemoryTable(
     return rddRemoved
   }
 
-  def setPartitionCachePolicy(cachePolicyStr: String, maxSize: Long) {
+  def setPartitionCachePolicy(
+      cachePolicyStr: String,
+      maxSize: Long,
+      shouldRecordStats: Boolean
+    ) {
     _partitionCachePolicy =
       Class.forName(cachePolicyStr).newInstance.asInstanceOf[CachePolicy[String, RDD[_]]]
     val loadFunc: String => RDD[_] =
@@ -105,11 +104,13 @@ class PartitionedMemoryTable(
       }
     val evictionFunc: (String, RDD[_]) => Unit =
       (partitionKey: String, partition: RDD[_]) => partition.unpersist()
-    _partitionCachePolicy.initialize(maxSize, loadFunc, evictionFunc)
+    _partitionCachePolicy.initialize(maxSize, loadFunc, evictionFunc, shouldRecordStats)
     _partitionCachePolicyName = cachePolicyStr
   }
 
-  def getPartitionCachePolicy: String = _partitionCachePolicyName
+  def partitionCachePolicyName: String = _partitionCachePolicyName
+
+  def partitionCachePolicy: CachePolicy[String, RDD[_]] = _partitionCachePolicy
 
   def getAllPartitions = _keyToPartitions.values.toSeq
 
