@@ -24,7 +24,7 @@ import scala.reflect.BeanProperty
 
 import org.apache.hadoop.io.Writable
 
-import org.apache.spark.rdd.RDD
+import org.apache.spark.rdd.{RDD, UnionRDD}
 import org.apache.spark.storage.StorageLevel
 
 import shark.{SharkConfVars, SharkEnv}
@@ -98,7 +98,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     }
 
     val isHivePartitioned = SharkEnv.memoryMetadataManager.isHivePartitioned(tableName)
-    var hasPreviousRDD = false
+    var hasPreviousRDDForUnion = false
 
     if (tachyonWriter != null) {
       // Put the table in Tachyon.
@@ -138,12 +138,12 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         // If this is an insert, find the existing RDD and create a union of the two, and then
         // put the union into the metadata tracker.
         rdd = oldRdd match {
-          case Some(definedRdd) => rdd.union(oldRdd.get.asInstanceOf[RDD[TablePartition]])
-          // The oldRdd can be missing if this is an INSERT into a new Hive-partition.
-          case None => {
-            hasPreviousRDD = true
-            rdd
+          case Some(definedRdd) => {
+            hasPreviousRDDForUnion = true
+            rdd.union(oldRdd.get.asInstanceOf[RDD[TablePartition]])
           }
+          // The oldRdd can be missing if this is an INSERT into a new Hive-partition.
+          case None => rdd
         }
       }
       // Run a job on the original RDD to force it to go into cache.
@@ -153,7 +153,8 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     if (isHivePartitioned) {
       SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).foreach{ table =>
         rdd.setName(tableName + "(" + hivePartitionKey + ")")
-        if (useUnionRDD && !hasPreviousRDD) {
+        if (useUnionRDD && hasPreviousRDDForUnion) {
+          assert(rdd.isInstanceOf[UnionRDD[_]])
           table.updatePartition(hivePartitionKey, rdd)
         } else {
           table.putPartition(hivePartitionKey, rdd)
