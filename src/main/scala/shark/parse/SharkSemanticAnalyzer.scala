@@ -178,11 +178,11 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                   }
                   hivePartitionKey = SharkSemanticAnalyzer.getHivePartitionKey(qb)
                 }
-                val storageLevel = table.getStorageLevel
+                val preferredStorageLevel = table.getPreferredStorageLevel
                 OperatorFactory.createSharkMemoryStoreOutputPlan(
                   hiveSinkOp,
                   cachedTableName,
-                  storageLevel,
+                  preferredStorageLevel,
                   _resSchema.size,  /* numColumns */
                   hivePartitionKey,
                   cacheMode,
@@ -202,13 +202,13 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         Seq {
           if (qb.isCTAS && qb.getTableDesc != null &&
               CacheType.shouldCache(qb.getCacheModeForCreateTable())) {
-            val storageLevel = MemoryMetadataManager.getStorageLevelFromString(
+            val preferredStorageLevel = MemoryMetadataManager.getStorageLevelFromString(
               qb.getTableDesc().getTblProps.get("shark.cache.storageLevel"))
             qb.getTableDesc().getTblProps().put(CachedTableRecovery.QUERY_STRING, ctx.getCmd())
             OperatorFactory.createSharkMemoryStoreOutputPlan(
               hiveSinkOps.head,
               qb.getTableDesc.getTableName,
-              storageLevel,
+              preferredStorageLevel,
               _resSchema.size,  /* numColumns */
               new String,  /* hivePartitionKey */
               qb.getCacheModeForCreateTable,

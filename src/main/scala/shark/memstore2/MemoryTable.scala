@@ -22,7 +22,7 @@ import java.util.concurrent.{ConcurrentHashMap => ConcurrentJavaHashMap}
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ConcurrentMap
 
-import org.apache.spark.rdd.RDD
+import org.apache.spark.rdd.{EmptyRDD, RDD}
 import org.apache.spark.storage.StorageLevel
 
 import shark.execution.RDDUtils
@@ -37,27 +37,35 @@ import shark.execution.RDDUtils
  */
 private[shark] abstract class Table(
     var tableName: String,
-    var cacheMode: CacheType.CacheType) {
-  def getStorageLevel: StorageLevel
+    var cacheMode: CacheType.CacheType,
+    var preferredStorageLevel: StorageLevel) {
+
+  def getPreferredStorageLevel: StorageLevel
+
+  def getCurrentStorageLevel: StorageLevel
 }
 
 private[shark]
 class MemoryTable(
     tableName: String,
-    cacheMode: CacheType.CacheType)
-  extends Table(tableName, cacheMode) {
+    cacheMode: CacheType.CacheType,
+    preferredStorageLevel: StorageLevel)
+  extends Table(tableName, cacheMode, preferredStorageLevel) {
 
   // RDD that contains the contents of this table.
   var tableRDD: RDD[_] = _
 
-  override def getStorageLevel: StorageLevel = RDDUtils.getStorageLevelOfCachedRDD(tableRDD)
+  override def getPreferredStorageLevel: StorageLevel = preferredStorageLevel
+
+  override def getCurrentStorageLevel: StorageLevel = RDDUtils.getStorageLevelOfCachedRDD(tableRDD)
 }
 
 private[shark]
 class PartitionedMemoryTable(
     tableName: String,
-    cacheMode: CacheType.CacheType)
-  extends Table(tableName, cacheMode) {
+    cacheMode: CacheType.CacheType,
+    preferredStorageLevel: StorageLevel)
+  extends Table(tableName, cacheMode, preferredStorageLevel) {
 
   // A map from the Hive-partition key to the RDD that contains contents of that partition.
   private var _keyToPartitions: ConcurrentMap[String, RDD[_]] =
@@ -99,11 +107,13 @@ class PartitionedMemoryTable(
     val loadFunc: String => RDD[_] =
       (partitionKey: String) => {
         val partitionRDD = _keyToPartitions.get(partitionKey).get
-        partitionRDD.persist(RDDUtils.getStorageLevelOfCachedRDDs(getAllPartitions))
+        if (partitionRDD.getStorageLevel == StorageLevel.NONE) {
+          partitionRDD.persist(preferredStorageLevel)
+        }
         partitionRDD
       }
     val evictionFunc: (String, RDD[_]) => Unit =
-      (partitionKey: String, partition: RDD[_]) => RDDUtils.unpersistRDD(partition)
+      (partitionKey: String, partitionRDD: RDD[_]) => RDDUtils.unpersistRDD(partitionRDD)
     _cachePolicy.initialize(maxSize, loadFunc, evictionFunc, shouldRecordStats)
     _cachePolicyName = cachePolicyStr
   }
@@ -116,6 +126,9 @@ class PartitionedMemoryTable(
 
   def getAllPartitionKeys = _keyToPartitions.keys.toSeq
 
-  def getStorageLevel: StorageLevel = RDDUtils.getStorageLevelOfCachedRDDs(getAllPartitions)
-}
+  override def getPreferredStorageLevel: StorageLevel = preferredStorageLevel
 
+  override def getCurrentStorageLevel: StorageLevel = {
+    return RDDUtils.getStorageLevelOfCachedRDDs(getAllPartitions)
+  }
+}

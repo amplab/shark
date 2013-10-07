@@ -153,7 +153,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       }
     } else {
       val table = SharkEnv.memoryMetadataManager.getMemoryTable(tableName).getOrElse(
-        SharkEnv.memoryMetadataManager.createMemoryTable(tableName, cacheMode))
+        SharkEnv.memoryMetadataManager.createMemoryTable(tableName, cacheMode, storageLevel))
       rdd.setName(tableName)
       table.tableRDD = rdd
     }

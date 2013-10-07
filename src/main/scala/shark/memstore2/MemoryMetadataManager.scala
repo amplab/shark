@@ -42,9 +42,10 @@ class MemoryMetadataManager {
 
   def createMemoryTable(
       tableName: String,
-      cacheMode: CacheType.CacheType
+      cacheMode: CacheType.CacheType,
+      preferredStorageLevel: StorageLevel
     ): MemoryTable = {
-    var newTable = new MemoryTable(tableName.toLowerCase, cacheMode)
+    var newTable = new MemoryTable(tableName.toLowerCase, cacheMode, preferredStorageLevel)
     _keyToTable.put(tableName.toLowerCase, newTable)
     return newTable
   }
@@ -52,11 +53,13 @@ class MemoryMetadataManager {
   def createPartitionedMemoryTable(
       tableName: String,
       cacheMode: CacheType.CacheType,
+      preferredStorageLevel: StorageLevel,
       cachePolicyStr: String,
       cachePolicyMaxSize: Long,
       shouldRecordStats: Boolean
     ): PartitionedMemoryTable = {
-    var newTable = new PartitionedMemoryTable(tableName.toLowerCase, cacheMode)
+    var newTable = new PartitionedMemoryTable(
+        tableName.toLowerCase, cacheMode, preferredStorageLevel)
     newTable.setPartitionCachePolicy(cachePolicyStr, cachePolicyMaxSize, shouldRecordStats)
     _keyToTable.put(tableName.toLowerCase, newTable)
     return newTable

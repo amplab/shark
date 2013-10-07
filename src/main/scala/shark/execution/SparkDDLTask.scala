@@ -68,9 +68,11 @@ private[shark] class SparkDDLTask extends HiveTask[SparkDDLWork] with Serializab
       createTblDesc: CreateTableDesc,
       cacheMode: CacheType.CacheType) {
     val tableName = createTblDesc.getTableName
+    val tblProps = createTblDesc.getTblProps
+    val preferredStorageLevel = MemoryMetadataManager.getStorageLevelFromString(
+      tblProps.get("shark.cache.storageLevel"))
     val isHivePartitioned = (createTblDesc.getPartCols.size > 0)
     if (isHivePartitioned) {
-      val tblProps = createTblDesc.getTblProps
       val cachePolicyStr = tblProps.getOrElse("shark.cache.partition.cachePolicy.class",
         SharkConfVars.CACHE_POLICY.defaultVal)
       val maxCacheSize = tblProps.getOrElse("shark.cache.partition.cachePolicy.maxSize",
@@ -78,9 +80,15 @@ private[shark] class SparkDDLTask extends HiveTask[SparkDDLWork] with Serializab
       val shouldRecordStats = tblProps.getOrElse("shark.cache.partition.shouldRecordStats",
         SharkConfVars.SHOULD_RECORD_CACHE_STATS.defaultBoolVal.toString).toBoolean
       SharkEnv.memoryMetadataManager.createPartitionedMemoryTable(
-        tableName, cacheMode, cachePolicyStr, maxCacheSize, shouldRecordStats)
+        tableName,
+        cacheMode,
+        preferredStorageLevel,
+        cachePolicyStr,
+        maxCacheSize,
+        shouldRecordStats)
     } else {
-      val newTable = SharkEnv.memoryMetadataManager.createMemoryTable(tableName, cacheMode)
+      val newTable = SharkEnv.memoryMetadataManager.createMemoryTable(
+        tableName, cacheMode, preferredStorageLevel)
       newTable.tableRDD = new EmptyRDD(SharkEnv.sc)
     }
   }
