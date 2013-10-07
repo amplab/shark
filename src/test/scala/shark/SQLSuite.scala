@@ -23,7 +23,8 @@ import org.scalatest.FunSuite
 import org.apache.spark.storage.StorageLevel
 
 import shark.api.QueryExecutionException
-
+import shark.memstore2.PartitionedMemoryTable
+import shark.execution.RDDUtils
 
 class SQLSuite extends FunSuite with BeforeAndAfterAll {
 
@@ -101,6 +102,38 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   // A shortcut for single row results.
   private def expectSql(sql: String, expectedResult: String) {
     expectSql(sql, Array(expectedResult))
+  }
+
+  private def createCachedPartitionedTable(
+      tableName: String,
+      numPartitionsToCreate: Int,
+      maxCacheSize: Int = 10,
+      cachePolicyClassName: String = "shark.memstore2.LRUCachePolicy",
+      shouldRecordStats: Boolean = false
+    ): PartitionedMemoryTable = {
+    sc.runSql("drop table if exists %s".format(tableName))
+    sc.runSql("""
+      create table %s(key int, value string)
+        partitioned by (keypart int)
+        tblproperties('shark.cache' = 'true',
+                      'shark.cache.partition.cachePolicy.maxSize' = '%d',
+                      'shark.cache.partition.cachePolicy.class' = '%s',
+                      'shark.cache.storageLevel' = 'MEMORY_AND_DISK',
+                      'shark.cache.partition.cachePolicy.shouldRecordStats' = '%b')
+      """.format(
+        tableName,
+        maxCacheSize,
+        cachePolicyClassName,
+        shouldRecordStats))
+    var partitionNum = 1
+    while (partitionNum <= numPartitionsToCreate) {
+      sc.runSql("""insert into table %s partition(keypart = %d)
+        select * from test_cached""".format(tableName, partitionNum))
+      partitionNum += 1
+    }
+    assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
+    val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
+    return partitionedTable
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -397,20 +430,19 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   test("insert into a partition of a cached table") {
-    sc.runSql("drop table if exists insert_part_cached")
-    sc.runSql("""create table insert_part_cached(key int, value string)
-      partitioned by (keypart int)""")
-    sc.runSql("insert into table insert_part_cached partition(keypart = 1) select * from test")
+    val tableName = "insert_part_cached"
+    val partitionedTable = createCachedPartitionedTable(
+      tableName,
+      1 /* numPartitionsToCreate */)
     expectSql("select value from insert_part_cached where key = 407 and keypart = 1", "val_407")
 
   }
 
   test("insert overwrite a partition of a cached table") {
-    sc.runSql("drop table if exists insert_over_part_cached")
-    sc.runSql("""create table insert_over_part_cached(key int, value string)
-      partitioned by (keypart int)""")
-    sc.runSql("""insert into table insert_over_part_cached partition(keypart = 1)
-      select * from test""")
+    val tableName = "insert_over_part_cached"
+    val partitionedTable = createCachedPartitionedTable(
+      tableName,
+      1 /* numPartitionsToCreate */)
     expectSql("""select value from insert_over_part_cached
       where key = 407 and keypart = 1""", "val_407")
     sc.runSql("""insert overwrite table insert_over_part_cached partition(keypart = 1)
@@ -426,55 +458,46 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   test("scan cached, partitioned table that has a single partition") {
-    sc.runSql("drop table if exists scan_single_part_cached")
-    sc.runSql("""create table scan_single_part_cached(key int, value string)
-      partitioned by (keypart int)""")
-    sc.runSql("insert into table scan_single_part_cached partition(keypart = 1) select * from test")
+    val tableName = "scan_single_part_cached"
+    val partitionedTable = createCachedPartitionedTable(
+      tableName,
+      1 /* numPartitionsToCreate */)
     expectSql("select * from scan_single_part_cached where key = 407", "407\tval_407\t1")
   }
 
   test("scan cached, partitioned table that has multiple partitions") {
-    sc.runSql("drop table if exists scan_mult_part_cached")
-    sc.runSql("""create table scan_mult_part_cached(key int, value string)
-      partitioned by (keypart int)""")
-    sc.runSql("insert into table scan_mult_part_cached partition(keypart = 1) select * from test")
-    sc.runSql("insert into table scan_mult_part_cached partition(keypart = 5) select * from test")
-    sc.runSql("insert into table scan_mult_part_cached partition(keypart = 9) select * from test")
+    val tableName = "scan_mult_part_cached"
+    val partitionedTable = createCachedPartitionedTable(
+      tableName,
+      3 /* numPartitionsToCreate */)
     expectSql("select * from scan_mult_part_cached where key = 407 order by keypart",
-      Array("407\tval_407\t1", "407\tval_407\t5", "407\tval_407\t9"))
+      Array("407\tval_407\t1", "407\tval_407\t2", "407\tval_407\t3"))
   }
 
   test("drop/unpersist cached, partitioned table that has multiple partitions") {
-    sc.runSql("drop table if exists drop_mult_part_cached")
-    sc.runSql("""create table drop_mult_part_cached(key int, value string)
-      partitioned by (keypart int)""")
-    sc.runSql("insert into table drop_mult_part_cached partition(keypart = 1) select * from test")
-    sc.runSql("insert into table drop_mult_part_cached partition(keypart = 5) select * from test")
-    sc.runSql("insert into table drop_mult_part_cached partition(keypart = 9) select * from test")
     val tableName = "drop_mult_part_cached"
-    assert(SharkEnv.memoryMetadataManager.containsTable("drop_mult_part_cached"))
-    val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
+    val partitionedTable = createCachedPartitionedTable(
+      tableName,
+      3 /* numPartitionsToCreate */)
     val keypart1RDD = partitionedTable.getPartition("keypart=1")
-    val keypart5RDD = partitionedTable.getPartition("keypart=5")
-    val keypart9RDD = partitionedTable.getPartition("keypart=9")
+    val keypart2RDD = partitionedTable.getPartition("keypart=2")
+    val keypart3RDD = partitionedTable.getPartition("keypart=3")
     sc.runSql("drop table drop_mult_part_cached ")
     assert(!SharkEnv.memoryMetadataManager.containsTable(tableName))
     // All RDDs should have been unpersisted.
     assert(keypart1RDD.get.getStorageLevel == StorageLevel.NONE)
-    assert(keypart5RDD.get.getStorageLevel == StorageLevel.NONE)
-    assert(keypart9RDD.get.getStorageLevel == StorageLevel.NONE)
+    assert(keypart2RDD.get.getStorageLevel == StorageLevel.NONE)
+    assert(keypart3RDD.get.getStorageLevel == StorageLevel.NONE)
   }
 
   test("drop cached partition represented by a UnionRDD (i.e., the result of multiple inserts)") {
-    sc.runSql("drop table if exists drop_union_part_cached")
-    sc.runSql("""create table drop_union_part_cached(key int, value string)
-      partitioned by (keypart int)""")
-    sc.runSql("insert into table drop_union_part_cached partition(keypart = 1) select * from test")
-    sc.runSql("insert into table drop_union_part_cached partition(keypart = 1) select * from test")
-    sc.runSql("insert into table drop_union_part_cached partition(keypart = 1) select * from test")
     val tableName = "drop_union_part_cached"
-    assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
-    val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
+    val partitionedTable = createCachedPartitionedTable(
+      tableName,
+      1 /* numPartitionsToCreate */)
+    sc.runSql("insert into table drop_union_part_cached partition(keypart = 1) select * from test")
+    sc.runSql("insert into table drop_union_part_cached partition(keypart = 1) select * from test")
+    sc.runSql("insert into table drop_union_part_cached partition(keypart = 1) select * from test")
     val keypart1RDD = partitionedTable.getPartition("keypart=1")
     sc.runSql("drop table drop_union_part_cached")
     assert(!SharkEnv.memoryMetadataManager.containsTable(tableName))
@@ -485,6 +508,157 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   //////////////////////////////////////////////////////////////////////////////
   // RDD(partition) eviction policy for cached Hive-partititioned tables
   //////////////////////////////////////////////////////////////////////////////
+
+  test("shark.memstore2.LRUCachePolicy is the default policy") {
+    val tableName = "lru_default_policy_cached"
+    sc.runSql("""create table lru_default_policy_cached(key int, value string)
+        partitioned by (keypart int)""")
+    assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
+    val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
+    val cachePolicy = partitionedTable.cachePolicy
+    assert(cachePolicy.isInstanceOf[shark.memstore2.LRUCachePolicy[_, _]])
+  }
+
+  test("LRU: RDDs are evicted when the max size is reached.") {
+    val tableName = "evict_partitions_maxSize"
+    val partitionedTable = createCachedPartitionedTable(
+      tableName,
+      3 /* numPartitionsToCreate */,
+      3 /* maxCacheSize */,
+      "shark.memstore2.LRUCachePolicy")
+    val keypart1RDD = partitionedTable.keyToPartitions.get("keypart=1")
+    assert(RDDUtils.getStorageLevelOfRDD(keypart1RDD.get) == StorageLevel.MEMORY_AND_DISK)
+    sc.runSql("""insert into table evict_partitions_maxSize partition(keypart = 4)
+      select * from test""")
+    assert(RDDUtils.getStorageLevelOfRDD(keypart1RDD.get) == StorageLevel.NONE)
+  }
+
+  test("LRU: RDD eviction accounts for partition scans - i.e., a cache.get()") {
+    val tableName = "evict_partitions_with_get"
+    val partitionedTable = createCachedPartitionedTable(
+      tableName,
+      3 /* numPartitionsToCreate */,
+      3 /* maxCacheSize */,
+      "shark.memstore2.LRUCachePolicy")
+    val keypart1RDD = partitionedTable.keyToPartitions.get("keypart=1")
+    val keypart2RDD = partitionedTable.keyToPartitions.get("keypart=2")
+    assert(RDDUtils.getStorageLevelOfRDD(keypart1RDD.get) == StorageLevel.MEMORY_AND_DISK)
+    assert(RDDUtils.getStorageLevelOfRDD(keypart2RDD.get) == StorageLevel.MEMORY_AND_DISK)
+    sc.runSql("select count(1) from evict_partitions_with_get where keypart = 1")
+    sc.runSql("""insert into table evict_partitions_with_get partition(keypart = 4)
+      select * from test""")
+    assert(RDDUtils.getStorageLevelOfRDD(keypart1RDD.get) == StorageLevel.MEMORY_AND_DISK)
+
+    assert(RDDUtils.getStorageLevelOfRDD(keypart2RDD.get) == StorageLevel.NONE)
+  }
+
+  test("LRU: RDD eviction accounts for INSERT INTO - i.e., a cache.get().") {
+    val tableName = "evict_partitions_with_put"
+    val partitionedTable = createCachedPartitionedTable(
+      tableName,
+      3 /* numPartitionsToCreate */,
+      3 /* maxCacheSize */,
+      "shark.memstore2.LRUCachePolicy")
+    assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
+    val oldKeypart1RDD = partitionedTable.keyToPartitions.get("keypart=1")
+    val keypart2RDD = partitionedTable.keyToPartitions.get("keypart=2")
+    assert(RDDUtils.getStorageLevelOfRDD(oldKeypart1RDD.get) == StorageLevel.MEMORY_AND_DISK)
+    assert(RDDUtils.getStorageLevelOfRDD(keypart2RDD.get) == StorageLevel.MEMORY_AND_DISK)
+    sc.runSql("""insert into table evict_partitions_with_put partition(keypart = 1)
+      select * from test""")
+    sc.runSql("""insert into table evict_partitions_with_put partition(keypart = 4)
+      select * from test""")
+    assert(RDDUtils.getStorageLevelOfRDD(oldKeypart1RDD.get) == StorageLevel.MEMORY_AND_DISK)
+    val newKeypart1RDD = partitionedTable.keyToPartitions.get("keypart=1")
+    assert(RDDUtils.getStorageLevelOfRDD(newKeypart1RDD.get) == StorageLevel.MEMORY_AND_DISK)
+
+    val keypart2StorageLevel = RDDUtils.getStorageLevelOfRDD(keypart2RDD.get)
+    assert(keypart2StorageLevel == StorageLevel.NONE)
+  }
+
+  test("LRU: RDD eviction accounts for INSERT OVERWRITE - i.e. a cache.put()") {
+    val tableName = "evict_partitions_with_put"
+    val partitionedTable = createCachedPartitionedTable(
+      tableName,
+      3 /* numPartitionsToCreate */,
+      3 /* maxCacheSize */,
+      "shark.memstore2.LRUCachePolicy")
+    assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
+    val oldKeypart1RDD = partitionedTable.keyToPartitions.get("keypart=1")
+    val keypart2RDD = partitionedTable.keyToPartitions.get("keypart=2")
+    assert(RDDUtils.getStorageLevelOfRDD(oldKeypart1RDD.get) == StorageLevel.MEMORY_AND_DISK)
+    assert(RDDUtils.getStorageLevelOfRDD(keypart2RDD.get) == StorageLevel.MEMORY_AND_DISK)
+    sc.runSql("""insert overwrite table evict_partitions_with_put partition(keypart = 1)
+      select * from test""")
+    sc.runSql("""insert into table evict_partitions_with_put partition(keypart = 4)
+      select * from test""")
+    assert(RDDUtils.getStorageLevelOfRDD(oldKeypart1RDD.get) == StorageLevel.NONE)
+    val newKeypart1RDD = partitionedTable.keyToPartitions.get("keypart=1")
+    assert(RDDUtils.getStorageLevelOfRDD(newKeypart1RDD.get) == StorageLevel.MEMORY_AND_DISK)
+
+    val keypart2StorageLevel = RDDUtils.getStorageLevelOfRDD(keypart2RDD.get)
+    assert(keypart2StorageLevel == StorageLevel.NONE)
+  }
+
+  test("LRU: get() reloads an RDD previously unpersist()'d.") {
+    val tableName = "reload_evicted_partition"
+    val partitionedTable = createCachedPartitionedTable(
+      tableName,
+      3 /* numPartitionsToCreate */,
+      3 /* maxCacheSize */,
+      "shark.memstore2.LRUCachePolicy")
+    assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
+    val keypart1RDD = partitionedTable.keyToPartitions.get("keypart=1")
+    assert(RDDUtils.getStorageLevelOfRDD(keypart1RDD.get) == StorageLevel.MEMORY_AND_DISK)
+    sc.runSql("""insert into table reload_evicted_partition partition(keypart = 4)
+      select * from test""")
+    assert(RDDUtils.getStorageLevelOfRDD(keypart1RDD.get) == StorageLevel.NONE)
+
+    // Scanning partition (keypart = 1) should reload the corresponding RDD into the cache, and
+    // cause eviction of the RDD for partition (keypart = 2).
+    sc.runSql("select count(1) from reload_evicted_partition where keypart = 1")
+    assert(keypart1RDD.get.getStorageLevel == StorageLevel.MEMORY_AND_DISK)
+    val keypart2RDD = partitionedTable.keyToPartitions.get("keypart=2")
+    val keypart2StorageLevel = RDDUtils.getStorageLevelOfRDD(keypart2RDD.get)
+    assert(keypart2StorageLevel == StorageLevel.NONE,
+      "StorageLevel for partition(keypart=2) should be NONE, but got: " + keypart2StorageLevel)
+  }
+
+  test("LRU: record cache stats if user specifies it") {
+    val tableName = "should_record_partition_cache_stats"
+    val partitionedTable = createCachedPartitionedTable(
+      tableName,
+      1 /* numPartitionsToCreate */,
+      3 /* maxCacheSize */,
+      "shark.memstore2.LRUCachePolicy",
+      true /* shouldRecordStats */)
+    val lruCachePolicy = partitionedTable.cachePolicy
+    val hitRate = lruCachePolicy.getHitRate
+    assert(hitRate.isDefined)
+    assert(hitRate.get == 1.0)
+    val evictionCount = lruCachePolicy.getEvictionCount
+    assert(evictionCount.isDefined)
+    assert(evictionCount.get == 0)
+  }
+
+  test("LRU: cache stats are not recorded by default") {
+    sc.runSql("drop table if exists dont_record_partition_cache_stats")
+    sc.runSql("""
+      create table dont_record_partition_cache_stats(key int, value string)
+      partitioned by (keypart int)
+      tblproperties(
+        'shark.cache' = 'true',
+        'shark.cache.partition.cachePolicy.class' = 'shark.memstore2.LRUCachePolicy')
+      """)
+    val tableName = "dont_record_partition_cache_stats"
+    assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
+    val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
+    val lruCachePolicy = partitionedTable.cachePolicy
+    val hitRate = lruCachePolicy.getHitRate
+    assert(hitRate.isEmpty)
+    val evictionCount = lruCachePolicy.getEvictionCount
+    assert(evictionCount.isEmpty)
+  }
 
   //////////////////////////////////////////////////////////////////////////////
   // Tableau bug

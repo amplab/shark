@@ -76,10 +76,10 @@ private[shark] class SparkDDLTask extends HiveTask[SparkDDLWork] with Serializab
       val cachePolicyStr = tblProps.getOrElse("shark.cache.partition.cachePolicy.class",
         SharkConfVars.CACHE_POLICY.defaultVal)
       val maxCacheSize = tblProps.getOrElse("shark.cache.partition.cachePolicy.maxSize",
-        SharkConfVars.MAX_CACHE_SIZE.defaultVal).toLong
+        SharkConfVars.MAX_PARTITION_CACHE_SIZE.defaultVal).toLong
       val shouldRecordStats = tblProps.getOrElse(
         "shark.cache.partition.cachePolicy.shouldRecordStats",
-        SharkConfVars.SHOULD_RECORD_CACHE_STATS.defaultBoolVal.toString).toBoolean
+        SharkConfVars.SHOULD_RECORD_PARTITION_CACHE_STATS.defaultBoolVal.toString).toBoolean
       SharkEnv.memoryMetadataManager.createPartitionedMemoryTable(
         tableName,
         cacheMode,
