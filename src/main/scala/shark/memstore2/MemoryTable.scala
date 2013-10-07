@@ -17,22 +17,27 @@
 
 package shark.memstore2
 
+import shark.execution.RDDUtils
+
+import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 
 
-/**
- * A container for table metadata specific to Shark and Spark. Currently, this is a lightweight
- * wrapper around either an RDD or multiple RDDs if the Shark table is Hive-partitioned.
- * Note that a Hive-partition of a table is different from an RDD partition. Each Hive-partition
- * is stored as a subdirectory of the table subdirectory in the warehouse directory
- * (e.g. /user/hive/warehouse). So, every Hive-Partition is loaded into Shark as an RDD.
- */
-private[shark] abstract class Table(
-    var tableName: String,
-    var cacheMode: CacheType.CacheType,
-    var preferredStorageLevel: StorageLevel) {
+private[shark]
+class MemoryTable(
+    tableName: String,
+    cacheMode: CacheType.CacheType,
+    preferredStorageLevel: StorageLevel)
+  extends Table(tableName, cacheMode, preferredStorageLevel) {
 
-  def getPreferredStorageLevel: StorageLevel
+  // RDD that contains the contents of this table.
+  private var _tableRDD: RDD[_] = _
 
-  def getCurrentStorageLevel: StorageLevel
+  def tableRDD: RDD[_] = _tableRDD
+
+  def tableRDD_= (rdd: RDD[_]) = _tableRDD = rdd
+
+  override def getPreferredStorageLevel: StorageLevel = preferredStorageLevel
+
+  override def getCurrentStorageLevel: StorageLevel = RDDUtils.getStorageLevelOfRDD(tableRDD)
 }
