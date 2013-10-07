@@ -57,6 +57,7 @@ class CachePolicySuite extends FunSuite with BeforeAndAfterAll {
 
   private def createCachedPartitionedTable(
       tableName: String,
+      maxSize: Int,
       numPartitionsToCreate: Int,
       cachePolicyClassName: String,
       shouldRecordStats: Boolean = false
@@ -66,27 +67,41 @@ class CachePolicySuite extends FunSuite with BeforeAndAfterAll {
       create table %s(key int, value string)
         partitioned by (keypart int)
         tblproperties('shark.cache' = 'true',
-                      'shark.cache.partition.cachePolicy.maxSize' = '3',
+                      'shark.cache.partition.cachePolicy.maxSize' = '%d',
                       'shark.cache.partition.cachePolicy.class' = '%s',
                       'shark.cache.storageLevel' = 'MEMORY_AND_DISK',
                       'shark.cache.partition.cachePolicy.shouldRecordStats' = '%b')
       """.format(
         tableName,
+        maxSize,
         cachePolicyClassName,
         shouldRecordStats))
-    for (partitionNum <- 0 until numPartitionsToCreate) {
-      sc.runSql("""insert into table evict_partitions_maxSize_cached partition(keypart = %d)
-        select * from test""".format(partitionNum))
+    var partitionNum = 0
+    while (partitionNum < numPartitionsToCreate) {
+      sc.runSql("""insert into table %s partition(keypart = %d)
+        select * from test_cached""".format(tableName, partitionNum))
+      partitionNum += 1
     }
     assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
     val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
     return partitionedTable
   }
 
+  test("shark.memstore2.LRUCachePolicy is the default policy") {
+    val tableName = "lru_default_policy_cached"
+    sc.runSql("""create table lru_default_policy_cached(key int, value string)
+        partitioned by (keypart int)""")
+    assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
+    val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
+    val cachePolicy = partitionedTable.cachePolicy
+    assert(cachePolicy.isInstanceOf[shark.memstore2.LRUCachePolicy[_, _]])
+  }
+
   test("LRU: RDDs are evicted when the max size is reached.") {
     val tableName = "evict_partitions_maxSize"
     val partitionedTable = createCachedPartitionedTable(
       tableName,
+      3 /* maxSize */,
       3 /* numPartitionsToCreate */,
       "shark.memstore2.LRUCachePolicy")
     val keypart1RDD = partitionedTable.getPartition("keypart=1")
@@ -100,6 +115,7 @@ class CachePolicySuite extends FunSuite with BeforeAndAfterAll {
     val tableName = "evict_partitions_with_get"
     val partitionedTable = createCachedPartitionedTable(
       tableName,
+      3 /* maxSize */,
       3 /* numPartitionsToCreate */,
       "shark.memstore2.LRUCachePolicy")
     val keypart1RDD = partitionedTable.getPartition("keypart=1")
@@ -117,6 +133,7 @@ class CachePolicySuite extends FunSuite with BeforeAndAfterAll {
     val tableName = "evict_partitions_with_put"
     val partitionedTable = createCachedPartitionedTable(
       tableName,
+      3 /* maxSize */,
       3 /* numPartitionsToCreate */,
       "shark.memstore2.LRUCachePolicy")
     assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
@@ -136,6 +153,7 @@ class CachePolicySuite extends FunSuite with BeforeAndAfterAll {
     val tableName = "reload_evicted_partition"
     val partitionedTable = createCachedPartitionedTable(
       tableName,
+      3 /* maxSize */,
       3 /* numPartitionsToCreate */,
       "shark.memstore2.LRUCachePolicy")
     assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
@@ -157,6 +175,7 @@ class CachePolicySuite extends FunSuite with BeforeAndAfterAll {
     val tableName = "dont_record_partition_cache_stats"
     val partitionedTable = createCachedPartitionedTable(
       tableName,
+      3 /* maxSize */,
       1 /* numPartitionsToCreate */,
       "shark.memstore2.LRUCachePolicy",
       true /* shouldRecordStats */)
@@ -171,6 +190,7 @@ class CachePolicySuite extends FunSuite with BeforeAndAfterAll {
     val tableName = "record_partition_cache_stats"
     val partitionedTable = createCachedPartitionedTable(
       tableName,
+      3 /* maxSize */,
       1 /* numPartitionsToCreate */,
       "shark.memstore2.LRUCachePolicy",
       true /* shouldRecordStats */)
