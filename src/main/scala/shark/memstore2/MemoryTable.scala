@@ -103,7 +103,7 @@ class PartitionedMemoryTable(
         partitionRDD
       }
     val evictionFunc: (String, RDD[_]) => Unit =
-      (partitionKey: String, partition: RDD[_]) => partition.unpersist()
+      (partitionKey: String, partition: RDD[_]) => RDDUtils.unpersistRDD(partition)
     _cachePolicy.initialize(maxSize, loadFunc, evictionFunc, shouldRecordStats)
     _cachePolicyName = cachePolicyStr
   }

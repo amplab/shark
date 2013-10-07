@@ -133,47 +133,33 @@ class MemoryMetadataManager {
   def unpersist(tableName: String): Option[RDD[_]] = {
     val lowerCaseTableName = tableName.toLowerCase
 
-    def unpersistTable(table: Table): Option[RDD[_]] = {
-      var unpersistedRDD: Option[RDD[_]] = None
-      if (table.isInstanceOf[PartitionedMemoryTable]) {
-        val partitionedTable = table.asInstanceOf[PartitionedMemoryTable]
-        // unpersist() all RDDs for all Hive-partitions.
-        val unpersistedRDDs =  partitionedTable.getAllPartitions.map(
-          rdd => unpersistRDD(rdd)).asInstanceOf[Seq[RDD[Any]]]
-        if (unpersistedRDDs.size > 0) {
-          val unionedRDD = new UnionRDD(unpersistedRDDs.head.context, unpersistedRDDs)
-          unpersistedRDD = Some(unionedRDD)
-        }
-      } else {
-        unpersistedRDD = Some(unpersistRDD(table.asInstanceOf[MemoryTable].tableRDD))
-      }
-      return unpersistedRDD
-    }
-
     // Remove MemoryTable's entry from Shark metadata.
     _keyToStats.remove(lowerCaseTableName)
 
     val tableValue: Option[Table] = _keyToTable.remove(lowerCaseTableName)
-    return tableValue.flatMap(unpersistTable(_))
-  }
-
-  def unpersistRDD(rdd: RDD[_]): RDD[_] = {
-    rdd match {
-      case u: UnionRDD[_] => {
-        // Recursively unpersist() all RDDs that compose the UnionRDD.
-        u.unpersist()
-        u.rdds.map {
-          r => r.unpersist()
-        }
-      }
-      case r => r.unpersist()
-    }
-    return rdd
+    return tableValue.flatMap(MemoryMetadataManager.unpersistTable(_))
   }
 }
 
 
 object MemoryMetadataManager {
+
+  def unpersistTable(table: Table): Option[RDD[_]] = {
+    var unpersistedRDD: Option[RDD[_]] = None
+    if (table.isInstanceOf[PartitionedMemoryTable]) {
+      val partitionedTable = table.asInstanceOf[PartitionedMemoryTable]
+      // unpersist() all RDDs for all Hive-partitions.
+      val unpersistedRDDs =  partitionedTable.getAllPartitions.map(
+        rdd => RDDUtils.unpersistRDD(rdd)).asInstanceOf[Seq[RDD[Any]]]
+      if (unpersistedRDDs.size > 0) {
+        val unionedRDD = new UnionRDD(unpersistedRDDs.head.context, unpersistedRDDs)
+        unpersistedRDD = Some(unionedRDD)
+      }
+    } else {
+      unpersistedRDD = Some(RDDUtils.unpersistRDD(table.asInstanceOf[MemoryTable].tableRDD))
+    }
+    return unpersistedRDD
+  }
 
   def makeHivePartitionKeyStr(
       partitionColumns: Seq[String],

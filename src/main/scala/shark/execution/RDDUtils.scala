@@ -53,6 +53,20 @@ object RDDUtils {
     }
   }
 
+  def unpersistRDD(rdd: RDD[_]): RDD[_] = {
+    rdd match {
+      case u: UnionRDD[_] => {
+        // Recursively unpersist() all RDDs that compose the UnionRDD.
+        u.unpersist()
+        u.rdds.map {
+          r => r.unpersist()
+        }
+      }
+      case r => r.unpersist()
+    }
+    return rdd
+  }
+
   /**
    * Repartition an RDD using the given partitioner. This is similar to Spark's partitionBy,
    * except we use the Shark shuffle serializer.
