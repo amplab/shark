@@ -34,18 +34,18 @@ import shark.SharkEnv
  */
 object RDDUtils {
 
-  def getStorageLevelOfCachedRDD(rdd: RDD[_]): StorageLevel = {
+  def getStorageLevelOfRDD(rdd: RDD[_]): StorageLevel = {
     rdd match {
-      case u: UnionRDD[_] => getStorageLevelOfCachedRDDs(u.rdds)
+      case u: UnionRDD[_] => getStorageLevelOfRDDs(u.rdds)
       case _ => rdd.getStorageLevel
     }
   }
 
-  def getStorageLevelOfCachedRDDs(rdds: Seq[RDD[_]]): StorageLevel = {
+  def getStorageLevelOfRDDs(rdds: Seq[RDD[_]]): StorageLevel = {
     rdds.foldLeft(StorageLevel.NONE) {
       (s, r) => {
         if (s == StorageLevel.NONE) {
-          getStorageLevelOfCachedRDD(r)
+          getStorageLevelOfRDD(r)
         } else {
           s
         }

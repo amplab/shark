@@ -152,7 +152,7 @@ object MemoryMetadataManager {
     if (table.isInstanceOf[PartitionedMemoryTable]) {
       val partitionedTable = table.asInstanceOf[PartitionedMemoryTable]
       // unpersist() all RDDs for all Hive-partitions.
-      val unpersistedRDDs =  partitionedTable.getAllPartitions.map(
+      val unpersistedRDDs =  partitionedTable.keyToPartitions.values.map(
         rdd => RDDUtils.unpersistRDD(rdd)).asInstanceOf[Seq[RDD[Any]]]
       if (unpersistedRDDs.size > 0) {
         val unionedRDD = new UnionRDD(unpersistedRDDs.head.context, unpersistedRDDs)

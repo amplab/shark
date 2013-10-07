@@ -98,6 +98,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     }
 
     val isHivePartitioned = SharkEnv.memoryMetadataManager.isHivePartitioned(tableName)
+    var hasPreviousRDD = false
 
     if (tachyonWriter != null) {
       // Put the table in Tachyon.
@@ -139,7 +140,10 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         rdd = oldRdd match {
           case Some(definedRdd) => rdd.union(oldRdd.get.asInstanceOf[RDD[TablePartition]])
           // The oldRdd can be missing if this is an INSERT into a new Hive-partition.
-          case None => rdd
+          case None => {
+            hasPreviousRDD = true
+            rdd
+          }
         }
       }
       // Run a job on the original RDD to force it to go into cache.
@@ -148,8 +152,12 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
     if (isHivePartitioned) {
       SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).foreach{ table =>
-        table.putPartition(hivePartitionKey, rdd)
         rdd.setName(tableName + "(" + hivePartitionKey + ")")
+        if (useUnionRDD && !hasPreviousRDD) {
+          table.updatePartition(hivePartitionKey, rdd)
+        } else {
+          table.putPartition(hivePartitionKey, rdd)
+        }
       }
     } else {
       val table = SharkEnv.memoryMetadataManager.getMemoryTable(tableName).getOrElse(

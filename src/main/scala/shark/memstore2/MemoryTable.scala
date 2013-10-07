@@ -53,11 +53,15 @@ class MemoryTable(
   extends Table(tableName, cacheMode, preferredStorageLevel) {
 
   // RDD that contains the contents of this table.
-  var tableRDD: RDD[_] = _
+  private var _tableRDD: RDD[_] = _
+
+  def tableRDD: RDD[_] = _tableRDD
+
+  def tableRDD_= (rdd: RDD[_]) = _tableRDD = rdd
 
   override def getPreferredStorageLevel: StorageLevel = preferredStorageLevel
 
-  override def getCurrentStorageLevel: StorageLevel = RDDUtils.getStorageLevelOfCachedRDD(tableRDD)
+  override def getCurrentStorageLevel: StorageLevel = RDDUtils.getStorageLevelOfRDD(tableRDD)
 }
 
 private[shark]
@@ -67,34 +71,52 @@ class PartitionedMemoryTable(
     preferredStorageLevel: StorageLevel)
   extends Table(tableName, cacheMode, preferredStorageLevel) {
 
+  private class RDDValue(var rdd: RDD[_])
+
   // A map from the Hive-partition key to the RDD that contains contents of that partition.
-  private var _keyToPartitions: ConcurrentMap[String, RDD[_]] =
-    new ConcurrentJavaHashMap[String, RDD[_]]()
+  private var _keyToPartitions: ConcurrentMap[String, RDDValue] =
+    new ConcurrentJavaHashMap[String, RDDValue]()
 
   // The eviction policy for this table's cached Hive-partitions. An example of how this
   // can be set from the CLI:
   //   'TBLPROPERTIES("shark.partition.cachePolicy", "LRUCachePolicy")'.
-  private var _cachePolicy: CachePolicy[String, RDD[_]] = _
+  private var _cachePolicy: CachePolicy[String, RDDValue] = _
 
   private var _cachePolicyName: String = "None"
 
   def containsPartition(partitionKey: String): Boolean = _keyToPartitions.contains(partitionKey)
 
   def getPartition(partitionKey: String): Option[RDD[_]] = {
-    val rddFound = _keyToPartitions.get(partitionKey)
-    if (rddFound.isDefined) _cachePolicy.notifyGet(partitionKey)
-    return rddFound
+    val rddValueFound = _keyToPartitions.get(partitionKey)
+    if (rddValueFound.isDefined) _cachePolicy.notifyGet(partitionKey)
+    return rddValueFound.map(_.rdd)
   }
 
-  def putPartition(partitionKey: String, rdd: RDD[_]): Option[RDD[_]] = {
-    _cachePolicy.notifyPut(partitionKey, rdd)
-    _keyToPartitions.put(partitionKey, rdd)
+  def updatePartition(partitionKey: String, newRDD: RDD[_]): Option[RDD[_]] = {
+    val rddValueFound = _keyToPartitions.get(partitionKey)
+    var oldRDD: Option[RDD[_]] = None
+    if (rddValueFound.isDefined) {
+      val reusedRDDValue = rddValueFound.get
+      oldRDD = Some(reusedRDDValue.rdd)
+      reusedRDDValue.rdd = newRDD
+      reusedRDDValue
+    }
+    return oldRDD
+  }
+
+  def putPartition(partitionKey: String, newRDD: RDD[_]): Option[RDD[_]] = {
+    val rddValueFound = _keyToPartitions.get(partitionKey)
+    var oldRDD: Option[RDD[_]] = rddValueFound.map(_.rdd)
+    val newRDDValue = new RDDValue(newRDD)
+    _keyToPartitions.put(partitionKey, newRDDValue)
+    _cachePolicy.notifyPut(partitionKey, newRDDValue)
+    return oldRDD
   }
 
   def removePartition(partitionKey: String): Option[RDD[_]] = {
     val rddRemoved = _keyToPartitions.remove(partitionKey)
     if (rddRemoved.isDefined) _cachePolicy.notifyRemove(partitionKey, rddRemoved.get)
-    return rddRemoved
+    return rddRemoved.map(_.rdd)
   }
 
   def setPartitionCachePolicy(
@@ -103,32 +125,32 @@ class PartitionedMemoryTable(
       shouldRecordStats: Boolean
     ) {
     _cachePolicy =
-      Class.forName(cachePolicyStr).newInstance.asInstanceOf[CachePolicy[String, RDD[_]]]
-    val loadFunc: String => RDD[_] =
+      Class.forName(cachePolicyStr).newInstance.asInstanceOf[CachePolicy[String, RDDValue]]
+    val loadFunc: String => RDDValue =
       (partitionKey: String) => {
-        val partitionRDD = _keyToPartitions.get(partitionKey).get
-        if (partitionRDD.getStorageLevel == StorageLevel.NONE) {
-          partitionRDD.persist(preferredStorageLevel)
+        val rddValue = _keyToPartitions.get(partitionKey).get
+        if (RDDUtils.getStorageLevelOfRDD(rddValue.rdd) == StorageLevel.NONE) {
+          rddValue.rdd.persist(preferredStorageLevel)
         }
-        partitionRDD
+        rddValue
       }
-    val evictionFunc: (String, RDD[_]) => Unit =
-      (partitionKey: String, partitionRDD: RDD[_]) => RDDUtils.unpersistRDD(partitionRDD)
+    val evictionFunc: (String, RDDValue) => Unit =
+      (partitionKey: String, rddValue) => RDDUtils.unpersistRDD(rddValue.rdd)
     _cachePolicy.initialize(maxSize, loadFunc, evictionFunc, shouldRecordStats)
     _cachePolicyName = cachePolicyStr
   }
 
   def cachePolicyName: String = _cachePolicyName
 
-  def cachePolicy: CachePolicy[String, RDD[_]] = _cachePolicy
+  def cachePolicy: CachePolicy[String, _] = _cachePolicy
 
-  def getAllPartitions = _keyToPartitions.values.toSeq
-
-  def getAllPartitionKeys = _keyToPartitions.keys.toSeq
+  def keyToPartitions: collection.immutable.Map[String, RDD[_]] = {
+    return _keyToPartitions.mapValues(_.rdd).toMap
+  }
 
   override def getPreferredStorageLevel: StorageLevel = preferredStorageLevel
 
   override def getCurrentStorageLevel: StorageLevel = {
-    return RDDUtils.getStorageLevelOfCachedRDDs(getAllPartitions)
+    return RDDUtils.getStorageLevelOfRDDs(_keyToPartitions.values.map(_.rdd).toSeq)
   }
 }
