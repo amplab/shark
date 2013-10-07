@@ -76,7 +76,8 @@ object SharkConfVars {
       conf.set(EXPLAIN_MODE.varname, EXPLAIN_MODE.defaultVal)
     }
     if (conf.get(COLUMN_BUILDER_PARTITION_SIZE.varname) == null) {
-      conf.setInt(COLUMN_BUILDER_PARTITION_SIZE.varname, COLUMN_BUILDER_PARTITION_SIZE.defaultIntVal)
+      conf.setInt(
+        COLUMN_BUILDER_PARTITION_SIZE.varname,COLUMN_BUILDER_PARTITION_SIZE.defaultIntVal)
     }
     if (conf.get(COLUMNAR_COMPRESSION.varname) == null) {
       conf.setBoolean(COLUMNAR_COMPRESSION.varname, COLUMNAR_COMPRESSION.defaultBoolVal)

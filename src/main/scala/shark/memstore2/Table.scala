@@ -23,9 +23,10 @@ import org.apache.spark.storage.StorageLevel
 /**
  * A container for table metadata specific to Shark and Spark. Currently, this is a lightweight
  * wrapper around either an RDD or multiple RDDs if the Shark table is Hive-partitioned.
+ *
  * Note that a Hive-partition of a table is different from an RDD partition. Each Hive-partition
  * is stored as a subdirectory of the table subdirectory in the warehouse directory
- * (e.g. /user/hive/warehouse). So, every Hive-Partition is loaded into Shark as an RDD.
+ * (e.g. '/user/hive/warehouse'). So, every Hive-Partition is loaded into Shark as an RDD.
  */
 private[shark] abstract class Table(
     var tableName: String,

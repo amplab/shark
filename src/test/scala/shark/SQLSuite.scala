@@ -533,7 +533,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     assert(RDDUtils.getStorageLevelOfRDD(keypart1RDD.get) == StorageLevel.NONE)
   }
 
-  test("LRU: RDD eviction accounts for partition scans - i.e., a cache.get()") {
+  test("LRU: RDD eviction accounts for partition scans - a cache.get()") {
     val tableName = "evict_partitions_with_get"
     val partitionedTable = createCachedPartitionedTable(
       tableName,
@@ -552,8 +552,8 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     assert(RDDUtils.getStorageLevelOfRDD(keypart2RDD.get) == StorageLevel.NONE)
   }
 
-  test("LRU: RDD eviction accounts for INSERT INTO - i.e., a cache.get().") {
-    val tableName = "evict_partitions_with_put"
+  test("LRU: RDD eviction accounts for INSERT INTO - a cache.get().") {
+    val tableName = "evict_partitions_insert_into"
     val partitionedTable = createCachedPartitionedTable(
       tableName,
       3 /* numPartitionsToCreate */,
@@ -564,9 +564,9 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     val keypart2RDD = partitionedTable.keyToPartitions.get("keypart=2")
     assert(RDDUtils.getStorageLevelOfRDD(oldKeypart1RDD.get) == StorageLevel.MEMORY_AND_DISK)
     assert(RDDUtils.getStorageLevelOfRDD(keypart2RDD.get) == StorageLevel.MEMORY_AND_DISK)
-    sc.runSql("""insert into table evict_partitions_with_put partition(keypart = 1)
+    sc.runSql("""insert into table evict_partitions_insert_into partition(keypart = 1)
       select * from test""")
-    sc.runSql("""insert into table evict_partitions_with_put partition(keypart = 4)
+    sc.runSql("""insert into table evict_partitions_insert_into partition(keypart = 4)
       select * from test""")
     assert(RDDUtils.getStorageLevelOfRDD(oldKeypart1RDD.get) == StorageLevel.MEMORY_AND_DISK)
     val newKeypart1RDD = partitionedTable.keyToPartitions.get("keypart=1")
@@ -576,8 +576,8 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     assert(keypart2StorageLevel == StorageLevel.NONE)
   }
 
-  test("LRU: RDD eviction accounts for INSERT OVERWRITE - i.e. a cache.put()") {
-    val tableName = "evict_partitions_with_put"
+  test("LRU: RDD eviction accounts for INSERT OVERWRITE - a cache.put()") {
+    val tableName = "evict_partitions_insert_overwrite"
     val partitionedTable = createCachedPartitionedTable(
       tableName,
       3 /* numPartitionsToCreate */,
@@ -588,9 +588,9 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     val keypart2RDD = partitionedTable.keyToPartitions.get("keypart=2")
     assert(RDDUtils.getStorageLevelOfRDD(oldKeypart1RDD.get) == StorageLevel.MEMORY_AND_DISK)
     assert(RDDUtils.getStorageLevelOfRDD(keypart2RDD.get) == StorageLevel.MEMORY_AND_DISK)
-    sc.runSql("""insert overwrite table evict_partitions_with_put partition(keypart = 1)
+    sc.runSql("""insert overwrite table evict_partitions_insert_overwrite partition(keypart = 1)
       select * from test""")
-    sc.runSql("""insert into table evict_partitions_with_put partition(keypart = 4)
+    sc.runSql("""insert into table evict_partitions_insert_overwrite partition(keypart = 4)
       select * from test""")
     assert(RDDUtils.getStorageLevelOfRDD(oldKeypart1RDD.get) == StorageLevel.NONE)
     val newKeypart1RDD = partitionedTable.keyToPartitions.get("keypart=1")
@@ -598,6 +598,23 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
 
     val keypart2StorageLevel = RDDUtils.getStorageLevelOfRDD(keypart2RDD.get)
     assert(keypart2StorageLevel == StorageLevel.NONE)
+  }
+
+  test("LRU: RDD eviction accounts for ALTER TABLE DROP PARTITION - a cache.remove()") {
+    val tableName = "evict_partitions_removals"
+    val partitionedTable = createCachedPartitionedTable(
+      tableName,
+      3 /* numPartitionsToCreate */,
+      3 /* maxCacheSize */,
+      "shark.memstore2.LRUCachePolicy")
+    assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
+    sc.runSql("alter table evict_partitions_removals drop partition(keypart = 1)")
+    sc.runSql("""insert into table evict_partitions_removals partition(keypart = 4)
+      select * from test""")
+    sc.runSql("""insert into table evict_partitions_removals partition(keypart = 5)
+      select * from test""")
+    val keypart2RDD = partitionedTable.keyToPartitions.get("keypart=2")
+    assert(RDDUtils.getStorageLevelOfRDD(keypart2RDD.get) == StorageLevel.NONE)
   }
 
   test("LRU: get() reloads an RDD previously unpersist()'d.") {
