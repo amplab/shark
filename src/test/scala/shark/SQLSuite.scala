@@ -601,6 +601,29 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     assert(keypart2RDD.get.getStorageLevel == StorageLevel.NONE)
   }
 
+  test("LRU: user is able to toggle cache stats recording") {
+    sc.runSql("drop table if exists record_partition_cache_stats")
+    sc.runSql("""
+      create table record_partition_cache_stats(key int, value string)
+        partitioned by (keypart int)
+        tblproperties('shark.cache' = 'true',
+                      'shark.cache.partition.cachePolicy.class' = 'shark.memstore2.LRUCachePolicy',
+                      'shark.cache.partition.cachePolicy.shouldRecordStats' = 'true')
+      """)
+    val tableName = "record_partition_cache_stats"
+    assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
+    val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
+    sc.runSql("""insert into table record_partition_cache_stats partition(keypart = 1)
+      select * from test""")
+    val lruCachePolicy = partitionedTable.cachePolicy
+    val hitRate = lruCachePolicy.getHitRate
+    assert(hitRate.isDefined)
+    assert(hitRate.get == 1.0)
+    val evictionCount = lruCachePolicy.getEvictionCount
+    assert(evictionCount.isDefined)
+    assert(evictionCount.get == 0)
+  }
+
   //////////////////////////////////////////////////////////////////////////////
   // Tableau bug
   //////////////////////////////////////////////////////////////////////////////

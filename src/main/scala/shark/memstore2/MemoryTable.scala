@@ -66,26 +66,26 @@ class PartitionedMemoryTable(
   // The eviction policy for this table's cached Hive-partitions. An example of how this
   // can be set from the CLI:
   //   'TBLPROPERTIES("shark.partition.cachePolicy", "LRUCachePolicy")'.
-  private var _partitionCachePolicy: CachePolicy[String, RDD[_]] = _
+  private var _cachePolicy: CachePolicy[String, RDD[_]] = _
 
-  private var _partitionCachePolicyName: String = "None"
+  private var _cachePolicyName: String = "None"
 
   def containsPartition(partitionKey: String): Boolean = _keyToPartitions.contains(partitionKey)
 
   def getPartition(partitionKey: String): Option[RDD[_]] = {
     val rddFound = _keyToPartitions.get(partitionKey)
-    if (rddFound.isDefined) _partitionCachePolicy.notifyGet(partitionKey)
+    if (rddFound.isDefined) _cachePolicy.notifyGet(partitionKey)
     return rddFound
   }
 
   def putPartition(partitionKey: String, rdd: RDD[_]): Option[RDD[_]] = {
-    _partitionCachePolicy.notifyPut(partitionKey, rdd)
+    _cachePolicy.notifyPut(partitionKey, rdd)
     _keyToPartitions.put(partitionKey, rdd)
   }
 
   def removePartition(partitionKey: String): Option[RDD[_]] = {
     val rddRemoved = _keyToPartitions.remove(partitionKey)
-    if (rddRemoved.isDefined) _partitionCachePolicy.notifyRemove(partitionKey, rddRemoved.get)
+    if (rddRemoved.isDefined) _cachePolicy.notifyRemove(partitionKey, rddRemoved.get)
     return rddRemoved
   }
 
@@ -94,7 +94,7 @@ class PartitionedMemoryTable(
       maxSize: Long,
       shouldRecordStats: Boolean
     ) {
-    _partitionCachePolicy =
+    _cachePolicy =
       Class.forName(cachePolicyStr).newInstance.asInstanceOf[CachePolicy[String, RDD[_]]]
     val loadFunc: String => RDD[_] =
       (partitionKey: String) => {
@@ -104,13 +104,13 @@ class PartitionedMemoryTable(
       }
     val evictionFunc: (String, RDD[_]) => Unit =
       (partitionKey: String, partition: RDD[_]) => partition.unpersist()
-    _partitionCachePolicy.initialize(maxSize, loadFunc, evictionFunc, shouldRecordStats)
-    _partitionCachePolicyName = cachePolicyStr
+    _cachePolicy.initialize(maxSize, loadFunc, evictionFunc, shouldRecordStats)
+    _cachePolicyName = cachePolicyStr
   }
 
-  def partitionCachePolicyName: String = _partitionCachePolicyName
+  def cachePolicyName: String = _cachePolicyName
 
-  def partitionCachePolicy: CachePolicy[String, RDD[_]] = _partitionCachePolicy
+  def cachePolicy: CachePolicy[String, RDD[_]] = _cachePolicy
 
   def getAllPartitions = _keyToPartitions.values.toSeq
 
