@@ -9,7 +9,7 @@ import org.apache.hadoop.hive.ql.plan.DDLWork
 
 import org.apache.spark.rdd.{UnionRDD, RDD}
 
-import shark.execution.SparkDDLWork
+import shark.execution.SharkDDLWork
 import shark.{LogHelper, SharkEnv}
 import shark.memstore2.MemoryMetadataManager
 
@@ -44,8 +44,8 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
       assert(ddlWork.isInstanceOf[DDLWork])
 
       val alterTableDesc = ddlWork.asInstanceOf[DDLWork].getAlterTblDesc
-      val sparkDDLWork = new SparkDDLWork(alterTableDesc)
-      ddlTask.addDependentTask(TaskFactory.get(sparkDDLWork, conf))
+      val sharkDDLWork = new SharkDDLWork(alterTableDesc)
+      ddlTask.addDependentTask(TaskFactory.get(sharkDDLWork, conf))
     }
   }
 
