@@ -14,6 +14,7 @@ import shark.{LogHelper, SharkEnv}
 import shark.memstore2.MemoryMetadataManager
 
 
+
 class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf) with LogHelper {
 
   override def analyzeInternal(astNode: ASTNode): Unit = {

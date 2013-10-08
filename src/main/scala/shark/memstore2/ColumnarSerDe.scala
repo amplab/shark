@@ -18,9 +18,7 @@
 package shark.memstore2
 
 import java.util.{List => JList, Properties}
-
 import scala.collection.JavaConversions._
-
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hdfs.DFSConfigKeys
 import org.apache.hadoop.hive.serde2.{ByteStream, SerDe, SerDeStats}
@@ -30,7 +28,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, Primitive
   StructField, StructObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
 import org.apache.hadoop.io.Writable
-
 import shark.LogHelper
 import shark.SharkConfVars
 import shark.memstore2.column._

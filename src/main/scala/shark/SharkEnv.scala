@@ -126,6 +126,7 @@ object SharkEnv extends LogHelper {
     memoryMetadataManager.unpersist(key)
   }
 
+
   /** Cleans up and shuts down the Shark environments. */
   def stop() {
     logDebug("Shutting down Shark Environment")

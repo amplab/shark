@@ -22,6 +22,7 @@ import java.io.ObjectOutput
 import java.io.Externalizable
 import java.sql.Timestamp
 import org.apache.hadoop.io.Text
+import shark.util.BloomFilter
 
 
 /**

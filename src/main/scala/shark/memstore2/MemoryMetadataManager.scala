@@ -48,6 +48,24 @@ class MemoryMetadataManager {
     _keyToStats.put(key.toLowerCase, stats)
   }
 
+  def remove(key: String): Option[RDD[_]] = {
+    val rdd = _keyToRdd.remove(key)
+    _keyToStats.remove(key)
+    removeRDDRecursive(rdd)
+    rdd
+  }
+
+  private def removeRDDRecursive(rdd: Option[RDD[_]]):Unit = {
+    rdd match {
+      case Some(u: UnionRDD[_]) => {
+        u.unpersist()
+        u.rdds.foreach(r => removeRDDRecursive(Some(r)))
+      }
+      case None => Unit
+      case Some(x) => x.unpersist()
+    }
+  }
+
   def getStats(key: String): Option[collection.Map[Int, TablePartitionStats]] = {
     _keyToStats.get(key.toLowerCase)
   }

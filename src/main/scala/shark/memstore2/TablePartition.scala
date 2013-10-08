@@ -22,6 +22,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.BitSet
 import shark.memstore2.column.ColumnIterator
+import shark.memstore2.column.ColumnType
 
 
 /**

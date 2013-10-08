@@ -33,6 +33,15 @@ import tachyon.client.table.RawTable
 import shark.{SharkEnv, SharkEnvSlave}
 import shark.memstore2._
 
+<<<<<<< HEAD
+=======
+import spark.{Dependency, Partition, RDD, SerializableWritable, SparkContext, TaskContext}
+
+import tachyon.client.InStream
+import tachyon.client.ReadType
+import tachyon.client.RawTable
+import tachyon.client.TachyonFile
+>>>>>>> bdasmaster
 
 private class TachyonTablePartition(rddId: Int, idx: Int, val locations: Seq[String])
   extends Partition {
@@ -69,6 +78,7 @@ class TachyonTableRDD(path: String, @transient sc: SparkContext)
     val rawTable: RawTable = SharkEnvSlave.tachyonUtil.client.getRawTable(path)
     val activeBuffers = new ArrayBuffer[TachyonByteBuffer]()
     val buffers = Array.tabulate[ByteBuffer](rawTable.getColumns()) { columnIndex =>
+<<<<<<< HEAD
       if (columnIndex != 0 && mColumnUsed != null && !mColumnUsed.get(columnIndex - 1)) {
         null
       } else {
@@ -92,6 +102,20 @@ class TachyonTableRDD(path: String, @transient sc: SparkContext)
           activeBuffers += buf
           buf.DATA
         }
+=======
+      val fp = rawTable.getRawColumn(columnIndex).getPartition(theSplit.index, true)
+      var buf: ByteBuffer = fp.readByteBuffer()
+      if (buf == null && fp.recache()) {
+        buf = fp.readByteBuffer()
+      }
+      if (buf == null) {
+        // TODO Log this. Reading data from remote is bad.
+        buf = ByteBuffer.allocate(fp.length().toInt)
+        val is = fp.getInStream(ReadType.CACHE)
+        is.read(buf.array)
+        is.close()
+        buf.limit(fp.length().toInt)
+>>>>>>> bdasmaster
       }
     }
 

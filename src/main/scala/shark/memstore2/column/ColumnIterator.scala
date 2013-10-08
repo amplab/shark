@@ -43,10 +43,8 @@ trait ColumnIterator {
   def current: Object
 }
 
-
-abstract class DefaultColumnIterator[T, V](val buffer: ByteBuffer, val columnType: ColumnType[T, V])
-  extends CompressedColumnIterator
-
+abstract class DefaultColumnIterator[T, V](val buffer: ByteBuffer,
+  val columnType: ColumnType[T, V]) extends CompressedColumnIterator{}
 
 object Implicits {
   implicit def intToCompressionType(i: Int): CompressionType = i match {

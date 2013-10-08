@@ -1,0 +1,23 @@
+# used by buildyblocks_yroot_create
+
+# Name of yroot to create ( It can contain variables )
+yroot: shark-commit
+
+# Image to use for RHEL x86_64
+#yroot_x86_64_rhel_image: 4.9-20110216
+yroot_x86_64_rhel6_image: 6.3-20120918
+
+# Remove the yroot after completing 
+yroot_remove: false
+
+# Used by buildyblocks_yroot_create (on yroot creation) and
+# buildyblocks_provision (every build).  Note that while
+# we can use different statefiles per OS and per architecture,
+# here we are only using different statefiles per OS.
+
+# Statefile for yroot on RHEL x86_64
+#provision_x86_64_rhel_statefile: ./rhel4_build.state
+provision_x86_64_rhel6_statefile: ./rhel6_build.state
+
+# Yinst Version to install in yroot
+provision_yinst_version: rhel6stable

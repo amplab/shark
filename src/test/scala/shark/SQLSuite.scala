@@ -34,10 +34,11 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   override def beforeAll() {
     sc = SharkEnv.initWithSharkContext("shark-sql-suite-testing", MASTER)
 
-    sc.runSql("set javax.jdo.option.ConnectionURL=jdbc:derby:;databaseName=" +
+    if (TestUtils.testAndSet()) {
+      sc.runSql("set javax.jdo.option.ConnectionURL=jdbc:derby:;databaseName=" +
         METASTORE_PATH + ";create=true")
-    sc.runSql("set hive.metastore.warehouse.dir=" + WAREHOUSE_PATH)
-
+      sc.runSql("set hive.metastore.warehouse.dir=" + WAREHOUSE_PATH)
+    }
     sc.runSql("set shark.test.data.path=" + TestUtils.dataFilePath)
 
     // test
@@ -333,7 +334,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.runSql("drop table sharkTest5Cached")
     assert(!SharkEnv.memoryMetadataManager.contains("sharkTest5Cached"))
   }
-
+  
   //////////////////////////////////////////////////////////////////////////////
   // Tableau bug
   //////////////////////////////////////////////////////////////////////////////
@@ -344,35 +345,22 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       select cast(key as int) as k, val from test""")
     expectSql("select count(k) from adw where val='val_487' group by 1 having count(1) > 0","1")
   }
-
+  
    //////////////////////////////////////////////////////////////////////////////
-  // Partition pruning
+  // Sel Star
   //////////////////////////////////////////////////////////////////////////////
-
+  
   test("sel star pruning") {
     sc.sql("drop table if exists selstar")
     sc.sql("""create table selstar TBLPROPERTIES ("shark.cache" = "true") as
       select * from test""")
     expectSql("select * from selstar where val='val_487'","487	val_487")
   }
-
-  test("map pruning with functions in between clause") {
-    sc.sql("drop table if exists mapsplitfunc")
-    sc.sql("drop table if exists mapsplitfunc_cached")
-    sc.sql("create table mapsplitfunc(k bigint, v string)")
-    sc.sql("""load data local inpath '${hiveconf:shark.test.data.path}/kv1.txt'
-      OVERWRITE INTO TABLE mapsplitfunc""")
-    sc.sql("create table mapsplitfunc_cached as select * from mapsplitfunc")
-    expectSql("""select count(*) from mapsplitfunc_cached
-      where month(from_unixtime(k)) between "1" and "12" """, Array[String]("500"))
-    expectSql("""select count(*) from mapsplitfunc_cached
-      where year(from_unixtime(k)) between "2013" and "2014" """, Array[String]("0"))
-  }
-
-  //////////////////////////////////////////////////////////////////////////////
+  
+   //////////////////////////////////////////////////////////////////////////////
   // various data types
   //////////////////////////////////////////////////////////////////////////////
-
+  
   test("various data types") {
     sc.sql("drop table if exists checkboolean")
     sc.sql("""create table checkboolean TBLPROPERTIES ("shark.cache" = "true") as
@@ -392,7 +380,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.sql("""create table checkbyte_cached as select * from checkbyte""")
     expectSql("select flag, count(*) from checkbyte_cached group by flag order by flag asc",
       Array[String]("0\t208", "1\t292"))
-
+    
     sc.sql("drop table if exists checkbinary")
     sc.sql("drop table if exists checkbinary_cached")
     sc.sql("""create table checkbinary (key string, flag binary) """)
@@ -401,9 +389,9 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.sql("""insert into table checkbinary
       select key, cast(val as binary) as flag from test where key > "300" """)
     sc.sql("create table checkbinary_cached as select key, flag from checkbinary")
-    expectSql("select cast(flag as string) as f from checkbinary_cached order by f asc limit 2",
+    expectSql("select flag from checkbinary_cached order by flag asc limit 2",
       Array[String]("val_0", "val_0"))
-
+      
     sc.sql("drop table if exists checkshort")
     sc.sql("drop table if exists checkshort_cached")
     sc.sql("""create table checkshort (key string, val string, flag smallint) """)
@@ -414,6 +402,21 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.sql("create table checkshort_cached as select key, val, flag from checkshort")
     expectSql("select flag, count(*) from checkshort_cached group by flag order by flag asc",
       Array[String]("23\t292", "36\t208"))
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Test function based pruning Bug
+  //////////////////////////////////////////////////////////////////////////////
+  
+  test("map pruning with functions in between clause") {
+    sc.sql("drop table if exists mapsplitfunc")
+    sc.sql("drop table if exists mapsplitfunc_cached")
+    sc.sql("create table mapsplitfunc(k bigint, v string)")
+    sc.sql("""load data local inpath '${hiveconf:shark.test.data.path}/kv1.txt' 
+        OVERWRITE INTO TABLE mapsplitfunc""")
+    sc.sql("create table mapsplitfunc_cached as select * from mapsplitfunc")
+    expectSql("""select count(*) from mapsplitfunc_cached where month(from_unixtime(k)) between "1" and "12" """,Array[String]("500"))
+    expectSql("""select count(*) from mapsplitfunc_cached where year(from_unixtime(k)) between "2013" and "2014" """,Array[String]("0"))
   }
 
   //////////////////////////////////////////////////////////////////////////////

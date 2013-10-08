@@ -28,19 +28,20 @@ object SharkBuild extends Build {
   // Shark version
   val SHARK_VERSION = "0.9.0-SNAPSHOT"
 
-  val SPARK_VERSION = "0.9.0-incubating-SNAPSHOT"
+//  val SPARK_VERSION = "0.9.0-incubating-SNAPSHOT"
+
+  val SPARK_VERSION = "0.8.0-SNAPSHOT"
 
   val SCALA_VERSION = "2.9.3"
 
   // Hadoop version to build against. For example, "0.20.2", "0.20.205.0", or
   // "1.0.1" for Apache releases, or "0.20.2-cdh3u3" for Cloudera Hadoop.
-  val DEFAULT_HADOOP_VERSION = "1.0.4"
+  val DEFAULT_HADOOP_VERSION = "0.23.9"
 
   lazy val hadoopVersion = env("SHARK_HADOOP_VERSION") orElse
                            env("SPARK_HADOOP_VERSION") getOrElse
                            DEFAULT_HADOOP_VERSION
 
-  // Whether to build Shark with Yarn support
   val YARN_ENABLED = env("SHARK_YARN").getOrElse("false").toBoolean
 
   // Whether to build Shark with Tachyon jar.
@@ -79,6 +80,8 @@ object SharkBuild extends Build {
     fork := true,
     javaOptions += "-XX:MaxPermSize=512m",
     javaOptions += "-Xmx2g",
+
+    testOptions in Test += Tests.Argument("-oF"), // Full stack trace on test failures
 
     testOptions in Test += Tests.Argument("-oF"), // Full stack trace on test failures
 

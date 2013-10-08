@@ -18,7 +18,7 @@
 package shark.parse
 
 import java.lang.reflect.Method
-import java.util.ArrayList
+import java.util.{ArrayList, Properties}
 import java.util.{List => JavaList}
 import java.util.{Map => JavaMap}
 
@@ -121,6 +121,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
           createTableProperties.put("shark.cache", cacheMode.toString)
         }
 
+
         if (CacheType.shouldCache(cacheMode)) {
           createTableDesc.setSerName(classOf[ColumnarSerDe].getName)
         }
@@ -183,6 +184,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         hiveSinkOps.map { hiveSinkOp =>
           val tableName = hiveSinkOp.asInstanceOf[HiveFileSinkOperator].getConf().getTableInfo()
             .getTableName()
+          val tableProperties = hiveSinkOp.asInstanceOf[HiveFileSinkOperator].getConf().getTableInfo().getProperties()
 
           if (tableName == null || tableName == "") {
             // If table name is empty, it is an INSERT (OVERWRITE) DIRECTORY.
@@ -190,6 +192,8 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
           } else {
             // Otherwise, check if we are inserting into a table that was cached.
             val cachedTableName = tableName.split('.')(1) // Ignore the database name
+            tableProperties.setProperty("name", cachedTableName)
+
             SharkEnv.memoryMetadataManager.get(cachedTableName) match {
               case Some(rdd) => {
                 if (hiveSinkOps.size == 1) {
@@ -220,6 +224,14 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
             val storageLevel = MemoryMetadataManager.getStorageLevelFromString(
               qb.getTableDesc().getTblProps.get("shark.cache.storageLevel"))
             qb.getTableDesc().getTblProps().put(CachedTableRecovery.QUERY_STRING, ctx.getCmd())
+
+            var tableProperties: Properties = new Properties
+            qb.getTableDesc().getTblProps().keySet().foreach { k => 
+              val v = qb.getTableDesc().getTblProps().get(k)
+              tableProperties.setProperty(k, v)
+            }
+            tableProperties.setProperty("name", qb.getTableDesc.getTableName)
+
             OperatorFactory.createSharkMemoryStoreOutputPlan(
               hiveSinkOps.head,
               qb.getTableDesc.getTableName,
