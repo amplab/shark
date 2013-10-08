@@ -19,6 +19,7 @@ package shark.execution
 
 import java.util.{ArrayList, Arrays}
 import scala.reflect.BeanProperty
+import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.mapred.{FileInputFormat, InputFormat, JobConf}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_PARTITION_COLUMNS
@@ -32,7 +33,9 @@ import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectIns
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.io.Writable
 
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.{PartitionPruningRDD, RDD, UnionRDD}
+import org.apache.spark.SerializableWritable
 
 import shark.{SharkConfVars, SharkEnv, Utils}
 import shark.api.QueryExecutionException
@@ -214,15 +217,53 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
    * Create a RDD representing the table (with or without partitions).
    */
   override def preprocessRdd(rdd: RDD[_]): RDD[_] = {
+    // copyTableJobPropertiesToConf and pushFilters both take in JobConfs.
+    val localJobConf = new JobConf(localHconf)
+    if (tableDesc != null) {
+      Utilities.copyTableJobPropertiesToConf(tableDesc, localJobConf)
+    }
+    val bufferSize = System.getProperty("spark.buffer.size", "65536")
+    localJobConf.set("io.file.buffer.size", bufferSize)
+
+    new HiveInputFormat() {
+      def doPushFilters() {
+        pushFilters(localJobConf, hiveOp)
+      }
+    }.doPushFilters()
+
+    // Set s3/s3n credentials. Setting them in localJobConf ensures the settings propagate
+    // from Spark's master all the way to Spark's slaves.
+    var s3varsSet = false
+    val s3vars = Seq("fs.s3n.awsAccessKeyId", "fs.s3n.awsSecretAccessKey",
+      "fs.s3.awsAccessKeyId", "fs.s3.awsSecretAccessKey").foreach { variableName =>
+      if (localJobConf.get(variableName) != null) {
+        s3varsSet = true
+        localJobConf.set(variableName, localJobConf.get(variableName))
+      }
+    }
+
+    // If none of the s3 credentials are set in Hive conf, try use the environmental
+    // variables for credentials.
+    if (!s3varsSet) {
+      Utils.setAwsCredentials(localJobConf)
+    }
+
+    // Choose the minimum number of splits. If mapred.map.tasks is set, use that unless
+    // it is smaller than what Spark suggests.
+    val minSplitsPerRDD = math.max(
+      localJobConf.getInt("mapred.map.tasks", 1), SharkEnv.sc.defaultMinSplits)
+
+    val broadcastedJobConf = SharkEnv.sc.broadcast(new SerializableWritable(localJobConf))
+
     if (table.isPartitioned) {
       logDebug("Making %d Hive partitions".format(parts.size))
-      makePartitionRDD(rdd)
+      makeHivePartitionRDDs(broadcastedJobConf, minSplitsPerRDD)
     } else {
       val tablePath = table.getPath.toString
       val ifc = table.getInputFormatClass
           .asInstanceOf[java.lang.Class[InputFormat[Writable, Writable]]]
       logDebug("Table input: %s".format(tablePath))
-      createHadoopRdd(tablePath, ifc)
+      createHadoopFileRdd(tablePath, ifc, broadcastedJobConf, minSplitsPerRDD)
     }
   }
 
@@ -243,9 +284,12 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
    * tables, a data directory is created for each partition corresponding to keys specified using
    * 'PARTITION BY'.
    */
-  private def makePartitionRDD[T](rdd: RDD[T]): RDD[_] = {
+  private def makeHivePartitionRDDs[T](
+      broadcastedJobConf: Broadcast[SerializableWritable[JobConf]],
+      minSplitsPerRDD: Int
+    ): RDD[_] = {
     val partitions = parts
-    val rdds = new Array[RDD[Any]](partitions.size)
+    val hivePartitionRDDs = new Array[RDD[Any]](partitions.size)
 
     var i = 0
     partitions.foreach { part =>
@@ -255,10 +299,11 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
 
       val ifc = partition.getInputFormatClass
         .asInstanceOf[java.lang.Class[InputFormat[Writable, Writable]]]
-      val parts = createHadoopRdd(tablePath, ifc)
+      val hivePartitionRDD = createHadoopFileRdd(
+        tablePath, ifc, broadcastedJobConf, minSplitsPerRDD)
 
       val serializedHconf = XmlSerializer.serialize(localHconf, localHconf)
-      val partRDD = parts.mapPartitions { iter =>
+      val hivePartitionRDDWithColValues = hivePartitionRDD.mapPartitions { iter =>
         val hconf = XmlSerializer.deserialize(serializedHconf).asInstanceOf[HiveConf]
         val deserializer = partDesc.getDeserializerClass().newInstance()
         deserializer.initialize(hconf, partDesc.getProperties())
@@ -289,53 +334,31 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
           rowWithPartArr.asInstanceOf[Object]
         }
       }
-      rdds(i) = partRDD.asInstanceOf[RDD[Any]]
+      hivePartitionRDDs(i) = hivePartitionRDDWithColValues.asInstanceOf[RDD[Any]]
       i += 1
     }
     // Even if we don't use any partitions, we still need an empty RDD
-    if (rdds.size == 0) {
+    if (hivePartitionRDDs.size == 0) {
       SharkEnv.sc.makeRDD(Seq[Object]())
     } else {
-      new UnionRDD(rdds(0).context, rdds)
+      new UnionRDD(hivePartitionRDDs(0).context, hivePartitionRDDs)
     }
   }
 
-  private def createHadoopRdd(path: String, ifc: Class[InputFormat[Writable, Writable]])
+  private def createHadoopFileRdd(
+      path: String,
+      inputFormatClass: Class[InputFormat[Writable, Writable]],
+      broadcastedJobConf: Broadcast[SerializableWritable[JobConf]],
+      minSplits: Int)
   : RDD[Writable] = {
-    val conf = new JobConf(localHconf)
-    if (tableDesc != null) {
-      Utilities.copyTableJobPropertiesToConf(tableDesc, conf)
-    }
-    new HiveInputFormat() {
-      def doPushFilters() {
-        pushFilters(conf, hiveOp)
-      }
-    }.doPushFilters()
-    FileInputFormat.setInputPaths(conf, path)
-    val bufferSize = System.getProperty("spark.buffer.size", "65536")
-    conf.set("io.file.buffer.size", bufferSize)
 
-    // Set s3/s3n credentials. Setting them in conf ensures the settings propagate
-    // from Spark's master all the way to Spark's slaves.
-    var s3varsSet = false
-    val s3vars = Seq("fs.s3n.awsAccessKeyId", "fs.s3n.awsSecretAccessKey",
-      "fs.s3.awsAccessKeyId", "fs.s3.awsSecretAccessKey").foreach { variableName =>
-      if (localHconf.get(variableName) != null) {
-        s3varsSet = true
-        conf.set(variableName, localHconf.get(variableName))
-      }
-    }
-
-    // If none of the s3 credentials are set in Hive conf, try use the environmental
-    // variables for credentials.
-    if (!s3varsSet) {
-      Utils.setAwsCredentials(conf)
-    }
-
-    // Choose the minimum number of splits. If mapred.map.tasks is set, use that unless
-    // it is smaller than what Spark suggests.
-    val minSplits = math.max(localHconf.getInt("mapred.map.tasks", 1), SharkEnv.sc.defaultMinSplits)
-    val rdd = SharkEnv.sc.hadoopRDD(conf, ifc, classOf[Writable], classOf[Writable], minSplits)
+    val rdd = SharkEnv.sc.hadoopFile(
+      path,
+      broadcastedJobConf.asInstanceOf[Broadcast[SerializableWritable[Configuration]]],
+      inputFormatClass,
+      classOf[Writable],
+      classOf[Writable],
+      minSplits)
 
     // Only take the value (skip the key) because Hive works only with values.
     rdd.map(_._2)
