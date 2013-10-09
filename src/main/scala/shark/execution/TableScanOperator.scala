@@ -246,6 +246,14 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     }
   }
 
+  /**
+   * Fetch an RDD from the Shark metastore using each partition key given, and return a union of all
+   * the fetched RDDs.
+   *
+   * @param tableKey Name of the partitioned table.
+   * @param partitions A collection of Hive-partition metadata, such as partition columns and
+   *     partition key specifications.
+   */
   private def makeCachedPartitionRDD(tableKey: String, partitions: Array[Partition]): RDD[_] = {
     val hivePartitionRDDSeq = partitions.map { partition =>
       val partDesc = Utilities.getPartitionDesc(partition)
@@ -265,10 +273,9 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
             new String(partSpec.get(key))
           }
         }.toArray
-      val partKeyStr = MemoryMetadataManager.makeHivePartitionKeyStr(partColumns, partSpec)
+      val partitionKeyStr = MemoryMetadataManager.makeHivePartitionKeyStr(partColumns, partSpec)
       val hivePartitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableKey).get
-      val hivePartitionRDD = hivePartitionedTable.getPartition(partKeyStr)
-      val serializedHconf = XmlSerializer.serialize(localHconf, localHconf)
+      val hivePartitionRDD = hivePartitionedTable.getPartition(partitionKeyStr)
       
       hivePartitionRDD.get.mapPartitions { iter =>
         if (iter.hasNext) {
@@ -293,7 +300,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
   }
 
   /**
-   * Create an RDD for every partition column specified in the query. Note that for on-disk Hive
+   * Create a HadoopRDD for every partition key specified in the query. Note that for on-disk Hive
    * tables, a data directory is created for each partition corresponding to keys specified using
    * 'PARTITION BY'.
    */

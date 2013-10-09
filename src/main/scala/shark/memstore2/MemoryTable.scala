@@ -23,6 +23,9 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 
 
+/**
+ * A wrapper around a single RDD that backs a Shark table.
+ */
 private[shark]
 class MemoryTable(
     tableName: String,

@@ -36,7 +36,7 @@ class MemoryMetadataManager {
   private val _keyToTable: ConcurrentMap[String, Table] =
     new ConcurrentHashMap[String, Table]()
 
-  // TODO(harvey): Support stats for cached Hive-partitioned tables.
+  // TODO(harvey): Support stats for Hive-partitioned tables.
   private val _keyToStats: ConcurrentMap[String, collection.Map[Int, TablePartitionStats]] =
     new ConcurrentHashMap[String, collection.Map[Int, TablePartitionStats]]
 
@@ -117,13 +117,6 @@ class MemoryMetadataManager {
   }
 
   /**
-   * Find all keys that are strings. Used to drop tables after exiting.
-   */
-  def getAllKeyStrings(): Seq[String] = {
-    _keyToTable.keys.collect { case k: String => k } toSeq
-  }
-
-  /**
    * Used to drop a table from the Spark in-memory cache and/or disk. All metadata
    * (e.g. entry in '_keyToStats' if the table isn't Hive-partitioned) tracked by Shark is deleted
    * as well.
@@ -133,7 +126,7 @@ class MemoryMetadataManager {
    *         in _keyToMemoryTable. For MemoryTables that are Hive-partitioned, the RDD returned will
    *         be a UnionRDD comprising RDDs that represent the table's Hive-partitions.
    */
-  def unpersist(tableName: String): Option[RDD[_]] = {
+  def removeTable(tableName: String): Option[RDD[_]] = {
     val lowerCaseTableName = tableName.toLowerCase
 
     // Remove MemoryTable's entry from Shark metadata.
@@ -141,6 +134,11 @@ class MemoryMetadataManager {
 
     val tableValue: Option[Table] = _keyToTable.remove(lowerCaseTableName)
     return tableValue.flatMap(MemoryMetadataManager.unpersistTable(_))
+  }
+
+  /** Find all keys that are strings. Used to drop tables after exiting. */
+  def getAllKeyStrings(): Seq[String] = {
+    _keyToTable.keys.collect { case k: String => k } toSeq
   }
 }
 

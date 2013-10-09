@@ -27,10 +27,10 @@ trait CachePolicy[K, V] {
   protected var evictionFunc: (K, V) => Unit = _
 
   def initialize(
-	  maxSize: Long,
-	  loadFunc: (K => V),
-	  evictionFunc: (K, V) => Unit,
-    shouldRecordStats: Boolean
+	    maxSize: Long,
+	    loadFunc: (K => V),
+	    evictionFunc: (K, V) => Unit,
+      shouldRecordStats: Boolean
     ): Unit = {
     this.maxSize = maxSize
     this.loadFunc = loadFunc

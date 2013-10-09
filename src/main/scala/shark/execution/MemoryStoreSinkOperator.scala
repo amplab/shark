@@ -123,13 +123,6 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     }
 
     val isHivePartitioned = SharkEnv.memoryMetadataManager.isHivePartitioned(tableName)
-    if (isHivePartitioned) {
-      // Sanity check: make sure that the Hive-partitioned table corresponding to 'tableName'
-      // exists in the MemoryMetadataManager.
-      assert(SharkEnv.memoryMetadataManager.containsTable(tableName),
-        """Internal Error: Hive-partitioned table %s does not exist in
-          SharkEnv.memoryMetadataManager.""".format(tableName))
-    }
 
     // If true, a UnionRDD will be used to combine the RDD that contains the query output with the
     // previous RDD, which is fetched using 'tableName' or, if the table is Hive-partitioned, the
@@ -190,17 +183,16 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     }
 
     if (isHivePartitioned) {
-      SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).foreach{ table =>
-        outputRDD.setName(tableName + "(" + hivePartitionKey + ")")
-        if (useUnionRDD && hasPreviousRDDForUnion) {
-          // If the Hive-partition has already created, update that partition's metadata entry in
-          // the PartitionedMemoryTable 'table'.
-          assert(outputRDD.isInstanceOf[UnionRDD[_]])
-          table.updatePartition(hivePartitionKey, outputRDD)
-        } else {
-          // This is a new Hive-partition. Add a new metadata entry in the Shark Table.
-          table.putPartition(hivePartitionKey, outputRDD)
-        }
+      val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
+      outputRDD.setName(tableName + "(" + hivePartitionKey + ")")
+      if (useUnionRDD && hasPreviousRDDForUnion) {
+        // An RDD for the Hive partition already exists, so update its metadata entry in
+        // 'partitionedTable'.
+        assert(outputRDD.isInstanceOf[UnionRDD[_]])
+        partitionedTable.putPartition(hivePartitionKey, outputRDD, true /* isUpdate */)
+      } else {
+        // This is a new Hive-partition. Add a new metadata entry in 'partitionedTable'.
+        partitionedTable.putPartition(hivePartitionKey, outputRDD)
       }
     } else {
       outputRDD.setName(tableName)

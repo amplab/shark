@@ -21,17 +21,13 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
 
     ast.getToken.getType match {
       case HiveParser.TOK_DROPTABLE => {
-        // TODO(harvey): Execute this in SparkDDLTask. This somewhat works right now because
-        //               unpersist() returns silently when the table doesn't exist. However, it
-        //               ignores any drop protections.
-        SharkEnv.unpersist(getTableName(ast))
-      }
-      // Handle ALTER TABLE for cached, Hive-partitioned tables
-      case HiveParser.TOK_ALTERTABLE_ADDPARTS => {
-        analyzeAlterTableAddParts(ast)
+        analyzeDropTableOrDropParts(ast)
       }
       case HiveParser.TOK_ALTERTABLE_DROPPARTS => {
-        alterTableDropParts(ast)
+        analyzeDropTableOrDropParts(ast)
+      }
+      case HiveParser.TOK_ALTERTABLE_ADDPARTS => {
+        analyzeAlterTableAddParts(ast)
       }
       case HiveParser.TOK_ALTERTABLE_RENAME => {
         analyzeAlterTableRename(ast)
@@ -40,29 +36,29 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
     }
   }
 
+  def analyzeDropTableOrDropParts(ast: ASTNode) {
+    val tableName = getTableName(ast)
+    // Create a SharkDDLTask only if the table is cached.
+    if (SharkEnv.memoryMetadataManager.containsTable(tableName)) {
+      // Hive's DDLSemanticAnalyzer#analyzeInternal() will only populate rootTasks with DDLTasks
+      // and DDLWorks that contain DropTableDesc objects.
+      for (ddlTask <- rootTasks) {
+        val dropTableDesc = ddlTask.getWork.asInstanceOf[DDLWork].getDropTblDesc
+        val sharkDDLWork = new SharkDDLWork(dropTableDesc)
+        ddlTask.addDependentTask(TaskFactory.get(sharkDDLWork, conf))
+      }
+    }
+  }
+
   def analyzeAlterTableAddParts(ast: ASTNode) {
     val tableName = getTableName(ast)
-    // Create a SparkDDLTask only if the table is cached.
+    // Create a SharkDDLTask only if the table is cached.
     if (SharkEnv.memoryMetadataManager.containsTable(tableName)) {
       // Hive's DDLSemanticAnalyzer#analyzeInternal() will only populate rootTasks with DDLTasks
       // and DDLWorks that contain AddPartitionDesc objects.
       for (ddlTask <- rootTasks) {
         val addPartitionDesc = ddlTask.getWork.asInstanceOf[DDLWork].getAddPartitionDesc
         val sharkDDLWork = new SharkDDLWork(addPartitionDesc)
-        ddlTask.addDependentTask(TaskFactory.get(sharkDDLWork, conf))
-      }
-    }
-  }
-
-  def alterTableDropParts(ast: ASTNode) {
-    val tableName = getTableName(ast)
-    // Create a SparkDDLTask only if the table is cached.
-    if (SharkEnv.memoryMetadataManager.containsTable(tableName)) {
-      // Hive's DDLSemanticAnalyzer#analyzeInternal() will only populate rootTasks with DDLTasks
-      // and DDLWorks that contain AddPartitionDesc objects.
-      for (ddlTask <- rootTasks) {
-        val dropTableDesc = ddlTask.getWork.asInstanceOf[DDLWork].getDropTblDesc
-        val sharkDDLWork = new SharkDDLWork(dropTableDesc)
         ddlTask.addDependentTask(TaskFactory.get(sharkDDLWork, conf))
       }
     }

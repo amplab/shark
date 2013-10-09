@@ -24,8 +24,8 @@ import shark.memstore2.CacheType._
 
 
 /**
- * A container for flags and table metadata that's used in SharkSemanticAnalyzer while parsing
- * and analyzing command ASTs (e.g. in analyzeCreateTable()).
+ * A container for flags and table metadata. Used in SharkSemanticAnalyzer while parsing
+ * and analyzing ASTs (e.g. in SharkSemanticAnalyzer#analyzeCreateTable()).
  */
 class QueryBlock(outerID: String, alias: String, isSubQuery: Boolean)
     extends HiveQueryBlock(outerID, alias, isSubQuery) {

@@ -115,13 +115,13 @@ object SharkEnv extends LogHelper {
   val addedJars = HashSet[String]()
 
   /**
-   * Removes the table associated with 'key'. This method checks for Tachyon tables before
-   * delegating to MemoryMetadataManager#unpersist() for the actual functionality.
+   * Drops the table associated with 'key'. This method checks for Tachyon tables before
+   * delegating to MemoryMetadataManager#removeTable() for removing the table's entry in the
+   * Shark metastore.
    *
-   * @param key The table that should be dropped from the Shark metastore and removed from memory
-   *     storage.
+   * @param key The table that should be dropped from the Shark metastore and from memory storage.
    */
-  def unpersist(key: String): Option[RDD[_]] = {
+  def dropTable(key: String): Option[RDD[_]] = {
     if (SharkEnv.tachyonUtil.tachyonEnabled() && SharkEnv.tachyonUtil.tableExists(key)) {
       if (SharkEnv.tachyonUtil.dropTable(key)) {
         logInfo("Table " + key + " was deleted from Tachyon.");
@@ -129,7 +129,7 @@ object SharkEnv extends LogHelper {
         logWarning("Failed to remove table " + key + " from Tachyon.");
       }
     }
-    return memoryMetadataManager.unpersist(key)
+    return memoryMetadataManager.removeTable(key)
   }
 
   /** Cleans up and shuts down the Shark environments. */
