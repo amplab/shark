@@ -36,18 +36,31 @@ object RDDUtils {
 
   def getStorageLevelOfRDD(rdd: RDD[_]): StorageLevel = {
     rdd match {
-      case u: UnionRDD[_] => getStorageLevelOfRDDs(u.rdds)
+      case u: UnionRDD[_] => {
+        // Find the storage level of a UnionRDD from the storage levels of RDDs that compose it.
+        // A StorageLevel.NONE is returned if all of those RDDs have StorageLevel.NONE.
+        // Mutually recursive if any RDD in 'u.rdds' is a UnionRDD.
+        getStorageLevelOfRDDs(u.rdds)
+      }
       case _ => rdd.getStorageLevel
     }
   }
 
+  /**
+   * Returns the storage level of a sequence of RDDs, interpreted as the storage level of the first
+   * RDD in the sequence that persisted in memory or disk.
+   *
+   * @param rdds The sequence of RDDs to find the StorageLevel of.
+   */
   def getStorageLevelOfRDDs(rdds: Seq[RDD[_]]): StorageLevel = {
     rdds.foldLeft(StorageLevel.NONE) {
       (s, r) => {
         if (s == StorageLevel.NONE) {
+          // Mutally recursive if 'r' is a UnionRDD.
           getStorageLevelOfRDD(r)
         } else {
-          s
+          // Some RDD in 'rdds' is persisted in memory or disk, so return early.
+          return s
         }
       }
     }
@@ -56,8 +69,11 @@ object RDDUtils {
   def unpersistRDD(rdd: RDD[_]): RDD[_] = {
     rdd match {
       case u: UnionRDD[_] => {
-        // Recursively unpersist() all RDDs that compose the UnionRDD.
+        // Usually, a UnionRDD will not be persisted to avoid data duplication.
         u.unpersist()
+        // unpersist() all parent RDDs that compose the UnionRDD. Don't propagate past the parents,
+        // since a grandparent of the UnionRDD might have multiple child RDDs (i.e., the sibling of
+        // the UnionRDD's parent is persisted in memory).
         u.rdds.map {
           r => r.unpersist()
         }
