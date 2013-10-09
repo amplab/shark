@@ -24,7 +24,7 @@ import org.apache.spark.storage.StorageLevel
 
 
 /**
- * A wrapper around a single RDD that backs a Shark table.
+ * A metadata container for a table in Shark that's backed by an RDD.
  */
 private[shark]
 class MemoryTable(
@@ -39,8 +39,6 @@ class MemoryTable(
   def tableRDD: RDD[_] = _tableRDD
 
   def tableRDD_= (rdd: RDD[_]) = _tableRDD = rdd
-
-  override def getPreferredStorageLevel: StorageLevel = preferredStorageLevel
 
   override def getCurrentStorageLevel: StorageLevel = RDDUtils.getStorageLevelOfRDD(tableRDD)
 }

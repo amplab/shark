@@ -40,6 +40,14 @@ class MemoryMetadataManager {
   private val _keyToStats: ConcurrentMap[String, collection.Map[Int, TablePartitionStats]] =
     new ConcurrentHashMap[String, collection.Map[Int, TablePartitionStats]]
 
+  def putStats(key: String, stats: collection.Map[Int, TablePartitionStats]) {
+    _keyToStats.put(key.toLowerCase, stats)
+  }
+
+  def getStats(key: String): Option[collection.Map[Int, TablePartitionStats]] = {
+    _keyToStats.get(key.toLowerCase)
+  }
+
   def createMemoryTable(
       tableName: String,
       cacheMode: CacheType.CacheType,
@@ -62,15 +70,19 @@ class MemoryMetadataManager {
       SharkConfVars.SHOULD_USE_CACHE_POLICY.varname,
       SharkConfVars.SHOULD_USE_CACHE_POLICY.defaultBoolVal.toString).toBoolean
     if (shouldUseCachePolicy) {
-      val cachePolicyStr = tblProps.getOrElse(SharkConfVars.CACHE_POLICY.varname,
+      // Determine the cache policy to use and read any user-specified cache settings.
+      val cachePolicyStr = tblProps.getOrElse(
+        SharkConfVars.CACHE_POLICY.varname,
         SharkConfVars.CACHE_POLICY.defaultVal)
-      val maxCacheSize = tblProps.getOrElse(SharkConfVars.MAX_PARTITION_CACHE_SIZE.varname,
+      val maxCacheSize = tblProps.getOrElse(
+        SharkConfVars.MAX_PARTITION_CACHE_SIZE.varname,
         SharkConfVars.MAX_PARTITION_CACHE_SIZE.defaultVal).toLong
       val shouldRecordStats = tblProps.getOrElse(
         SharkConfVars.SHOULD_RECORD_PARTITION_CACHE_STATS.varname,
         SharkConfVars.SHOULD_RECORD_PARTITION_CACHE_STATS.defaultVal).toBoolean
       newTable.setPartitionCachePolicy(cachePolicyStr, maxCacheSize, shouldRecordStats)
     }
+
     _keyToTable.put(tableName.toLowerCase, newTable)
     return newTable
   }
@@ -87,29 +99,21 @@ class MemoryMetadataManager {
   def getTable(tableName: String): Option[Table] = _keyToTable.get(tableName.toLowerCase)
 
   def getMemoryTable(tableName: String): Option[MemoryTable] = {
-   val tableFound = _keyToTable.get(tableName.toLowerCase)
-   tableFound.foreach(table =>
-     assert(table.isInstanceOf[MemoryTable],
-       "getMemoryTable() called for a partitioned table."))
-
-   tableFound.asInstanceOf[Option[MemoryTable]]
+    val tableOpt = _keyToTable.get(tableName.toLowerCase)
+    if (tableOpt.isDefined) {
+     assert(tableOpt.get.isInstanceOf[MemoryTable],
+       "getMemoryTable() called for a partitioned table.")
+    }
+    tableOpt.asInstanceOf[Option[MemoryTable]]
   }
 
   def getPartitionedTable(tableName: String): Option[PartitionedMemoryTable] = {
-   val tableFound = _keyToTable.get(tableName.toLowerCase)
-   tableFound.foreach(table =>
-     assert(table.isInstanceOf[PartitionedMemoryTable],
-       "getPartitionedTable() called for a non-partitioned table."))
-
-   tableFound.asInstanceOf[Option[PartitionedMemoryTable]]
-  }
-
-  def putStats(key: String, stats: collection.Map[Int, TablePartitionStats]) {
-    _keyToStats.put(key.toLowerCase, stats)
-  }
-
-  def getStats(key: String): Option[collection.Map[Int, TablePartitionStats]] = {
-    _keyToStats.get(key.toLowerCase)
+    val tableOpt = _keyToTable.get(tableName.toLowerCase)
+    if (tableOpt.isDefined) {
+      assert(tableOpt.get.isInstanceOf[PartitionedMemoryTable],
+        "getPartitionedTable() called for a non-partitioned table.")
+    }
+    tableOpt.asInstanceOf[Option[PartitionedMemoryTable]]
   }
 
   def renameTable(oldName: String, newName: String) {
@@ -127,8 +131,8 @@ class MemoryMetadataManager {
   }
 
   /**
-   * Used to drop a table from the Spark in-memory cache and/or disk. All metadata
-   * (e.g. entry in '_keyToStats' if the table isn't Hive-partitioned) tracked by Shark is deleted
+   * Used to drop a table from the Spark in-memory cache and/or disk. All metadata tracked by Shark
+   * tracked by Shark (e.g. entry in '_keyToStats' if the table isn't Hive-partitioned) is deleted
    * as well.
    *
    * @param key Name of the table to drop.
@@ -143,7 +147,7 @@ class MemoryMetadataManager {
     _keyToStats.remove(lowerCaseTableName)
 
     val tableValue: Option[Table] = _keyToTable.remove(lowerCaseTableName)
-    return tableValue.flatMap(MemoryMetadataManager.unpersistTable(_))
+    return tableValue.flatMap(MemoryMetadataManager.unpersistRDDsInTable(_))
   }
 
   /** Find all keys that are strings. Used to drop tables after exiting. */
@@ -155,7 +159,7 @@ class MemoryMetadataManager {
 
 object MemoryMetadataManager {
 
-  def unpersistTable(table: Table): Option[RDD[_]] = {
+  def unpersistRDDsInTable(table: Table): Option[RDD[_]] = {
     var unpersistedRDD: Option[RDD[_]] = None
     if (table.isInstanceOf[PartitionedMemoryTable]) {
       val partitionedTable = table.asInstanceOf[PartitionedMemoryTable]
@@ -172,10 +176,10 @@ object MemoryMetadataManager {
     return unpersistedRDD
   }
 
+  /** Return a string representation of the partition key, 'col1=value1/col2=value2/...' */
   def makeHivePartitionKeyStr(
       partitionColumns: Seq[String],
       partitionColumnToValue: JavaMap[String, String]): String = {
-    // The keyStr is the string 'col1=value1/col2=value2'.
     var keyStr = ""
     for (partitionColumn <- partitionColumns) {
       keyStr += "%s=%s/".format(partitionColumn, partitionColumnToValue(partitionColumn))

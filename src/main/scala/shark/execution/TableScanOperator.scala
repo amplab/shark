@@ -265,7 +265,6 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
       // Partitioning keys are delimited by "/"
       val partColumns = partColsDelimited.trim().split("/").toSeq
       // 'partValues[i]' contains the value for the partitioning column at 'partColumns[i]'.
-      // TODO(harvey): When is partSpec null?
       val partValues = partColumns.map { key =>
           if (partSpec == null) {
             new String

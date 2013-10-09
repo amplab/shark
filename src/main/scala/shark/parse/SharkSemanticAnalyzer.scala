@@ -178,7 +178,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                   }
                   hivePartitionKey = SharkSemanticAnalyzer.getHivePartitionKey(qb)
                 }
-                val preferredStorageLevel = table.getPreferredStorageLevel
+                val preferredStorageLevel = table.preferredStorageLevel
                 OperatorFactory.createSharkMemoryStoreOutputPlan(
                   hiveSinkOp,
                   cachedTableName,

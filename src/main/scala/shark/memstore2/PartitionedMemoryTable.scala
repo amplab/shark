@@ -29,7 +29,7 @@ import org.apache.spark.storage.StorageLevel
 
 
 /**
- * A container for RDDs that back a Hive-partitioned table.
+ * A metadata container for partitioned Shark table backed by RDDs.
  *
  * Note that a Hive-partition of a table is different from an RDD partition. Each Hive-partition
  * is stored as a subdirectory of the table subdirectory in the warehouse directory
@@ -43,19 +43,24 @@ class PartitionedMemoryTable(
   extends Table(tableName, cacheMode, preferredStorageLevel) {
 
   /**
-   * A simple, mutable wrapper around an RDD. The value entires for a single key in
-   * '_keyToPartitions' and '_cachePolicy' will reference the same RDDValue object.
+   * A simple, mutable wrapper for an RDD. The value entires for a single key in
+   * '_keyToPartitions' and '_cachePolicy' will reference the same RDDValue object. This is needed
+   * so that entries maintained by a CachePolicy's cache map, such as the LRUCachePolicy#cache map,
+   * can be updated. The values can't be RDDs, which are inherently immutable...
    */
   private class RDDValue(var rdd: RDD[_])
 
   // A map from the Hive-partition key to the RDD that contains contents of that partition.
+  // The conventional string format for the partition key, 'col1=value1/col2=value2/...', can be
+  // computed using MemoryMetadataManager#makeHivePartitionKeyStr()
   private var _keyToPartitions: ConcurrentMap[String, RDDValue] =
     new ConcurrentJavaHashMap[String, RDDValue]()
 
   // The eviction policy for this table's cached Hive-partitions. An example of how this
   // can be set from the CLI:
   //   'TBLPROPERTIES("shark.partition.cachePolicy", "LRUCachePolicy")'.
-  private var _cachePolicy: Option[CachePolicy[String, RDDValue]] = _
+  // If 'None', then all partitions will be persisted in memory using the 'preferredStorageLevel'.
+  private var _cachePolicy: Option[CachePolicy[String, RDDValue]] = None
 
   def containsPartition(partitionKey: String): Boolean = _keyToPartitions.contains(partitionKey)
 
@@ -73,6 +78,9 @@ class PartitionedMemoryTable(
     var prevRDD: Option[RDD[_]] = rddValueOpt.map(_.rdd)
     if (isUpdate && rddValueOpt.isDefined) {
       // This is an update of an old value, so update the RDDValue's 'rdd' entry.
+      // Don't notify the '_cachePolicy'. Assumes that getPartition() has already been called to
+      // obtain the value of the previous RDD, and that an RDD update refers to the RDD created from
+      // a transform or union.
       val updatedRDDValue = rddValueOpt.get
       updatedRDDValue.rdd = newRDD
       updatedRDDValue
@@ -117,12 +125,16 @@ class PartitionedMemoryTable(
 
   def cachePolicy: Option[CachePolicy[String, _]] = _cachePolicy
 
+  /** Returns an immutable view of the String->RDD mapping to external callers */
   def keyToPartitions: collection.immutable.Map[String, RDD[_]] = {
     return _keyToPartitions.mapValues(_.rdd).toMap
   }
 
-  override def getPreferredStorageLevel: StorageLevel = preferredStorageLevel
-
+  /**
+   * Computes the current storage level for this table. See comments in
+   * RDDUtils#getStorageLevelOfRDDs() for how Shark interprets the storage level of a sequence of
+   * RDDs.
+   */
   override def getCurrentStorageLevel: StorageLevel = {
     return RDDUtils.getStorageLevelOfRDDs(_keyToPartitions.values.map(_.rdd).toSeq)
   }

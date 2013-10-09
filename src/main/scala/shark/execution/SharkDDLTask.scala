@@ -82,10 +82,6 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
     val tableName = createTblDesc.getTableName
     val tblProps = createTblDesc.getTblProps
 
-    // The preferred storage level is the user-specified storage level for the Shark table's RDD(s).
-    // This can be different from the actual RDD storage levels at any point in time, depending on
-    // the the Spark block manager's RDD eviction policy and, for partitioned tables, the
-    // Hive-partition RDD eviction policy.
     val preferredStorageLevel = MemoryMetadataManager.getStorageLevelFromString(
       tblProps.get("shark.cache.storageLevel"))
     val isHivePartitioned = (createTblDesc.getPartCols.size > 0)
