@@ -9,7 +9,7 @@ import org.apache.hadoop.hive.ql.plan.DDLWork
 
 import org.apache.spark.rdd.{UnionRDD, RDD}
 
-import shark.execution.SparkDDLWork
+import shark.execution.SharkDDLWork
 import shark.{LogHelper, SharkEnv}
 import shark.memstore2.MemoryMetadataManager
 
@@ -48,8 +48,8 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
       // and DDLWorks that contain AddPartitionDesc objects.
       for (ddlTask <- rootTasks) {
         val addPartitionDesc = ddlTask.getWork.asInstanceOf[DDLWork].getAddPartitionDesc
-        val sparkDDLWork = new SparkDDLWork(addPartitionDesc)
-        ddlTask.addDependentTask(TaskFactory.get(sparkDDLWork, conf))
+        val sharkDDLWork = new SharkDDLWork(addPartitionDesc)
+        ddlTask.addDependentTask(TaskFactory.get(sharkDDLWork, conf))
       }
     }
   }
@@ -62,8 +62,8 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
       // and DDLWorks that contain AddPartitionDesc objects.
       for (ddlTask <- rootTasks) {
         val dropTableDesc = ddlTask.getWork.asInstanceOf[DDLWork].getDropTblDesc
-        val sparkDDLWork = new SparkDDLWork(dropTableDesc)
-        ddlTask.addDependentTask(TaskFactory.get(sparkDDLWork, conf))
+        val sharkDDLWork = new SharkDDLWork(dropTableDesc)
+        ddlTask.addDependentTask(TaskFactory.get(sharkDDLWork, conf))
       }
     }
   }
@@ -82,8 +82,8 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
       assert(ddlWork.isInstanceOf[DDLWork])
 
       val alterTableDesc = ddlWork.asInstanceOf[DDLWork].getAlterTblDesc
-      val sparkDDLWork = new SparkDDLWork(alterTableDesc)
-      ddlTask.addDependentTask(TaskFactory.get(sparkDDLWork, conf))
+      val sharkDDLWork = new SharkDDLWork(alterTableDesc)
+      ddlTask.addDependentTask(TaskFactory.get(sharkDDLWork, conf))
     }
   }
 
