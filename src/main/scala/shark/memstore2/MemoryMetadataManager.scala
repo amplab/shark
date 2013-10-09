@@ -103,8 +103,8 @@ class MemoryMetadataManager {
   }
 
   def renameTable(oldName: String, newName: String) {
-    if (containsTable(oldName)) {
-      val lowerCaseOldName = oldName.toLowerCase
+    val lowerCaseOldName = oldName.toLowerCase
+    if (containsTable(lowerCaseOldName)) {
       val lowerCaseNewName = newName.toLowerCase
 
       val statsValueEntry = _keyToStats.remove(lowerCaseOldName).get

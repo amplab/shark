@@ -9,7 +9,7 @@ import org.apache.hadoop.hive.ql.plan.DDLWork
 
 import org.apache.spark.rdd.{UnionRDD, RDD}
 
-import shark.execution.{EmptyRDD, SparkDDLWork}
+import shark.execution.SparkDDLWork
 import shark.{LogHelper, SharkEnv}
 import shark.memstore2.MemoryMetadataManager
 

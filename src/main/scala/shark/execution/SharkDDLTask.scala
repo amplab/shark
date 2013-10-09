@@ -29,12 +29,12 @@ import shark.{LogHelper, SharkConfVars, SharkEnv}
 import shark.memstore2.{CacheType, MemoryMetadataManager}
 
 
-private[shark] class SparkDDLWork(val ddlDesc: DDLDesc) extends java.io.Serializable {
+private[shark] class SharkDDLWork(val ddlDesc: DDLDesc) extends java.io.Serializable {
   // Used only for CREATE TABLE.
   var cacheMode: CacheType.CacheType = _
 }
 
-private[shark] class SparkDDLTask extends HiveTask[SparkDDLWork] with Serializable with LogHelper {
+private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork] with Serializable with LogHelper {
 
   override def execute(driverContext: DriverContext): Int = {
     val hiveMetadataDb = Hive.get(conf)
