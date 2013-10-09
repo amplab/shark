@@ -54,13 +54,23 @@ class MemoryMetadataManager {
       tableName: String,
       cacheMode: CacheType.CacheType,
       preferredStorageLevel: StorageLevel,
-      cachePolicyStr: String,
-      cachePolicyMaxSize: Long,
-      shouldRecordStats: Boolean
+      tblProps: JavaMap[String, String]
     ): PartitionedMemoryTable = {
     var newTable = new PartitionedMemoryTable(
-        tableName.toLowerCase, cacheMode, preferredStorageLevel)
-    newTable.setPartitionCachePolicy(cachePolicyStr, cachePolicyMaxSize, shouldRecordStats)
+      tableName.toLowerCase, cacheMode, preferredStorageLevel)
+    val shouldUseCachePolicy = tblProps.getOrElse(
+      SharkConfVars.SHOULD_USE_CACHE_POLICY.varname,
+      SharkConfVars.SHOULD_USE_CACHE_POLICY.defaultBoolVal.toString).toBoolean
+    if (shouldUseCachePolicy) {
+      val cachePolicyStr = tblProps.getOrElse(SharkConfVars.CACHE_POLICY.varname,
+        SharkConfVars.CACHE_POLICY.defaultVal)
+      val maxCacheSize = tblProps.getOrElse(SharkConfVars.MAX_PARTITION_CACHE_SIZE.varname,
+        SharkConfVars.MAX_PARTITION_CACHE_SIZE.defaultVal).toLong
+      val shouldRecordStats = tblProps.getOrElse(
+        SharkConfVars.SHOULD_RECORD_PARTITION_CACHE_STATS.varname,
+        SharkConfVars.SHOULD_RECORD_PARTITION_CACHE_STATS.defaultVal).toBoolean
+      newTable.setPartitionCachePolicy(cachePolicyStr, maxCacheSize, shouldRecordStats)
+    }
     _keyToTable.put(tableName.toLowerCase, newTable)
     return newTable
   }

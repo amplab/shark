@@ -89,25 +89,14 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
     val preferredStorageLevel = MemoryMetadataManager.getStorageLevelFromString(
       tblProps.get("shark.cache.storageLevel"))
     val isHivePartitioned = (createTblDesc.getPartCols.size > 0)
-
     if (isHivePartitioned) {
-      val cachePolicyStr = tblProps.getOrElse("shark.cache.partition.cachePolicy.class",
-        SharkConfVars.CACHE_POLICY.defaultVal)
-      val maxCacheSize = tblProps.getOrElse("shark.cache.partition.cachePolicy.maxSize",
-        SharkConfVars.MAX_PARTITION_CACHE_SIZE.defaultVal).toLong
-      val shouldRecordStats = tblProps.getOrElse(
-        "shark.cache.partition.cachePolicy.shouldRecordStats",
-        SharkConfVars.SHOULD_RECORD_PARTITION_CACHE_STATS.defaultBoolVal.toString).toBoolean
-
       // Add a new PartitionedMemoryTable entry in the Shark metastore.
       // An empty table has a PartitionedMemoryTable entry with no 'hivePartition -> RDD' mappings.
       SharkEnv.memoryMetadataManager.createPartitionedMemoryTable(
         tableName,
         cacheMode,
         preferredStorageLevel,
-        cachePolicyStr,
-        maxCacheSize,
-        shouldRecordStats)
+        tblProps)
     } else {
       val newTable = SharkEnv.memoryMetadataManager.createMemoryTable(
         tableName, cacheMode, preferredStorageLevel)
@@ -137,7 +126,6 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
    */
   def dropTableOrPartition(dropTableDesc: DropTableDesc) {
     val tableName = dropTableDesc.getTableName
-    val partitionedTable = getPartitionedTableWithAssertions(tableName)
     val hiveTable = db.getTable(db.getCurrentDatabase(), tableName, false /* throwException */);
     val partitionSpecs: JavaList[PartitionSpec] = dropTableDesc.getPartSpecs
 
@@ -146,6 +134,7 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
       SharkEnv.dropTable(tableName)
     } else {
       // The command is an ALTER TABLE DROP PARTITION
+      val partitionedTable = getPartitionedTableWithAssertions(tableName)
       // Find the set of partition column values that specifies the partition being dropped.
       val partitionColumns: Seq[String] = hiveTable.getPartCols.map(_.getName)
       for (partitionSpec <- partitionSpecs) {
@@ -181,7 +170,7 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
     val tableOpt = SharkEnv.memoryMetadataManager.getTable(tableName)
     assert(tableOpt.isDefined, "Internal Error: table %s doesn't exist in Shark metastore.")
     assert(tableOpt.get.isInstanceOf[PartitionedMemoryTable],
-      "Internal Error: table %s exists in the Shark metastore, but isn't partitioned.")
+      "Internal Error: table %s isn't partitioned when it should be.")
     return tableOpt.get.asInstanceOf[PartitionedMemoryTable]
   }
 

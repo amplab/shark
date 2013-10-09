@@ -43,6 +43,9 @@ object SharkConfVars {
   // Default storage level for cached tables.
   val STORAGE_LEVEL = new ConfVar("shark.cache.storageLevel", "MEMORY_AND_DISK")
 
+  // True if a table's partitions should be evicted using a cache policy.
+  val SHOULD_USE_CACHE_POLICY = new ConfVar("shark.cache.partition.useCachePolicy", true)
+
   // Class name of the default cache policy used to manage partition evictions for cached,
   // Hive-partitioned tables.
   val CACHE_POLICY = new ConfVar(
@@ -181,18 +184,18 @@ case class ConfVar(
   }
 
   def this(varname: String, defaultVal: Int) = {
-    this(varname, classOf[Int], null, defaultVal, 0, 0, false)
+    this(varname, classOf[Int], defaultVal.toString, defaultVal, 0, 0, false)
   }
 
   def this(varname: String, defaultVal: Long) = {
-    this(varname, classOf[Long], null, 0, defaultVal, 0, false)
+    this(varname, classOf[Long], defaultVal.toString, 0, defaultVal, 0, false)
   }
 
   def this(varname: String, defaultVal: Float) = {
-    this(varname, classOf[Float], null, 0, 0, defaultVal, false)
+    this(varname, classOf[Float], defaultVal.toString, 0, 0, defaultVal, false)
   }
 
   def this(varname: String, defaultVal: Boolean) = {
-    this(varname, classOf[Boolean], null, 0, 0, 0, defaultVal)
+    this(varname, classOf[Boolean], defaultVal.toString, 0, 0, 0, defaultVal)
   }
 }

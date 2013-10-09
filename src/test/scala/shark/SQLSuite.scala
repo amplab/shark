@@ -515,7 +515,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
         partitioned by (keypart int)""")
     assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
     val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
-    val cachePolicy = partitionedTable.cachePolicy
+    val cachePolicy = partitionedTable.cachePolicy.get
     assert(cachePolicy.isInstanceOf[shark.memstore2.LRUCachePolicy[_, _]])
   }
 
@@ -649,7 +649,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       3 /* maxCacheSize */,
       "shark.memstore2.LRUCachePolicy",
       true /* shouldRecordStats */)
-    val lruCachePolicy = partitionedTable.cachePolicy
+    val lruCachePolicy = partitionedTable.cachePolicy.get
     val hitRate = lruCachePolicy.getHitRate
     assert(hitRate.isDefined)
     assert(hitRate.get == 1.0)
@@ -670,7 +670,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     val tableName = "dont_record_partition_cache_stats"
     assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
     val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
-    val lruCachePolicy = partitionedTable.cachePolicy
+    val lruCachePolicy = partitionedTable.cachePolicy.get
     val hitRate = lruCachePolicy.getHitRate
     assert(hitRate.isEmpty)
     val evictionCount = lruCachePolicy.getEvictionCount

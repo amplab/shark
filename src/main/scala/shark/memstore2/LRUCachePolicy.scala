@@ -43,14 +43,14 @@ class LRUCachePolicy[K <: AnyRef, V <: AnyRef] extends CachePolicy[K, V] {
       hasRecordedStats = true
     }
 
-    // Executed by 'cache' on the entry being evicted.
+    // Automatically executed by 'cache' on the entry being evicted.
     val removalListener =
       new RemovalListener[K, V] {
         def onRemoval(removal: RemovalNotification[K, V]): Unit = {
           evictionFunc(removal.getKey, removal.getValue)
         }
       }
-    // Executed by 'cache' on the entry being loaded.
+    // Automatically executed by 'cache' on the entry being loaded.
     val cacheLoader =
       new CacheLoader[K, V] {
         def load(key: K): V = loadFunc(key)

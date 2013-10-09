@@ -55,13 +55,13 @@ class PartitionedMemoryTable(
   // The eviction policy for this table's cached Hive-partitions. An example of how this
   // can be set from the CLI:
   //   'TBLPROPERTIES("shark.partition.cachePolicy", "LRUCachePolicy")'.
-  private var _cachePolicy: CachePolicy[String, RDDValue] = _
+  private var _cachePolicy: Option[CachePolicy[String, RDDValue]] = _
 
   def containsPartition(partitionKey: String): Boolean = _keyToPartitions.contains(partitionKey)
 
   def getPartition(partitionKey: String): Option[RDD[_]] = {
     val rddValueOpt: Option[RDDValue] = _keyToPartitions.get(partitionKey)
-    if (rddValueOpt.isDefined) _cachePolicy.notifyGet(partitionKey)
+    if (rddValueOpt.isDefined && _cachePolicy.isDefined) _cachePolicy.get.notifyGet(partitionKey)
     return rddValueOpt.map(_.rdd)
   }
 
@@ -79,14 +79,16 @@ class PartitionedMemoryTable(
     } else {
       val newRDDValue = new RDDValue(newRDD)
       _keyToPartitions.put(partitionKey, newRDDValue)
-      _cachePolicy.notifyPut(partitionKey, newRDDValue)
+      if (_cachePolicy.isDefined) _cachePolicy.get.notifyPut(partitionKey, newRDDValue)
     }
     return prevRDD
   }
 
   def removePartition(partitionKey: String): Option[RDD[_]] = {
     val rddRemoved = _keyToPartitions.remove(partitionKey)
-    if (rddRemoved.isDefined) _cachePolicy.notifyRemove(partitionKey, rddRemoved.get)
+    if (rddRemoved.isDefined && _cachePolicy.isDefined) {
+      _cachePolicy.get.notifyRemove(partitionKey, rddRemoved.get)
+    }
     return rddRemoved.map(_.rdd)
   }
 
@@ -95,7 +97,7 @@ class PartitionedMemoryTable(
       maxSize: Long,
       shouldRecordStats: Boolean
     ) {
-    _cachePolicy = Class.forName(cachePolicyStr).newInstance
+    val newPolicy = Class.forName(cachePolicyStr).newInstance
       .asInstanceOf[CachePolicy[String, RDDValue]]
     // The loadFunc will upgrade the persistence level of the RDD to the preferred storage level.
     val loadFunc: String => RDDValue =
@@ -109,10 +111,11 @@ class PartitionedMemoryTable(
     // The evitionFunc will unpersist the RDD.
     val evictionFunc: (String, RDDValue) => Unit =
       (partitionKey: String, rddValue) => RDDUtils.unpersistRDD(rddValue.rdd)
-    _cachePolicy.initialize(maxSize, loadFunc, evictionFunc, shouldRecordStats)
+    newPolicy.initialize(maxSize, loadFunc, evictionFunc, shouldRecordStats)
+    _cachePolicy = Some(newPolicy)
   }
 
-  def cachePolicy: CachePolicy[String, _] = _cachePolicy
+  def cachePolicy: Option[CachePolicy[String, _]] = _cachePolicy
 
   def keyToPartitions: collection.immutable.Map[String, RDD[_]] = {
     return _keyToPartitions.mapValues(_.rdd).toMap
