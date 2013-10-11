@@ -47,8 +47,9 @@ object HiveConfSerializer {
     val auxJars = Text.readString(dis)
     val conf = new HiveConf
     conf.readFields(dis)
-    if(auxJars.equals("").unary_!)
+    if (auxJars.equals("").unary_!) {
       conf.setAuxJars(auxJars)
+    }
     conf
   }
 }

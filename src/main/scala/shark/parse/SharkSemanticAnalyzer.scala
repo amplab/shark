@@ -107,8 +107,8 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
 
         // There are two cases that will enable caching:
         // 1) Table name includes "_cached" or "_tachyon".
-        // 2) The "shark.cache" table property is "true", or the string representation of a supported
-        //   cache mode (heap, Tachyon).
+        // 2) The "shark.cache" table property is "true", or the string representation of a 
+        // supported cache mode (heap, Tachyon).
         cacheMode = CacheType.fromString(createTableProperties.get("shark.cache"))
         // Continue planning based on the 'cacheMode' read.
         if (cacheMode == CacheType.HEAP ||

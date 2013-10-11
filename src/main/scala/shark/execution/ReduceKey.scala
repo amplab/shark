@@ -79,7 +79,8 @@ class ReduceKeyMapSide(var bytesWritable: BytesWritable) extends ReduceKey
         if (length != other.length) {
           false
         } else {
-          WritableComparator.compareBytes(byteArray, 0, length, other.byteArray, 0, other.length) == 0
+          WritableComparator.
+            compareBytes(byteArray, 0, length, other.byteArray, 0, other.length) == 0
         }
       }
       case _ => false

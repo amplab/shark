@@ -92,7 +92,8 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
     ois.add(keySer.getObjectInspector)
     ois.add(valueSer.getObjectInspector)
 
-    val outputObjInspector = ObjectInspectorFactory.getStandardStructObjectInspector(List("KEY","VALUE"), ois)
+    val outputObjInspector = ObjectInspectorFactory.
+      getStandardStructObjectInspector(List("KEY","VALUE"), ois)
 
     val joinTag = conf.getTag()
 

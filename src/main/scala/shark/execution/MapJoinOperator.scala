@@ -126,8 +126,9 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
       // Collect the RDD and build a hash table.
       val startCollect = System.currentTimeMillis()
       val storageLevel = rddForHash.getStorageLevel
-      if(storageLevel == StorageLevel.NONE)
+      if (storageLevel == StorageLevel.NONE) {
         rddForHash.persist(StorageLevel.MEMORY_AND_DISK)
+      }
       rddForHash.foreach(_ => Unit)
       val wrappedRows = rddForHash.partitions.flatMap { part =>
         val blockId = "rdd_%s_%s".format(rddForHash.id, part.index)
@@ -138,8 +139,9 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
         })
         partRows
       }
-      if(storageLevel == StorageLevel.NONE)
+      if(storageLevel == StorageLevel.NONE) {
         rddForHash.unpersist()
+      }
 
       logDebug("wrappedRows size:" + wrappedRows.size)
       val collectTime = System.currentTimeMillis() - startCollect
