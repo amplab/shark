@@ -222,7 +222,7 @@ object SharkCliDriver {
 
 class SharkCliDriver(loadRdds: Boolean = false) extends CliDriver with LogHelper {
 
-  private val ss = SessionState.get()
+  private val ss = SessionState.get().asInstanceOf[CliSessionState]
 
   private val LOG = LogFactory.getLog("CliDriver")
 
@@ -234,7 +234,9 @@ class SharkCliDriver(loadRdds: Boolean = false) extends CliDriver with LogHelper
 
   // Force initializing SharkEnv. This is put here but not object SharkCliDriver
   // because the Hive unit tests do not go through the main() code path.
-  SharkEnv.init()
+  if (!ss.isRemoteMode()) {
+    SharkEnv.init()
+  }
 
   if(loadRdds) CachedTableRecovery.loadAsRdds(processCmd(_))
 

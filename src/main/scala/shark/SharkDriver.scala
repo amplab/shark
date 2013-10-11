@@ -35,7 +35,8 @@ import org.apache.hadoop.util.StringUtils
 
 import shark.api.TableRDD
 import shark.api.QueryExecutionException
-import shark.execution.{SharkExplainTask, SharkExplainWork, SparkTask, SparkWork}
+import shark.execution.{SharkDDLTask, SharkDDLWork, SharkExplainTask, SharkExplainWork, SparkTask,
+  SparkWork}
 import shark.memstore2.ColumnarSerDe
 import shark.parse.{QueryContext, SharkSemanticAnalyzerFactory}
 
@@ -51,7 +52,7 @@ private[shark] object SharkDriver extends LogHelper {
 
   // A dummy static method so we can make sure the following static code are executed.
   def runStaticCode() {
-    logInfo("Initializing object SharkDriver")
+    logDebug("Initializing object SharkDriver")
   }
 
   def registerSerDe(serdeClass: Class[_ <: SerDe]) {
@@ -62,6 +63,7 @@ private[shark] object SharkDriver extends LogHelper {
 
   // Task factory. Add Shark specific tasks.
   TaskFactory.taskvec.addAll(Seq(
+    new TaskFactory.taskTuple(classOf[SharkDDLWork], classOf[SharkDDLTask]),
     new TaskFactory.taskTuple(classOf[SparkWork], classOf[SparkTask]),
     new TaskFactory.taskTuple(classOf[SharkExplainWork], classOf[SharkExplainTask])))
 
@@ -198,7 +200,7 @@ private[shark] class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHe
         sem.analyze(tree, context)
       }
 
-      logInfo("Semantic Analysis Completed")
+      logDebug("Semantic Analysis Completed")
 
       sem.validate()
 

@@ -52,6 +52,19 @@ class MemoryMetadataManager {
     _keyToStats.get(key.toLowerCase)
   }
 
+  def rename(oldKey: String, newKey: String) {
+    if (contains(oldKey)) {
+      val oldKeyToLowerCase = oldKey.toLowerCase
+      val newKeyToLowerCase = newKey.toLowerCase
+
+      val statsValueEntry = _keyToStats.remove(oldKeyToLowerCase).get
+      val rddValueEntry = _keyToRdd.remove(oldKeyToLowerCase).get
+
+      _keyToStats.put(newKeyToLowerCase, statsValueEntry)
+      _keyToRdd.put(newKeyToLowerCase, rddValueEntry)
+    }
+  }
+
   /**
    * Find all keys that are strings. Used to drop tables after exiting.
    */

@@ -53,6 +53,8 @@ object RLECompressionType extends CompressionType(0)
 
 object DictionaryCompressionType extends CompressionType(1)
 
+object BooleanBitSetCompressionType extends CompressionType(2)
+
 /**
  * An no-op compression.
  */
@@ -273,6 +275,67 @@ class DictionaryEncoding extends CompressionAlgorithm {
     }
 
     // Rewind the compressed buffer and return it.
+    compressedBuffer.rewind()
+    compressedBuffer
+  }
+}
+
+/**
+* BitSet compression for Boolean values.
+*/
+object BooleanBitSetCompression {
+  val BOOLEANS_PER_LONG : Short = 64
+}
+
+class BooleanBitSetCompression extends CompressionAlgorithm {
+
+  private var _uncompressedSize = 0
+
+  override def compressionType = BooleanBitSetCompressionType
+
+  override def supportsType(t: ColumnType[_, _]) = {
+    t match {
+      case BOOLEAN => true
+      case _ => false
+    }
+  }
+
+  override def gatherStatsForCompressibility[T](v: T, t: ColumnType[T,_]) {
+    val s = t.actualSize(v)
+    _uncompressedSize += s
+  }
+
+  // Booleans are encoded into Longs; in addition, we need one int to store the number of
+  // Booleans contained in the compressed buffer.
+  override def compressedSize: Int = math.ceil(_uncompressedSize.toFloat / BooleanBitSetCompression.BOOLEANS_PER_LONG).toInt * 8 + 4
+
+  override def uncompressedSize: Int = _uncompressedSize
+
+  override def compress[T](b: ByteBuffer, t: ColumnType[T,_]): ByteBuffer = {
+    // Leave 4 extra bytes for column type, another 4 for compression type.
+    val compressedBuffer = ByteBuffer.allocate(4 + 4 + compressedSize)
+    compressedBuffer.order(ByteOrder.nativeOrder())
+    compressedBuffer.putInt(b.getInt())
+    compressedBuffer.putInt(compressionType.typeID)
+    compressedBuffer.putInt(b.remaining())
+
+    var cur: Long = 0
+    var pos: Int = 0
+    var offset: Int = 0
+
+    while (b.hasRemaining) {
+      offset = pos % BooleanBitSetCompression.BOOLEANS_PER_LONG
+      val elem = t.extract(b).asInstanceOf[Boolean]
+
+      if (elem) {
+        cur = (cur | (1 << offset)).toLong
+      }
+      if (offset == BooleanBitSetCompression.BOOLEANS_PER_LONG - 1 || !b.hasRemaining) {
+        compressedBuffer.putLong(cur)
+        cur = 0
+      }
+      pos += 1
+    }
     compressedBuffer.rewind()
     compressedBuffer
   }
