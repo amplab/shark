@@ -49,12 +49,15 @@ case class NarrowCoGroupSplitDep(
 
 case class ShuffleCoGroupSplitDep(shuffleId: Int) extends CoGroupSplitDep
 
+// equals not implemented style error
+// scalastyle:off
 class CoGroupPartition(idx: Int, val deps: Seq[CoGroupSplitDep])
   extends Partition with Serializable {
 
   override val index: Int = idx
   override def hashCode(): Int = idx
 }
+// scalastyle:on
 
 class CoGroupAggregator
   extends Aggregator[Any, Any, ArrayBuffer[Any]](

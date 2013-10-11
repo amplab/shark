@@ -37,8 +37,9 @@ import org.apache.spark.SparkContext.rddToPairRDDFunctions
 import shark.SharkConfVars
 
 
-abstract class CommonJoinOperator[JOINDESCTYPE <: JoinDesc, T <: HiveCommonJoinOperator[JOINDESCTYPE]]
-  extends NaryOperator[T] {
+abstract class CommonJoinOperator[JOINDESCTYPE <: JoinDesc,
+                                  T <: HiveCommonJoinOperator[JOINDESCTYPE]]
+    extends NaryOperator[T] {
 
   @BeanProperty var conf: JOINDESCTYPE = _
   // Order in which the results should be output.

@@ -22,7 +22,8 @@ import java.util.{List => JavaList}
 import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector => OI}
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspectorUtils => OIUtils}
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.{ObjectInspectorCopyOption => CopyOption}
+import org.apache.hadoop.hive.serde2.objectinspector.
+  ObjectInspectorUtils.{ObjectInspectorCopyOption => CopyOption}
 import org.apache.hadoop.hive.serde2.objectinspector.{PrimitiveObjectInspector => PrimitiveOI}
 import org.apache.hadoop.io.BooleanWritable
 import org.apache.hadoop.io.NullWritable
@@ -78,7 +79,7 @@ object JoinUtil {
     if (noOuterJoin) {
       a
     } else {
-      val n = new Array[AnyRef](size+1)
+      val n = new Array[AnyRef](size + 1)
       Array.copy(a, 0, n, 0, size)
       n(size) = new SerializableWritable(new BooleanWritable(isFiltered))
       n
