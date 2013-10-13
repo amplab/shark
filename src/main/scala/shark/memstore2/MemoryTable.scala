@@ -34,11 +34,11 @@ class MemoryTable(
   extends Table(tableName, cacheMode, preferredStorageLevel) {
 
   // RDD that contains the contents of this table.
-  private var _tableRDD: RDD[_] = _
+  private var _tableRDD: RDD[TablePartition] = _
 
-  def tableRDD: RDD[_] = _tableRDD
+  def tableRDD: RDD[TablePartition] = _tableRDD
 
-  def tableRDD_= (rdd: RDD[_]) = _tableRDD = rdd
+  def tableRDD_= (rdd: RDD[TablePartition]) = _tableRDD = rdd
 
   override def getCurrentStorageLevel: StorageLevel = RDDUtils.getStorageLevelOfRDD(tableRDD)
 }

@@ -48,7 +48,7 @@ class PartitionedMemoryTable(
    * so that entries maintained by a CachePolicy's cache map, such as the LRUCachePolicy#cache map,
    * can be updated. The values can't be RDDs, which are inherently immutable...
    */
-  private class RDDValue(var rdd: RDD[_])
+  class RDDValue(var rdd: RDD[TablePartition])
 
   // A map from the Hive-partition key to the RDD that contains contents of that partition.
   // The conventional string format for the partition key, 'col1=value1/col2=value2/...', can be
@@ -64,7 +64,7 @@ class PartitionedMemoryTable(
 
   def containsPartition(partitionKey: String): Boolean = _keyToPartitions.contains(partitionKey)
 
-  def getPartition(partitionKey: String): Option[RDD[_]] = {
+  def getPartition(partitionKey: String): Option[RDD[TablePartition]] = {
     val rddValueOpt: Option[RDDValue] = _keyToPartitions.get(partitionKey)
     if (rddValueOpt.isDefined && _cachePolicy.isDefined) _cachePolicy.get.notifyGet(partitionKey)
     return rddValueOpt.map(_.rdd)
@@ -72,10 +72,10 @@ class PartitionedMemoryTable(
 
   def putPartition(
       partitionKey: String,
-      newRDD: RDD[_],
-      isUpdate: Boolean = false): Option[RDD[_]] = {
+      newRDD: RDD[TablePartition],
+      isUpdate: Boolean = false): Option[RDD[TablePartition]] = {
     val rddValueOpt = _keyToPartitions.get(partitionKey)
-    var prevRDD: Option[RDD[_]] = rddValueOpt.map(_.rdd)
+    var prevRDD: Option[RDD[TablePartition]] = rddValueOpt.map(_.rdd)
     if (isUpdate && rddValueOpt.isDefined) {
       // This is an update of an old value, so update the RDDValue's 'rdd' entry.
       // Don't notify the '_cachePolicy'. Assumes that getPartition() has already been called to
@@ -92,7 +92,7 @@ class PartitionedMemoryTable(
     return prevRDD
   }
 
-  def removePartition(partitionKey: String): Option[RDD[_]] = {
+  def removePartition(partitionKey: String): Option[RDD[TablePartition]] = {
     val rddRemoved = _keyToPartitions.remove(partitionKey)
     if (rddRemoved.isDefined && _cachePolicy.isDefined) {
       _cachePolicy.get.notifyRemove(partitionKey, rddRemoved.get)
@@ -123,10 +123,10 @@ class PartitionedMemoryTable(
     _cachePolicy = Some(newPolicy)
   }
 
-  def cachePolicy: Option[CachePolicy[String, _]] = _cachePolicy
+  def cachePolicy: Option[CachePolicy[String, RDDValue]] = _cachePolicy
 
   /** Returns an immutable view of the String->RDD mapping to external callers */
-  def keyToPartitions: collection.immutable.Map[String, RDD[_]] = {
+  def keyToPartitions: collection.immutable.Map[String, RDD[TablePartition]] = {
     return _keyToPartitions.mapValues(_.rdd).toMap
   }
 
