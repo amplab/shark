@@ -129,11 +129,22 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       if (useUnionRDD) {
         // If this is an insert, find the existing RDD and create a union of the two, and then
         // put the union into the meta data tracker.
+        
+
+        val nextPartNum = SharkEnv.memoryMetadataManager.getNextPartNum(tableName)
+        if (nextPartNum == 1) {
+          // reset rdd name for existing rdd
+          SharkEnv.memoryMetadataManager.get(tableName).get.asInstanceOf[RDD[TablePartition]]
+            .setName(tableName + ".part0")
+        }
+        rdd.setName(tableName + ".part" + nextPartNum)
+          
         rdd = rdd.union(
           SharkEnv.memoryMetadataManager.get(tableName).get.asInstanceOf[RDD[TablePartition]])
+      } else {
+        rdd.setName(tableName)
       }
       SharkEnv.memoryMetadataManager.put(tableName, rdd)
-      rdd.setName(tableName)
 
       // Run a job on the original RDD to force it to go into cache.
       origRdd.context.runJob(origRdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))

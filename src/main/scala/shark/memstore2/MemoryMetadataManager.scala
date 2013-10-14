@@ -33,6 +33,10 @@ class MemoryMetadataManager {
   private val _keyToRdd: ConcurrentMap[String, RDD[_]] =
     new ConcurrentHashMap[String, RDD[_]]()
 
+  // Tracks number of parts inserted into cached table
+  private val _keyToNextPart: ConcurrentMap[String, Int] =
+    new ConcurrentHashMap[String, Int]()
+    
   private val _keyToStats: ConcurrentMap[String, collection.Map[Int, TablePartitionStats]] =
     new ConcurrentHashMap[String, collection.Map[Int, TablePartitionStats]]
 
@@ -50,6 +54,20 @@ class MemoryMetadataManager {
 
   def getStats(key: String): Option[collection.Map[Int, TablePartitionStats]] = {
     _keyToStats.get(key.toLowerCase)
+  }
+
+  def getNextPartNum(key: String): Int = {
+    val currentPartNum = _keyToNextPart.get(key.toLowerCase)
+    currentPartNum match {
+      case Some(partNum) => {
+    	_keyToNextPart.put(key, partNum + 1)
+        partNum + 1
+      }
+      case None => {
+        _keyToNextPart.put(key, 1)
+        1
+      }
+    }
   }
 
   def rename(oldKey: String, newKey: String) {
@@ -97,6 +115,7 @@ class MemoryMetadataManager {
     // corresponding to the argument for 'key'.
     val rddValue = _keyToRdd.remove(key.toLowerCase())
     _keyToStats.remove(key)
+    _keyToNextPart.remove(key)
     // Unpersist the RDD using the nested helper fn above.
     rddValue match {
       case Some(rdd) => unpersistRDD(rdd)
