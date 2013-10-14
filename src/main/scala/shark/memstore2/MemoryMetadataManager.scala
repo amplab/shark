@@ -132,13 +132,12 @@ class MemoryMetadataManager {
 
   /**
    * Used to drop a table from the Spark in-memory cache and/or disk. All metadata tracked by Shark
-   * tracked by Shark (e.g. entry in '_keyToStats' if the table isn't Hive-partitioned) is deleted
-   * as well.
+   * (e.g. entry in '_keyToStats' if the table isn't Hive-partitioned) is deleted as well.
    *
    * @param key Name of the table to drop.
    * @return Option::isEmpty() is true of there is no MemoryTable (and RDD) corresponding to 'key'
-   *         in _keyToMemoryTable. For MemoryTables that are Hive-partitioned, the RDD returned will
-   *         be a UnionRDD comprising RDDs that represent the table's Hive-partitions.
+   *     in _keyToMemoryTable. For MemoryTables that are Hive-partitioned, the RDD returned will
+   *     be a UnionRDD comprising RDDs that represent the table's Hive-partitions.
    */
   def removeTable(tableName: String): Option[RDD[_]] = {
     val lowerCaseTableName = tableName.toLowerCase
@@ -176,7 +175,10 @@ object MemoryMetadataManager {
     return unpersistedRDD
   }
 
-  /** Return a string representation of the partition key, 'col1=value1/col2=value2/...' */
+  /**
+   * Return a representation of the partition key in the string format:
+   *     'col1=value1/col2=value2/...'
+   */
   def makeHivePartitionKeyStr(
       partitionColumns: Seq[String],
       partitionColumnToValue: JavaMap[String, String]): String = {

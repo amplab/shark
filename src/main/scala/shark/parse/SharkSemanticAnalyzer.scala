@@ -94,7 +94,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
           // HiveParer.HIVE_QUERY.
           child = queryStmtASTNode
           // Hive's super.analyzeInternal() might generate MapReduce tasks. Avoid executing those
-          // tasks by reset()-ing some Hive SemanticAnalyzer state after doPhase1().
+          // tasks by reset()-ing some Hive SemanticAnalyzer state after doPhase1() is called below.
           shouldReset = true
         }
         case None => {
@@ -107,7 +107,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     }
 
     // Invariant: At this point, the command will execute a query (i.e., its AST contains a
-    //            HiveParser.TOK_QUERY node).
+    //     HiveParser.TOK_QUERY node).
 
     // Continue analyzing from the child ASTNode.
     if (!doPhase1(child, qb, initPhase1Ctx())) {
@@ -364,7 +364,6 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       }
     }
 
-    // Invariant: At this point, the command is either a CTAS or a CREATE TABLE.
     var ddlTasks: Seq[DDLTask] = Nil
     val createTableDesc =
       if (isRegularCreateTable) {
@@ -372,17 +371,17 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         // SemanticAnalyzer#analyzeCreateTable() does't set the CreateTableDesc in its QB.
         ddlTasks = rootTasks.filter(_.isInstanceOf[DDLTask]).asInstanceOf[Seq[DDLTask]]
         if (ddlTasks.isEmpty) null else ddlTasks.head.getWork.getCreateTblDesc
-      }
-      else {
+      } else {
         getParseContext.getQB.getTableDesc
       }
 
-    // Can be NULL if there is an IF NOTE EXISTS condition and the table already exists.
+    // 'createTableDesc' is NULL if there is an IF NOT EXISTS condition and the target table
+    // already exists.
     if (createTableDesc != null) {
       val tableName = createTableDesc.getTableName
       val checkTableName = SharkConfVars.getBoolVar(conf, SharkConfVars.CHECK_TABLENAME_FLAG)
-      // The CreateTableDesc's table properties are Java Maps, but the TableDesc's table properties,
-      // which are used during execution, are Java Properties.
+      // Note that the CreateTableDesc's table properties are Java Maps, but the TableDesc's table
+      // properties, which are used during execution, are Java Properties.
       val createTableProperties: JavaMap[String, String] = createTableDesc.getTblProps()
 
       // There are two cases that will enable caching:
@@ -405,13 +404,15 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         createTableDesc.setSerName(classOf[ColumnarSerDe].getName)
       }
 
-      // For CTAS, the SparkTask's MemoryStoreSinkOperator will create the table and the Hive
-      // DDLTask will be a dependent of the SparkTask. SparkTasks are created in genMapRedTasks().
+      // For CTAS ('isRegularCreateTable' is false), the MemoryStoreSinkOperator creates a new
+      // table metadata entry in the MemoryMetadataManager. The SparkTask that encloses the
+      // MemoryStoreSinkOperator will have a child Hive DDLTask, which creates a new table metadata
+      // entry in the Hive metastore. See genMapRedTasks() for SparkTask creation.
       if (isRegularCreateTable && shouldCache) {
         // In Hive, a CREATE TABLE command is handled by a DDLTask, created by
-        // SemanticAnalyzer#analyzeCreateTable(). The DDL tasks' execution succeeds only if the
-        // CREATE TABLE is valid. So, hook a SharkDDLTask as a dependent of the Hive DDLTask so that
-        // Shark metadata is updated only if the Hive task execution is successful.
+        // SemanticAnalyzer#analyzeCreateTable(), in 'rootTasks'. The DDL tasks' execution succeeds
+        // only if the CREATE TABLE is valid. So, hook a SharkDDLTask as a child of the Hive DDLTask
+        // so that Shark metadata is updated only if the Hive task execution is successful.
         val hiveDDLTask = ddlTasks.head;
         val sharkDDLWork = new SharkDDLWork(createTableDesc)
         sharkDDLWork.cacheMode = cacheMode

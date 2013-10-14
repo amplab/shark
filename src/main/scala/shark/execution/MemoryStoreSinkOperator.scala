@@ -38,7 +38,7 @@ import shark.tachyon.TachyonTableWriter
  */
 class MemoryStoreSinkOperator extends TerminalOperator {
 
-  // The initial capacity for ArrayLists used to represent columns in columnarcache. If -1,
+  // The initial capacity for ArrayLists used to construct the columnar storage. If -1,
   // the ColumnarSerde will obtain the partition size from a Configuration during execution
   // initialization (see ColumnarSerde#initialize()).
   @BeanProperty var partitionSize: Int = _
@@ -46,20 +46,20 @@ class MemoryStoreSinkOperator extends TerminalOperator {
   // If true, columnar storage will use compression.
   @BeanProperty var shouldCompress: Boolean = _
 
-  // Storage level to use for the RDD created andmaterialized by this sink operator.
+  // Storage level to use for the RDD created and materialized by this sink operator.
   @BeanProperty var storageLevel: StorageLevel = _
 
-  // For CTAS, this is the name of the table that will be created. For INSERTS, this is the name of
+  // For CTAS, this is the name of the table that is created. For INSERTS, this is the name of
   // the table that is modified.
   @BeanProperty var tableName: String = _
 
-  // Used only for commands on Hive partitions. This partition key is a set of unique values for the
-  // the table's partitioning columns, and identifies the partition (represented by an RDD) that
-  // will be created or modified for an INSERT command.
+  // Used only for commands that target Hive partitions. The partition key is a set of unique values
+  // for the the table's partitioning columns and identifies the partition (represented by an RDD)
+  // that will be created or modified by the INSERT command being handled.
   @BeanProperty var hivePartitionKey: String = _
 
-  // The memory storage used to store the output RDD - e.g., CacheType.HEAP refers to Spark's block
-  // manager.
+  // The memory storage used to store the output RDD - e.g., CacheType.HEAP refers to Spark's
+  // block manager.
   @transient var cacheMode: CacheType.CacheType = _
 
   // Whether to compose a UnionRDD from the output RDD and a previous RDD. For example, for an
@@ -125,7 +125,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     val isHivePartitioned = SharkEnv.memoryMetadataManager.isHivePartitioned(tableName)
 
     // If true, a UnionRDD will be used to combine the RDD that contains the query output with the
-    // previous RDD, which is fetched using 'tableName' or, if the table is Hive-partitioned, the
+    // previous RDD, which is fetched using 'tableName' or - if the table is Hive-partitioned - a
     // ('tableName', 'hivePartitionKey') pair.
     var hasPreviousRDDForUnion = false
 
@@ -167,12 +167,12 @@ class MemoryStoreSinkOperator extends TerminalOperator {
           }
         outputRDD = previousRDDOpt match {
           case Some(previousRDD) => {
-            // If the table or a Hive-partition that for the INSERT has already been created,
-            // take a union of the current data and the SELECT output.
+            // If the table or a Hive-partition for the INSERT has already been created, take a
+            // union of the current data and the SELECT output.
             hasPreviousRDDForUnion = true
             queryOutputRDD.union(previousRDD.asInstanceOf[RDD[TablePartition]])
           }
-          // The 'previousRDDOpt' is None if this is an INSERT into a new Hive-partition.
+          // This is an INSERT into a new Hive-partition.
           case None => queryOutputRDD
         }
       }
@@ -196,7 +196,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       }
     } else {
       outputRDD.setName(tableName)
-      // Create a new MemoryTable entry if one didn't exist (i.e., this operator is for a CTAS).
+      // Create a new MemoryTable entry if one doesn't exist (i.e., this operator is for a CTAS).
       val memoryTable = SharkEnv.memoryMetadataManager.getMemoryTable(tableName).getOrElse(
         SharkEnv.memoryMetadataManager.createMemoryTable(tableName, cacheMode, storageLevel))
       memoryTable.tableRDD = outputRDD
