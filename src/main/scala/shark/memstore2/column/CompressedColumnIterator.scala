@@ -181,8 +181,44 @@ class ByteDeltaDecoder[T, W](buffer: ByteBuffer, columnType: ColumnType[T, W]) e
 
   def plus[N: Numeric](x: N, y: N): N = x + y
 
-  override def next(): W = {
+  /**
+    * Create a function that is set up to work with the right hive objects. Set this up beforehand
+    * so that it is not called per row.
+    */
+  private val deltaFunction = {
+    prev match {
+      case s: ShortWritable => {
+        (prev: W, flag: Byte) => {
+          val oi = PrimitiveObjectInspectorFactory.writableShortObjectInspector
+          val pvalue = flag.toShort +
+            columnType.get(prev.asInstanceOf[Object], oi).asInstanceOf[Short]
+          prev.asInstanceOf[ShortWritable].set(pvalue.toShort)
+          prev
+        }
+      }
+      case i: IntWritable => {
+        (prev: W, flag: Byte) => {
+          val oi = PrimitiveObjectInspectorFactory.writableIntObjectInspector
+          val pvalue = flag.toInt +
+            columnType.get(prev.asInstanceOf[Object], oi).asInstanceOf[Int]
+          prev.asInstanceOf[IntWritable].set(pvalue.toInt)
+          prev
+        }
+      }
+      case l: LongWritable => {
+        (prev: W, flag: Byte) => {
+          val oi = PrimitiveObjectInspectorFactory.writableLongObjectInspector
+          val pvalue = flag.toLong +
+            columnType.get(prev.asInstanceOf[Object], oi).asInstanceOf[Long]
+          prev.asInstanceOf[LongWritable].set(pvalue.toLong)
+          prev
+        }
+      }
+      case _ => throw new UnsupportedOperationException("Unsupported data type " + columnType)
+    }
+  }
 
+  override def next(): W = {
     BYTE.extractInto(buffer, byteWritable)
     flagByte = byteWritable.get
 
@@ -193,30 +229,7 @@ class ByteDeltaDecoder[T, W](buffer: ByteBuffer, columnType: ColumnType[T, W]) e
       current
     } else {
       val sevenBits = flagByte
-      columnType.newWritable match {
-        case s: ShortWritable => {
-          val oi = PrimitiveObjectInspectorFactory.writableShortObjectInspector
-          val pvalue = sevenBits.toShort +
-            columnType.get(prev.asInstanceOf[Object], oi).asInstanceOf[Short]
-          prev.asInstanceOf[ShortWritable].set(pvalue.toShort)
-          prev.asInstanceOf[W]
-        }
-        case i: IntWritable => {
-          val oi = PrimitiveObjectInspectorFactory.writableIntObjectInspector
-          val pvalue = sevenBits.toInt +
-            columnType.get(prev.asInstanceOf[Object], oi).asInstanceOf[Int]
-          prev.asInstanceOf[IntWritable].set(pvalue.toInt)
-          prev.asInstanceOf[W]
-        }
-        case l: LongWritable => {
-          val oi = PrimitiveObjectInspectorFactory.writableLongObjectInspector
-          val pvalue = sevenBits.toLong +
-            columnType.get(prev.asInstanceOf[Object], oi).asInstanceOf[Long]
-          prev.asInstanceOf[LongWritable].set(pvalue.toLong)
-          prev.asInstanceOf[W]
-        }
-        case _ => throw new UnsupportedOperationException("Unsupported data type " + columnType)
-      }
+      deltaFunction(prev, sevenBits)
     }
   }
 }
