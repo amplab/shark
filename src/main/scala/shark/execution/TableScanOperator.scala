@@ -83,21 +83,21 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
       val partCols = partProps.getProperty(META_TABLE_PARTITION_COLUMNS)
       val partNames = new ArrayList[String]
       val partObjectInspectors = new ArrayList[ObjectInspector]
-      partCols.trim().split("/").foreach{ key =>
+      partCols.trim().split("/").foreach { key =>
         partNames.add(key)
         partObjectInspectors.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector)
       }
 
       val partObjectInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
-          partNames, partObjectInspectors)
+        partNames, partObjectInspectors)
       val oiList = Arrays.asList(
-          tableDeser.getObjectInspector().asInstanceOf[StructObjectInspector],
-          partObjectInspector.asInstanceOf[StructObjectInspector])
+        tableDeser.getObjectInspector().asInstanceOf[StructObjectInspector],
+        partObjectInspector.asInstanceOf[StructObjectInspector])
       // new oi is union of table + partition object inspectors
       ObjectInspectorFactory.getUnionStructObjectInspector(oiList)
     }
   }
-  
+
   override def execute(): RDD[_] = {
     assert(parentOperators.size == 0)
     val tableKey: String = tableDesc.getTableName.split('.')(1)

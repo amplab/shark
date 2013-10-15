@@ -377,8 +377,8 @@ object SharkSemanticAnalyzer extends LogHelper {
    * Given a Hive top operator (e.g. TableScanOperator), find all the file sink
    * operators (aka file output operator).
    */
-  private def findAllHiveFileSinkOperators(op: HiveOperator[_<: HiveDesc]): 
-    Seq[HiveOperator[_<: HiveDesc]] = {
+  private def findAllHiveFileSinkOperators(op: HiveOperator[_<: HiveDesc])
+  : Seq[HiveOperator[_<: HiveDesc]] = {
     if (op.getChildOperators() == null || op.getChildOperators().size() == 0) {
       Seq[HiveOperator[_<: HiveDesc]](op)
     } else {

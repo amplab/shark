@@ -50,6 +50,7 @@ class SelectOperator extends UnaryOperator[SelectDesc] {
       }
     }
   }
+
   override def initializeOnSlave() {
     initializeEvals(true)
   }
@@ -71,9 +72,10 @@ class SelectOperator extends UnaryOperator[SelectDesc] {
   }
   
   override def outputObjectInspector(): ObjectInspector = {
-    if (conf.isSelStarNoCompute()) 
+    if (conf.isSelStarNoCompute()) {
       super.outputObjectInspector()
-    else
+    } else {
       initEvaluatorsAndReturnStruct(evals, conf.getOutputColumnNames(), objectInspector)
+    }
   }
 }

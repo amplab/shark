@@ -56,9 +56,9 @@ object JoinUtil {
      noOuterJoin: Boolean): Array[AnyRef] = {
 
     val isFiltered: Boolean = {
-      if(filters == null) 
+      if (filters == null) {
         false
-      else
+      } else {
         Range(0, filters.size()).exists { x =>
           val cond = filters.get(x).evaluate(row)
           val result = Option[AnyRef](
@@ -68,6 +68,7 @@ object JoinUtil {
             case None => true
           }
         }
+      }
     }
     val size = valueFields.size
     val a = new Array[AnyRef](size)
