@@ -58,9 +58,10 @@ class UnionOperator extends NaryOperator[UnionDesc] {
     // whether we need to do transformation for each parent
     var parents = parentOperators.length
     var outputOI = outputObjectInspector()
-    needsTransform = Array.tabulate[Boolean](objectInspectors.length) {
-      // ObjectInspectors created by the ObjectInspectorFactory, which take the same ref if equals
-      i=>objectInspectors(i) != outputOI
+    needsTransform = Array.tabulate[Boolean](objectInspectors.length) { i =>
+      // ObjectInspectors created by the ObjectInspectorFactory, 
+      // which take the same ref if equals
+      objectInspectors(i) != outputOI
     }
     
     initializeOnSlave()
@@ -89,17 +90,17 @@ class UnionOperator extends NaryOperator[UnionDesc] {
 
     val outputFieldOIs = columnTypeResolvers.map(_.get())
     outputObjInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
-        columnNames, outputFieldOIs.toList)
+      columnNames, outputFieldOIs.toList)
 
     // whether we need to do transformation for each parent
     // We reuse needsTransform from Hive because the comparison of object
     // inspectors are hard once we send object inspectors over the wire.
     needsTransform.zipWithIndex.filter(_._1).foreach { case(transform, p) =>
       logDebug("Union Operator needs to transform row from parent[%d] from %s to %s".format(
-          p, objectInspectors(p), outputObjInspector))
+        p, objectInspectors(p), outputObjInspector))
     }
   }
-  
+
   override def outputObjectInspector() = outputObjInspector
 
   /**

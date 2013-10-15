@@ -85,7 +85,7 @@ class ReduceSinkOperator extends UnaryOperator[ReduceSinkDesc] {
       processPartitionDistinct(iter)
     }
   }
-  
+
   override def outputObjectInspector() = {
     initializeOisAndSers(conf, objectInspector)
     
@@ -123,16 +123,16 @@ class ReduceSinkOperator extends UnaryOperator[ReduceSinkDesc] {
 
     // Initialize object inspector for key columns.
     keyObjInspector = initEvaluatorsAndReturnStruct(
-        keyEval,
-        distinctColIndices,
-        conf.getOutputKeyColumnNames,
-        numDistributionKeys,
-        rowInspector)
+      keyEval,
+      distinctColIndices,
+      conf.getOutputKeyColumnNames,
+      numDistributionKeys,
+      rowInspector)
 
     // Initialize object inspector for value columns.
     valFieldObjInspectors = valueEval.map(eval => eval.initialize(rowInspector))
     valObjInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
-        conf.getOutputValueColumnNames(), valFieldObjInspectors.toList)
+      conf.getOutputValueColumnNames(), valFieldObjInspectors.toList)
 
     // Initialize evaluator and object inspector for partition columns.
     partitionEval = conf.getPartitionCols.map(ExprNodeEvaluatorFactory.get(_)).toArray

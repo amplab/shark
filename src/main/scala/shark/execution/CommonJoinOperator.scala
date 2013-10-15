@@ -104,8 +104,8 @@ abstract class CommonJoinOperator[T <: JoinDesc] extends NaryOperator[T] {
     }
 
     ObjectInspectorFactory.getStandardStructObjectInspector(
-        conf.getOutputColumnNames(),
-        structFieldObjectInspectors)
+      conf.getOutputColumnNames(),
+      structFieldObjectInspectors)
   }
 }
 
@@ -219,7 +219,7 @@ object CommonJoinOperator {
   def isFiltered(row: Any, filters: JavaList[ExprNodeEvaluator], ois: JavaList[ObjectInspector])
   : Boolean = {
     // if no filter, then will not be filtered
-    if(filters == null || ois == null) return false
+    if (filters == null || ois == null) return false
     
     var ret: java.lang.Boolean = false
     var j = 0

@@ -50,6 +50,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[GroupByDesc] {
   // The aggregation functions.
   @transient var aggregationEvals: Array[GenericUDAFEvaluator] = _
   @transient var aggregationObjectInspectors: Array[ObjectInspector] = _
+
   // Key fields to be grouped.
   @transient var keyFields: Array[ExprNodeEvaluator] = _
   // A struct object inspector composing of all the fields.
@@ -68,10 +69,9 @@ class GroupByPreShuffleOperator extends UnaryOperator[GroupByDesc] {
     rowInspector = objectInspector.asInstanceOf[StructObjectInspector]
     keyFields = conf.getKeys().map(k => ExprNodeEvaluatorFactory.get(k)).toArray
     val keyObjectInspectors: Array[ObjectInspector] = keyFields.map(k => k.initialize(rowInspector))
-    currentKeyObjectInspectors = 
-      keyObjectInspectors.map { k =>
-        ObjectInspectorUtils.getStandardObjectInspector(k, ObjectInspectorCopyOption.WRITABLE)
-      }
+    currentKeyObjectInspectors = keyObjectInspectors.map { k =>
+      ObjectInspectorUtils.getStandardObjectInspector(k, ObjectInspectorCopyOption.WRITABLE)
+    }
 
     aggregationParameterFields = conf.getAggregators.toArray.map { aggr =>
       aggr.asInstanceOf[AggregationDesc].getParameters.toArray.map { param =>
@@ -94,7 +94,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[GroupByDesc] {
 
     aggregationObjectInspectors = 
       Array.tabulate[ObjectInspector](aggregationEvals.length) { i=>
-        var mode = conf.getAggregators()(i).getMode()
+        val mode = conf.getAggregators()(i).getMode()
         aggregationEvals(i).init(mode, aggregationParameterObjectInspectors(i))
       }
     
@@ -128,13 +128,13 @@ class GroupByPreShuffleOperator extends UnaryOperator[GroupByDesc] {
 
   // copied from the org.apache.hadoop.hive.ql.exec.GroupByOperator 
   override def outputObjectInspector() = {
-    var totalFields = keyFields.length + aggregationEvals.length
+    val totalFields = keyFields.length + aggregationEvals.length
         
-    var ois = new ArrayBuffer[ObjectInspector](totalFields)
-    ois.++=(currentKeyObjectInspectors)
-    ois.++=(aggregationObjectInspectors)
+    val ois = new ArrayBuffer[ObjectInspector](totalFields)
+    ois ++= (currentKeyObjectInspectors)
+    ois ++= (aggregationObjectInspectors)
 
-    var fieldNames = conf.getOutputColumnNames()
+    val fieldNames = conf.getOutputColumnNames()
 
     import scala.collection.JavaConversions._
     ObjectInspectorFactory.getStandardStructObjectInspector(fieldNames, ois.toList)
