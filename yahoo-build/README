@@ -9,6 +9,8 @@ v is build number
 
 Release Notes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Version 0.9.0.0.1
+	Merge bdas to amplab @ commit : baefdb86d392795aa6505ec1796fd53d41d772ed
 Version 0.7.2.100.1
 	CI plugs and configuration
 Version 0.7.2.100.0
