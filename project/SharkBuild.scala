@@ -30,7 +30,7 @@ object SharkBuild extends Build {
 
 //  val SPARK_VERSION = "0.9.0-incubating-SNAPSHOT"
 
-  val SPARK_VERSION = "0.8.0-SNAPSHOT"
+  val SPARK_VERSION = "0.8.1-incubating-SNAPSHOT"
 
   val SCALA_VERSION = "2.9.3"
 
