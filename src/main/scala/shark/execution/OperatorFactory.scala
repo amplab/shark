@@ -71,7 +71,7 @@ object OperatorFactory extends LogHelper {
     // TODO the terminal operator is the FileSinkOperator in Hive?
     var hiveOp = hiveTerminalOp.asInstanceOf[org.apache.hadoop.hive.ql.exec.FileSinkOperator]
     val sinkOp = _newOperatorInstance(classOf[FileSinkOperator], 
-        hiveOp).asInstanceOf[TerminalOperator]
+      hiveOp).asInstanceOf[TerminalOperator]
     sinkOp.localHiveOp = hiveOp
     _createAndSetParents(sinkOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }
@@ -80,7 +80,7 @@ object OperatorFactory extends LogHelper {
     // TODO the terminal operator is the FileSinkOperator in Hive?
     var hiveOp = hiveTerminalOp.asInstanceOf[org.apache.hadoop.hive.ql.exec.FileSinkOperator]
     val sinkOp = _newOperatorInstance(classOf[TableRddSinkOperator], 
-        hiveOp).asInstanceOf[TableRddSinkOperator]
+      hiveOp).asInstanceOf[TableRddSinkOperator]
     sinkOp.localHiveOp = hiveOp
     _createAndSetParents(sinkOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }

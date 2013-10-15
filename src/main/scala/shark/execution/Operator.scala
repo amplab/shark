@@ -109,7 +109,7 @@ abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
   }
 
   def desc() = _desc
-  // TODO subclassing
+
   def setDesc[B >: T](d: B) {_desc = d.asInstanceOf[T]}
   
   @transient private[this] var _desc: T = _
@@ -122,10 +122,11 @@ abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
   }
   
   protected def inputObjectInspectors(): Seq[ObjectInspector] = {
-    if(null != _parentOperators)
+    if (null != _parentOperators) {
       _parentOperators.sortBy(_.getTag).map(_.outputObjectInspector)
-    else
+    } else {
       Seq.empty[ObjectInspector]
+    }
   }
   
   // derived classes can set this to different object if needed, default is the first input OI
@@ -146,9 +147,9 @@ abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
       outputColNames: JavaList[String], length: Int, rowInspector: ObjectInspector): 
       StructObjectInspector = {
 
-    var fieldObjectInspectors = initEvaluators(evals, 0, length, rowInspector);
+    val fieldObjectInspectors = initEvaluators(evals, 0, length, rowInspector);
     initEvaluatorsAndReturnStruct(evals, fieldObjectInspectors, distinctColIndices, 
-        outputColNames, length, rowInspector)
+      outputColNames, length, rowInspector)
   }
   
   /**
@@ -166,33 +167,33 @@ abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
       distinctColIndices: JavaList[JavaList[Integer]], outputColNames: JavaList[String], 
       length: Int, rowInspector: ObjectInspector): StructObjectInspector = {
 
-    var inspectorLen = if (evals.length > length) length + 1 else evals.length
+    val inspectorLen = if (evals.length > length) length + 1 else evals.length
     
-    var sois = new ArrayBuffer[ObjectInspector](inspectorLen)
+    val sois = new ArrayBuffer[ObjectInspector](inspectorLen)
 
     // keys
     // var fieldObjectInspectors = initEvaluators(evals, 0, length, rowInspector);
-    sois++=fieldObjectInspectors
+    sois ++= fieldObjectInspectors
 
     if (evals.length > length) {
       // union keys
-      var uois = new ArrayBuffer[ObjectInspector]()
+      val uois = new ArrayBuffer[ObjectInspector]()
       for (/*List<Integer>*/ distinctCols <- distinctColIndices) {
-        var names = new ArrayBuffer[String]()
-        var eois = new ArrayBuffer[ObjectInspector]()
+        val names = new ArrayBuffer[String]()
+        val eois = new ArrayBuffer[ObjectInspector]()
         var numExprs = 0
         for (i <- distinctCols) {
           names.add(HiveConf.getColumnInternalName(numExprs))
           eois.add(evals(i).initialize(rowInspector))
           numExprs += 1
         }
-        uois.add(ObjectInspectorFactory.getStandardStructObjectInspector(names, eois));
+        uois.add(ObjectInspectorFactory.getStandardStructObjectInspector(names, eois))
       }
       
       sois.add(ObjectInspectorFactory.getStandardUnionObjectInspector(uois))
     }
     
-    ObjectInspectorFactory.getStandardStructObjectInspector(outputColNames, sois )
+    ObjectInspectorFactory.getStandardStructObjectInspector(outputColNames, sois)
   }
   
   /**
@@ -201,7 +202,7 @@ abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
    */
   protected def initEvaluators(evals: Array[ExprNodeEvaluator],
       rowInspector: ObjectInspector): Array[ObjectInspector] = {
-    var result = new Array[ObjectInspector](evals.length)
+    val result = new Array[ObjectInspector](evals.length)
     for (i <- 0 to evals.length -1) {
       result(i) = evals(i).initialize(rowInspector)
     }
@@ -215,7 +216,7 @@ abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
    */
   protected def initEvaluators(evals: Array[ExprNodeEvaluator],
       start: Int, length: Int,rowInspector: ObjectInspector): Array[ObjectInspector] = {
-    var result = new Array[ObjectInspector](length)
+    val result = new Array[ObjectInspector](length)
     
     for (i <- 0 to length - 1) {
       result(i) = evals(start + i).initialize(rowInspector);
@@ -231,10 +232,9 @@ abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
   protected def initEvaluatorsAndReturnStruct(
       evals: Array[ExprNodeEvaluator], outputColName: JavaList[String],
       rowInspector: ObjectInspector): StructObjectInspector = {
-    import scala.collection.JavaConversions.JListWrapper
-    var fieldObjectInspectors = initEvaluators(evals, rowInspector)
+    val fieldObjectInspectors = initEvaluators(evals, rowInspector)
     return ObjectInspectorFactory.getStandardStructObjectInspector(
-        outputColName, fieldObjectInspectors.toList)
+      outputColName, fieldObjectInspectors.toList)
   }
 }
 

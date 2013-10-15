@@ -65,7 +65,7 @@ class UDTFOperator extends UnaryOperator[UDTFDesc] {
   }
 
   override def outputObjectInspector() = outputObjInspector
-  
+
   override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
     iter.flatMap { row =>
       explode(row)

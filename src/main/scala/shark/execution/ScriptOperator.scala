@@ -159,15 +159,12 @@ class ScriptOperator extends UnaryOperator[ScriptDesc] {
   override def outputObjectInspector() = scriptOutputDeserializer.getObjectInspector()
   
   override def initializeOnSlave() {
-    scriptOutputDeserializer = conf.getScriptOutputInfo()
-        .getDeserializerClass().newInstance()
-    scriptOutputDeserializer.initialize(localHconf, conf
-        .getScriptOutputInfo().getProperties())
+    scriptOutputDeserializer = conf.getScriptOutputInfo().getDeserializerClass().newInstance()
+    scriptOutputDeserializer.initialize(localHconf, conf.getScriptOutputInfo().getProperties())
 
     scriptInputSerializer = conf.getScriptInputInfo().getDeserializerClass()
-        .newInstance().asInstanceOf[Serializer]
-    scriptInputSerializer.initialize(
-        localHconf, conf.getScriptInputInfo().getProperties())
+      .newInstance().asInstanceOf[Serializer]
+    scriptInputSerializer.initialize(localHconf, conf.getScriptInputInfo().getProperties())
   }
 
   /**
@@ -203,7 +200,7 @@ class ScriptOperator extends UnaryOperator[ScriptDesc] {
     scriptOpHelper.addJobConfToEnvironment(hconf, envs)
 
     envs.put(scriptOpHelper.safeEnvVarName(HiveConf.ConfVars.HIVEALIAS.varname),
-        String.valueOf(alias))
+      String.valueOf(alias))
 
     // Create an environment variable that uniquely identifies this script
     // operator
