@@ -18,7 +18,10 @@
 package shark.execution
 
 import java.util.{ArrayList, Arrays}
+
+import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
+
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.mapred.{FileInputFormat, InputFormat, JobConf}
 import org.apache.hadoop.hive.conf.HiveConf
@@ -27,17 +30,18 @@ import org.apache.hadoop.hive.ql.exec.{TableScanOperator => HiveTableScanOperato
 import org.apache.hadoop.hive.ql.exec.{MapSplitPruning, Utilities}
 import org.apache.hadoop.hive.ql.io.HiveInputFormat
 import org.apache.hadoop.hive.ql.metadata.{Partition, Table}
-import org.apache.hadoop.hive.ql.plan.{PlanUtils, PartitionDesc, TableDesc}
+import org.apache.hadoop.hive.ql.plan.{PlanUtils, PartitionDesc, TableDesc, TableScanDesc}
+import org.apache.hadoop.hive.serde.Constants
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorFactory,
   StructObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.io.Writable
 
 import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.rdd.{PartitionPruningRDD, RDD, UnionRDD}
+import org.apache.spark.rdd.{HadoopRDD, PartitionPruningRDD, RDD, UnionRDD}
 import org.apache.spark.SerializableWritable
 
-import shark.{SharkConfVars, SharkEnv, Utils}
+import shark.{LogHelper, SharkConfVars, SharkEnv, Utils}
 import shark.api.QueryExecutionException
 import shark.execution.optimization.ColumnPruner
 import shark.execution.serialization.{XmlSerializer, JavaSerializer}
@@ -56,6 +60,9 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
   // table isn't Hive-partitioned. Set in SparkTask::initializeTableScanTableDesc().
   @transient var parts: Array[Object] = _
 
+  // For convenience, a local copy of the HiveConf for this task.
+  @transient var localHConf: HiveConf = _
+
   // PartitionDescs are used during planning in Hive. This reference to a single PartitionDesc
   // is used to initialize partition ObjectInspectors.
   // If the table is not Hive-partitioned, then 'firstConfPartDesc' won't be used. The value is not
@@ -65,7 +72,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
   @BeanProperty var firstConfPartDesc: PartitionDesc  = _
 
   @BeanProperty var tableDesc: TableDesc = _
-  @BeanProperty var localHconf: HiveConf = _
+
 
   /**
    * Initialize the hive TableScanOperator. This initialization propagates
@@ -108,7 +115,9 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
   }
 
   override def initializeOnMaster() {
-    localHconf = super.hconf
+    // Create a local copy of the HiveConf that will be assigned job properties and, for disk reads,
+    // broadcasted to slaves.
+    localHConf = new HiveConf(super.hconf)
   }
 
   override def execute(): RDD[_] = {
@@ -166,13 +175,13 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     SharkEnv.tachyonUtil.pushDownColumnPruning(rdd, columnsUsed)
 
     val prunedRdd: RDD[_] =
-      if (SharkConfVars.getBoolVar(localHconf, SharkConfVars.MAP_PRUNING) &&
+      if (SharkConfVars.getBoolVar(localHConf, SharkConfVars.MAP_PRUNING) &&
           childOperators(0).isInstanceOf[FilterOperator] &&
           indexToStats.size == rdd.partitions.size) {
 
         val startTime = System.currentTimeMillis
         val printPruneDebug = SharkConfVars.getBoolVar(
-          localHconf, SharkConfVars.MAP_PRUNING_PRINT_DEBUG)
+          localHConf, SharkConfVars.MAP_PRUNING_PRINT_DEBUG)
 
         // Must initialize the condition evaluator in FilterOperator to get the
         // udfs and object inspectors set.
@@ -214,69 +223,62 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
   }
 
   /**
-   * Create a RDD representing the table (with or without partitions).
+   * Create a RDD for a table.
    */
   override def preprocessRdd(rdd: RDD[_]): RDD[_] = {
-    // copyTableJobPropertiesToConf and pushFilters both take in JobConfs.
-    val localJobConf = new JobConf(localHconf)
-    if (tableDesc != null) {
-      Utilities.copyTableJobPropertiesToConf(tableDesc, localJobConf)
-    }
-    val bufferSize = System.getProperty("spark.buffer.size", "65536")
-    localJobConf.set("io.file.buffer.size", bufferSize)
-
-    new HiveInputFormat() {
-      def doPushFilters() {
-        pushFilters(localJobConf, hiveOp)
-      }
-    }.doPushFilters()
-
-    // Set s3/s3n credentials. Setting them in localJobConf ensures the settings propagate
-    // from Spark's master all the way to Spark's slaves.
-    var s3varsSet = false
-    val s3vars = Seq("fs.s3n.awsAccessKeyId", "fs.s3n.awsSecretAccessKey",
-      "fs.s3.awsAccessKeyId", "fs.s3.awsSecretAccessKey").foreach { variableName =>
-      if (localJobConf.get(variableName) != null) {
-        s3varsSet = true
-        localJobConf.set(variableName, localJobConf.get(variableName))
-      }
-    }
-
-    // If none of the s3 credentials are set in Hive conf, try use the environmental
-    // variables for credentials.
-    if (!s3varsSet) {
-      Utils.setAwsCredentials(localJobConf)
-    }
-
     // Choose the minimum number of splits. If mapred.map.tasks is set, use that unless
     // it is smaller than what Spark suggests.
     val minSplitsPerRDD = math.max(
-      localJobConf.getInt("mapred.map.tasks", 1), SharkEnv.sc.defaultMinSplits)
+      localHConf.getInt("mapred.map.tasks", 1), SharkEnv.sc.defaultMinSplits)
 
-    val broadcastedJobConf = SharkEnv.sc.broadcast(new SerializableWritable(localJobConf))
+    TableScanOperator.prepareHiveConf(localHConf, hiveOp)
+    val broadcastedHiveConf = SharkEnv.sc.broadcast(new SerializableWritable(localHConf))
 
     if (table.isPartitioned) {
       logDebug("Making %d Hive partitions".format(parts.size))
-      makeHivePartitionRDDs(broadcastedJobConf, minSplitsPerRDD)
+      makeHivePartitionRDDs(broadcastedHiveConf, minSplitsPerRDD)
     } else {
-      val tablePath = table.getPath.toString
-      val ifc = table.getInputFormatClass
-          .asInstanceOf[java.lang.Class[InputFormat[Writable, Writable]]]
-      logDebug("Table input: %s".format(tablePath))
-      createHadoopFileRdd(tablePath, ifc, broadcastedJobConf, minSplitsPerRDD)
+      makeTableRdd(broadcastedHiveConf, minSplitsPerRDD)
     }
   }
 
-  override def processPartition(index: Int, iter: Iterator[_]): Iterator[_] = {
-    val deserializer = tableDesc.getDeserializerClass().newInstance()
-    deserializer.initialize(localHconf, tableDesc.getProperties)
-    iter.map { value =>
-      value match {
-        case rowWithPart: Array[Object] => rowWithPart
-        case v: Writable => deserializer.deserialize(v)
-        case _ => throw new RuntimeException("Failed to match " + value.toString)
+  /**
+   * Forward all rows. TableScanOperator doesn't need to do any more processing of values read and
+   * preprocessed (i.e., deserialized) from disk.
+   *
+   * For Hive-partitioned tables, the iterator returns two-element arrays with the elements as
+   * (deserialized row, column partition value). For non-partitioned tables, the iterator returns
+   * deserialized row Objects.
+   */
+  override def processPartition(index: Int, iter: Iterator[_]): Iterator[_] = iter
+
+  /**
+   * Creates a Hadoop RDD to read data from the target table's data directory. Returns a transformed
+   * RDD that contains deserialized rows.
+   */
+  private def makeTableRdd(
+      broadcastedHiveConf: Broadcast[SerializableWritable[HiveConf]],
+      minSplits: Int): RDD[_] = {
+    val tablePath = table.getPath.toString
+    val ifc = table.getInputFormatClass
+        .asInstanceOf[java.lang.Class[InputFormat[Writable, Writable]]]
+    logDebug("Table input: %s".format(tablePath))
+
+    val hadoopRDD = createHadoopRdd(tablePath, ifc, broadcastedHiveConf, minSplits)
+    val deserializedHadoopRDD = hadoopRDD.mapPartitions { iter =>
+      val hconf = broadcastedHiveConf.value.value
+      val deserializer = tableDesc.getDeserializerClass().newInstance()
+      deserializer.initialize(hconf, tableDesc.getProperties)
+
+      // Deserialize each Writable to get the row value.
+      iter.map { value =>
+        value match {
+          case v: Writable => deserializer.deserialize(v)
+          case _ => throw new RuntimeException("Failed to match " + value.toString)
+        }
       }
     }
+    return deserializedHadoopRDD
   }
 
   /**
@@ -285,7 +287,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
    * 'PARTITION BY'.
    */
   private def makeHivePartitionRDDs[T](
-      broadcastedJobConf: Broadcast[SerializableWritable[JobConf]],
+      broadcastedHiveConf: Broadcast[SerializableWritable[HiveConf]],
       minSplitsPerRDD: Int
     ): RDD[_] = {
     val partitions = parts
@@ -299,12 +301,11 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
 
       val ifc = partition.getInputFormatClass
         .asInstanceOf[java.lang.Class[InputFormat[Writable, Writable]]]
-      val hivePartitionRDD = createHadoopFileRdd(
-        tablePath, ifc, broadcastedJobConf, minSplitsPerRDD)
+      val hivePartitionRDD = createHadoopRdd(
+        tablePath, ifc, broadcastedHiveConf, minSplitsPerRDD)
 
-      val serializedHconf = XmlSerializer.serialize(localHconf, localHconf)
       val hivePartitionRDDWithColValues = hivePartitionRDD.mapPartitions { iter =>
-        val hconf = XmlSerializer.deserialize(serializedHconf).asInstanceOf[HiveConf]
+        val hconf = broadcastedHiveConf.value.value
         val deserializer = partDesc.getDeserializerClass().newInstance()
         deserializer.initialize(hconf, partDesc.getProperties())
 
@@ -345,16 +346,35 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     }
   }
 
-  private def createHadoopFileRdd(
+  /**
+   * Creates a HadoopRDD based on the broadcasted HiveConf and other job properties that will be
+   * applied locally on each slave.
+   */
+  private def createHadoopRdd(
       path: String,
       inputFormatClass: Class[InputFormat[Writable, Writable]],
-      broadcastedJobConf: Broadcast[SerializableWritable[JobConf]],
+      broadcastedHiveConf: Broadcast[SerializableWritable[HiveConf]],
       minSplits: Int)
-  : RDD[Writable] = {
+    : RDD[Writable] = {
+    /*
+     * Curried. After given an argument for 'path', the resulting JobConf => Unit closure is used to
+     * instantiate a HadoopRDD.
+     */
+    def initializeLocalJobConfFunc(path: String)(jobConf: JobConf) {
+      FileInputFormat.setInputPaths(jobConf, path)
+      if (tableDesc != null) {
+        Utilities.copyTableJobPropertiesToConf(tableDesc, jobConf)
+      }
+      val bufferSize = System.getProperty("spark.buffer.size", "65536")
+      jobConf.set("io.file.buffer.size", bufferSize)
+    }
 
-    val rdd = SharkEnv.sc.hadoopFile(
-      path,
-      broadcastedJobConf.asInstanceOf[Broadcast[SerializableWritable[Configuration]]],
+    val initializeJobConfFunc = initializeLocalJobConfFunc(path) _
+
+    val rdd = new HadoopRDD(
+      SharkEnv.sc,
+      broadcastedHiveConf.asInstanceOf[Broadcast[SerializableWritable[Configuration]]],
+      Some(initializeJobConfFunc),
       inputFormatClass,
       classOf[Writable],
       classOf[Writable],
@@ -362,5 +382,80 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
 
     // Only take the value (skip the key) because Hive works only with values.
     rdd.map(_._2)
+  }
+}
+
+
+object TableScanOperator extends LogHelper {
+
+  /**
+   * Add miscellaneous properties to the HiveConf to be used for creating a HadoopRDD. These
+   * properties are impractical to add during local JobConf creation in HadoopRDD - for example,
+   * filter expressions would require a serialized HiveTableScanOperator.
+   */
+  private def prepareHiveConf(hiveConf: HiveConf, hiveTableScanOp: HiveTableScanOperator) {
+    // Set s3/s3n credentials. Setting them in localJobConf ensures the settings propagate
+    // from Spark's master all the way to Spark's slaves.
+    var s3varsSet = false
+    val s3vars = Seq("fs.s3n.awsAccessKeyId", "fs.s3n.awsSecretAccessKey",
+      "fs.s3.awsAccessKeyId", "fs.s3.awsSecretAccessKey").foreach { variableName =>
+      if (hiveConf.get(variableName) != null) {
+        s3varsSet = true
+      }
+    }
+
+    // If none of the s3 credentials are set in Hive conf, try use the environmental
+    // variables for credentials.
+    if (!s3varsSet) {
+      Utils.setAwsCredentials(hiveConf)
+    }
+
+    TableScanOperator.addFilterExprToConf(hiveConf, hiveTableScanOp)
+  }
+
+  /**
+   * Add filter expressions and column metadata to the HiveConf This is meant to be called on the
+   * master, so that we can avoid serializing the HiveTableScanOperator.
+   */
+  private def addFilterExprToConf(hiveConf: HiveConf, hiveTableScanOp: HiveTableScanOperator) {
+    val tableScanDesc = hiveTableScanOp.getConf()
+    if (tableScanDesc == null) return
+
+    val rowSchema = hiveTableScanOp.getSchema
+    if (rowSchema != null) {
+      // Add column names to the HiveConf.
+      var columnNames = new StringBuilder()
+      for (columnInfo <- rowSchema.getSignature()) {
+        if (columnNames.length() > 0) {
+          columnNames.append(",")
+        }
+        columnNames.append(columnInfo.getInternalName())
+      }
+      val columnNamesString = columnNames.toString();
+      hiveConf.set(Constants.LIST_COLUMNS, columnNamesString);
+
+      // Add column types to the HiveConf.
+      var columnTypes = new StringBuilder()
+      for (columnInfo <- rowSchema.getSignature()) {
+        if (columnTypes.length() > 0) {
+          columnTypes.append(",")
+        }
+        columnTypes.append(columnInfo.getType().getTypeName())
+      }
+      val columnTypesString = columnTypes.toString
+      hiveConf.set(Constants.LIST_COLUMN_TYPES, columnTypesString)
+    }
+
+    // Push down predicate filters.
+    val filterExprNode = tableScanDesc.getFilterExpr()
+    if (filterExprNode == null) return
+
+    val filterText = filterExprNode.getExprString()
+    hiveConf.set(TableScanDesc.FILTER_TEXT_CONF_STR, filterText)
+    logDebug("Filter text: " + filterText)
+
+    val filterExprNodeSerialized = Utilities.serializeExpression(filterExprNode)
+    hiveConf.set(TableScanDesc.FILTER_EXPR_CONF_STR, filterExprNodeSerialized)
+    logDebug("Filter expression: " + filterExprNodeSerialized)
   }
 }
