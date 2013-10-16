@@ -29,7 +29,7 @@ import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.{FieldSchema, MetaException}
 import org.apache.hadoop.hive.metastore.Warehouse
 import org.apache.hadoop.hive.ql.exec.{DDLTask, FetchTask, MoveTask, TaskFactory}
-import org.apache.hadoop.hive.ql.exec.{FileSinkOperator => HiveFileSinkOperator}
+import org.apache.hadoop.hive.ql.exec.{FileSinkOperator => HiveFileSinkOperator, Operator => HiveOperator}
 import org.apache.hadoop.hive.ql.metadata.HiveException
 import org.apache.hadoop.hive.ql.optimizer.Optimizer
 import org.apache.hadoop.hive.ql.parse._
@@ -38,8 +38,8 @@ import org.apache.hadoop.hive.ql.session.SessionState
 
 import org.apache.spark.storage.StorageLevel
 
-import shark.{CachedTableRecovery, LogHelper, SharkConfVars, SharkEnv,  Utils}
-import shark.execution.{HiveOperator, Operator, OperatorFactory, RDDUtils, ReduceSinkOperator,
+import shark.{CachedTableRecovery, LogHelper, SharkConfVars, SharkEnv, Utils}
+import shark.execution.{HiveDesc, Operator, OperatorFactory, RDDUtils, ReduceSinkOperator, 
   SparkWork, TerminalOperator}
 import shark.memstore2.{CacheType, ColumnarSerDe, MemoryMetadataManager}
 
@@ -107,8 +107,8 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
 
         // There are two cases that will enable caching:
         // 1) Table name includes "_cached" or "_tachyon".
-        // 2) The "shark.cache" table property is "true", or the string representation of a supported
-        //   cache mode (heap, Tachyon).
+        // 2) The "shark.cache" table property is "true", or the string representation of a 
+        //   supported cache mode (heap, Tachyon).
         cacheMode = CacheType.fromString(createTableProperties.get("shark.cache"))
         // Continue planning based on the 'cacheMode' read.
         if (cacheMode == CacheType.HEAP ||
@@ -311,7 +311,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
 
       // The move task depends on all root tasks. In the case of multi outputs,
       // the moves are only started once all outputs are executed.
-      val hiveFileSinkOp = terminalOps.head.hiveOp
+      val hiveFileSinkOp = terminalOps.head.localHiveOp
       mvTasks.foreach { moveTask =>
         rootTasks.foreach { rootTask =>
           rootTask.addDependentTask(moveTask)
@@ -377,9 +377,10 @@ object SharkSemanticAnalyzer extends LogHelper {
    * Given a Hive top operator (e.g. TableScanOperator), find all the file sink
    * operators (aka file output operator).
    */
-  private def findAllHiveFileSinkOperators(op: HiveOperator): Seq[HiveOperator] = {
+  private def findAllHiveFileSinkOperators(op: HiveOperator[_<: HiveDesc])
+  : Seq[HiveOperator[_<: HiveDesc]] = {
     if (op.getChildOperators() == null || op.getChildOperators().size() == 0) {
-      Seq[HiveOperator](op)
+      Seq[HiveOperator[_<: HiveDesc]](op)
     } else {
       op.getChildOperators().flatMap(findAllHiveFileSinkOperators(_)).distinct
     }
@@ -394,7 +395,7 @@ object SharkSemanticAnalyzer extends LogHelper {
    */
   private def breakHivePlanByStages(terminalOps: Seq[TerminalOperator]) = {
     val reduceSinks = new scala.collection.mutable.HashSet[ReduceSinkOperator]
-    val queue = new scala.collection.mutable.Queue[Operator[_]]
+    val queue = new scala.collection.mutable.Queue[Operator[_ <: HiveDesc]]
     queue ++= terminalOps
 
     while (!queue.isEmpty) {
@@ -409,15 +410,5 @@ object SharkSemanticAnalyzer extends LogHelper {
     }
 
     logDebug("Found %d ReduceSinkOperator's.".format(reduceSinks.size))
-
-    reduceSinks.foreach { op =>
-      val hiveOp = op.asInstanceOf[Operator[HiveOperator]].hiveOp
-      if (hiveOp.getChildOperators() != null) {
-        hiveOp.getChildOperators().foreach { child =>
-          logDebug("Removing child %s from %s".format(child, hiveOp))
-          hiveOp.removeChild(child)
-        }
-      }
-    }
   }
 }

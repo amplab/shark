@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California.
+ * Copyright (C) 2012 The Regents of The University California. 
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,17 +17,19 @@
 
 package shark.execution
 
-import org.apache.hadoop.hive.ql.exec.{ForwardOperator => HiveForwardOperator}
+import shark.LogHelper
+import org.apache.hadoop.hive.ql.plan.TableDesc
 
-import org.apache.spark.rdd.RDD
-import org.apache.hadoop.hive.ql.plan.ForwardDesc
+trait ReduceSinkTableDesc extends LogHelper {
+  self: Operator[_ <: HiveDesc] =>
 
+  // Seq(tag, (Key TableDesc, Value TableDesc))
+  def keyValueDescs(): Seq[(Int, (TableDesc, TableDesc))] = {
+    // get the parent ReduceSinkOperator and sort it by tag
+    val reduceSinkOps = 
+      for (op <- self.parentOperators.toSeq; 
+        if (op.isInstanceOf[ReduceSinkOperator])) yield op.asInstanceOf[ReduceSinkOperator]
 
-class ForwardOperator extends UnaryOperator[ForwardDesc] {
-
-  override def execute(): RDD[_] = executeParents().head._2
-
-  override def processPartition(split: Int, iter: Iterator[_]) =
-    throw new UnsupportedOperationException("ForwardOperator.processPartition()")
-
+    reduceSinkOps.map(f => (f.getTag, f.getKeyValueTableDescs))
+  }
 }

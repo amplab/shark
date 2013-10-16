@@ -180,8 +180,7 @@ class FileSinkOperator extends TerminalOperator with Serializable {
           rdd, FileSinkOperator.executeProcessFileSinkPartition(this))
         logDebug("Total number of rows written: " + rows.sum)
     }
-
-    hiveOp.jobClose(localHconf, true, new JobCloseFeedBack)
+    localHiveOp.jobClose(localHconf, true, new JobCloseFeedBack)
     rdd
   }
 }
