@@ -27,7 +27,7 @@
   </parent>
   <groupId>edu.berkeley.cs.amplab</groupId>
   <artifactId>shark-parent</artifactId>
-  <version>0.8.0-SNAPSHOT</version>
+  <version>0.8.0</version>
   <packaging>jar</packaging>
   <name>Shark Project Parent POM</name>
   <url>http://shark.cs.berkeley.edu/</url>
@@ -69,7 +69,7 @@
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
     <tachyon.sourcedir>tachyon_disabled</tachyon.sourcedir>
-    <spark.version>0.8.0-incubating-SNAPSHOT</spark.version>
+    <spark.version>0.8.0-incubating</spark.version>
     <hive.version>0.9.0-amplab-4</hive.version>
 
     <java.version>1.6</java.version>
