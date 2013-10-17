@@ -274,8 +274,8 @@ export HADOOP_HOME="$WORKSPACE/hadoop-${SPARK_HADOOP_VERSION}"
 # Download and build Hive.
 #####################################################################
 if $SKIP_HIVE ; then
-  if [ ! -e "hive" -o ! -e "hive-warehouse" ] ; then
-    echo "hive and hive-warehouse dirs must exist when skipping Hive download and build stage."
+  if [ ! -e "hive" ] ; then
+    echo "hive dir must exist when skipping Hive download and build stage."
     exit -1
   fi
 else
