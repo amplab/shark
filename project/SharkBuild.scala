@@ -26,9 +26,9 @@ import scala.util.Properties.{ envOrNone => env }
 object SharkBuild extends Build {
 
   // Shark version
-  val SHARK_VERSION = "0.8.0-SNAPSHOT"
+  val SHARK_VERSION = "0.8.0"
 
-  val SPARK_VERSION = "0.8.0-SNAPSHOT"
+  val SPARK_VERSION = "0.8.0-incubating"
 
   val SCALA_VERSION = "2.9.3"
 
@@ -54,6 +54,7 @@ object SharkBuild extends Build {
   val excludeKyro = ExclusionRule(organization = "de.javakaffee")
   val excludeHadoop = ExclusionRule(organization = "org.apache.hadoop")
   val excludeNetty = ExclusionRule(organization = "org.jboss.netty")
+  val excludeCurator = ExclusionRule(organization = "org.apache.curator")
   val excludeJackson = ExclusionRule(organization = "org.codehaus.jackson")
   val excludeAsm = ExclusionRule(organization = "asm")
   val excludeSnappy = ExclusionRule(organization = "org.xerial.snappy")
@@ -127,7 +128,7 @@ object SharkBuild extends Build {
       "net.java.dev.jets3t" % "jets3t" % "0.7.1",
       "com.novocode" % "junit-interface" % "0.8" % "test") ++
       (if (YARN_ENABLED) Some("org.apache.spark" %% "spark-yarn" % SPARK_VERSION) else None).toSeq ++
-      (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.3.0-SNAPSHOT" excludeAll(excludeKyro, excludeHadoop) ) else None).toSeq
+      (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.3.0-SNAPSHOT" excludeAll(excludeKyro, excludeHadoop, excludeCurator, excludeJackson, excludeNetty, excludeAsm) ) else None).toSeq
   )
 
   def assemblyProjSettings = Seq(

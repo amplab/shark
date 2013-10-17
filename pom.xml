@@ -604,7 +604,6 @@
     </plugins>
   </build>
 
-  <!-- Separate profiles for Hadoop 1 and 2 -->
   <profiles>
     <profile>
       <id>deb</id>
