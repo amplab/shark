@@ -59,14 +59,6 @@ class SerializationSuite extends FunSuite {
     assert(desered.head.getTypeName() === oi.getTypeName())
   }
 
-  test("HiveConf serialization test") {
-    val hiveConf = new HiveConf
-    val bytes = HiveConfSerializer.serialize(hiveConf)
-    val deseredConf = HiveConfSerializer.deserialize(bytes)
-
-    assertHiveConfEquals(hiveConf, deseredConf)
-  }
-
   test("Java serializing operators") {
     import shark.execution.{FileSinkOperator => SharkFileSinkOperator}
 
