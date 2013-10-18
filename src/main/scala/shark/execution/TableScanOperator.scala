@@ -215,13 +215,13 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
    */
   override def preprocessRdd(rdd: RDD[_]): RDD[_] = {
     if (table.isPartitioned) {
-      logInfo("Making %d Hive partitions".format(parts.size))
+      logDebug("Making %d Hive partitions".format(parts.size))
       makePartitionRDD(rdd)
     } else {
       val tablePath = table.getPath.toString
       val ifc = table.getInputFormatClass
           .asInstanceOf[java.lang.Class[InputFormat[Writable, Writable]]]
-      logInfo("Table input: %s".format(tablePath))
+      logDebug("Table input: %s".format(tablePath))
       createHadoopRdd(tablePath, ifc)
     }
   }

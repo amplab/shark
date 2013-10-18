@@ -51,7 +51,7 @@ private[shark] object SharkDriver extends LogHelper {
 
   // A dummy static method so we can make sure the following static code are executed.
   def runStaticCode() {
-    logInfo("Initializing object SharkDriver")
+    logDebug("Initializing object SharkDriver")
   }
 
   def registerSerDe(serdeClass: Class[_ <: SerDe]) {
@@ -198,7 +198,7 @@ private[shark] class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHe
         sem.analyze(tree, context)
       }
 
-      logInfo("Semantic Analysis Completed")
+      logDebug("Semantic Analysis Completed")
 
       sem.validate()
 

@@ -89,7 +89,7 @@ class UnionOperator extends NaryOperator[HiveUnionOperator] {
     // We reuse needsTransform from Hive because the comparison of object
     // inspectors are hard once we send object inspectors over the wire.
     needsTransform.zipWithIndex.filter(_._1).foreach { case(transform, p) =>
-      logInfo("Union Operator needs to transform row from parent[%d] from %s to %s".format(
+      logDebug("Union Operator needs to transform row from parent[%d] from %s to %s".format(
           p, objectInspectors(p), outputObjInspector))
     }
   }
