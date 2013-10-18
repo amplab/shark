@@ -157,10 +157,10 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         logInfo("Loading table " + tableKey + " stats from Tachyon.")
         SharkEnv.memoryMetadataManager.putStats(tableKey, indexToStats)
       }
-      createPrunedRdd(tableKey, SharkEnv.tachyonUtil.createRDD(tableKey))
+      return createPrunedRdd(tableKey, SharkEnv.tachyonUtil.createRDD(tableKey))
     } else {
       // Table is a Hive table on HDFS (or other Hadoop storage).
-      super.execute()
+      return makeRDDFromHadoop()
     }
   }
 
@@ -225,7 +225,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
   /**
    * Create a RDD for a table.
    */
-  override def preprocessRdd(rdd: RDD[_]): RDD[_] = {
+  def makeRDDFromHadoop(): RDD[_] = {
     // Choose the minimum number of splits. If mapred.map.tasks is set, use that unless
     // it is smaller than what Spark suggests.
     val minSplitsPerRDD = math.max(
@@ -236,27 +236,20 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
 
     if (table.isPartitioned) {
       logDebug("Making %d Hive partitions".format(parts.size))
-      makeHivePartitionRDDs(broadcastedHiveConf, minSplitsPerRDD)
+      // The returned RDD contains arrays of size two with the elements as
+      // (deserialized row, column partition value).
+      return makeHivePartitionRDDs(broadcastedHiveConf, minSplitsPerRDD)
     } else {
-      makeTableRdd(broadcastedHiveConf, minSplitsPerRDD)
+      // The returned RDD contains deserialized row Objects.
+      return makeTableRDD(broadcastedHiveConf, minSplitsPerRDD)
     }
   }
-
-  /**
-   * Forward all rows. TableScanOperator doesn't need to do any more processing of values read and
-   * preprocessed (i.e., deserialized) from disk.
-   *
-   * For Hive-partitioned tables, the iterator returns two-element arrays with the elements as
-   * (deserialized row, column partition value). For non-partitioned tables, the iterator returns
-   * deserialized row Objects.
-   */
-  override def processPartition(index: Int, iter: Iterator[_]): Iterator[_] = iter
 
   /**
    * Creates a Hadoop RDD to read data from the target table's data directory. Returns a transformed
    * RDD that contains deserialized rows.
    */
-  private def makeTableRdd(
+  private def makeTableRDD(
       broadcastedHiveConf: Broadcast[SerializableWritable[HiveConf]],
       minSplits: Int): RDD[_] = {
     val tablePath = table.getPath.toString
@@ -383,6 +376,10 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     // Only take the value (skip the key) because Hive works only with values.
     rdd.map(_._2)
   }
+
+  // All RDD processing is done in execute().
+  override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] =
+    throw new UnsupportedOperationException("TableScanOperator.processPartition()")
 }
 
 
@@ -448,14 +445,14 @@ object TableScanOperator extends LogHelper {
 
     // Push down predicate filters.
     val filterExprNode = tableScanDesc.getFilterExpr()
-    if (filterExprNode == null) return
+    if (filterExprNode != null) {
+      val filterText = filterExprNode.getExprString()
+      hiveConf.set(TableScanDesc.FILTER_TEXT_CONF_STR, filterText)
+      logDebug("Filter text: " + filterText)
 
-    val filterText = filterExprNode.getExprString()
-    hiveConf.set(TableScanDesc.FILTER_TEXT_CONF_STR, filterText)
-    logDebug("Filter text: " + filterText)
-
-    val filterExprNodeSerialized = Utilities.serializeExpression(filterExprNode)
-    hiveConf.set(TableScanDesc.FILTER_EXPR_CONF_STR, filterExprNodeSerialized)
-    logDebug("Filter expression: " + filterExprNodeSerialized)
+      val filterExprNodeSerialized = Utilities.serializeExpression(filterExprNode)
+      hiveConf.set(TableScanDesc.FILTER_EXPR_CONF_STR, filterExprNodeSerialized)
+      logDebug("Filter expression: " + filterExprNodeSerialized)
+    }
   }
 }
