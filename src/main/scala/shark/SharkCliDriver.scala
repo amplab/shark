@@ -53,8 +53,9 @@ object SharkCliDriver {
   installSignalHandler()
 
   /**
-   * Install a interrupt callback to cancel all Spark jobs. In Hive CliDriver's processLine, it
-   * installs a signal handler for ctrl + c to invoke callbacks defined in HiveInterruptUtils.
+   * Install an interrupt callback to cancel all Spark jobs. In Hive's CliDriver#processLine(),
+   * a signal handler will invoke this registered callback if a Ctrl+C signal is detected while
+   * a command is being processed by the current thread.
    */
   def installSignalHandler() {
     HiveInterruptUtils.add(new HiveInterruptCallback {
