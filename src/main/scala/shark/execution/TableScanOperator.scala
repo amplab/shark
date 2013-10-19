@@ -301,9 +301,9 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
       val partCols = partColsDelimited.trim().split("/").toSeq
       // 'partValues[i]' contains the value for the partitioning column at 'partCols[i]'.
       val partValues = if (partSpec == null) {
-        Arrays.fill(partCols.size)(new String)
+        Array.fill(partCols.size)(new String)
       } else {
-        partCols.map(new String(partSpec.get(_))).toArray
+        partCols.map(col => new String(partSpec.get(col))).toArray
       }
 
       val partitionKeyStr = MemoryMetadataManager.makeHivePartitionKeyStr(partCols, partSpec)
@@ -365,15 +365,12 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
 
         val partColsDelimited = partProps.getProperty(META_TABLE_PARTITION_COLUMNS)
         // Partitioning keys are delimited by "/"
-        val partCols = partCols.trim().split("/")
-        // 'partValues[i]' contains the value for the partitioning column at 'partKeys[i]'.
-        val partValues = new ArrayList[String]
-        partCols.foreach { col =>
-          if (partSpec == null) {
-            partValues.add(new String)
-          } else {
-            partValues.add(new String(partSpec.get(col)))
-          }
+        val partCols = partColsDelimited.trim().split("/")
+        // 'partValues[i]' contains the value for the partitioning column at 'partCols[i]'.
+        val partValues = if (partSpec == null) {
+          Array.fill(partCols.size)(new String)
+        } else {
+          partCols.map(col => new String(partSpec.get(col))).toArray
         }
 
         val rowWithPartArr = new Array[Object](2)
