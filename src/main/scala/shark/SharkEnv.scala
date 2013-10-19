@@ -49,7 +49,7 @@ object SharkEnv extends LogHelper {
   def initWithSharkContext(jobName: String, master: String = System.getenv("MASTER"))
     : SharkContext = {
     if (sc != null) {
-      sc.stop
+      sc.stop()
     }
 
     sc = new SharkContext(
@@ -64,7 +64,7 @@ object SharkEnv extends LogHelper {
 
   def initWithSharkContext(newSc: SharkContext): SharkContext = {
     if (sc != null) {
-      sc.stop
+      sc.stop()
     }
 
     sc = newSc
