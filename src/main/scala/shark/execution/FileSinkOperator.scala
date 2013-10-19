@@ -73,6 +73,7 @@ class FileSinkOperator extends TerminalOperator with Serializable {
 
     iter.foreach { row =>
       numRows += 1
+      // Process and writes each row to a temp file.
       localHiveOp.processOp(row, 0)
     }
 
@@ -112,7 +113,7 @@ class FileSinkOperator extends TerminalOperator with Serializable {
       }
     }
 
-    localHiveOp.closeOp(false)
+    localHiveOp.closeOp(false /* abort */)
     Iterator(numRows)
   }
 
@@ -181,7 +182,7 @@ class FileSinkOperator extends TerminalOperator with Serializable {
         logDebug("Total number of rows written: " + rows.sum)
     }
 
-    hiveOp.jobClose(localHconf, true, new JobCloseFeedBack)
+    hiveOp.jobClose(localHconf, true /* success */, new JobCloseFeedBack)
     rdd
   }
 }

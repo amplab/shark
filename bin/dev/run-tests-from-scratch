@@ -274,17 +274,11 @@ export HADOOP_HOME="$WORKSPACE/hadoop-${SPARK_HADOOP_VERSION}"
 # Download and build Hive.
 #####################################################################
 if $SKIP_HIVE ; then
-  if [ ! -e "hive" -o ! -e "hive-warehouse" ] ; then
-    echo "hive and hive-warehouse dirs must exist when skipping Hive download and build stage."
+  if [ ! -e "hive" ] ; then
+    echo "hive dir must exist when skipping Hive download and build stage."
     exit -1
   fi
 else
-  # Setup the Hive warehouse directory.
-  HIVE_WAREHOUSE=./hive-warehouse
-  rm -rf $HIVE_WAREHOUSE
-  mkdir -p $HIVE_WAREHOUSE
-  chmod 0777 $HIVE_WAREHOUSE
-
   rm -rf hive
   git clone $HIVE_GIT_URL
   pushd hive
