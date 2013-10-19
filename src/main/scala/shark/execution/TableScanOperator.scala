@@ -25,6 +25,7 @@ import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants.META_TABLE_P
 import org.apache.hadoop.hive.ql.exec.{TableScanOperator => HiveTableScanOperator}
 import org.apache.hadoop.hive.ql.exec.{MapSplitPruning, Utilities}
 import org.apache.hadoop.hive.ql.io.HiveInputFormat
+import org.apache.hadoop.hive.ql.io.orc.OrcSerde
 import org.apache.hadoop.hive.ql.metadata.{Partition, Table}
 import org.apache.hadoop.hive.ql.plan.{PlanUtils, PartitionDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.Serializer
@@ -311,12 +312,16 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
 
             // If conversion was performed, convertedRow will be a standard Object, but if 
             // conversion wasn't necessary, it will still be lazy. We can't have both across 
-            // partitions, so we serialize and deserialize again to make it lazy. 
-            convertedRow match {
-              case _: LazyStruct => convertedRow
-              case _ => tableSerde.deserialize(
-                          tableSerde.asInstanceOf[Serializer].serialize(
-                            convertedRow, tblConvertedOI))
+            // partitions, so we serialize and deserialize again to make it lazy.
+            if (tableSerde.isInstanceOf[OrcSerde]) {
+              convertedRow
+            } else {
+              convertedRow match {
+                case _: LazyStruct => convertedRow
+                case _ => tableSerde.deserialize(
+                  tableSerde.asInstanceOf[Serializer].serialize(
+                    convertedRow, tblConvertedOI))
+              }
             }
           }
 
