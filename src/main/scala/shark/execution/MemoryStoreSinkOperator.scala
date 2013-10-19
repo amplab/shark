@@ -98,27 +98,25 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
     // Put all rows of the table into a set of TablePartition's. Each partition contains
     // only one TablePartition object.
-    var outputRDD: RDD[TablePartition] = inputRdd.mapPartitionsWithIndex {
-      case(partitionIndex, iter) => {
-        op.initializeOnSlave()
-        val serde = new ColumnarSerDe
-        serde.initialize(op.localHconf, op.localHiveOp.getConf.getTableInfo.getProperties)
+    var outputRDD: RDD[TablePartition] = inputRdd.mapPartitionsWithIndex { case (part, iter) =>
+      op.initializeOnSlave()
+      val serde = new ColumnarSerDe
+      serde.initialize(op.localHconf, op.localHiveOp.getConf.getTableInfo.getProperties)
 
-        // Serialize each row into the builder object.
-        // ColumnarSerDe will return a TablePartitionBuilder.
-        var builder: Writable = null
-        iter.foreach { row =>
-          builder = serde.serialize(row.asInstanceOf[AnyRef], op.objectInspector)
-        }
+      // Serialize each row into the builder object.
+      // ColumnarSerDe will return a TablePartitionBuilder.
+      var builder: Writable = null
+      iter.foreach { row =>
+        builder = serde.serialize(row.asInstanceOf[AnyRef], op.objectInspector)
+      }
 
-        if (builder != null) {
-          statsAcc += Tuple2(partitionIndex, builder.asInstanceOf[TablePartitionBuilder].stats)
-          Iterator(builder.asInstanceOf[TablePartitionBuilder].build)
-        } else {
-          // Empty partition.
-          statsAcc += Tuple2(partitionIndex, new TablePartitionStats(Array(), 0))
-          Iterator(new TablePartition(0, Array()))
-        }
+      if (builder != null) {
+        statsAcc += Tuple2(part, builder.asInstanceOf[TablePartitionBuilder].stats)
+        Iterator(builder.asInstanceOf[TablePartitionBuilder].build)
+      } else {
+        // Empty partition.
+        statsAcc += Tuple2(part, new TablePartitionStats(Array(), 0))
+        Iterator(new TablePartition(0, Array()))
       }
     }
 
@@ -133,10 +131,10 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       // Put the table in Tachyon.
       op.logInfo("Putting RDD for %s in Tachyon".format(tableName))
       tachyonWriter.createTable(ByteBuffer.allocate(0))
-      outputRDD = outputRDD.mapPartitionsWithIndex { case(partitionIndex, iter) =>
+      outputRDD = outputRDD.mapPartitionsWithIndex { case(part, iter) =>
         val partition = iter.next()
         partition.toTachyon.zipWithIndex.foreach { case(buf, column) =>
-          tachyonWriter.writeColumnPartition(column, partitionIndex, buf)
+          tachyonWriter.writeColumnPartition(column, part, buf)
         }
         Iterator(partition)
       }
@@ -201,20 +199,6 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         SharkEnv.memoryMetadataManager.createMemoryTable(tableName, cacheMode, storageLevel))
       memoryTable.tableRDD = outputRDD
     }
-
-    // Report remaining memory.
-    /* Commented out for now waiting for the reporting code to make into Spark.
-    val remainingMems: Map[String, (Long, Long)] = SharkEnv.sc.getSlavesMemoryStatus
-    remainingMems.foreach { case(slave, mem) =>
-      println("%s: %s / %s".format(
-        slave,
-        Utils.memoryBytesToString(mem._2),
-        Utils.memoryBytesToString(mem._1)))
-    }
-    println("Summary: %s / %s".format(
-      Utils.memoryBytesToString(remainingMems.map(_._2._2).sum),
-      Utils.memoryBytesToString(remainingMems.map(_._2._1).sum)))
-    */
 
     // TODO(harvey): Get this to work for Hive-partitioned tables. It should be a simple
     //     'tableName' + 'hivePartitionKey' concatentation. Though whether stats should belong in

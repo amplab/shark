@@ -32,7 +32,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectIns
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.io.Writable
 
-import org.apache.spark.rdd.{PartitionPruningRDD, RDD, UnionRDD}
+import org.apache.spark.rdd.{EmptyRDD, PartitionPruningRDD, RDD, UnionRDD}
 
 import shark.{SharkConfVars, SharkEnv, Utils}
 import shark.api.QueryExecutionException
@@ -255,27 +255,26 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
    *     partition key specifications.
    */
   private def makeCachedPartitionRDD(tableKey: String, partitions: Array[Partition]): RDD[_] = {
-    val hivePartitionRDDSeq = partitions.map { partition =>
+    val hivePartitionRDDs = partitions.map { partition =>
       val partDesc = Utilities.getPartitionDesc(partition)
       // Get partition field info
       val partSpec = partDesc.getPartSpec()
       val partProps = partDesc.getProperties()
 
       val partColsDelimited = partProps.getProperty(META_TABLE_PARTITION_COLUMNS)
-      // Partitioning keys are delimited by "/"
-      val partColumns = partColsDelimited.trim().split("/").toSeq
-      // 'partValues[i]' contains the value for the partitioning column at 'partColumns[i]'.
-      val partValues = partColumns.map { key =>
-          if (partSpec == null) {
-            new String
-          } else {
-            new String(partSpec.get(key))
-          }
-        }.toArray
-      val partitionKeyStr = MemoryMetadataManager.makeHivePartitionKeyStr(partColumns, partSpec)
+      // Partitioning columns are delimited by "/"
+      val partCols = partColsDelimited.trim().split("/").toSeq
+      // 'partValues[i]' contains the value for the partitioning column at 'partCols[i]'.
+      val partValues = if (partSpec == null) {
+        Arrays.fill(partCols.size)(new String)
+      } else {
+        partCols.map(new String(partSpec.get(_))).toArray
+      }
+
+      val partitionKeyStr = MemoryMetadataManager.makeHivePartitionKeyStr(partCols, partSpec)
       val hivePartitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableKey).get
       val hivePartitionRDD = hivePartitionedTable.getPartition(partitionKeyStr)
-      
+
       hivePartitionRDD.get.mapPartitions { iter =>
         if (iter.hasNext) {
           // Map each tuple to a row object
@@ -291,10 +290,10 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         }
       }
     }
-    if (hivePartitionRDDSeq.size > 0) {
-      new UnionRDD(hivePartitionRDDSeq.head.context, hivePartitionRDDSeq)
+    if (hivePartitionRDDs.size > 0) {
+      new UnionRDD(hivePartitionRDDs.head.context, hivePartitionRDDs)
     } else {
-      SharkEnv.sc.makeRDD(Seq[Object]())
+      new EmptyRDD[Object](SharkEnv.sc)
     }
   }
 
@@ -325,16 +324,16 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         val partSpec = partDesc.getPartSpec()
         val partProps = partDesc.getProperties()
 
-        val partCols = partProps.getProperty(META_TABLE_PARTITION_COLUMNS)
+        val partColsDelimited = partProps.getProperty(META_TABLE_PARTITION_COLUMNS)
         // Partitioning keys are delimited by "/"
-        val partKeys = partCols.trim().split("/")
-        // 'partValues[i]' contains the value for the partitioning key at 'partKeys[i]'.
+        val partCols = partCols.trim().split("/")
+        // 'partValues[i]' contains the value for the partitioning column at 'partKeys[i]'.
         val partValues = new ArrayList[String]
-        partKeys.foreach { key =>
+        partCols.foreach { col =>
           if (partSpec == null) {
             partValues.add(new String)
           } else {
-            partValues.add(new String(partSpec.get(key)))
+            partValues.add(new String(partSpec.get(col)))
           }
         }
 

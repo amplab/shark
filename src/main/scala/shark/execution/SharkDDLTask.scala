@@ -52,18 +52,10 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
 
   override def execute(driverContext: DriverContext): Int = {
     work.ddlDesc match {
-      case creatTblDesc: CreateTableDesc => {
-        createTable(creatTblDesc, work.cacheMode)
-      }
-      case addPartitionDesc: AddPartitionDesc => {
-        addPartition(addPartitionDesc)
-      }
-      case dropTableDesc: DropTableDesc => {
-        dropTableOrPartition(dropTableDesc)
-      }
-      case alterTableDesc: AlterTableDesc => {
-        alterTable(alterTableDesc)
-      }
+      case creatTblDesc: CreateTableDesc => createTable(creatTblDesc, work.cacheMode)
+      case addPartitionDesc: AddPartitionDesc => addPartition(addPartitionDesc)
+      case dropTableDesc: DropTableDesc => dropTableOrPartition(dropTableDesc)
+      case alterTableDesc: AlterTableDesc => alterTable(alterTableDesc)
       case _ => {
         throw new UnsupportedOperationException(
           "Shark does not require a Shark DDL task for: " + work.ddlDesc.getClass.getName)
@@ -76,9 +68,7 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
   }
 
   /** Handles a CREATE TABLE or CTAS. */
-  def createTable(
-      createTblDesc: CreateTableDesc,
-      cacheMode: CacheType.CacheType) {
+  def createTable(createTblDesc: CreateTableDesc, cacheMode: CacheType.CacheType) {
     val tableName = createTblDesc.getTableName
     val tblProps = createTblDesc.getTblProps
 
@@ -108,12 +98,11 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
 
     // Find the set of partition column values that specifies the partition being added.
     val hiveTable = db.getTable(db.getCurrentDatabase(), tableName, false /* throwException */);
-    val partitionColumns: Seq[String] = hiveTable.getPartCols.map(_.getName)
-    val partitionColumnToValue: JavaMap[String, String] = addPartitionDesc.getPartSpec
+    val partCols: Seq[String] = hiveTable.getPartCols.map(_.getName)
+    val partColToValue: JavaMap[String, String] = addPartitionDesc.getPartSpec
     // String format for partition key: 'col1=value1/col2=value2/...'
-    val partitionKeyStr: String = MemoryMetadataManager.makeHivePartitionKeyStr(
-      partitionColumns, partitionColumnToValue)
-    partitionedTable.putPartition(partitionKeyStr, new EmptyRDD(SharkEnv.sc))
+    val partKeyStr: String = MemoryMetadataManager.makeHivePartitionKeyStr(partCols, partColToValue)
+    partitionedTable.putPartition(partKeyStr, new EmptyRDD(SharkEnv.sc))
   }
 
   /**
@@ -123,23 +112,21 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
   def dropTableOrPartition(dropTableDesc: DropTableDesc) {
     val tableName = dropTableDesc.getTableName
     val hiveTable = db.getTable(db.getCurrentDatabase(), tableName, false /* throwException */);
-    val partitionSpecs: JavaList[PartitionSpec] = dropTableDesc.getPartSpecs
+    val partSpecs: JavaList[PartitionSpec] = dropTableDesc.getPartSpecs
 
-    if (partitionSpecs == null) {
+    if (partSpecs == null) {
       // The command is a true DROP TABLE.
       SharkEnv.dropTable(tableName)
     } else {
       // The command is an ALTER TABLE DROP PARTITION
       val partitionedTable = getPartitionedTableWithAssertions(tableName)
       // Find the set of partition column values that specifies the partition being dropped.
-      val partitionColumns: Seq[String] = hiveTable.getPartCols.map(_.getName)
-      for (partitionSpec <- partitionSpecs) {
-        val partitionColumnToValue: JavaMap[String, String] =
-          partitionSpec.getPartSpecWithoutOperator
+      val partCols: Seq[String] = hiveTable.getPartCols.map(_.getName)
+      for (partSpec <- partSpecs) {
+        val partColToValue: JavaMap[String, String] = partSpec.getPartSpecWithoutOperator
         // String format for partition key: 'col1=value1/col2=value2/...'
-        val partitionKeyStr = MemoryMetadataManager.makeHivePartitionKeyStr(
-          partitionColumns, partitionColumnToValue)
-        partitionedTable.removePartition(partitionKeyStr)
+        val partKeyStr = MemoryMetadataManager.makeHivePartitionKeyStr(partCols, partColToValue)
+        partitionedTable.removePartition(partKeyStr)
       }
     }
   }
