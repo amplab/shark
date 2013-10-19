@@ -48,7 +48,10 @@ object RDDUtils {
 
   /**
    * Returns the storage level of a sequence of RDDs, interpreted as the storage level of the first
-   * RDD in the sequence that persisted in memory or disk.
+   * RDD in the sequence that is persisted in memory or on disk. This works because for Shark's use
+   * case, all RDDs for a non-partitioned table should have the same storage level. An RDD for a
+   * partitioned table could be StorageLevel.NONE if it was unpersisted by the partition eviction
+   * policy.
    *
    * @param rdds The sequence of RDDs to find the StorageLevel of.
    */
