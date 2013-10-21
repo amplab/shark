@@ -30,6 +30,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   val WAREHOUSE_PATH = TestUtils.getWarehousePath()
   val METASTORE_PATH = TestUtils.getMetastorePath()
   val MASTER = "local"
+  val DEFAULT_DB_NAME = "default"
 
   var sc: SharkContext = _
 
@@ -42,6 +43,9 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
 
     sc.runSql("set shark.test.data.path=" + TestUtils.dataFilePath)
 
+    // second db
+    sc.sql("create database if not exists seconddb")
+    
     // test
     sc.runSql("drop table if exists test")
     sc.runSql("CREATE TABLE test (key INT, val STRING)")
@@ -127,8 +131,9 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
         select * from test_cached""".format(tableName, partitionNum))
       partitionNum += 1
     }
-    assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
-    val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
+    assert(SharkEnv.memoryMetadataManager.containsTable(DEFAULT_DB_NAME, tableName))
+    val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(
+      DEFAULT_DB_NAME, tableName).get
     return partitionedTable
   }
 
@@ -256,16 +261,18 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   test("Use regular CREATE TABLE and '_cached' suffix to create cached table") {
     sc.runSql("drop table if exists empty_table_cached")
     sc.runSql("create table empty_table_cached(key string, value string)")
-    assert(SharkEnv.memoryMetadataManager.containsTable("empty_table_cached"))
-    assert(!SharkEnv.memoryMetadataManager.isHivePartitioned("empty_table_cached"))
+    assert(SharkEnv.memoryMetadataManager.containsTable(DEFAULT_DB_NAME, "empty_table_cached"))
+    assert(!SharkEnv.memoryMetadataManager.isHivePartitioned(DEFAULT_DB_NAME, "empty_table_cached"))
   }
 
   test("Use regular CREATE TABLE and table properties to create cached table") {
     sc.runSql("drop table if exists empty_table_cached_tbl_props")
     sc.runSql("""create table empty_table_cached_tbl_props(key string, value string)
       TBLPROPERTIES('shark.cache' = 'true')""")
-    assert(SharkEnv.memoryMetadataManager.containsTable("empty_table_cached_tbl_props"))
-    assert(!SharkEnv.memoryMetadataManager.isHivePartitioned("empty_table_cached_tbl_props"))
+    assert(SharkEnv.memoryMetadataManager.containsTable(
+      DEFAULT_DB_NAME, "empty_table_cached_tbl_props"))
+    assert(!SharkEnv.memoryMetadataManager.isHivePartitioned(
+      DEFAULT_DB_NAME, "empty_table_cached_tbl_props"))
   }
 
   test("Insert into empty cached table") {
@@ -280,8 +287,10 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.runSql("drop table if exists test_rename")
     sc.runSql("create table test_oldname_cached as select * from test")
     sc.runSql("alter table test_oldname_cached rename to test_rename")
-    assert(!SharkEnv.memoryMetadataManager.containsTable("test_oldname_cached"))
-    assert(SharkEnv.memoryMetadataManager.containsTable("test_rename"))
+
+    assert(!SharkEnv.memoryMetadataManager.contains(DEFAULT_DB_NAME, "test_oldname_cached"))
+    assert(SharkEnv.memoryMetadataManager.contains(DEFAULT_DB_NAME, "test_rename"))
+
     expectSql("select count(*) from test_rename", "500")
   }
 
@@ -317,7 +326,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.runSql("drop table if exists ctas_tbl_props")
     sc.runSql("""create table ctas_tbl_props TBLPROPERTIES ('shark.cache'='true') as
       select * from test""")
-    assert(SharkEnv.memoryMetadataManager.containsTable("ctas_tbl_props"))
+    assert(SharkEnv.memoryMetadataManager.containsTable(DEFAULT_DB_NAME, "ctas_tbl_props"))
     expectSql("select * from ctas_tbl_props where key=407", "407\tval_407")
   }
 
@@ -327,7 +336,8 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       CREATE TABLE ctas_tbl_props_result_should_not_be_cached
         TBLPROPERTIES ('shark.cache'='false')
         AS select * from test""")
-    assert(!SharkEnv.memoryMetadataManager.containsTable("ctas_tbl_props_should_not_be_cached"))
+    assert(!SharkEnv.memoryMetadataManager.containsTable(
+      DEFAULT_DB_NAME, "ctas_tbl_props_should_not_be_cached"))
   }
 
   test("cached tables with complex types") {
@@ -351,7 +361,8 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     assert(sc.sql("select d from test_complex_types_cached where a = 'a0'").head ===
       """{"d01":["d011","d012"],"d02":["d021","d022"]}""")
 
-    assert(SharkEnv.memoryMetadataManager.containsTable("test_complex_types_cached"))
+    assert(SharkEnv.memoryMetadataManager.containsTable(
+      DEFAULT_DB_NAME, "test_complex_types_cached"))
   }
 
   test("disable caching by default") {
@@ -359,7 +370,8 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.runSql("drop table if exists should_not_be_cached")
     sc.runSql("create table should_not_be_cached as select * from test")
     expectSql("select key from should_not_be_cached where key = 407", "407")
-    assert(!SharkEnv.memoryMetadataManager.containsTable("should_not_be_cached"))
+    assert(!SharkEnv.memoryMetadataManager.containsTable(
+      DEFAULT_DB_NAME, "should_not_be_cached"))
     sc.runSql("set shark.cache.flag.checkTableName=true")
   }
 
@@ -368,7 +380,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.runSql("""create table sharkTest5Cached TBLPROPERTIES ("shark.cache" = "true") as
       select * from test""")
     expectSql("select val from sharktest5Cached where key = 407", "val_407")
-    assert(SharkEnv.memoryMetadataManager.containsTable("sharkTest5Cached"))
+    assert(SharkEnv.memoryMetadataManager.containsTable(DEFAULT_DB_NAME, "sharkTest5Cached"))
   }
 
   test("dropping cached tables should clean up RDDs") {
@@ -376,7 +388,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.runSql("""create table sharkTest5Cached TBLPROPERTIES ("shark.cache" = "true") as
       select * from test""")
     sc.runSql("drop table sharkTest5Cached")
-    assert(!SharkEnv.memoryMetadataManager.containsTable("sharkTest5Cached"))
+    assert(!SharkEnv.memoryMetadataManager.containsTable(DEFAULT_DB_NAME, "sharkTest5Cached"))
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -387,16 +399,19 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.runSql("drop table if exists empty_part_table_cached")
     sc.runSql("""create table empty_part_table_cached(key int, value string)
       partitioned by (keypart int)""")
-    assert(SharkEnv.memoryMetadataManager.containsTable("empty_part_table_cached"))
-    assert(SharkEnv.memoryMetadataManager.isHivePartitioned("empty_part_table_cached"))
+    assert(SharkEnv.memoryMetadataManager.containsTable(DEFAULT_DB_NAME, "empty_part_table_cached"))
+    assert(SharkEnv.memoryMetadataManager.isHivePartitioned(
+      DEFAULT_DB_NAME, "empty_part_table_cached"))
   }
 
   test("Use regular CREATE TABLE and table properties to create cached, partitioned table") {
     sc.runSql("drop table if exists empty_part_table_cached_tbl_props")
     sc.runSql("""create table empty_part_table_cached_tbl_props(key int, value string)
       partitioned by (keypart int) tblproperties('shark.cache' = 'true')""")
-    assert(SharkEnv.memoryMetadataManager.containsTable("empty_part_table_cached_tbl_props"))
-    assert(SharkEnv.memoryMetadataManager.isHivePartitioned("empty_part_table_cached_tbl_props"))
+    assert(SharkEnv.memoryMetadataManager.containsTable(
+      DEFAULT_DB_NAME, "empty_part_table_cached_tbl_props"))
+    assert(SharkEnv.memoryMetadataManager.isHivePartitioned(
+      DEFAULT_DB_NAME, "empty_part_table_cached_tbl_props"))
   }
 
   test("alter cached table by adding a new partition") {
@@ -406,8 +421,9 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.runSql("""alter table alter_part_cached add partition(keypart = 1)""")
     val tableName = "alter_part_cached"
     val partitionColumn = "keypart=1"
-    assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
-    val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
+    assert(SharkEnv.memoryMetadataManager.containsTable(DEFAULT_DB_NAME, tableName))
+    val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(
+      DEFAULT_DB_NAME, tableName).get
     assert(partitionedTable.containsPartition(partitionColumn))
   }
 
@@ -418,8 +434,9 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.runSql("""alter table alter_drop_part_cached add partition(keypart = 1)""")
     val tableName = "alter_drop_part_cached"
     val partitionColumn = "keypart=1"
-    assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
-    val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
+    assert(SharkEnv.memoryMetadataManager.containsTable(DEFAULT_DB_NAME, tableName))
+    val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(
+      DEFAULT_DB_NAME, tableName).get
     assert(partitionedTable.containsPartition(partitionColumn))
     sc.runSql("""alter table alter_drop_part_cached drop partition(keypart = 1)""")
     assert(!partitionedTable.containsPartition(partitionColumn))
@@ -496,7 +513,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.runSql("insert into table drop_union_part_cached partition(keypart = 1) select * from test")
     val keypart1RDD = partitionedTable.getPartition("keypart=1")
     sc.runSql("drop table drop_union_part_cached")
-    assert(!SharkEnv.memoryMetadataManager.containsTable(tableName))
+    assert(!SharkEnv.memoryMetadataManager.containsTable(DEFAULT_DB_NAME, tableName))
     // All RDDs should have been unpersisted.
     assert(keypart1RDD.get.getStorageLevel == StorageLevel.NONE)
   }
@@ -509,8 +526,9 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     val tableName = "default_policy_cached"
     sc.runSql("""create table default_policy_cached(key int, value string)
         partitioned by (keypart int)""")
-    assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
-    val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
+    assert(SharkEnv.memoryMetadataManager.containsTable(DEFAULT_DB_NAME, tableName))
+    val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(
+      DEFAULT_DB_NAME, tableName).get
     val cachePolicy = partitionedTable.cachePolicy
     assert(cachePolicy.isInstanceOf[shark.memstore2.CacheAllPolicy[_, _]])
   }
@@ -566,7 +584,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       3 /* numPartitionsToCreate */,
       3 /* maxCacheSize */,
       "shark.memstore2.LRUCachePolicy")
-    assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
+    assert(SharkEnv.memoryMetadataManager.containsTable(DEFAULT_DB_NAME, tableName))
     val oldKeypart1RDD = partitionedTable.keyToPartitions.get("keypart=1")
     val keypart2RDD = partitionedTable.keyToPartitions.get("keypart=2")
     assert(TestUtils.getStorageLevelOfRDD(oldKeypart1RDD.get) == StorageLevel.MEMORY_AND_DISK)
@@ -590,7 +608,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       3 /* numPartitionsToCreate */,
       3 /* maxCacheSize */,
       "shark.memstore2.LRUCachePolicy")
-    assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
+    assert(SharkEnv.memoryMetadataManager.containsTable(DEFAULT_DB_NAME, tableName))
     val oldKeypart1RDD = partitionedTable.keyToPartitions.get("keypart=1")
     val keypart2RDD = partitionedTable.keyToPartitions.get("keypart=2")
     assert(TestUtils.getStorageLevelOfRDD(oldKeypart1RDD.get) == StorageLevel.MEMORY_AND_DISK)
@@ -614,7 +632,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       3 /* numPartitionsToCreate */,
       3 /* maxCacheSize */,
       "shark.memstore2.LRUCachePolicy")
-    assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
+    assert(SharkEnv.memoryMetadataManager.containsTable(DEFAULT_DB_NAME, tableName))
     sc.runSql("alter table evict_partitions_removals drop partition(keypart = 1)")
     sc.runSql("""insert into table evict_partitions_removals partition(keypart = 4)
       select * from test""")
@@ -631,7 +649,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       3 /* numPartitionsToCreate */,
       3 /* maxCacheSize */,
       "shark.memstore2.LRUCachePolicy")
-    assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
+    assert(SharkEnv.memoryMetadataManager.containsTable(DEFAULT_DB_NAME, tableName))
     val keypart1RDD = partitionedTable.keyToPartitions.get("keypart=1")
     val lvl = TestUtils.getStorageLevelOfRDD(keypart1RDD.get)
     assert(lvl == StorageLevel.MEMORY_AND_DISK, "got: " + lvl)
@@ -682,6 +700,27 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       where month(from_unixtime(k)) between "1" and "12" """, Array[String]("500"))
     expectSql("""select count(*) from mapsplitfunc_cached
       where year(from_unixtime(k)) between "2013" and "2014" """, Array[String]("0"))
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // SharkContext APIs (e.g. sql2rdd, sql)
+  //////////////////////////////////////////////////////////////////////////////
+
+  test("cached table in different new database") {
+    sc.sql("drop table if exists selstar")
+    sc.sql("""create table selstar TBLPROPERTIES ("shark.cache" = "true") as
+      select * from default.test """)
+    sc.sql("use seconddb")
+    sc.sql("drop table if exists selstar")
+    sc.sql("""create table selstar TBLPROPERTIES ("shark.cache" = "true") as
+      select * from default.test where key != 'val_487' """)
+
+    sc.sql("use default")
+    expectSql("select * from selstar where val='val_487'","487	val_487")
+
+    assert(SharkEnv.memoryMetadataManager.contains(DEFAULT_DB_NAME, "selstar"))
+    assert(SharkEnv.memoryMetadataManager.contains("seconddb", "selstar"))
+
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -774,4 +813,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     val e = intercept[QueryExecutionException] { sc.sql2rdd("asdfasdfasdfasdf") }
     e.getMessage.contains("semantic")
   }
+
+
+  
 }

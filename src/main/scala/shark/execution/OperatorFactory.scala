@@ -48,6 +48,7 @@ object OperatorFactory extends LogHelper {
   def createSharkMemoryStoreOutputPlan(
       hiveTerminalOp: HOperator[_<:HiveDesc],
       tableName: String,
+      databaseName: String,
       storageLevel: StorageLevel,
       numColumns: Int,
       hivePartitionKey: String,
@@ -59,6 +60,7 @@ object OperatorFactory extends LogHelper {
       classOf[MemoryStoreSinkOperator], hiveOp).asInstanceOf[MemoryStoreSinkOperator]
     sinkOp.localHiveOp = hiveOp
     sinkOp.tableName = tableName
+    sinkOp.databaseName = databaseName
     sinkOp.storageLevel = storageLevel
     sinkOp.numColumns = numColumns
     sinkOp.cacheMode = cacheMode

@@ -118,15 +118,16 @@ object SharkEnv extends LogHelper {
    *
    * @param tableName The table that should be dropped from the Shark metastore and from memory storage.
    */
-  def dropTable(tableName: String): Option[RDD[_]] = {
-    if (SharkEnv.tachyonUtil.tachyonEnabled() && SharkEnv.tachyonUtil.tableExists(tableName)) {
-      if (SharkEnv.tachyonUtil.dropTable(tableName)) {
-        logInfo("Table " + tableName + " was deleted from Tachyon.");
+  def dropTable(databaseName: String, tableName: String): Option[RDD[_]] = {
+    val tableKey = makeTableKey(databaseName, tableName)
+    if (SharkEnv.tachyonUtil.tachyonEnabled() && SharkEnv.tachyonUtil.tableExists(tableKey)) {
+      if (SharkEnv.tachyonUtil.dropTable(tableKey)) {
+        logInfo("Table " + tableKey + " was deleted from Tachyon.");
       } else {
-        logWarning("Failed to remove table " + tableName + " from Tachyon.");
+        logWarning("Failed to remove table " + tableKey + " from Tachyon.");
       }
     }
-    return memoryMetadataManager.removeTable(tableName)
+    return memoryMetadataManager.removeTable(databaseName, tableName)
   }
 
   /** Cleans up and shuts down the Shark environments. */
@@ -141,6 +142,7 @@ object SharkEnv extends LogHelper {
 
   /** Return the value of an environmental variable as a string. */
   def getEnv(varname: String) = if (System.getenv(varname) == null) "" else System.getenv(varname)
+
 }
 
 

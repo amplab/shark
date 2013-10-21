@@ -164,12 +164,16 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
             OperatorFactory.createSharkFileOutputPlan(hiveSinkOp)
           } else {
             // Otherwise, check if we are inserting into a table that was cached.
+            val tableNameSplit = tableName.split('.') // Split from 'databaseName.tableName'
+            val cachedTableName = tableNameSplit(1)
+            val databaseName = tableNameSplit(0)
             val cachedTableName = tableName.split('.')(1) // Ignore the database name
-            if (SharkEnv.memoryMetadataManager.containsTable(cachedTableName)) {
+            if (SharkEnv.memoryMetadataManager.containsTable(databaseName, cachedTableName)) {
               if (hiveSinkOps.size == 1) {
                 // If useUnionRDD is false, the sink op is for INSERT OVERWRITE.
                 val useUnionRDD = qbParseInfo.isInsertIntoTable(cachedTableName)
-                val table = SharkEnv.memoryMetadataManager.getTable(cachedTableName).get
+                val table = SharkEnv.memoryMetadataManager.getTable(
+                  databaseName, cachedTableName).get
                 val cacheMode = table.cacheMode
                 var hivePartitionKey = new String
                 if (SharkEnv.memoryMetadataManager.isHivePartitioned(cachedTableName)) {
@@ -183,6 +187,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                 OperatorFactory.createSharkMemoryStoreOutputPlan(
                   hiveSinkOp,
                   cachedTableName,
+                  databaseName,
                   preferredStorageLevel,
                   _resSchema.size,  /* numColumns */
                   hivePartitionKey,
@@ -209,6 +214,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
             OperatorFactory.createSharkMemoryStoreOutputPlan(
               hiveSinkOps.head,
               qb.getTableDesc.getTableName,
+              qb.getTableDesc.getDatabaseName,
               preferredStorageLevel,
               _resSchema.size,  /* numColumns */
               new String,  /* hivePartitionKey */

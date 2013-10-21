@@ -40,32 +40,54 @@ class MemoryMetadataManager {
   private val _keyToStats: ConcurrentMap[String, collection.Map[Int, TablePartitionStats]] =
     new ConcurrentHashMap[String, collection.Map[Int, TablePartitionStats]]
 
-  def putStats(key: String, stats: collection.Map[Int, TablePartitionStats]) {
-    _keyToStats.put(key.toLowerCase, stats)
+  def putStats(
+      databaseName: String,
+      tableName: String,
+      stats: collection.Map[Int, TablePartitionStats]) {
+    val tableKey = makeTableKey(databaseName, tableKey)
+    _keyToStats.put(tableKey, stats)
   }
 
-  def getStats(key: String): Option[collection.Map[Int, TablePartitionStats]] = {
-    _keyToStats.get(key.toLowerCase)
+  def getStats(
+      databaseName: String,
+      tableName: String): Option[collection.Map[Int, TablePartitionStats]] = {
+    val tableKey = makeTableKey(databaseName, tableName)
+    _keyToStats.get(tableKey)
+  }
+
+  def isHivePartitioned(databaseName: String, tableName: String): Boolean = {
+    val tableKey = makeTableKey(databaseName, tableName)
+    _keyToTable.get(tableKey) match {
+      case Some(table) => return table.isInstanceOf[PartitionedMemoryTable]
+      case None => return false
+    }
+  }
+
+  def containsTable(databaseName: String, tableName: String): Boolean = {
+    _keyToTable.contains(makeTableKey(databaseName, tableName))
   }
 
   def createMemoryTable(
+      databaseName: String,
       tableName: String,
       cacheMode: CacheType.CacheType,
       preferredStorageLevel: StorageLevel
     ): MemoryTable = {
-    var newTable = new MemoryTable(tableName.toLowerCase, cacheMode, preferredStorageLevel)
+    val tableKey = makeTableKey(databaseName, tableName)
+    var newTable = new MemoryTable(tableKey, cacheMode, preferredStorageLevel)
     _keyToTable.put(tableName.toLowerCase, newTable)
     return newTable
   }
 
   def createPartitionedMemoryTable(
+      databaseName: String,
       tableName: String,
       cacheMode: CacheType.CacheType,
       preferredStorageLevel: StorageLevel,
       tblProps: JavaMap[String, String]
     ): PartitionedMemoryTable = {
-    var newTable = new PartitionedMemoryTable(
-      tableName.toLowerCase, cacheMode, preferredStorageLevel)
+    val tableKey = makeTableKey(databaseName, tableName)
+    var newTable = new PartitionedMemoryTable(tableKey, cacheMode, preferredStorageLevel)
     // Determine the cache policy to use and read any user-specified cache settings.
     val cachePolicyStr = tblProps.getOrElse(SharkConfVars.CACHE_POLICY.varname,
       SharkConfVars.CACHE_POLICY.defaultVal)
@@ -73,18 +95,9 @@ class MemoryMetadataManager {
       SharkConfVars.MAX_PARTITION_CACHE_SIZE.defaultVal).toInt
     newTable.setPartitionCachePolicy(cachePolicyStr, maxCacheSize)
 
-    _keyToTable.put(tableName.toLowerCase, newTable)
+    _keyToTable.put(tableKey, newTable)
     return newTable
   }
-
-  def isHivePartitioned(tableName: String): Boolean = {
-    _keyToTable.get(tableName.toLowerCase) match {
-      case Some(table) => return table.isInstanceOf[PartitionedMemoryTable]
-      case None => return false
-    }
-  }
-
-  def containsTable(tableName: String): Boolean = _keyToTable.contains(tableName.toLowerCase)
 
   def getTable(tableName: String): Option[Table] = _keyToTable.get(tableName.toLowerCase)
 
@@ -106,17 +119,17 @@ class MemoryMetadataManager {
     tableOpt.asInstanceOf[Option[PartitionedMemoryTable]]
   }
 
-  def renameTable(oldName: String, newName: String) {
-    val lowerCaseOldName = oldName.toLowerCase
-    if (containsTable(lowerCaseOldName)) {
-      val lowerCaseNewName = newName.toLowerCase
+  def renameTable(databaseName: String, oldName: String, newName: String) {
+    if (containsTable(databaseName, oldName)) {
+      val oldTableKey = makeTableKey(databaseName, oldName)
+      val newTableKey = makeTableKey(databaseName, newName)
 
-      val statsValueEntry = _keyToStats.remove(lowerCaseOldName).get
-      val tableValueEntry = _keyToTable.remove(lowerCaseOldName).get
-      tableValueEntry.tableName = lowerCaseNewName
+      val statsValueEntry = _keyToStats.remove(oldTableKey).get
+      val tableValueEntry = _keyToTable.remove(oldTableKey).get
+      tableValueEntry.tableName = newTableKey
 
-      _keyToStats.put(lowerCaseNewName, statsValueEntry)
-      _keyToTable.put(lowerCaseNewName, tableValueEntry)
+      _keyToStats.put(newTableKey, statsValueEntry)
+      _keyToTable.put(newTableKey, tableValueEntry)
     }
   }
 
@@ -129,13 +142,12 @@ class MemoryMetadataManager {
    *     in _keyToMemoryTable. For MemoryTables that are Hive-partitioned, the RDD returned will
    *     be a UnionRDD comprising RDDs that represent the table's Hive-partitions.
    */
-  def removeTable(tableName: String): Option[RDD[_]] = {
-    val lowerCaseTableName = tableName.toLowerCase
+  def removeTable(databaseName:String, tableName: String): Option[RDD[_]] = {
+    val tableKey = makeTableKey(databaseName, tableName)
 
     // Remove MemoryTable's entry from Shark metadata.
-    _keyToStats.remove(lowerCaseTableName)
-
-    val tableValue: Option[Table] = _keyToTable.remove(lowerCaseTableName)
+    _keyToStats.remove(tableKey)
+    val tableValue: Option[Table] = _keyToTable.remove(tableKey)
     return tableValue.flatMap(MemoryMetadataManager.unpersistRDDsInTable(_))
   }
 
@@ -147,6 +159,11 @@ class MemoryMetadataManager {
   def getAllKeyStrings(): Seq[String] = {
     _keyToTable.keys.collect { case k: String => k } toSeq
   }
+
+  private def makeTableKey(databaseName: String, tableName: String) = {
+    return (databaseName + '.' + tableName).toLowerCase
+  }
+
 }
 
 

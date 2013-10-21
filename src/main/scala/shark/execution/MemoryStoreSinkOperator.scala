@@ -53,6 +53,9 @@ class MemoryStoreSinkOperator extends TerminalOperator {
   // the table that is modified.
   @BeanProperty var tableName: String = _
 
+  // The Hive metastore DB that the `tableName` table belongs to.
+  @BeanProperty var databaseName: String = _
+
   // Used only for commands that target Hive partitions. The partition key is a set of unique values
   // for the the table's partitioning columns and identifies the partition (represented by an RDD)
   // that will be created or modified by the INSERT command being handled.
@@ -143,8 +146,9 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         outputRDD, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
     } else {
       // Put the table in Spark block manager.
-      op.logInfo("Putting %sRDD for %s in Spark block manager, %s %s %s %s".format(
+      op.logInfo("Putting %sRDD for %s.%s in Spark block manager, %s %s %s %s".format(
         if (useUnionRDD) "Union" else "",
+        databaseName,
         tableName,
         if (storageLevel.deserialized) "deserialized" else "serialized",
         if (storageLevel.useMemory) "in memory" else "",
@@ -209,7 +213,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         // Combine stats for the two RDDs that were combined into UnionRDD.
         val numPartitions = statsAcc.value.toMap.size
         val currentStats = statsAcc.value
-        SharkEnv.memoryMetadataManager.getStats(tableName) match {
+        SharkEnv.memoryMetadataManager.getStats(databseName, tableName) match {
           case Some(otherIndexToStats) => {
             for ((otherIndex, tableStats) <- otherIndexToStats) {
               currentStats.append((otherIndex + numPartitions, tableStats))
@@ -223,7 +227,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       }
 
     // Get the column statistics back to the cache manager.
-    SharkEnv.memoryMetadataManager.putStats(tableName, columnStats)
+    SharkEnv.memoryMetadataManager.putStats(databaseName, tableName, columnStats)
 
     if (tachyonWriter != null) {
       tachyonWriter.updateMetadata(ByteBuffer.wrap(JavaSerializer.serialize(columnStats)))
