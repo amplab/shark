@@ -110,8 +110,10 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
 
   override def execute(): RDD[_] = {
     assert(parentOperators.size == 0)
-    val tableKey: String = tableDesc.getTableName.split('.')(1)
 
+    val tableNameSplit = tableName.split('.') // Split from 'databaseName.tableName'
+    val tableName = tableNameSplit(1)
+    val databaseName = tableNameSplit(0)
     // There are three places we can load the table from.
     // 1. Tachyon table
     // 2. Spark heap (block manager), accessed through the Shark MemoryMetadataManager
@@ -121,19 +123,19 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
     // TODO(harvey): Pruning Hive-partitioned, cached tables isn't supported yet.
     if (cacheMode == CacheType.HEAP) {
       // Table should be in Spark heap (block manager).
-      if (!SharkEnv.memoryMetadataManager.containsTable(tableKey)) {
+      if (!SharkEnv.memoryMetadataManager.containsTable(databaseName, tableName)) {
         logError("""|Table %s not found in block manager.
                     |Are you trying to access a cached table from a Shark session other than
                     |the one in which it was created?""".stripMargin.format(tableKey))
-        throw(new QueryExecutionException("Cached table not found"))
+        throw new QueryExecutionException("Cached table not found")
       }
-      if (SharkEnv.memoryMetadataManager.isHivePartitioned(tableKey)) {
+      if (SharkEnv.memoryMetadataManager.isHivePartitioned(databaseName, tableName)) {
         // Get the union of RDDs repesenting the selected Hive partition(s).
-        makeCachedPartitionRDD(tableKey, parts)
+        return makeCachedPartitionRDD(tableKey, parts)
       } else {
-        val rdd = SharkEnv.memoryMetadataManager.getMemoryTable(tableKey).get.tableRDD
-        logInfo("Loading table " + tableKey + " from Spark block manager")
-        createPrunedRdd(tableKey, rdd)
+        val table = SharkEnv.memoryMetadataManager.getMemoryTable(databaseName, tableName).get
+        logInfo("Loading table %s.%s from Spark block manager".format(databaseName, tableName))
+        return createPrunedRdd(databaseNamem, tableName, table.tableRDD)
       }
     } else if (cacheMode == CacheType.TACHYON) {
       // Table is in Tachyon.
@@ -143,26 +145,26 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
       logInfo("Loading table " + tableKey + " from Tachyon.")
 
       var indexToStats: collection.Map[Int, TablePartitionStats] =
-        SharkEnv.memoryMetadataManager.getStats(tableKey).getOrElse(null)
+        SharkEnv.memoryMetadataManager.getStats(databaseName, tableKey).getOrElse(null)
 
       if (indexToStats == null) {
         val statsByteBuffer = SharkEnv.tachyonUtil.getTableMetadata(tableKey)
         indexToStats = JavaSerializer.deserialize[collection.Map[Int, TablePartitionStats]](
           statsByteBuffer.array())
         logInfo("Loading table " + tableKey + " stats from Tachyon.")
-        SharkEnv.memoryMetadataManager.putStats(tableKey, indexToStats)
+        SharkEnv.memoryMetadataManager.putStats(databaseName, tableKey, indexToStats)
       }
-      return createPrunedRdd(tableKey, SharkEnv.tachyonUtil.createRDD(tableKey))
+      return createPrunedRdd(databaseName, tableName, SharkEnv.tachyonUtil.createRDD(tableName))
     } else {
       // Table is a Hive table on HDFS (or other Hadoop storage).
       return makeRDDFromHadoop()
     }
   }
 
-  private def createPrunedRdd(tableKey: String, rdd: RDD[_]): RDD[_] = {
+  private def createPrunedRdd(databaseName: String, tableName: String, rdd: RDD[_]): RDD[_] = {
     // Stats used for map pruning.
     val indexToStats: collection.Map[Int, TablePartitionStats] =
-      SharkEnv.memoryMetadataManager.getStats(tableKey).get
+      SharkEnv.memoryMetadataManager.getStats(databaseName, tableName).get
 
     // Run map pruning if the flag is set, there exists a filter predicate on
     // the input table and we have statistics on the table.

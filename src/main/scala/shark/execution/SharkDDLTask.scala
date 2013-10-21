@@ -53,11 +53,16 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
   with Serializable with LogHelper {
 
   override def execute(driverContext: DriverContext): Int = {
+    val hiveDb = Hive.get(conf)
+
+    // TODO(harvey): Check whether the `hiveDb` is needed. HiveTask should already have a `db` to
+    //   use.
+
     work.ddlDesc match {
-      case creatTblDesc: CreateTableDesc => createTable(creatTblDesc, work.cacheMode)
-      case addPartitionDesc: AddPartitionDesc => addPartition(addPartitionDesc)
-      case dropTableDesc: DropTableDesc => dropTableOrPartition(dropTableDesc)
-      case alterTableDesc: AlterTableDesc => alterTable(alterTableDesc)
+      case creatTblDesc: CreateTableDesc => createTable(hiveDb, creatTblDesc, work.cacheMode)
+      case addPartitionDesc: AddPartitionDesc => addPartition(hiveDb, addPartitionDesc)
+      case dropTableDesc: DropTableDesc => dropTableOrPartition(hiveDb, dropTableDesc)
+      case alterTableDesc: AlterTableDesc => alterTable(hiveDb, alterTableDesc)
       case _ => {
         throw new UnsupportedOperationException(
           "Shark does not require a Shark DDL task for: " + work.ddlDesc.getClass.getName)
@@ -70,7 +75,10 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
   }
 
   /** Handles a CREATE TABLE or CTAS. */
-  def createTable(createTblDesc: CreateTableDesc, cacheMode: CacheType.CacheType) {
+  def createTable(
+      hiveMetadataDb: Hive,
+      createTblDesc: CreateTableDesc, cacheMode: CacheType.CacheType) {
+    val dbName = hiveMetadataDb.getCurrentDatabase()
     val tableName = createTblDesc.getTableName
     val tblProps = createTblDesc.getTblProps
 
@@ -81,6 +89,7 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
       // Add a new PartitionedMemoryTable entry in the Shark metastore.
       // An empty table has a PartitionedMemoryTable entry with no 'hivePartition -> RDD' mappings.
       SharkEnv.memoryMetadataManager.createPartitionedMemoryTable(
+        dbName,
         tableName,
         cacheMode,
         preferredStorageLevel,
@@ -94,12 +103,15 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
   }
 
   /** Handles an ALTER TABLE ADD PARTITION. */
-  def addPartition(addPartitionDesc: AddPartitionDesc) {
+  def addPartition(
+      hiveMetadataDb: Hive,
+      addPartitionDesc: AddPartitionDesc) {
+    val dbName = hiveMetadataDb.getCurrentDatabase()
     val tableName = addPartitionDesc.getTableName
-    val partitionedTable = getPartitionedTableWithAssertions(tableName)
+    val partitionedTable = getPartitionedTableWithAssertions(dbName, tableName)
 
     // Find the set of partition column values that specifies the partition being added.
-    val hiveTable = db.getTable(db.getCurrentDatabase(), tableName, false /* throwException */);
+    val hiveTable = db.getTable(tableName, false /* throwException */);
     val partCols: Seq[String] = hiveTable.getPartCols.map(_.getName)
     val partColToValue: JavaMap[String, String] = addPartitionDesc.getPartSpec
     // String format for partition key: 'col1=value1/col2=value2/...'
@@ -111,17 +123,20 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
    * A DropTableDesc is used for both dropping entire tables (i.e., DROP TABLE) and for dropping
    * individual partitions of a table (i.e., ALTER TABLE DROP PARTITION).
    */
-  def dropTableOrPartition(dropTableDesc: DropTableDesc) {
+  def dropTableOrPartition(
+      hiveMetadataDb: Hive,
+      dropTableDesc: DropTableDesc) {
+    val dbName = hiveMetadataDb.getCurrentDatabase()
     val tableName = dropTableDesc.getTableName
-    val hiveTable = db.getTable(db.getCurrentDatabase(), tableName, false /* throwException */);
+    val hiveTable = db.getTable(tableName, false /* throwException */);
     val partSpecs: JavaList[PartitionSpec] = dropTableDesc.getPartSpecs
 
     if (partSpecs == null) {
       // The command is a true DROP TABLE.
-      SharkEnv.dropTable(tableName)
+      SharkEnv.dropTable(dbName, tableName)
     } else {
       // The command is an ALTER TABLE DROP PARTITION
-      val partitionedTable = getPartitionedTableWithAssertions(tableName)
+      val partitionedTable = getPartitionedTableWithAssertions(dbName, tableName)
       // Find the set of partition column values that specifies the partition being dropped.
       val partCols: Seq[String] = hiveTable.getPartCols.map(_.getName)
       for (partSpec <- partSpecs) {
@@ -134,12 +149,15 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
   }
 
   /** Handles miscellaneous ALTER TABLE 'tableName' commands. */
-  def alterTable(alterTableDesc: AlterTableDesc) {
+  def alterTable(
+      hiveMetadataDb: Hive,
+      alterTableDesc: AlterTableDesc) {
+    val dbName = hiveMetadataDb.getCurrentDatabase()
     alterTableDesc.getOp() match {
       case AlterTableDesc.AlterTableTypes.RENAME => {
         val oldName = alterTableDesc.getOldName
         val newName = alterTableDesc.getNewName
-        SharkEnv.memoryMetadataManager.renameTable(oldName, newName)
+        SharkEnv.memoryMetadataManager.renameTable(dbName, oldName, newName)
       }
       case _ => {
         // TODO(harvey): Support more ALTER TABLE commands, such as ALTER TABLE PARTITION RENAME TO.
@@ -149,10 +167,12 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
     }
   }
 
-  def getPartitionedTableWithAssertions(tableName: String): PartitionedMemoryTable = {
+  private def getPartitionedTableWithAssertions(
+      dbName: String,
+      tableName: String): PartitionedMemoryTable = {
     // Sanity checks: make sure that the table we're modifying exists in the Shark metastore and
     // is actually partitioned.
-    val tableOpt = SharkEnv.memoryMetadataManager.getTable(tableName)
+    val tableOpt = SharkEnv.memoryMetadataManager.getTable(dbName, tableName)
     assert(tableOpt.isDefined, "Internal Error: table %s doesn't exist in Shark metastore.")
     assert(tableOpt.get.isInstanceOf[PartitionedMemoryTable],
       "Internal Error: table %s isn't partitioned when it should be.")
@@ -164,4 +184,5 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
   override def getName = "DDL-SPARK"
 
   override def localizeMRTmpFilesImpl(ctx: Context) = Unit
+
 }
