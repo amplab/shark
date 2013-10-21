@@ -189,8 +189,9 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
             OperatorFactory.createSharkFileOutputPlan(hiveSinkOp)
           } else {
             // Otherwise, check if we are inserting into a table that was cached.
-            val cachedTableName = tableName.split('.')(1) // Ignore the database name
-            SharkEnv.memoryMetadataManager.get(cachedTableName) match {
+        	val cachedTableName = tableName.split('.')(1) // Ignore the database name
+        	val databaseName = tableName.split('.')(0)
+            SharkEnv.memoryMetadataManager.get(databaseName, cachedTableName) match {
               case Some(rdd) => {
                 if (hiveSinkOps.size == 1) {
                   // If useUnionRDD is false, the sink op is for INSERT OVERWRITE.
@@ -199,6 +200,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                   OperatorFactory.createSharkMemoryStoreOutputPlan(
                     hiveSinkOp,
                     cachedTableName,
+                    databaseName,
                     storageLevel,
                     _resSchema.size,                // numColumns
                     cacheMode == CacheType.TACHYON, // use tachyon
@@ -223,6 +225,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
             OperatorFactory.createSharkMemoryStoreOutputPlan(
               hiveSinkOps.head,
               qb.getTableDesc.getTableName,
+              qb.getTableDesc.getDatabaseName,
               storageLevel,
               _resSchema.size,                // numColumns
               cacheMode == CacheType.TACHYON, // use tachyon

@@ -42,6 +42,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
   @BeanProperty var shouldCompress: Boolean = _
   @BeanProperty var storageLevel: StorageLevel = _
   @BeanProperty var tableName: String = _
+  @BeanProperty var databaseName: String = _
   @transient var useTachyon: Boolean = _
   @transient var useUnionRDD: Boolean = _
   @transient var numColumns: Int = _
@@ -100,7 +101,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       // Put the table in Tachyon.
       op.logInfo("Putting RDD for %s in Tachyon".format(tableName))
 
-      SharkEnv.memoryMetadataManager.put(tableName, rdd)
+      SharkEnv.memoryMetadataManager.put(databaseName, tableName, rdd)
 
       tachyonWriter.createTable(ByteBuffer.allocate(0))
       rdd = rdd.mapPartitionsWithIndex { case(partitionIndex, iter) =>
@@ -114,8 +115,9 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       rdd.context.runJob(rdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
     } else {
       // Put the table in Spark block manager.
-      op.logInfo("Putting %sRDD for %s in Spark block manager, %s %s %s %s".format(
+      op.logInfo("Putting %sRDD for %s.%s in Spark block manager, %s %s %s %s".format(
         if (useUnionRDD) "Union" else "",
+        databaseName,
         tableName,
         if (storageLevel.deserialized) "deserialized" else "serialized",
         if (storageLevel.useMemory) "in memory" else "",
@@ -131,20 +133,20 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         // put the union into the meta data tracker.
         
 
-        val nextPartNum = SharkEnv.memoryMetadataManager.getNextPartNum(tableName)
+        val nextPartNum = SharkEnv.memoryMetadataManager.getNextPartNum(databaseName, tableName)
         if (nextPartNum == 1) {
           // reset rdd name for existing rdd
-          SharkEnv.memoryMetadataManager.get(tableName).get.asInstanceOf[RDD[TablePartition]]
-            .setName(tableName + ".part0")
+          SharkEnv.memoryMetadataManager.get(databaseName, tableName).get.asInstanceOf[RDD[TablePartition]]
+            .setName(databaseName + '.' + tableName + ".part0")
         }
-        rdd.setName(tableName + ".part" + nextPartNum)
+        rdd.setName(databaseName + ',' + tableName + ".part" + nextPartNum)
           
         rdd = rdd.union(
-          SharkEnv.memoryMetadataManager.get(tableName).get.asInstanceOf[RDD[TablePartition]])
+          SharkEnv.memoryMetadataManager.get(databaseName, tableName).get.asInstanceOf[RDD[TablePartition]])
       } else {
-        rdd.setName(tableName)
+        rdd.setName(databaseName + '.' + tableName)
       }
-      SharkEnv.memoryMetadataManager.put(tableName, rdd)
+      SharkEnv.memoryMetadataManager.put(databaseName, tableName, rdd)
 
       // Run a job on the original RDD to force it to go into cache.
       origRdd.context.runJob(origRdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
@@ -169,7 +171,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         // Combine stats for the two tables being combined.
         val numPartitions = statsAcc.value.toMap.size
         val currentStats = statsAcc.value
-        val otherIndexToStats = SharkEnv.memoryMetadataManager.getStats(tableName).get
+        val otherIndexToStats = SharkEnv.memoryMetadataManager.getStats(databaseName, tableName).get
         for ((otherIndex, tableStats) <- otherIndexToStats) {
           currentStats.append((otherIndex + numPartitions, tableStats))
         }
@@ -179,7 +181,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       }
 
     // Get the column statistics back to the cache manager.
-    SharkEnv.memoryMetadataManager.putStats(tableName, columnStats)
+    SharkEnv.memoryMetadataManager.putStats(databaseName, tableName, columnStats)
 
     if (tachyonWriter != null) {
       tachyonWriter.updateMetadata(ByteBuffer.wrap(JavaSerializer.serialize(columnStats)))

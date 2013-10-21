@@ -60,7 +60,7 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork] with Serializab
     if (alterTableDesc.getOp() == AlterTableDesc.AlterTableTypes.RENAME) {
       val oldName = alterTableDesc.getOldName
       val newName = alterTableDesc.getNewName
-      SharkEnv.memoryMetadataManager.rename(oldName, newName)
+      SharkEnv.memoryMetadataManager.rename(hiveMetadataDb.getCurrentDatabase(), oldName, newName)
     }
   }
 

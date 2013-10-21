@@ -21,7 +21,7 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
 
     astNode.getToken.getType match {
       case HiveParser.TOK_DROPTABLE => {
-        SharkEnv.unpersist(getTableName(astNode))
+        SharkEnv.unpersist(db.getCurrentDatabase(), getTableName(astNode))
       }
       case HiveParser.TOK_ALTERTABLE_RENAME => {
         analyzeAlterTableRename(astNode)
@@ -32,7 +32,7 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
 
   private def analyzeAlterTableRename(astNode: ASTNode) {
     val oldTableName = getTableName(astNode)
-    if (SharkEnv.memoryMetadataManager.contains(oldTableName)) {
+    if (SharkEnv.memoryMetadataManager.contains(db.getCurrentDatabase(), oldTableName)) {
       val newTableName = BaseSemanticAnalyzer.getUnescapedName(
         astNode.getChild(1).asInstanceOf[ASTNode])
 

@@ -40,23 +40,33 @@ class MemoryMetadataManager {
   private val _keyToStats: ConcurrentMap[String, collection.Map[Int, TablePartitionStats]] =
     new ConcurrentHashMap[String, collection.Map[Int, TablePartitionStats]]
 
-  def contains(key: String) = _keyToRdd.contains(key.toLowerCase)
+  def contains(databaseName: String, tableName: String) = {
+    val key = databaseName + '.' + tableName
+    _keyToRdd.contains(key.toLowerCase)
+  }
 
-  def put(key: String, rdd: RDD[_]) {
+  def put(databaseName: String, tableName: String, rdd: RDD[_]) {
+    val key = databaseName + '.' + tableName
     _keyToRdd(key.toLowerCase) = rdd
   }
 
-  def get(key: String): Option[RDD[_]] = _keyToRdd.get(key.toLowerCase)
+  def get(databaseName: String, tableName: String): Option[RDD[_]] = {
+    val key = databaseName + '.' + tableName
+    _keyToRdd.get(key.toLowerCase) 
+  }
 
-  def putStats(key: String, stats: collection.Map[Int, TablePartitionStats]) {
+  def putStats(databaseName: String, tableName: String, stats: collection.Map[Int, TablePartitionStats]) {
+    val key = databaseName + '.' + tableName
     _keyToStats.put(key.toLowerCase, stats)
   }
 
-  def getStats(key: String): Option[collection.Map[Int, TablePartitionStats]] = {
+  def getStats(databaseName: String, tableName: String): Option[collection.Map[Int, TablePartitionStats]] = {
+    val key = databaseName + '.' + tableName
     _keyToStats.get(key.toLowerCase)
   }
 
-  def getNextPartNum(key: String): Int = {
+  def getNextPartNum(databaseName: String, tableName: String): Int = {
+    val key = databaseName + '.' + tableName
     val currentPartNum = _keyToNextPart.get(key.toLowerCase)
     currentPartNum match {
       case Some(partNum) => {
@@ -70,8 +80,11 @@ class MemoryMetadataManager {
     }
   }
 
-  def rename(oldKey: String, newKey: String) {
-    if (contains(oldKey)) {
+  def rename(databaseName: String, oldTableName: String, newTableName: String) {
+    val oldKey = databaseName + '.' + oldTableName
+    val newKey = databaseName + '.' + newTableName
+
+    if (contains(databaseName, oldTableName)) {
       val oldKeyToLowerCase = oldKey.toLowerCase
       val newKeyToLowerCase = newKey.toLowerCase
 
@@ -98,7 +111,8 @@ class MemoryMetadataManager {
    * @return Option::isEmpty() is true if there is no RDD value corresponding to 'key' in
    *         '_keyToRDD'. Otherwise, returns a reference to the RDD that was unpersist()'ed.
    */
-  def unpersist(key: String): Option[RDD[_]] = {
+  def unpersist(databaseName: String, tableName: String): Option[RDD[_]] = {
+    val key = databaseName + '.' + tableName
     def unpersistRDD(rdd: RDD[_]): Unit = {
       rdd match {
         case u: UnionRDD[_] => {

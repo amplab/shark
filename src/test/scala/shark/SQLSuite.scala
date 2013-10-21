@@ -40,6 +40,9 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
 
     sc.runSql("set shark.test.data.path=" + TestUtils.dataFilePath)
 
+    // second db
+    sc.sql("create database if not exists seconddb")
+    
     // test
     sc.runSql("drop table if exists test")
     sc.runSql("CREATE TABLE test (key INT, val STRING)")
@@ -227,8 +230,8 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.runSql("drop table if exists test_rename")
     sc.runSql("create table test_oldname_cached as select * from test")
     sc.runSql("alter table test_oldname_cached rename to test_rename")
-    assert(!SharkEnv.memoryMetadataManager.contains("test_oldname_cached"))
-    assert(SharkEnv.memoryMetadataManager.contains("test_rename"))
+    assert(!SharkEnv.memoryMetadataManager.contains("default", "test_oldname_cached"))
+    assert(SharkEnv.memoryMetadataManager.contains("default", "test_rename"))
     expectSql("select count(*) from test_rename", "500")
   }
 
@@ -272,7 +275,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.runSql("drop table if exists ctas_tbl_props")
     sc.runSql("""create table ctas_tbl_props TBLPROPERTIES ('shark.cache'='true') as
       select * from test""")
-    assert(SharkEnv.memoryMetadataManager.contains("ctas_tbl_props"))
+    assert(SharkEnv.memoryMetadataManager.contains("default", "ctas_tbl_props"))
     expectSql("select * from ctas_tbl_props where key=407", "407\tval_407")
   }
 
@@ -282,7 +285,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       CREATE TABLE ctas_tbl_props_result_should_not_be_cached
         TBLPROPERTIES ('shark.cache'='false')
         AS select * from test""")
-    assert(!SharkEnv.memoryMetadataManager.contains("ctas_tbl_props_should_not_be_cached"))
+    assert(!SharkEnv.memoryMetadataManager.contains("default", "ctas_tbl_props_should_not_be_cached"))
   }
 
   test("cached tables with complex types") {
@@ -306,7 +309,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     assert(sc.sql("select d from test_complex_types_cached where a = 'a0'").head ===
       """{"d01":["d011","d012"],"d02":["d021","d022"]}""")
 
-    assert(SharkEnv.memoryMetadataManager.contains("test_complex_types_cached"))
+    assert(SharkEnv.memoryMetadataManager.contains("default", "test_complex_types_cached"))
   }
 
   test("disable caching by default") {
@@ -314,7 +317,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.runSql("drop table if exists should_not_be_cached")
     sc.runSql("create table should_not_be_cached as select * from test")
     expectSql("select key from should_not_be_cached where key = 407", "407")
-    assert(!SharkEnv.memoryMetadataManager.contains("should_not_be_cached"))
+    assert(!SharkEnv.memoryMetadataManager.contains("default", "should_not_be_cached"))
     sc.runSql("set shark.cache.flag.checkTableName=true")
   }
 
@@ -323,7 +326,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.runSql("""create table sharkTest5Cached TBLPROPERTIES ("shark.cache" = "true") as
       select * from test""")
     expectSql("select val from sharktest5Cached where key = 407", "val_407")
-    assert(SharkEnv.memoryMetadataManager.contains("sharkTest5Cached"))
+    assert(SharkEnv.memoryMetadataManager.contains("default", "sharkTest5Cached"))
   }
 
   test("dropping cached tables should clean up RDDs") {
@@ -331,7 +334,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.runSql("""create table sharkTest5Cached TBLPROPERTIES ("shark.cache" = "true") as
       select * from test""")
     sc.runSql("drop table sharkTest5Cached")
-    assert(!SharkEnv.memoryMetadataManager.contains("sharkTest5Cached"))
+    assert(!SharkEnv.memoryMetadataManager.contains("default", "sharkTest5Cached"))
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -367,6 +370,28 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       where month(from_unixtime(k)) between "1" and "12" """, Array[String]("500"))
     expectSql("""select count(*) from mapsplitfunc_cached
       where year(from_unixtime(k)) between "2013" and "2014" """, Array[String]("0"))
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // SharkContext APIs (e.g. sql2rdd, sql)
+  //////////////////////////////////////////////////////////////////////////////
+
+  test("cached table in different new database") {
+    
+    sc.sql("drop table if exists selstar")
+    sc.sql("""create table selstar TBLPROPERTIES ("shark.cache" = "true") as
+      select * from default.test """)
+    sc.sql("use seconddb")
+    sc.sql("drop table if exists selstar")
+    sc.sql("""create table selstar TBLPROPERTIES ("shark.cache" = "true") as
+      select * from default.test where key != 'val_487' """)
+
+    sc.sql("use default")
+    expectSql("select * from selstar where val='val_487'","487	val_487")
+    
+    assert(SharkEnv.memoryMetadataManager.contains("default", "selstar"))
+    assert(SharkEnv.memoryMetadataManager.contains("seconddb", "selstar"))
+
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -452,4 +477,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     val e = intercept[QueryExecutionException] { sc.sql2rdd("asdfasdfasdfasdf") }
     e.getMessage.contains("semantic")
   }
+
+
+  
 }

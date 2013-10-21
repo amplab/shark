@@ -45,6 +45,7 @@ object OperatorFactory extends LogHelper {
   def createSharkMemoryStoreOutputPlan(
       hiveTerminalOp: HiveOperator,
       tableName: String,
+      databaseName: String,
       storageLevel: StorageLevel,
       numColumns: Int,
       useTachyon: Boolean,
@@ -52,6 +53,7 @@ object OperatorFactory extends LogHelper {
     val sinkOp = _newOperatorInstance(
       classOf[MemoryStoreSinkOperator], hiveTerminalOp).asInstanceOf[MemoryStoreSinkOperator]
     sinkOp.tableName = tableName
+    sinkOp.databaseName = databaseName
     sinkOp.storageLevel = storageLevel
     sinkOp.numColumns = numColumns
     sinkOp.useTachyon = useTachyon
