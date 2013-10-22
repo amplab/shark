@@ -179,8 +179,6 @@ class ByteDeltaDecoder[T, W](buffer: ByteBuffer, columnType: ColumnType[T, W]) e
 
   override def hasNext = buffer.hasRemaining
 
-  def plus[N: Numeric](x: N, y: N): N = x + y
-
   /**
     * Create a function that is set up to work with the right hive objects. Set this up beforehand
     * so that it is not called per row.
@@ -219,8 +217,7 @@ class ByteDeltaDecoder[T, W](buffer: ByteBuffer, columnType: ColumnType[T, W]) e
   }
 
   override def next(): W = {
-    BYTE.extractInto(buffer, byteWritable)
-    flagByte = byteWritable.get
+    flagByte = buffer.get()
 
     if (flagByte == ByteDeltaEncoding.newBaseValue || !startedDecoding) {
       startedDecoding = true
