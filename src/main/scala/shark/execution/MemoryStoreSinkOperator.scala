@@ -156,7 +156,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       var queryOutputRDD = outputRDD
       if (useUnionRDD) {
         // Handle an INSERT INTO command.
-        var previousRDDOpt: Option[RDD[_]] =
+        var previousRDDOpt: Option[RDD[TablePartition]] =
           if (isHivePartitioned) {
             val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
             partitionedTable.getPartition(hivePartitionKey)
@@ -165,9 +165,10 @@ class MemoryStoreSinkOperator extends TerminalOperator {
           }
         outputRDD = previousRDDOpt match {
           case Some(previousRDD) => {
-            // If the table or a Hive-partition for the INSERT has already been created, take a
-            // union of the current data and the SELECT output.
+            // If the RDD for a table or Hive-partition has already been created, then take a union
+            // of the current data and the SELECT output.
             hasPreviousRDDForUnion = true
+            RDDUtils.unionAndFlatten(queryOutputRDD, previousRDD)
             queryOutputRDD.union(previousRDD.asInstanceOf[RDD[TablePartition]])
           }
           // This is an INSERT into a new Hive-partition.

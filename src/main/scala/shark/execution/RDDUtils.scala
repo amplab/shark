@@ -34,6 +34,18 @@ import shark.SharkEnv
  */
 object RDDUtils {
 
+  def unionAndFlatten[T: ClassManifest](
+    rdd: RDD[T],
+    otherRdd: RDD[T]): RDD[T] = {
+    val unionedRdd = otherRdd match {
+      case unionRdd: UnionRDD[_] => {
+        new UnionRDD(rdd.context, (unionRdd.rdds :+ rdd))
+      }
+      case _ => rdd.union(otherRdd)
+    }
+    return unionedRdd
+  }
+
   def getStorageLevelOfRDD(rdd: RDD[_]): StorageLevel = {
     rdd match {
       case u: UnionRDD[_] => {
@@ -59,7 +71,8 @@ object RDDUtils {
     rdds.foldLeft(StorageLevel.NONE) {
       (s, r) => {
         if (s == StorageLevel.NONE) {
-          // Mutally recursive if 'r' is a UnionRDD.
+          // Mutally recursive if `r` is a UnionRDD. However, this shouldn't happen in Shark, since
+          // UnionRDDs from successive INSERT INTOs are created through #unionAndFlatten().
           getStorageLevelOfRDD(r)
         } else {
           // Some RDD in 'rdds' is persisted in memory or disk, so return early.
