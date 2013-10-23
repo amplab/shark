@@ -20,9 +20,11 @@ package shark.execution
 import java.io.{File, InputStream, IOException}
 import java.lang.Thread.UncaughtExceptionHandler
 import java.util.{Arrays, Properties}
+
 import scala.collection.JavaConversions._
 import scala.io.Source
 import scala.reflect.BeanProperty
+
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{ScriptOperator => HiveScriptOperator}
@@ -32,9 +34,11 @@ import org.apache.hadoop.hive.ql.plan.ScriptDesc
 import org.apache.hadoop.hive.serde2.{Serializer, Deserializer}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.io.{BytesWritable, Writable}
+
 import org.apache.spark.{OneToOneDependency, SparkEnv, SparkFiles}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.TaskContext
+
 import shark.execution.serialization.OperatorSerializationWrapper
 import shark.LogHelper
 
@@ -119,7 +123,6 @@ class ScriptOperator extends UnaryOperator[HiveScriptOperator] {
           SparkEnv.set(sparkEnv)
           val recordWriter = inRecordWriterClass.newInstance
           recordWriter.initialize(proc.getOutputStream, op.localHconf)
-
           for (elem <- iter) {
             recordWriter.write(elem)
           }
@@ -253,6 +256,7 @@ object ScriptOperator {
     with LogHelper {
 
     override def uncaughtException(thread: Thread, throwable: Throwable) {
+      Thread.sleep(7000)
       throwable match {
         case ioe: IOException => {
           // Check whether the IOException should be re-thrown by the parent thread.
@@ -265,6 +269,7 @@ object ScriptOperator {
                 .format(HiveConf.ConfVars.ALLOWPARTIALCONSUMP.toString))
               throw ioe
             }
+            println("thread finished...")
             context.synchronized {
               context.addOnCompleteCallback(onCompleteCallback)
             }
