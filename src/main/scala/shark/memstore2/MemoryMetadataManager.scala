@@ -66,19 +66,12 @@ class MemoryMetadataManager {
     ): PartitionedMemoryTable = {
     var newTable = new PartitionedMemoryTable(
       tableName.toLowerCase, cacheMode, preferredStorageLevel)
-    val shouldUseCachePolicy = tblProps.getOrElse(
-      SharkConfVars.SHOULD_USE_CACHE_POLICY.varname,
-      SharkConfVars.SHOULD_USE_CACHE_POLICY.defaultBoolVal.toString).toBoolean
-    if (shouldUseCachePolicy) {
-      // Determine the cache policy to use and read any user-specified cache settings.
-      val cachePolicyStr = tblProps.getOrElse(
-        SharkConfVars.CACHE_POLICY.varname,
-        SharkConfVars.CACHE_POLICY.defaultVal)
-      val maxCacheSize = tblProps.getOrElse(
-        SharkConfVars.MAX_PARTITION_CACHE_SIZE.varname,
-        SharkConfVars.MAX_PARTITION_CACHE_SIZE.defaultVal).toInt
-      newTable.setPartitionCachePolicy(cachePolicyStr, maxCacheSize)
-    }
+    // Determine the cache policy to use and read any user-specified cache settings.
+    val cachePolicyStr = tblProps.getOrElse(SharkConfVars.CACHE_POLICY.varname,
+      SharkConfVars.CACHE_POLICY.defaultVal)
+    val maxCacheSize = tblProps.getOrElse(SharkConfVars.MAX_PARTITION_CACHE_SIZE.varname,
+      SharkConfVars.MAX_PARTITION_CACHE_SIZE.defaultVal).toInt
+    newTable.setPartitionCachePolicy(cachePolicyStr, maxCacheSize)
 
     _keyToTable.put(tableName.toLowerCase, newTable)
     return newTable
@@ -146,7 +139,11 @@ class MemoryMetadataManager {
     return tableValue.flatMap(MemoryMetadataManager.unpersistRDDsInTable(_))
   }
 
-  /** Find all keys that are strings. Used to drop tables after exiting. */
+  /**
+   * Find all keys that are strings. Used to drop tables after exiting.
+   *
+   * TODO(harvey): Won't be needed after unifed views are added.
+   */
   def getAllKeyStrings(): Seq[String] = {
     _keyToTable.keys.collect { case k: String => k } toSeq
   }
@@ -174,16 +171,12 @@ object MemoryMetadataManager {
 
   /**
    * Return a representation of the partition key in the string format:
-   *     'col1=value1/col2=value2/...'
+   *     'col1=value1/col2=value2/.../colN=valueN'
    */
   def makeHivePartitionKeyStr(
-      partitionColumns: Seq[String],
-      partitionColumnToValue: JavaMap[String, String]): String = {
-    var keyStr = ""
-    for (partitionColumn <- partitionColumns) {
-      keyStr += "%s=%s/".format(partitionColumn, partitionColumnToValue(partitionColumn))
-    }
-    keyStr = keyStr.dropRight(1)
+      partitionCols: Seq[String],
+      partColToValue: JavaMap[String, String]): String = {
+    val keyStr = partitionCols.map(col => "%s=%s".format(col, partColToValue(col))).mkString("/")
     return keyStr
   }
 

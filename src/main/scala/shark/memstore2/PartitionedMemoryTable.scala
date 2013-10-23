@@ -43,10 +43,11 @@ class PartitionedMemoryTable(
   extends Table(tableName, cacheMode, preferredStorageLevel) {
 
   /**
-   * A simple, mutable wrapper for an RDD. The value entires for a single key in
-   * '_keyToPartitions' and '_cachePolicy' will reference the same RDDValue object. This is needed
-   * so that entries maintained by a CachePolicy's cache map, such as the LRUCachePolicy#cache map,
-   * can be updated. The values can't be RDDs, which are inherently immutable...
+   * A simple, mutable wrapper for an RDD. This is needed so that a entry maintained by a
+   * CachePolicy's underlying data structure, such as the LinkedHashMap for LRUCachePolicy, can be
+   * updated without causing an eviction.
+   * The value entires for a single key in
+   * `_keyToPartitions` and `_cachePolicy` will reference the same RDDValue object.
    */
   class RDDValue(var rdd: RDD[TablePartition])
 
@@ -58,8 +59,8 @@ class PartitionedMemoryTable(
 
   // The eviction policy for this table's cached Hive-partitions. An example of how this
   // can be set from the CLI:
-  //   'TBLPROPERTIES("shark.partition.cachePolicy", "LRUCachePolicy")'.
-  // If 'None', then all partitions will be persisted in memory using the 'preferredStorageLevel'.
+  //   `TBLPROPERTIES("shark.partition.cachePolicy", "LRUCachePolicy")`.
+  // If 'None', then all partitions will be persisted in memory using the `preferredStorageLevel`.
   private var _cachePolicy: CachePolicy[String, RDDValue] = _
 
   def containsPartition(partitionKey: String): Boolean = _keyToPartitions.contains(partitionKey)
@@ -106,9 +107,9 @@ class PartitionedMemoryTable(
 
   def setPartitionCachePolicy(
       cachePolicyStr: String,
-      maxSize: Int) {
-    val newPolicy = Class.forName(cachePolicyStr).newInstance
-      .asInstanceOf[CachePolicy[String, RDDValue]]
+      fallbackMaxSize: Int) {
+    val newPolicy = CachePolicy.instantiateWithUserSpecs[String, RDDValue](
+      cachePolicyStr, fallbackMaxSize)
     // The loadFunc will upgrade the persistence level of the RDD to the preferred storage level.
     val loadFunc: String => RDDValue =
       (partitionKey: String) => {
@@ -122,10 +123,10 @@ class PartitionedMemoryTable(
         }
         rddValue
       }
-    // The evitionFunc will unpersist the RDD.
+    // The evictionFunc will unpersist the RDD.
     val evictionFunc: (String, RDDValue) => Unit =
       (partitionKey: String, rddValue) => RDDUtils.unpersistRDD(rddValue.rdd)
-    newPolicy.initialize(maxSize, loadFunc, evictionFunc)
+    newPolicy.initializeInternals(loadFunc, evictionFunc)
     _cachePolicy = newPolicy
   }
 

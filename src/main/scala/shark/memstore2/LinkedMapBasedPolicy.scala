@@ -22,14 +22,11 @@ import java.util.Map.Entry
 
 import scala.collection.JavaConversions._
 
+
 class LRUCachePolicy[K, V] extends LinkedMapBasedPolicy[K, V] {
 
-  override def initialize(
-      maxSize: Int,
-      loadFunc: (K => V),
-      evictionFunc: (K, V) => Unit
-    ): Unit = {
-    super.initialize(maxSize, loadFunc, evictionFunc)
+  override def initializeInternals(loadFunc: (K => V), evictionFunc: (K, V) => Unit) {
+    super.initializeInternals(loadFunc, evictionFunc)
     _cache = new LinkedMapCache(true /* accessOrder */)
   }
 
@@ -38,12 +35,8 @@ class LRUCachePolicy[K, V] extends LinkedMapBasedPolicy[K, V] {
 
 class FIFOCachePolicy[K, V] extends LinkedMapBasedPolicy[K, V] {
 
-  override def initialize(
-      maxSize: Int,
-      loadFunc: (K => V),
-      evictionFunc: (K, V) => Unit
-    ): Unit = {
-    super.initialize(maxSize, loadFunc, evictionFunc)
+  override def initializeInternals(loadFunc: (K => V), evictionFunc: (K, V) => Unit) {
+    super.initializeInternals(loadFunc, evictionFunc)
     _cache = new LinkedMapCache()
   }
 
@@ -68,12 +61,8 @@ sealed abstract class LinkedMapBasedPolicy[K, V] extends CachePolicy[K, V] {
   protected var _missCount: Long = 0L
   protected var _evictionCount: Long = 0L
 
-  override def initialize(
-      maxSize: Int,
-      loadFunc: (K => V),
-      evictionFunc: (K, V) => Unit
-    ): Unit = {
-    super.initialize(maxSize, loadFunc, evictionFunc)
+  override def initializeInternals(loadFunc: (K => V), evictionFunc: (K, V) => Unit) {
+    super.initializeInternals(loadFunc, evictionFunc)
     _isInitialized = true
   }
 
