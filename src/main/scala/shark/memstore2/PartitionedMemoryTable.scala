@@ -107,6 +107,10 @@ class PartitionedMemoryTable(
     val loadFunc: String => RDDValue =
       (partitionKey: String) => {
         val rddValue = _keyToPartitions.get(partitionKey).get
+        // RDDUtils#getStorageLevelOfRDD() will return StorageLevel.NONE only if all parent RDDs of
+        // a UnionRDD are not persisted. That function is used to check the RDD's storage level in
+        // order to avoid directly persisting an UnionRDD comprising RDDs already persisted in
+        // memory, which leads to duplicate data.
         if (RDDUtils.getStorageLevelOfRDD(rddValue.rdd) == StorageLevel.NONE) {
           rddValue.rdd.persist(preferredStorageLevel)
         }

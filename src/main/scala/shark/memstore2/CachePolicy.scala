@@ -26,20 +26,20 @@ import org.apache.spark.rdd.RDD
 
 trait CachePolicy[K, V] {
 
-  protected var loadFunc: (K => V) = _
+  protected var _loadFunc: (K => V) = _
 
-  protected var evictionFunc: (K, V) => Unit = _
+  protected var _evictionFunc: (K, V) => Unit = _
 
-  protected var maxSize: Int = -1
+  protected var _maxSize: Int = -1
 
   def initialize(
 	    maxSize: Int,
 	    loadFunc: (K => V),
 	    evictionFunc: (K, V) => Unit
     ): Unit = {
-    this.maxSize = maxSize
-    this.loadFunc = loadFunc
-    this.evictionFunc = evictionFunc
+    _maxSize = maxSize
+    _loadFunc = loadFunc
+    _evictionFunc = evictionFunc
   }
 
   def notifyPut(key: K, value: V): Unit
@@ -48,13 +48,13 @@ trait CachePolicy[K, V] {
 
   def notifyGet(key: K): Unit
   
-  def getKeysOfCachedEntries: Seq[K]
+  def keysOfCachedEntries: Seq[K]
 
-  def getMaxSize = maxSize
+  def maxSize: Int = _maxSize
 
-  def getHitRate: Double
+  def hitRate: Double
 
-  def getEvictionCount: Long
+  def evictionCount: Long
 }
 
 
@@ -68,9 +68,9 @@ class CacheAllPolicy[K, V] extends CachePolicy[K, V] {
 
   override def notifyGet(key: K) = Unit
 
-  override def getKeysOfCachedEntries: Seq[K] = keyToRdds.keySet.toSeq
+  override def keysOfCachedEntries: Seq[K] = keyToRdds.keySet.toSeq
 
-  override def getHitRate: Double = 1.0
+  override def hitRate = 1.0
 
-  override def getEvictionCount: Long = 0L
+  override def evictionCount = 0L
 }

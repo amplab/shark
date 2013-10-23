@@ -30,7 +30,7 @@ class LRUCachePolicy[K, V] extends LinkedMapBasedPolicy[K, V] {
       evictionFunc: (K, V) => Unit
     ): Unit = {
     super.initialize(maxSize, loadFunc, evictionFunc)
-    cache = new LinkedMapCache(true /* accessOrder */)
+    _cache = new LinkedMapCache(true /* accessOrder */)
   }
 
 }
@@ -44,7 +44,7 @@ class FIFOCachePolicy[K, V] extends LinkedMapBasedPolicy[K, V] {
       evictionFunc: (K, V) => Unit
     ): Unit = {
     super.initialize(maxSize, loadFunc, evictionFunc)
-    cache = new LinkedMapCache()
+    _cache = new LinkedMapCache()
   }
 
 }
@@ -52,21 +52,21 @@ class FIFOCachePolicy[K, V] extends LinkedMapBasedPolicy[K, V] {
 
 sealed abstract class LinkedMapBasedPolicy[K, V] extends CachePolicy[K, V] {
 
-  class LinkedMapCache(val accessOrder: Boolean = false)
+  class LinkedMapCache(accessOrder: Boolean = false)
     extends LinkedHashMap[K, V](maxSize, 0.75F, accessOrder) {
 
     override def removeEldestEntry(eldest: Entry[K, V]): Boolean = {
-      evictionFunc(eldest.getKey, eldest.getValue)
-      evictionCount += 1
+      _evictionFunc(eldest.getKey, eldest.getValue)
+      _evictionCount += 1
       return (size() > maxSize)
     }
   }
 
-  var cache: LinkedMapCache = _
-  var isInitialized = false
-  var hitCount: Long = 0L
-  var missCount: Long = 0L
-  var evictionCount: Long = 0L
+  protected var _cache: LinkedMapCache = _
+  protected var _isInitialized = false
+  protected var _hitCount: Long = 0L
+  protected var _missCount: Long = 0L
+  protected var _evictionCount: Long = 0L
 
   override def initialize(
       maxSize: Int,
@@ -74,44 +74,48 @@ sealed abstract class LinkedMapBasedPolicy[K, V] extends CachePolicy[K, V] {
       evictionFunc: (K, V) => Unit
     ): Unit = {
     super.initialize(maxSize, loadFunc, evictionFunc)
-    isInitialized = true
+    _isInitialized = true
   }
 
   override def notifyPut(key: K, value: V): Unit = {
-    assert(isInitialized, "Must initialize() %s.".format(this.getClass.getName))
-    this.synchronized { cache.put(key, value) }
+    assert(_isInitialized, "Must initialize() %s.".format(this.getClass.getName))
+    this.synchronized { _cache.put(key, value) }
   }
 
   override def notifyRemove(key: K): Unit = {
-    assert(isInitialized, "Must initialize() %s.".format(this.getClass.getName))
-    this.synchronized { cache.remove(key) }
+    assert(_isInitialized, "Must initialize() %s.".format(this.getClass.getName))
+    this.synchronized { _cache.remove(key) }
   }
 
   override def notifyGet(key: K): Unit = {
-    assert(isInitialized, "Must initialize() %s.".format(this.getClass.getName))
+    assert(_isInitialized, "Must initialize() %s.".format(this.getClass.getName))
     this.synchronized {
-      if (cache.contains(key)) {
-        cache.get(key)
-        hitCount += 1L
+      if (_cache.contains(key)) {
+        _cache.get(key)
+        _hitCount += 1L
       } else {
-        val retrievedValue = loadFunc(key)
-        cache.put(key, retrievedValue)
-        missCount += 1L
+        val retrievedValue = _loadFunc(key)
+        _cache.put(key, retrievedValue)
+        _missCount += 1L
       }
     }
   }
   
-  override def getKeysOfCachedEntries: Seq[K] = {
-    assert(isInitialized, "Must initialize() LRUCachePolicy.")
-    return cache.keySet.toSeq
+  override def keysOfCachedEntries: Seq[K] = {
+    assert(_isInitialized, "Must initialize() LRUCachePolicy.")
+    this.synchronized {
+      return _cache.keySet.toSeq
+    }
   }
 
-  override def getHitRate: Double = {
-    val requestCount = missCount + hitCount
-    val hitRate = if (requestCount == 0L) 1.0 else (hitCount / requestCount)
-    return hitRate
+  override def hitRate: Double = {
+    this.synchronized {
+      val requestCount = _missCount + _hitCount
+      val rate = if (requestCount == 0L) 1.0 else (_hitCount / requestCount)
+      return rate
+    }
   }
 
-  override def getEvictionCount = evictionCount
+  override def evictionCount = _evictionCount
 
 }
