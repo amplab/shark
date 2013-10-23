@@ -351,6 +351,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     //               should have everything (e.g. isCTAS(), partCols). Note that the QB might not be
     //               accessible from getParseContext(), since the SemanticAnalyzer#analyzeInternal()
     //               doesn't set (this.qb = qb) for a non-CTAS.
+    // True if the command is a CREATE TABLE, but not a CTAS.
     var isRegularCreateTable = true
     var isHivePartitioned = false
 
@@ -365,15 +366,14 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     }
 
     var ddlTasks: Seq[DDLTask] = Nil
-    val createTableDesc =
-      if (isRegularCreateTable) {
-        // Unfortunately, we have to comb the root tasks because for CREATE TABLE,
-        // SemanticAnalyzer#analyzeCreateTable() does't set the CreateTableDesc in its QB.
-        ddlTasks = rootTasks.filter(_.isInstanceOf[DDLTask]).asInstanceOf[Seq[DDLTask]]
-        if (ddlTasks.isEmpty) null else ddlTasks.head.getWork.getCreateTblDesc
-      } else {
-        getParseContext.getQB.getTableDesc
-      }
+    val createTableDesc = if (isRegularCreateTable) {
+      // Unfortunately, we have to comb the root tasks because for CREATE TABLE,
+      // SemanticAnalyzer#analyzeCreateTable() does't set the CreateTableDesc in its QB.
+      ddlTasks = rootTasks.filter(_.isInstanceOf[DDLTask]).asInstanceOf[Seq[DDLTask]]
+      if (ddlTasks.isEmpty) null else ddlTasks.head.getWork.getCreateTblDesc
+    } else {
+      getParseContext.getQB.getTableDesc
+    }
 
     // 'createTableDesc' is NULL if there is an IF NOT EXISTS condition and the target table
     // already exists.
