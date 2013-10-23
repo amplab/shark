@@ -130,12 +130,4 @@ class PartitionedMemoryTable(
     return _keyToPartitions.mapValues(_.rdd).toMap
   }
 
-  /**
-   * Computes the current storage level for this table. See comments in
-   * RDDUtils#getStorageLevelOfRDDs() for how Shark interprets the storage level of a sequence of
-   * RDDs.
-   */
-  override def getCurrentStorageLevel: StorageLevel = {
-    return RDDUtils.getStorageLevelOfRDDs(_keyToPartitions.values.map(_.rdd).toSeq)
-  }
 }

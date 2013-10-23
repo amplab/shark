@@ -34,11 +34,4 @@ import org.apache.spark.storage.StorageLevel
 private[shark] abstract class Table(
     var tableName: String,
     var cacheMode: CacheType.CacheType,
-    var preferredStorageLevel: StorageLevel
-  ) {
-
-  /**
-   * Compute the current storage level of RDDs that back this table.
-   */
-  def getCurrentStorageLevel: StorageLevel
-}
+    var preferredStorageLevel: StorageLevel)

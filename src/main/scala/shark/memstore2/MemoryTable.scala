@@ -40,5 +40,4 @@ class MemoryTable(
 
   def tableRDD_= (rdd: RDD[TablePartition]) = _tableRDD = rdd
 
-  override def getCurrentStorageLevel: StorageLevel = RDDUtils.getStorageLevelOfRDD(tableRDD)
 }
