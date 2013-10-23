@@ -650,7 +650,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       "StorageLevel for partition(keypart=2) should be NONE, but got: " + keypart2StorageLevel)
   }
 
-  test("LRU: record cache stats") {
+  test("LRU: cache stats are recorded") {
     val tableName = "should_record_partition_cache_stats"
     val partitionedTable = createCachedPartitionedTable(
       tableName,
@@ -658,10 +658,8 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       3 /* maxCacheSize */,
       "shark.memstore2.LRUCachePolicy")
     val lruCachePolicy = partitionedTable.cachePolicy
-    val hitRate = lruCachePolicy.hitRate
-    assert(hitRate == 1.0, "got: " + hitRate)
-    val evictionCount = lruCachePolicy.evictionCount
-    assert(evictionCount == 0, "got: " + evictionCount)
+    assert(lruCachePolicy.hitRate == 1.0)
+    assert(lruCachePolicy.evictionCount == 0)
   }
 
   //////////////////////////////////////////////////////////////////////////////

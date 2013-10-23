@@ -27,7 +27,7 @@ class LRUCachePolicy[K, V] extends LinkedMapBasedPolicy[K, V] {
 
   override def initializeInternals(loadFunc: (K => V), evictionFunc: (K, V) => Unit) {
     super.initializeInternals(loadFunc, evictionFunc)
-    _cache = new LinkedMapCache(true /* accessOrder */)
+    _cache = new LinkedMapCache(true /* evictUsingAccessOrder */)
   }
 
 }
@@ -45,8 +45,8 @@ class FIFOCachePolicy[K, V] extends LinkedMapBasedPolicy[K, V] {
 
 sealed abstract class LinkedMapBasedPolicy[K, V] extends CachePolicy[K, V] {
 
-  class LinkedMapCache(accessOrder: Boolean = false)
-    extends LinkedHashMap[K, V](maxSize, 0.75F, accessOrder) {
+  class LinkedMapCache(evictUsingAccessOrder: Boolean = false)
+    extends LinkedHashMap[K, V](maxSize, 0.75F, evictUsingAccessOrder) {
 
     override def removeEldestEntry(eldest: Entry[K, V]): Boolean = {
       val shouldRemove = (size() > maxSize)
