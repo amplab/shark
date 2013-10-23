@@ -1,7 +1,7 @@
 The Yahoo! miners_shark tool is created from
 https://git.corp.yahoo.com/bdas/shark
 branch - adp
-
+ 
 version number format - W.X.Y.Z.v
 W.X.Y are from the open source project.
 Z is yahoo-specific branch versioning.
@@ -9,7 +9,7 @@ v is build number
 
 Release Notes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Version 0.9.0.0.1
+Version 0.8.0.1.0
 	Merge bdas to amplab @ commit : baefdb86d392795aa6505ec1796fd53d41d772ed
 Version 0.7.2.100.1
 	CI plugs and configuration
