@@ -76,18 +76,24 @@ class PartitionedMemoryTable(
       isUpdate: Boolean = false): Option[RDD[TablePartition]] = {
     val rddValueOpt = _keyToPartitions.get(partitionKey)
     var prevRDD: Option[RDD[TablePartition]] = rddValueOpt.map(_.rdd)
-    if (isUpdate && rddValueOpt.isDefined) {
-      // This is an update of an old value, so update the RDDValue's 'rdd' entry.
-      // Don't notify the '_cachePolicy'. Assumes that getPartition() has already been called to
-      // obtain the value of the previous RDD, and that an RDD update refers to the RDD created from
-      // a transform or union.
+    val newRDDValue = new RDDValue(newRDD)
+    _keyToPartitions.put(partitionKey, newRDDValue)
+    _cachePolicy.notifyPut(partitionKey, newRDDValue)
+    return prevRDD
+  }
+
+  def updatePartition(
+    partitionKey: String,
+    updatedRDD: RDD[TablePartition]): Option[RDD[TablePartition]] = {
+    val rddValueOpt = _keyToPartitions.get(partitionKey)
+    var prevRDD: Option[RDD[TablePartition]] = rddValueOpt.map(_.rdd)
+    if (rddValueOpt.isDefined) {
+      // This is an update of an old value, so update the RDDValue's `rdd` entry.
+      // Don't notify the `_cachePolicy`. Assumes that getPartition() has already been called to
+      // obtain the value of the previous RDD.
+      // An RDD update refers to the RDD created from a transform or union.
       val updatedRDDValue = rddValueOpt.get
-      updatedRDDValue.rdd = newRDD
-      updatedRDDValue
-    } else {
-      val newRDDValue = new RDDValue(newRDD)
-      _keyToPartitions.put(partitionKey, newRDDValue)
-      _cachePolicy.notifyPut(partitionKey, newRDDValue)
+      updatedRDDValue.rdd = updatedRDD
     }
     return prevRDD
   }

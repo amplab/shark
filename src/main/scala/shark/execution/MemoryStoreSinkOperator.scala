@@ -187,7 +187,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         // An RDD for the Hive partition already exists, so update its metadata entry in
         // 'partitionedTable'.
         assert(outputRDD.isInstanceOf[UnionRDD[_]])
-        partitionedTable.putPartition(hivePartitionKey, outputRDD, true /* isUpdate */)
+        partitionedTable.updatePartition(hivePartitionKey, outputRDD)
       } else {
         // This is a new Hive-partition. Add a new metadata entry in 'partitionedTable'.
         partitionedTable.putPartition(hivePartitionKey, outputRDD)
