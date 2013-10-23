@@ -25,7 +25,7 @@ YINST requires pkg miners_hive 0.9.0.4.5 0.9.0.4.5
 
 YINST set SPARK_HOME /home/y/libexec/miners_spark
 YINST set SCALA_HOME /home/y/libexec/miners_scala
-YINST set HIVE_HOME /home/y/libexec/miners_hive/build/dist
+$YINST set HIVE_HOME /home/y/libexec/miners_hive
 YINST set HADOOP_PREFIX /home/y/libexec/hadoop
 YINST set HADOOP_HOME /home/y/libexec/hadoop
 
@@ -45,10 +45,17 @@ YINST set DEBUG_OPTS '-Dsun.security.jgss.debug=true -Dsun.security.krb5.debug=t
 YINST set GC_OPTS '-verbose:gc -XX:-PrintGCDetails -XX:+PrintGCTimeStamps'
 YINST set LOCAL_DIR /home/greyreef/
 YINST set KRYO_BUFFER_SIZE 10
+
+YINST set HEADLESS_USER yahoo
+
 PERM  = 0755
 OWNER = root
 GROUP = wheel
 
+
+
 lfind $(PERM:stat) - - $(SHARK_HOME)/  .. \! -name "*.scala" \! -name "*.class" \! -regex ".*yinst.*" \! -regex ".*git.*" -type f
 symlink - - - libexec/$(PRODUCT_NAME) $(PRODUCT_NAME)-$(VERSION)/
 configfile 644 - - $(SHARK_HOME)/conf/shark-env.sh shark-env.sh expand overwrite
+
+YINST post-activate chown -R $(HEADLESS_USER) $(SHARK_HOME)
