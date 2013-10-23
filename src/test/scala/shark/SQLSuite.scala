@@ -115,8 +115,8 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       create table %s(key int, value string)
         partitioned by (keypart int)
         tblproperties('shark.cache' = 'true',
-                      'shark.cache.partition.cachePolicy.maxSize' = '%d',
-                      'shark.cache.partition.cachePolicy.class' = '%s',
+                      'shark.cache.policy.maxSize' = '%d',
+                      'shark.cache.policy' = '%s',
                       'shark.cache.storageLevel' = 'MEMORY_AND_DISK')
       """.format(
         tableName,
@@ -506,14 +506,25 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   // RDD(partition) eviction policy for cached Hive-partititioned tables
   //////////////////////////////////////////////////////////////////////////////
 
-  test("shark.memstore2.LRUCachePolicy is the default policy") {
-    val tableName = "lru_default_policy_cached"
-    sc.runSql("""create table lru_default_policy_cached(key int, value string)
+  test("shark.memstore2.CacheAllPolicy is the default policy") {
+    val tableName = "default_policy_cached"
+    sc.runSql("""create table default_policy_cached(key int, value string)
         partitioned by (keypart int)""")
     assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
     val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
     val cachePolicy = partitionedTable.cachePolicy
-    assert(cachePolicy.isInstanceOf[shark.memstore2.LRUCachePolicy[_, _]])
+    assert(cachePolicy.isInstanceOf[shark.memstore2.CacheAllPolicy[_, _]])
+  }
+
+  test("LRU: RDDs are not evicted if the cache isn't full.") {
+    val tableName = "evict_partitions_maxSize"
+    val partitionedTable = createCachedPartitionedTable(
+      tableName,
+      2 /* numPartitionsToCreate */,
+      3 /* maxCacheSize */,
+      "shark.memstore2.LRUCachePolicy")
+    val keypart1RDD = partitionedTable.keyToPartitions.get("keypart=1")
+    assert(RDDUtils.getStorageLevelOfRDD(keypart1RDD.get) == StorageLevel.MEMORY_AND_DISK)
   }
 
   test("LRU: RDDs are evicted when the max size is reached.") {
@@ -623,7 +634,8 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       "shark.memstore2.LRUCachePolicy")
     assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
     val keypart1RDD = partitionedTable.keyToPartitions.get("keypart=1")
-    assert(RDDUtils.getStorageLevelOfRDD(keypart1RDD.get) == StorageLevel.MEMORY_AND_DISK)
+    val lvl = RDDUtils.getStorageLevelOfRDD(keypart1RDD.get)
+    assert(lvl == StorageLevel.MEMORY_AND_DISK, "got: " + lvl)
     sc.runSql("""insert into table reload_evicted_partition partition(keypart = 4)
       select * from test""")
     assert(RDDUtils.getStorageLevelOfRDD(keypart1RDD.get) == StorageLevel.NONE)
@@ -646,10 +658,10 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       3 /* maxCacheSize */,
       "shark.memstore2.LRUCachePolicy")
     val lruCachePolicy = partitionedTable.cachePolicy
-    val hitRate = lruCachePolicy.getHitRate
-    assert(hitRate == 1.0)
-    val evictionCount = lruCachePolicy.getEvictionCount
-    assert(evictionCount == 0)
+    val hitRate = lruCachePolicy.hitRate
+    assert(hitRate == 1.0, "got: " + hitRate)
+    val evictionCount = lruCachePolicy.evictionCount
+    assert(evictionCount == 0, "got: " + evictionCount)
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -660,7 +672,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.sql("drop table if exists adw")
     sc.sql("""create table adw TBLPROPERTIES ("shark.cache" = "true") as
       select cast(key as int) as k, val from test""")
-    expectSql("select count(k) from adw where val='val_487' group by 1 having count(1) > 0","1")
+    expectSql("select count(k) from adw where val='val_487' group by 1 having count(1) > 0", "1")
   }
 
    //////////////////////////////////////////////////////////////////////////////

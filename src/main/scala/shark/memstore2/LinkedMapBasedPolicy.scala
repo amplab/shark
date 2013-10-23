@@ -49,9 +49,12 @@ sealed abstract class LinkedMapBasedPolicy[K, V] extends CachePolicy[K, V] {
     extends LinkedHashMap[K, V](maxSize, 0.75F, accessOrder) {
 
     override def removeEldestEntry(eldest: Entry[K, V]): Boolean = {
-      _evictionFunc(eldest.getKey, eldest.getValue)
-      _evictionCount += 1
-      return (size() > maxSize)
+      val shouldRemove = (size() > maxSize)
+      if (shouldRemove) {
+        _evictionFunc(eldest.getKey, eldest.getValue)
+        _evictionCount += 1
+      }
+      return shouldRemove
     }
   }
 
@@ -68,7 +71,13 @@ sealed abstract class LinkedMapBasedPolicy[K, V] extends CachePolicy[K, V] {
 
   override def notifyPut(key: K, value: V): Unit = {
     assert(_isInitialized, "Must initialize() %s.".format(this.getClass.getName))
-    this.synchronized { _cache.put(key, value) }
+    this.synchronized {
+      val oldValue = _cache.put(key, value)
+      if (oldValue != null) {
+        _evictionFunc(key, oldValue)
+        _evictionCount += 1
+      }
+    }
   }
 
   override def notifyRemove(key: K): Unit = {
@@ -83,8 +92,8 @@ sealed abstract class LinkedMapBasedPolicy[K, V] extends CachePolicy[K, V] {
         _cache.get(key)
         _hitCount += 1L
       } else {
-        val retrievedValue = _loadFunc(key)
-        _cache.put(key, retrievedValue)
+        val loadedValue = _loadFunc(key)
+        _cache.put(key, loadedValue)
         _missCount += 1L
       }
     }
@@ -100,7 +109,7 @@ sealed abstract class LinkedMapBasedPolicy[K, V] extends CachePolicy[K, V] {
   override def hitRate: Double = {
     this.synchronized {
       val requestCount = _missCount + _hitCount
-      val rate = if (requestCount == 0L) 1.0 else (_hitCount / requestCount)
+      val rate = if (requestCount == 0L) 1.0 else (_hitCount.toDouble / requestCount)
       return rate
     }
   }

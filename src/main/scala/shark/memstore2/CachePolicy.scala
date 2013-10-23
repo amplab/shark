@@ -23,18 +23,21 @@ import scala.collection.JavaConversions._
 
 import org.apache.spark.rdd.RDD
 
-
+/**
+ * A cache that never evicts entries.
+ */
 class CacheAllPolicy[K, V] extends CachePolicy[K, V] {
 
-  var keyToRdds = new ConcurrentHashMap[K, V]()
+  // Track the entries in the cache, so that keysOfCachedEntries() returns a valid result.
+  var cache = new ConcurrentHashMap[K, V]()
 
-  override def notifyPut(key: K, value: V) = keyToRdds.put(key, value)
+  override def notifyPut(key: K, value: V) = cache.put(key, value)
 
-  override def notifyRemove(key: K) = keyToRdds.remove(key)
+  override def notifyRemove(key: K) = cache.remove(key)
 
   override def notifyGet(key: K) = Unit
 
-  override def keysOfCachedEntries: Seq[K] = keyToRdds.keySet.toSeq
+  override def keysOfCachedEntries: Seq[K] = cache.keySet.toSeq
 
   override def hitRate = 1.0
 
@@ -42,6 +45,9 @@ class CacheAllPolicy[K, V] extends CachePolicy[K, V] {
 }
 
 
+/**
+ * 
+ */
 trait CachePolicy[K, V] {
 
   protected var _loadFunc: (K => V) = _
@@ -89,10 +95,16 @@ object CachePolicy {
 
   def instantiateWithUserSpecs[K, V](str: String, fallbackMaxSize: Int): CachePolicy[K, V] = {
     val firstParenPos = str.indexOf('(')
-    val classStr = str.slice(0, firstParenPos)
-    val strArgs = str.substring(firstParenPos + 1, str.lastIndexOf(')')).split(',')
-    val policy = Class.forName(classStr).newInstance.asInstanceOf[CachePolicy[K, V]]
-    policy.initializeWithUserSpecs(strArgs, fallbackMaxSize)
-    return policy
+    if (firstParenPos == -1) {
+      val policy = Class.forName(str).newInstance.asInstanceOf[CachePolicy[K, V]]
+      policy.initializeWithUserSpecs(Array.empty[String], fallbackMaxSize)
+      return policy
+    } else {
+      val classStr = str.slice(0, firstParenPos)
+      val strArgs = str.substring(firstParenPos + 1, str.lastIndexOf(')')).split(',')
+      val policy = Class.forName(classStr).newInstance.asInstanceOf[CachePolicy[K, V]]
+      policy.initializeWithUserSpecs(strArgs, fallbackMaxSize)
+      return policy
+    }
   }
 }
