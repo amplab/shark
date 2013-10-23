@@ -97,6 +97,9 @@ class ScriptOperator extends UnaryOperator[HiveScriptOperator] {
       // Get the thread local SparkEnv so we can pass it into the new thread.
       val sparkEnv = SparkEnv.get
 
+      // If true, exceptions thrown by child threads will be ignored.
+      val allowPartialConsumption = op.allowPartialConsumption
+
       // Start a thread to print the process's stderr to ours
       val errorReaderThread = new Thread("stderr reader for " + command) {
         override def run() {
@@ -106,7 +109,7 @@ class ScriptOperator extends UnaryOperator[HiveScriptOperator] {
         }
       }
       errorReaderThread.setUncaughtExceptionHandler(
-        new ScriptOperator.ScriptExceptionHandler(op, context))
+        new ScriptOperator.ScriptExceptionHandler(allowPartialConsumption, context))
       errorReaderThread.start()
 
       // Start a thread to feed the process input from our parent's iterator
@@ -124,7 +127,7 @@ class ScriptOperator extends UnaryOperator[HiveScriptOperator] {
         }
       }
       inputWriterThread.setUncaughtExceptionHandler(
-        new ScriptOperator.ScriptExceptionHandler(op, context))
+        new ScriptOperator.ScriptExceptionHandler(allowPartialConsumption, context))
       inputWriterThread.start()
 
       // Return an iterator that reads outputs from RecordReader. Use our own
@@ -245,8 +248,7 @@ object ScriptOperator {
    * through an on-task-completion callback registered with the Spark TaskContext. The task will be
    * marked "failed" and the exception will be propagated to the master/CLI.
    */
-  class ScriptExceptionHandler(
-      serializedScriptOp: OperatorSerializationWrapper[ScriptOperator], context: TaskContext)
+  class ScriptExceptionHandler(allowPartialConsumption: Boolean, context: TaskContext)
     extends UncaughtExceptionHandler
     with LogHelper {
 
@@ -254,7 +256,7 @@ object ScriptOperator {
       throwable match {
         case ioe: IOException => {
           // Check whether the IOException should be re-thrown by the parent thread.
-          if (serializedScriptOp.allowPartialConsumption) {
+          if (allowPartialConsumption) {
             logWarning("Error while executing script. Ignoring %s"
               .format(ioe.getMessage))
           } else {
@@ -263,17 +265,20 @@ object ScriptOperator {
                 .format(HiveConf.ConfVars.ALLOWPARTIALCONSUMP.toString))
               throw ioe
             }
-            context.addOnCompleteCallback(onCompleteCallback)
+            context.synchronized {
+              context.addOnCompleteCallback(onCompleteCallback)
+            }
           }
         }
         case _ => {
           // Throw any other Exceptions or Errors.
           val onCompleteCallback = () => throw throwable
-          context.addOnCompleteCallback(onCompleteCallback)
+          context.synchronized {
+            context.addOnCompleteCallback(onCompleteCallback)
+          }
         }
       }
     }
-
   }
 
   /**
