@@ -17,6 +17,9 @@
 
 package shark.execution
 
+import java.text.SimpleDateFormat
+import java.util.Date
+
 import scala.reflect.BeanProperty
 
 import org.apache.hadoop.fs.FileSystem
@@ -25,7 +28,7 @@ import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{FileSinkOperator => HiveFileSinkOperator}
 import org.apache.hadoop.hive.ql.exec.JobCloseFeedBack
 import org.apache.hadoop.hive.shims.ShimLoader
-import org.apache.hadoop.mapred.TaskID
+import org.apache.hadoop.mapred.{JobID, TaskID}
 import org.apache.hadoop.mapred.TaskAttemptID
 import org.apache.hadoop.mapred.SparkHadoopWriter
 
@@ -51,9 +54,15 @@ class FileSinkOperator extends TerminalOperator with Serializable {
   }
 
   def setConfParams(conf: HiveConf, context: TaskContext) {
+    def createJobID(time: Date, id: Int): JobID = {
+      val formatter = new SimpleDateFormat("yyyyMMddHHmm")
+      val jobtrackerID = formatter.format(new Date())
+      return new JobID(jobtrackerID, id)
+    }
+
     val jobID = context.stageId
     val splitID = context.splitId
-    val jID = SparkHadoopWriter.createJobID(now, jobID)
+    val jID = createJobID(now, jobID)
     val taID = new TaskAttemptID(new TaskID(jID, true, splitID), 0)
     conf.set("mapred.job.id", jID.toString)
     conf.set("mapred.tip.id", taID.getTaskID.toString)
