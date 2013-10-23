@@ -76,11 +76,8 @@ class MemoryMetadataManager {
         SharkConfVars.CACHE_POLICY.defaultVal)
       val maxCacheSize = tblProps.getOrElse(
         SharkConfVars.MAX_PARTITION_CACHE_SIZE.varname,
-        SharkConfVars.MAX_PARTITION_CACHE_SIZE.defaultVal).toLong
-      val shouldRecordStats = tblProps.getOrElse(
-        SharkConfVars.SHOULD_RECORD_PARTITION_CACHE_STATS.varname,
-        SharkConfVars.SHOULD_RECORD_PARTITION_CACHE_STATS.defaultVal).toBoolean
-      newTable.setPartitionCachePolicy(cachePolicyStr, maxCacheSize, shouldRecordStats)
+        SharkConfVars.MAX_PARTITION_CACHE_SIZE.defaultVal).toInt
+      newTable.setPartitionCachePolicy(cachePolicyStr, maxCacheSize)
     }
 
     _keyToTable.put(tableName.toLowerCase, newTable)

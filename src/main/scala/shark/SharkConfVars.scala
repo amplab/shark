@@ -49,16 +49,11 @@ object SharkConfVars {
   // Class name of the default cache policy used to manage partition evictions for cached,
   // Hive-partitioned tables.
   val CACHE_POLICY = new ConfVar(
-    "shark.partition.cachePolicy.default", "shark.memstore2.LRUCachePolicy")
+    "shark.partition.cachePolicy.default", "shark.memstore2.CacheAllPolicy")
 
   // Maximum size - in terms of the number of objects - of the cache specified by the
   // "shark.cache.partition.cachePolicy" property above.
   val MAX_PARTITION_CACHE_SIZE = new ConfVar("shark.cache.partition.cachePolicy.maxSize", "10")
-
-  // Whether the cache specified by "shark.cache.partition.cachePolicy" above should record
-  // statistics (e.g., hit rate).
-  val SHOULD_RECORD_PARTITION_CACHE_STATS = new ConfVar(
-    "shark.cache.partition.cachePolicy.shouldRecordStats", false)
 
   // If true, then cache any table whose name ends in "_cached".
   val CHECK_TABLENAME_FLAG = new ConfVar("shark.cache.flag.checkTableName", true)

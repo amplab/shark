@@ -108,8 +108,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       tableName: String,
       numPartitionsToCreate: Int,
       maxCacheSize: Int = 10,
-      cachePolicyClassName: String = "shark.memstore2.LRUCachePolicy",
-      shouldRecordStats: Boolean = false
+      cachePolicyClassName: String = "shark.memstore2.LRUCachePolicy"
     ): PartitionedMemoryTable = {
     sc.runSql("drop table if exists %s".format(tableName))
     sc.runSql("""
@@ -118,13 +117,11 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
         tblproperties('shark.cache' = 'true',
                       'shark.cache.partition.cachePolicy.maxSize' = '%d',
                       'shark.cache.partition.cachePolicy.class' = '%s',
-                      'shark.cache.storageLevel' = 'MEMORY_AND_DISK',
-                      'shark.cache.partition.cachePolicy.shouldRecordStats' = '%b')
+                      'shark.cache.storageLevel' = 'MEMORY_AND_DISK')
       """.format(
         tableName,
         maxCacheSize,
-        cachePolicyClassName,
-        shouldRecordStats))
+        cachePolicyClassName))
     var partitionNum = 1
     while (partitionNum <= numPartitionsToCreate) {
       sc.runSql("""insert into table %s partition(keypart = %d)
@@ -515,7 +512,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
         partitioned by (keypart int)""")
     assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
     val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
-    val cachePolicy = partitionedTable.cachePolicy.get
+    val cachePolicy = partitionedTable.cachePolicy
     assert(cachePolicy.isInstanceOf[shark.memstore2.LRUCachePolicy[_, _]])
   }
 
@@ -641,40 +638,18 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       "StorageLevel for partition(keypart=2) should be NONE, but got: " + keypart2StorageLevel)
   }
 
-  test("LRU: record cache stats if user specifies it") {
+  test("LRU: record cache stats") {
     val tableName = "should_record_partition_cache_stats"
     val partitionedTable = createCachedPartitionedTable(
       tableName,
       1 /* numPartitionsToCreate */,
       3 /* maxCacheSize */,
-      "shark.memstore2.LRUCachePolicy",
-      true /* shouldRecordStats */)
-    val lruCachePolicy = partitionedTable.cachePolicy.get
+      "shark.memstore2.LRUCachePolicy")
+    val lruCachePolicy = partitionedTable.cachePolicy
     val hitRate = lruCachePolicy.getHitRate
-    assert(hitRate.isDefined)
-    assert(hitRate.get == 1.0)
+    assert(hitRate == 1.0)
     val evictionCount = lruCachePolicy.getEvictionCount
-    assert(evictionCount.isDefined)
-    assert(evictionCount.get == 0)
-  }
-
-  test("LRU: cache stats are not recorded by default") {
-    sc.runSql("drop table if exists dont_record_partition_cache_stats")
-    sc.runSql("""
-      create table dont_record_partition_cache_stats(key int, value string)
-      partitioned by (keypart int)
-      tblproperties(
-        'shark.cache' = 'true',
-        'shark.cache.partition.cachePolicy.class' = 'shark.memstore2.LRUCachePolicy')
-      """)
-    val tableName = "dont_record_partition_cache_stats"
-    assert(SharkEnv.memoryMetadataManager.containsTable(tableName))
-    val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
-    val lruCachePolicy = partitionedTable.cachePolicy.get
-    val hitRate = lruCachePolicy.getHitRate
-    assert(hitRate.isEmpty)
-    val evictionCount = lruCachePolicy.getEvictionCount
-    assert(evictionCount.isEmpty)
+    assert(evictionCount == 0)
   }
 
   //////////////////////////////////////////////////////////////////////////////

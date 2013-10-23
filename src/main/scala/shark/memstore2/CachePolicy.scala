@@ -17,29 +17,34 @@
 
 package shark.memstore2
 
+import java.util.concurrent.ConcurrentHashMap
+
+import scala.collection.JavaConversions._
+
+import org.apache.spark.rdd.RDD
+
 
 trait CachePolicy[K, V] {
-
-  protected var maxSize: Long = _
 
   protected var loadFunc: (K => V) = _
 
   protected var evictionFunc: (K, V) => Unit = _
 
+  protected var maxSize: Int = -1
+
   def initialize(
-	    maxSize: Long,
+	    maxSize: Int,
 	    loadFunc: (K => V),
-	    evictionFunc: (K, V) => Unit,
-      shouldRecordStats: Boolean
+	    evictionFunc: (K, V) => Unit
     ): Unit = {
     this.maxSize = maxSize
     this.loadFunc = loadFunc
     this.evictionFunc = evictionFunc
   }
-  
+
   def notifyPut(key: K, value: V): Unit
 
-  def notifyRemove(key: K, value: V): Unit
+  def notifyRemove(key: K): Unit
 
   def notifyGet(key: K): Unit
   
@@ -47,7 +52,25 @@ trait CachePolicy[K, V] {
 
   def getMaxSize = maxSize
 
-  def getHitRate: Option[Double] = None
+  def getHitRate: Double
 
-  def getEvictionCount: Option[Long] = None
+  def getEvictionCount: Long
+}
+
+
+class CacheAllPolicy[K, V] extends CachePolicy[K, V] {
+
+  var keyToRdds = new ConcurrentHashMap[K, V]()
+
+  override def notifyPut(key: K, value: V) = keyToRdds.put(key, value)
+
+  override def notifyRemove(key: K) = keyToRdds.remove(key)
+
+  override def notifyGet(key: K) = Unit
+
+  override def getKeysOfCachedEntries: Seq[K] = keyToRdds.keySet.toSeq
+
+  override def getHitRate: Double = 1.0
+
+  override def getEvictionCount: Long = 0L
 }
