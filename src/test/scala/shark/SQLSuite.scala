@@ -650,18 +650,6 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       "StorageLevel for partition(keypart=2) should be NONE, but got: " + keypart2StorageLevel)
   }
 
-  test("LRU: cache stats are recorded") {
-    val tableName = "should_record_partition_cache_stats"
-    val partitionedTable = createCachedPartitionedTable(
-      tableName,
-      1 /* numPartitionsToCreate */,
-      3 /* maxCacheSize */,
-      "shark.memstore2.LRUCachePolicy")
-    val lruCachePolicy = partitionedTable.cachePolicy
-    assert(lruCachePolicy.hitRate == 1.0)
-    assert(lruCachePolicy.evictionCount == 0)
-  }
-
   //////////////////////////////////////////////////////////////////////////////
   // Tableau bug
   //////////////////////////////////////////////////////////////////////////////
