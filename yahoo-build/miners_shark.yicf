@@ -57,4 +57,4 @@ lfind $(PERM:stat) - - $(SHARK_HOME)/  .. \! -name "*.scala" \! -name "*.class" 
 symlink - - - libexec/$(PRODUCT_NAME) $(PRODUCT_NAME)-$(VERSION)/
 configfile 644 - - $(SHARK_HOME)/conf/shark-env.sh shark-env.sh expand overwrite
 
-YINST post-activate chown -R $(HEADLESS_USER) $(SHARK_HOME)
+YINST post-activate chown -R ${HEADLESS_USER} $(SHARK_HOME)
