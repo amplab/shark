@@ -35,6 +35,7 @@ import org.apache.hadoop.io.{BytesWritable, Writable}
 import org.apache.spark.{OneToOneDependency, SparkEnv, SparkFiles}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.TaskContext
+
 import shark.execution.serialization.OperatorSerializationWrapper
 import shark.LogHelper
 
@@ -119,7 +120,6 @@ class ScriptOperator extends UnaryOperator[HiveScriptOperator] {
           SparkEnv.set(sparkEnv)
           val recordWriter = inRecordWriterClass.newInstance
           recordWriter.initialize(proc.getOutputStream, op.localHconf)
-
           for (elem <- iter) {
             recordWriter.write(elem)
           }
