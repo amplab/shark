@@ -256,7 +256,6 @@ object ScriptOperator {
     with LogHelper {
 
     override def uncaughtException(thread: Thread, throwable: Throwable) {
-      Thread.sleep(7000)
       throwable match {
         case ioe: IOException => {
           // Check whether the IOException should be re-thrown by the parent thread.
@@ -269,7 +268,6 @@ object ScriptOperator {
                 .format(HiveConf.ConfVars.ALLOWPARTIALCONSUMP.toString))
               throw ioe
             }
-            println("thread finished...")
             context.synchronized {
               context.addOnCompleteCallback(onCompleteCallback)
             }
