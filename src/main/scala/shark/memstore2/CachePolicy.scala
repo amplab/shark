@@ -39,20 +39,22 @@ trait CachePolicy[K, V] {
 
   protected var _maxSize: Int = -1
 
-  def initializeWithUserSpecs(args: Array[String], fallbackMaxSize: Int) {
+  def initialize(
+      strArgs: Array[String],
+      fallbackMaxSize: Int,
+      loadFunc: K => V,
+      evictionFunc: (K, V) => Unit) {
+    _loadFunc = loadFunc
+    _evictionFunc = evictionFunc
+
     // By default, only initialize the `maxSize` from user specifications.
-    args.size match {
+    strArgs.size match {
       case 0 => _maxSize = fallbackMaxSize
-      case 1 => _maxSize = args.head.toInt
+      case 1 => _maxSize = strArgs.head.toInt
       case _ =>
         throw new Exception("Accpted format: %s(maxSize: Int)".format(this.getClass.getName))
     }
-  }
-
-  def initializeInternals(loadFunc: (K => V), evictionFunc: (K, V) => Unit) {
-    require(maxSize > 0, "Must specify a maxSize before initializing CachePolicy internals.")
-    _loadFunc = loadFunc
-    _evictionFunc = evictionFunc
+    require(maxSize > 0, "Size given to cache eviction policy must be > 1")
   }
 
   def notifyPut(key: K, value: V): Unit
@@ -76,17 +78,21 @@ trait CachePolicy[K, V] {
 
 object CachePolicy {
 
-  def instantiateWithUserSpecs[K, V](str: String, fallbackMaxSize: Int): CachePolicy[K, V] = {
+  def instantiateWithUserSpecs[K, V](
+      str: String,
+      fallbackMaxSize: Int,
+      loadFunc: K => V,
+      evictionFunc: (K, V) => Unit): CachePolicy[K, V] = {
     val firstParenPos = str.indexOf('(')
     if (firstParenPos == -1) {
       val policy = Class.forName(str).newInstance.asInstanceOf[CachePolicy[K, V]]
-      policy.initializeWithUserSpecs(Array.empty[String], fallbackMaxSize)
+      policy.initialize(Array.empty[String], fallbackMaxSize, loadFunc, evictionFunc)
       return policy
     } else {
       val classStr = str.slice(0, firstParenPos)
       val strArgs = str.substring(firstParenPos + 1, str.lastIndexOf(')')).split(',')
       val policy = Class.forName(classStr).newInstance.asInstanceOf[CachePolicy[K, V]]
-      policy.initializeWithUserSpecs(strArgs, fallbackMaxSize)
+      policy.initialize(strArgs, fallbackMaxSize, loadFunc, evictionFunc)
       return policy
     }
   }
@@ -117,8 +123,12 @@ class CacheAllPolicy[K, V] extends CachePolicy[K, V] {
 
 class LRUCachePolicy[K, V] extends LinkedMapBasedPolicy[K, V] {
 
-  override def initializeInternals(loadFunc: (K => V), evictionFunc: (K, V) => Unit) {
-    super.initializeInternals(loadFunc, evictionFunc)
+  override def initialize(
+      strArgs: Array[String],
+      fallbackMaxSize: Int,
+      loadFunc: K => V,
+      evictionFunc: (K, V) => Unit) {
+    super.initialize(strArgs, fallbackMaxSize, loadFunc, evictionFunc)
     _cache = new LinkedMapCache(true /* evictUsingAccessOrder */)
   }
 
@@ -127,8 +137,12 @@ class LRUCachePolicy[K, V] extends LinkedMapBasedPolicy[K, V] {
 
 class FIFOCachePolicy[K, V] extends LinkedMapBasedPolicy[K, V] {
 
-  override def initializeInternals(loadFunc: (K => V), evictionFunc: (K, V) => Unit) {
-    super.initializeInternals(loadFunc, evictionFunc)
+  override def initialize(
+      strArgs: Array[String],
+      fallbackMaxSize: Int,
+      loadFunc: K => V,
+      evictionFunc: (K, V) => Unit) {
+    super.initialize(strArgs, fallbackMaxSize, loadFunc, evictionFunc)
     _cache = new LinkedMapCache()
   }
 
@@ -156,8 +170,12 @@ sealed abstract class LinkedMapBasedPolicy[K, V] extends CachePolicy[K, V] {
   protected var _missCount: Long = 0L
   protected var _evictionCount: Long = 0L
 
-  override def initializeInternals(loadFunc: (K => V), evictionFunc: (K, V) => Unit) {
-    super.initializeInternals(loadFunc, evictionFunc)
+  override def initialize(
+      strArgs: Array[String],
+      fallbackMaxSize: Int,
+      loadFunc: K => V,
+      evictionFunc: (K, V) => Unit) {
+    super.initialize(strArgs, fallbackMaxSize, loadFunc, evictionFunc)
     _isInitialized = true
   }
 

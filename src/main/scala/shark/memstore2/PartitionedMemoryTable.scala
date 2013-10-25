@@ -84,8 +84,8 @@ class PartitionedMemoryTable(
   }
 
   def updatePartition(
-    partitionKey: String,
-    updatedRDD: RDD[TablePartition]): Option[RDD[TablePartition]] = {
+      partitionKey: String,
+      updatedRDD: RDD[TablePartition]): Option[RDD[TablePartition]] = {
     val rddValueOpt = _keyToPartitions.get(partitionKey)
     var prevRDD: Option[RDD[TablePartition]] = rddValueOpt.map(_.rdd)
     if (rddValueOpt.isDefined) {
@@ -105,11 +105,7 @@ class PartitionedMemoryTable(
     return rddRemoved.map(_.rdd)
   }
 
-  def setPartitionCachePolicy(
-      cachePolicyStr: String,
-      fallbackMaxSize: Int) {
-    val newPolicy = CachePolicy.instantiateWithUserSpecs[String, RDDValue](
-      cachePolicyStr, fallbackMaxSize)
+  def setPartitionCachePolicy(cachePolicyStr: String, fallbackMaxSize: Int) {
     // The loadFunc will upgrade the persistence level of the RDD to the preferred storage level.
     val loadFunc: String => RDDValue =
       (partitionKey: String) => {
@@ -120,7 +116,8 @@ class PartitionedMemoryTable(
     // The evictionFunc will unpersist the RDD.
     val evictionFunc: (String, RDDValue) => Unit =
       (partitionKey: String, rddValue) => RDDUtils.unpersistRDD(rddValue.rdd)
-    newPolicy.initializeInternals(loadFunc, evictionFunc)
+    val newPolicy = CachePolicy.instantiateWithUserSpecs[String, RDDValue](
+      cachePolicyStr, fallbackMaxSize, loadFunc, evictionFunc)
     _cachePolicy = newPolicy
   }
 

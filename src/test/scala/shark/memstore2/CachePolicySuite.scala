@@ -44,12 +44,9 @@ class CachePolicySuite extends FunSuite {
 
   test("LRU policy") {
     val kvGen = new IdentifyKVGen(20)
-    val loadFunc = kvGen.loadFunc _
-    val evictFunc = kvGen.evictionFunc _
     val cacheSize = 10
     val lru = new LRUCachePolicy[Int, TestValue]()
-    lru.initializeWithUserSpecs(Array.empty[String], cacheSize)
-    lru.initializeInternals(loadFunc, evictFunc)
+    lru.initialize(Array.empty[String], cacheSize, kvGen.loadFunc _, kvGen.evictionFunc _)
 
     // Load KVs 0-9.
     (0 to 9).map(lru.notifyGet(_))
@@ -80,12 +77,9 @@ class CachePolicySuite extends FunSuite {
 
   test("FIFO policy") {
     val kvGen = new IdentifyKVGen(15)
-    val loadFunc = kvGen.loadFunc _
-    val evictFunc = kvGen.evictionFunc _
     val cacheSize = 5
     val fifo = new FIFOCachePolicy[Int, TestValue]()
-    fifo.initializeWithUserSpecs(Array.empty[String], cacheSize)
-    fifo.initializeInternals(loadFunc, evictFunc)
+    fifo.initialize(Array.empty[String], cacheSize, kvGen.loadFunc _, kvGen.evictionFunc _)
 
     // Load KVs 0-4.
     (0 to 4).map(fifo.notifyGet(_))
@@ -102,22 +96,22 @@ class CachePolicySuite extends FunSuite {
   }
 
   test("Policy classes instantiated from a string, with maxSize argument") {
+    val kvGen = new IdentifyKVGen(15)
     val lruStr = "shark.memstore2.LRUCachePolicy(5)"
-    val lru = CachePolicy.instantiateWithUserSpecs(lruStr, 10)
+    val lru = CachePolicy.instantiateWithUserSpecs(
+        lruStr, fallbackMaxSize = 10, kvGen.loadFunc _, kvGen.evictionFunc _)
     assert(lru.maxSize == 5)
     val fifoStr = "shark.memstore2.FIFOCachePolicy(5)"
-    val fifo = CachePolicy.instantiateWithUserSpecs(fifoStr, 10)
+    val fifo = CachePolicy.instantiateWithUserSpecs(
+        fifoStr, fallbackMaxSize = 10, kvGen.loadFunc _, kvGen.evictionFunc _)
     assert(fifo.maxSize == 5)
   }
 
   test("Cache stats are recorded") {
     val kvGen = new IdentifyKVGen(20)
-    val loadFunc = kvGen.loadFunc _
-    val evictFunc = kvGen.evictionFunc _
     val cacheSize = 5
     val lru = new LRUCachePolicy[Int, TestValue]()
-    lru.initializeWithUserSpecs(Array.empty[String], cacheSize)
-    lru.initializeInternals(loadFunc, evictFunc)
+    lru.initialize(Array.empty[String], cacheSize, kvGen.loadFunc _, kvGen.evictionFunc _)
 
     // Hit rate should start at 1.0
     assert(lru.hitRate == 1.0)
