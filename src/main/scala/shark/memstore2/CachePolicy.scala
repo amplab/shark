@@ -18,35 +18,18 @@
 package shark.memstore2
 
 import java.util.concurrent.ConcurrentHashMap
+import java.util.LinkedHashMap
+import java.util.Map.Entry
 
 import scala.collection.JavaConversions._
 
 import org.apache.spark.rdd.RDD
 
-/**
- * A cache that never evicts entries.
- */
-class CacheAllPolicy[K, V] extends CachePolicy[K, V] {
-
-  // Track the entries in the cache, so that keysOfCachedEntries() returns a valid result.
-  var cache = new ConcurrentHashMap[K, V]()
-
-  override def notifyPut(key: K, value: V) = cache.put(key, value)
-
-  override def notifyRemove(key: K) = cache.remove(key)
-
-  override def notifyGet(key: K) = Unit
-
-  override def keysOfCachedEntries: Seq[K] = cache.keySet.toSeq
-
-  override def hitRate = 1.0
-
-  override def evictionCount = 0L
-}
-
 
 /**
- * 
+ * An general interface for pluggable cache eviction policies in Shark.
+ * One example of usage is to control persistance levels of RDDs that represent a table's
+ * Hive-partitions.
  */
 trait CachePolicy[K, V] {
 
@@ -107,4 +90,122 @@ object CachePolicy {
       return policy
     }
   }
+}
+
+
+/**
+ * A cache that never evicts entries.
+ */
+class CacheAllPolicy[K, V] extends CachePolicy[K, V] {
+
+  // Track the entries in the cache, so that keysOfCachedEntries() returns a valid result.
+  var cache = new ConcurrentHashMap[K, V]()
+
+  override def notifyPut(key: K, value: V) = cache.put(key, value)
+
+  override def notifyRemove(key: K) = cache.remove(key)
+
+  override def notifyGet(key: K) = Unit
+
+  override def keysOfCachedEntries: Seq[K] = cache.keySet.toSeq
+
+  override def hitRate = 1.0
+
+  override def evictionCount = 0L
+}
+
+
+class LRUCachePolicy[K, V] extends LinkedMapBasedPolicy[K, V] {
+
+  override def initializeInternals(loadFunc: (K => V), evictionFunc: (K, V) => Unit) {
+    super.initializeInternals(loadFunc, evictionFunc)
+    _cache = new LinkedMapCache(true /* evictUsingAccessOrder */)
+  }
+
+}
+
+
+class FIFOCachePolicy[K, V] extends LinkedMapBasedPolicy[K, V] {
+
+  override def initializeInternals(loadFunc: (K => V), evictionFunc: (K, V) => Unit) {
+    super.initializeInternals(loadFunc, evictionFunc)
+    _cache = new LinkedMapCache()
+  }
+
+}
+
+
+sealed abstract class LinkedMapBasedPolicy[K, V] extends CachePolicy[K, V] {
+
+  class LinkedMapCache(evictUsingAccessOrder: Boolean = false)
+    extends LinkedHashMap[K, V](maxSize, 0.75F, evictUsingAccessOrder) {
+
+    override def removeEldestEntry(eldest: Entry[K, V]): Boolean = {
+      val shouldRemove = (size() > maxSize)
+      if (shouldRemove) {
+        _evictionFunc(eldest.getKey, eldest.getValue)
+        _evictionCount += 1
+      }
+      return shouldRemove
+    }
+  }
+
+  protected var _cache: LinkedMapCache = _
+  protected var _isInitialized = false
+  protected var _hitCount: Long = 0L
+  protected var _missCount: Long = 0L
+  protected var _evictionCount: Long = 0L
+
+  override def initializeInternals(loadFunc: (K => V), evictionFunc: (K, V) => Unit) {
+    super.initializeInternals(loadFunc, evictionFunc)
+    _isInitialized = true
+  }
+
+  override def notifyPut(key: K, value: V): Unit = {
+    assert(_isInitialized, "Must initialize() %s.".format(this.getClass.getName))
+    this.synchronized {
+      val oldValue = _cache.put(key, value)
+      if (oldValue != null) {
+        _evictionFunc(key, oldValue)
+        _evictionCount += 1
+      }
+    }
+  }
+
+  override def notifyRemove(key: K): Unit = {
+    assert(_isInitialized, "Must initialize() %s.".format(this.getClass.getName))
+    this.synchronized { _cache.remove(key) }
+  }
+
+  override def notifyGet(key: K): Unit = {
+    assert(_isInitialized, "Must initialize() %s.".format(this.getClass.getName))
+    this.synchronized {
+      if (_cache.contains(key)) {
+        _cache.get(key)
+        _hitCount += 1L
+      } else {
+        val loadedValue = _loadFunc(key)
+        _cache.put(key, loadedValue)
+        _missCount += 1L
+      }
+    }
+  }
+
+  override def keysOfCachedEntries: Seq[K] = {
+    assert(_isInitialized, "Must initialize() LRUCachePolicy.")
+    this.synchronized {
+      return _cache.keySet.toSeq
+    }
+  }
+
+  override def hitRate: Double = {
+    this.synchronized {
+      val requestCount = _missCount + _hitCount
+      val rate = if (requestCount == 0L) 1.0 else (_hitCount.toDouble / requestCount)
+      return rate
+    }
+  }
+
+  override def evictionCount = _evictionCount
+
 }
