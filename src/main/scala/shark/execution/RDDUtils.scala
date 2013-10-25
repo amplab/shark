@@ -23,7 +23,6 @@ import com.google.common.collect.{Ordering => GOrdering}
 
 import org.apache.spark.{HashPartitioner, Partitioner, RangePartitioner}
 import org.apache.spark.rdd.{RDD, ShuffledRDD, UnionRDD}
-import org.apache.spark.storage.StorageLevel
 
 import shark.SharkEnv
 
@@ -44,42 +43,6 @@ object RDDUtils {
       case _ => rdd.union(otherRdd)
     }
     return unionedRdd
-  }
-
-  def getStorageLevelOfRDD(rdd: RDD[_]): StorageLevel = {
-    rdd match {
-      case u: UnionRDD[_] => {
-        // Find the storage level of a UnionRDD from the storage levels of RDDs that compose it.
-        // A StorageLevel.NONE is returned if all of those RDDs have StorageLevel.NONE.
-        // Mutually recursive if any RDD in 'u.rdds' is a UnionRDD.
-        getStorageLevelOfRDDs(u.rdds)
-      }
-      case _ => rdd.getStorageLevel
-    }
-  }
-
-  /**
-   * Returns the storage level of a sequence of RDDs, interpreted as the storage level of the first
-   * RDD in the sequence that is persisted in memory or on disk. This works because for Shark's use
-   * case, all RDDs for a non-partitioned table should have the same storage level. An RDD for a
-   * partitioned table could be StorageLevel.NONE if it was unpersisted by the partition eviction
-   * policy.
-   *
-   * @param rdds The sequence of RDDs to find the StorageLevel of.
-   */
-  def getStorageLevelOfRDDs(rdds: Seq[RDD[_]]): StorageLevel = {
-    rdds.foldLeft(StorageLevel.NONE) {
-      (s, r) => {
-        if (s == StorageLevel.NONE) {
-          // Mutally recursive if `r` is a UnionRDD. However, this shouldn't happen in Shark, since
-          // UnionRDDs from successive INSERT INTOs are created through #unionAndFlatten().
-          getStorageLevelOfRDD(r)
-        } else {
-          // Some RDD in 'rdds' is persisted in memory or disk, so return early.
-          return s
-        }
-      }
-    }
   }
 
   def unpersistRDD(rdd: RDD[_]): RDD[_] = {
