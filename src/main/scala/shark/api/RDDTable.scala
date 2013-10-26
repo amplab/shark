@@ -17,67 +17,7 @@
 
 package shark.api
 
-import scala.collection.mutable.ArrayBuffer
-
-import shark.SharkEnv
-import shark.memstore2.{TablePartitionStats, TablePartition, TablePartitionBuilder}
-import shark.util.HiveUtils
 import org.apache.spark.rdd.RDD
-
-
-class RDDTableFunctions(self: RDD[Product], manifests: Seq[ClassManifest[_]]) {
-
-  def saveAsTable(tableName: String, fields: Seq[String]): Boolean = {
-    require(fields.size == this.manifests.size,
-      "Number of column names != number of fields in the RDD.")
-
-    // Get a local copy of the manifests so we don't need to serialize this object.
-    val manifests = this.manifests
-
-    val statsAcc = SharkEnv.sc.accumulableCollection(ArrayBuffer[(Int, TablePartitionStats)]())
-
-    // Create the RDD object.
-    val rdd = self.mapPartitionsWithIndex { case(partitionIndex, iter) =>
-      val ois = manifests.map(HiveUtils.getJavaPrimitiveObjectInspector)
-      val builder = new TablePartitionBuilder(ois, 1000000, shouldCompress = false)
-
-      for (p <- iter) {
-        builder.incrementRowCount()
-        // TODO: this is not the most efficient code to do the insertion ...
-        p.productIterator.zipWithIndex.foreach { case (v, i) =>
-          builder.append(i, v.asInstanceOf[Object], ois(i))
-        }
-      }
-
-      statsAcc += Tuple2(partitionIndex, builder.asInstanceOf[TablePartitionBuilder].stats)
-      Iterator(builder.build())
-    }.persist()
-
-    var isSucessfulCreateTable = HiveUtils.createTableInHive(tableName, fields, manifests)
-
-    // Put the table in the metastore. Only proceed if the DDL statement is executed successfully.
-    if (isSucessfulCreateTable) {
-      // Force evaluate to put the data in memory.
-      SharkEnv.memoryMetadataManager.put(tableName, rdd)
-      try {
-        rdd.context.runJob(rdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
-      } catch {
-        case _ => {
-          // Intercept the exception thrown by SparkContext#runJob() and handle it silently. The
-          // exception message should already be printed to the console by DDLTask#execute().
-          HiveUtils.dropTableInHive(tableName)
-          // Drop the table entry from MemoryMetadataManager.
-          SharkEnv.unpersist(tableName)
-          isSucessfulCreateTable = false
-        }
-      }
-
-      // Gather the partition statistics.
-      SharkEnv.memoryMetadataManager.putStats(tableName, statsAcc.value.toMap)
-    }
-    return isSucessfulCreateTable
-  }
-}
 
 
 object RDDTable {
@@ -128,5 +68,101 @@ object RDDTable {
       rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)]) = {
     new RDDTableFunctions(rdd.asInstanceOf[RDD[Product]],
       Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10]))
+  }
+
+  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M](
+      rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)]) = {
+    new RDDTableFunctions(rdd.asInstanceOf[RDD[Product]],
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10], m[T11]))
+  }
+
+  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M](
+      rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12)]) = {
+    new RDDTableFunctions(rdd.asInstanceOf[RDD[Product]],
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10], m[T11], m[T12]))
+  }
+
+
+  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+    T13: M](rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13)]) = {
+    new RDDTableFunctions(rdd.asInstanceOf[RDD[Product]],
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10], m[T11], m[T12],
+        m[T13]))
+  }
+
+  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+    T13: M, T14: M](rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14)]) = {
+    new RDDTableFunctions(rdd.asInstanceOf[RDD[Product]],
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10], m[T11], m[T12],
+        m[T13], m[T14]))
+  }
+
+  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+    T13: M, T14: M, T15: M](
+      rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15)]) = {
+    new RDDTableFunctions(rdd.asInstanceOf[RDD[Product]],
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10], m[T11], m[T12],
+        m[T13], m[T14], m[T15]))
+  }
+
+  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+    T13: M, T14: M, T15: M, T16: M](
+      rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16)]) = {
+    new RDDTableFunctions(rdd.asInstanceOf[RDD[Product]],
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10], m[T11], m[T12],
+        m[T13], m[T14], m[T15], m[T16]))
+  }
+
+  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+    T13: M, T14: M, T15: M, T16: M, T17: M](
+      rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17)]) = {
+    new RDDTableFunctions(rdd.asInstanceOf[RDD[Product]],
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10], m[T11], m[T12],
+        m[T13], m[T14], m[T15], m[T16], m[T17]))
+  }
+
+  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+    T13: M, T14: M, T15: M, T16: M, T17: M, T18: M](
+      rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17,
+        T18)]) = {
+    new RDDTableFunctions(rdd.asInstanceOf[RDD[Product]],
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10], m[T11], m[T12],
+        m[T13], m[T14], m[T15], m[T16], m[T17], m[T18]))
+    }
+
+  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+    T13: M, T14: M, T15: M, T16: M, T17: M, T18: M, T19: M](
+      rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18,
+        T19)]) = {
+    new RDDTableFunctions(rdd.asInstanceOf[RDD[Product]],
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10], m[T11], m[T12],
+        m[T13], m[T14], m[T15], m[T16], m[T17], m[T18], m[T19]))
+  }
+
+  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+    T13: M, T14: M, T15: M, T16: M, T17: M, T18: M, T19: M, T20: M](
+      rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18,
+        T19, T20)]) = {
+    new RDDTableFunctions(rdd.asInstanceOf[RDD[Product]],
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10], m[T11], m[T12],
+        m[T13], m[T14], m[T15], m[T16], m[T17], m[T18], m[T19], m[T20]))
+  }
+
+  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+    T13: M, T14: M, T15: M, T16: M, T17: M, T18: M, T19: M, T20: M, T21: M](
+      rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18,
+        T19, T20, T21)]) = {
+    new RDDTableFunctions(rdd.asInstanceOf[RDD[Product]],
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10], m[T11], m[T12],
+        m[T13], m[T14], m[T15], m[T16], m[T17], m[T18], m[T19], m[T20], m[T21]))
+  }
+
+  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+    T13: M, T14: M, T15: M, T16: M, T17: M, T18: M, T19: M, T20: M, T21: M, T22: M](
+      rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18,
+        T19, T20, T21, T22)]) = {
+    new RDDTableFunctions(rdd.asInstanceOf[RDD[Product]],
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10], m[T11], m[T12],
+        m[T13], m[T14], m[T15], m[T16], m[T17], m[T18], m[T19], m[T20], m[T21], m[T22]))
   }
 }
