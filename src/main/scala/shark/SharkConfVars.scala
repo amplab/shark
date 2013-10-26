@@ -43,6 +43,15 @@ object SharkConfVars {
   // Default storage level for cached tables.
   val STORAGE_LEVEL = new ConfVar("shark.cache.storageLevel", "MEMORY_AND_DISK")
 
+  // Class name of the default cache policy used to manage partition evictions for cached,
+  // Hive-partitioned tables.
+  val CACHE_POLICY = new ConfVar(
+    "shark.cache.policy", "shark.memstore2.CacheAllPolicy")
+
+  // Maximum size - in terms of the number of objects - of the cache specified by the
+  // "shark.cache.partition.cachePolicy" property above.
+  val MAX_PARTITION_CACHE_SIZE = new ConfVar("shark.cache.policy.maxSize", "10")
+
   // If true, then cache any table whose name ends in "_cached".
   val CHECK_TABLENAME_FLAG = new ConfVar("shark.cache.flag.checkTableName", true)
 
@@ -65,7 +74,8 @@ object SharkConfVars {
       conf.set(EXPLAIN_MODE.varname, EXPLAIN_MODE.defaultVal)
     }
     if (conf.get(COLUMN_BUILDER_PARTITION_SIZE.varname) == null) {
-      conf.setInt(COLUMN_BUILDER_PARTITION_SIZE.varname, COLUMN_BUILDER_PARTITION_SIZE.defaultIntVal)
+      conf.setInt(
+        COLUMN_BUILDER_PARTITION_SIZE.varname,COLUMN_BUILDER_PARTITION_SIZE.defaultIntVal)
     }
     if (conf.get(COLUMNAR_COMPRESSION.varname) == null) {
       conf.setBoolean(COLUMNAR_COMPRESSION.varname, COLUMNAR_COMPRESSION.defaultBoolVal)
@@ -166,18 +176,18 @@ case class ConfVar(
   }
 
   def this(varname: String, defaultVal: Int) = {
-    this(varname, classOf[Int], null, defaultVal, 0, 0, false)
+    this(varname, classOf[Int], defaultVal.toString, defaultVal, 0, 0, false)
   }
 
   def this(varname: String, defaultVal: Long) = {
-    this(varname, classOf[Long], null, 0, defaultVal, 0, false)
+    this(varname, classOf[Long], defaultVal.toString, 0, defaultVal, 0, false)
   }
 
   def this(varname: String, defaultVal: Float) = {
-    this(varname, classOf[Float], null, 0, 0, defaultVal, false)
+    this(varname, classOf[Float], defaultVal.toString, 0, 0, defaultVal, false)
   }
 
   def this(varname: String, defaultVal: Boolean) = {
-    this(varname, classOf[Boolean], null, 0, 0, 0, defaultVal)
+    this(varname, classOf[Boolean], defaultVal.toString, 0, 0, 0, defaultVal)
   }
 }

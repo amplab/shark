@@ -23,7 +23,6 @@ import com.google.common.collect.{Ordering => GOrdering}
 
 import org.apache.spark.{HashPartitioner, Partitioner, RangePartitioner}
 import org.apache.spark.rdd.{RDD, ShuffledRDD, UnionRDD}
-import org.apache.spark.storage.StorageLevel
 
 import shark.SharkEnv
 
@@ -34,19 +33,33 @@ import shark.SharkEnv
  */
 object RDDUtils {
 
-  def getStorageLevelOfCachedTable(rdd: RDD[_]): StorageLevel = {
+  def unionAndFlatten[T: ClassManifest](
+    rdd: RDD[T],
+    otherRdd: RDD[T]): RDD[T] = {
+    val unionedRdd = otherRdd match {
+      case unionRdd: UnionRDD[_] => {
+        new UnionRDD(rdd.context, (unionRdd.rdds :+ rdd))
+      }
+      case _ => rdd.union(otherRdd)
+    }
+    return unionedRdd
+  }
+
+  def unpersistRDD(rdd: RDD[_]): RDD[_] = {
     rdd match {
-      case u: UnionRDD[_] => u.rdds.foldLeft(rdd.getStorageLevel) {
-        (s, r) => {
-          if (s == StorageLevel.NONE) {
-            getStorageLevelOfCachedTable(r)
-          } else {
-            s
-          }
+      case u: UnionRDD[_] => {
+        // Usually, a UnionRDD will not be persisted to avoid data duplication.
+        u.unpersist()
+        // unpersist() all parent RDDs that compose the UnionRDD. Don't propagate past the parents,
+        // since a grandparent of the UnionRDD might have multiple child RDDs (i.e., the sibling of
+        // the UnionRDD's parent is persisted in memory).
+        u.rdds.map {
+          r => r.unpersist()
         }
       }
-      case _ => rdd.getStorageLevel
+      case r => r.unpersist()
     }
+    return rdd
   }
 
   /**
