@@ -28,9 +28,7 @@ import org.apache.hadoop.hive.ql.exec.{MapJoinOperator => HiveMapJoinOperator}
 import org.apache.hadoop.hive.ql.plan.MapJoinDesc
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 
-import org.apache.spark.SparkEnv
 import org.apache.spark.rdd.RDD
-import org.apache.spark.storage.StorageLevel
 
 import shark.SharkEnv
 import shark.execution.serialization.{OperatorSerializationWrapper, SerializableWritable}
@@ -92,8 +90,8 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
   }
 
   override def combineMultipleRdds(rdds: Seq[(Int, RDD[_])]): RDD[_] = {
-    logInfo("%d small tables to map join a large table (%d)".format(rdds.size - 1, posBigTable))
-    logInfo("Big table alias " + bigTableAlias)
+    logDebug("%d small tables to map join a large table (%d)".format(rdds.size - 1, posBigTable))
+    logDebug("Big table alias " + bigTableAlias)
 
     val op1 = OperatorSerializationWrapper(this)
 
@@ -102,7 +100,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
     // Build hash tables for the small tables.
     val hashtables = rdds.zipWithIndex.filter(_._2 != bigTableAlias).map { case ((_, rdd), pos) =>
 
-      logInfo("Creating hash table for input %d".format(pos))
+      logDebug("Creating hash table for input %d".format(pos))
 
       // First compute the keys and values of the small RDDs on slaves.
       // We need to do this before collecting the RDD because the RDD might
@@ -114,6 +112,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
       // following mapParititons will fail because it tries to include the
       // outer closure, which references "this".
       val op = op1
+      // An RDD of (Join key, Corresponding rows) tuples.
       val rddForHash: RDD[(Seq[AnyRef], Seq[Array[AnyRef]])] =
         rdd.mapPartitions { partition =>
           op.initializeOnSlave()
@@ -125,28 +124,15 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
 
       // Collect the RDD and build a hash table.
       val startCollect = System.currentTimeMillis()
-      val storageLevel = rddForHash.getStorageLevel
-      if(storageLevel == StorageLevel.NONE)
-        rddForHash.persist(StorageLevel.MEMORY_AND_DISK)
-      rddForHash.foreach(_ => Unit)
-      val wrappedRows = rddForHash.partitions.flatMap { part =>
-        val blockId = "rdd_%s_%s".format(rddForHash.id, part.index)
-        val iter = SparkEnv.get.blockManager.get(blockId)
-        val partRows = new ArrayBuffer[(Seq[AnyRef], Seq[Array[AnyRef]])]
-        iter.foreach(_.foreach { row =>
-          partRows += row.asInstanceOf[(Seq[AnyRef], Seq[Array[AnyRef]])]
-        })
-        partRows
-      }
-      if(storageLevel == StorageLevel.NONE)
-        rddForHash.unpersist()
 
-      logInfo("wrappedRows size:" + wrappedRows.size)
+      val collectedRows: Array[(Seq[AnyRef], Seq[Array[AnyRef]])] = rddForHash.collect()
+
+      logDebug("collectedRows size:" + collectedRows.size)
       val collectTime = System.currentTimeMillis() - startCollect
       logInfo("HashTable collect took " + collectTime + " ms")
 
       // Build the hash table.
-      val hash = wrappedRows.groupBy(x => x._1)
+      val hash = collectedRows.groupBy(x => x._1)
        .mapValues(v => v.flatMap(t => t._2))
 
       val map = new JHashMap[Seq[AnyRef], Array[Array[AnyRef]]]()

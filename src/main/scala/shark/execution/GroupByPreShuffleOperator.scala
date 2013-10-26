@@ -107,7 +107,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
   }
 
   override def processPartition(split: Int, iter: Iterator[_]) = {
-    logInfo("Running Pre-Shuffle Group-By")
+    logDebug("Running Pre-Shuffle Group-By")
     var numRowsInput = 0
     var numRowsHashTbl = 0
     var useHashAggr = true

@@ -49,7 +49,7 @@ object SharkEnv extends LogHelper {
   def initWithSharkContext(jobName: String, master: String = System.getenv("MASTER"))
     : SharkContext = {
     if (sc != null) {
-      sc.stop
+      sc.stop()
     }
 
     sc = new SharkContext(
@@ -64,7 +64,7 @@ object SharkEnv extends LogHelper {
 
   def initWithSharkContext(newSc: SharkContext): SharkContext = {
     if (sc != null) {
-      sc.stop
+      sc.stop()
     }
 
     sc = newSc
@@ -83,10 +83,7 @@ object SharkEnv extends LogHelper {
     new JavaSharkContext(initWithSharkContext(newSc.sharkCtx))
   }
 
-  logInfo("Initializing SharkEnv")
-
-  System.setProperty("spark.serializer", classOf[SparkKryoSerializer].getName)
-  System.setProperty("spark.kryo.registrator", classOf[KryoRegistrator].getName)
+  logDebug("Initializing SharkEnv")
 
   val executorEnvVars = new HashMap[String, String]
   executorEnvVars.put("SCALA_HOME", getEnv("SCALA_HOME"))
@@ -128,7 +125,7 @@ object SharkEnv extends LogHelper {
 
   /** Cleans up and shuts down the Shark environments. */
   def stop() {
-    logInfo("Shutting down Shark Environment")
+    logDebug("Shutting down Shark Environment")
     // Stop the SparkContext
     if (SharkEnv.sc != null) {
       sc.stop()
