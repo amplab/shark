@@ -20,7 +20,7 @@ package shark.api
 import scala.collection.mutable.ArrayBuffer
 
 import shark.SharkEnv
-import shark.memstore2.{TablePartitionStats, TablePartition, TablePartitionBuilder}
+import shark.memstore2.{CacheType, TablePartitionStats, TablePartition, TablePartitionBuilder}
 import shark.util.HiveUtils
 
 import org.apache.spark.rdd.RDD
@@ -58,9 +58,12 @@ class RDDTableFunctions(self: RDD[Product], manifests: Seq[ClassManifest[_]]) {
 
     // Put the table in the metastore. Only proceed if the DDL statement is executed successfully.
     if (isSucessfulCreateTable) {
-      // Force evaluate to put the data in memory.
-      SharkEnv.memoryMetadataManager.put(tableName, rdd)
+      // Create an entry in the MemoryMetadataManager.
+      val newTable = SharkEnv.memoryMetadataManager.createMemoryTable(
+        tableName, CacheType.HEAP, rdd.getStorageLevel)
+      newTable.tableRDD = rdd
       try {
+        // Force evaluate to put the data in memory.
         rdd.context.runJob(rdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
       } catch {
         case _ => {
@@ -68,7 +71,7 @@ class RDDTableFunctions(self: RDD[Product], manifests: Seq[ClassManifest[_]]) {
           // exception message should already be printed to the console by DDLTask#execute().
           HiveUtils.dropTableInHive(tableName)
           // Drop the table entry from MemoryMetadataManager.
-          SharkEnv.unpersist(tableName)
+          SharkEnv.memoryMetadataManager.removeTable(tableName)
           isSucessfulCreateTable = false
         }
       }
