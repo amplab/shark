@@ -16,23 +16,57 @@ import shark.memstore2.MemoryMetadataManager
 
 class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf) with LogHelper {
 
-  override def analyzeInternal(astNode: ASTNode): Unit = {
-    super.analyzeInternal(astNode)
+  override def analyzeInternal(ast: ASTNode): Unit = {
+    super.analyzeInternal(ast)
 
-    astNode.getToken.getType match {
+    ast.getToken.getType match {
       case HiveParser.TOK_DROPTABLE => {
-        SharkEnv.unpersist(getTableName(astNode))
+        analyzeDropTableOrDropParts(ast)
+      }
+      case HiveParser.TOK_ALTERTABLE_DROPPARTS => {
+        analyzeDropTableOrDropParts(ast)
+      }
+      case HiveParser.TOK_ALTERTABLE_ADDPARTS => {
+        analyzeAlterTableAddParts(ast)
       }
       case HiveParser.TOK_ALTERTABLE_RENAME => {
-        analyzeAlterTableRename(astNode)
+        analyzeAlterTableRename(ast)
       }
       case _ => Unit
     }
   }
 
+  def analyzeDropTableOrDropParts(ast: ASTNode) {
+    val tableName = getTableName(ast)
+    // Create a SharkDDLTask only if the table is cached.
+    if (SharkEnv.memoryMetadataManager.containsTable(tableName)) {
+      // Hive's DDLSemanticAnalyzer#analyzeInternal() will only populate rootTasks with DDLTasks
+      // and DDLWorks that contain DropTableDesc objects.
+      for (ddlTask <- rootTasks) {
+        val dropTableDesc = ddlTask.getWork.asInstanceOf[DDLWork].getDropTblDesc
+        val sharkDDLWork = new SharkDDLWork(dropTableDesc)
+        ddlTask.addDependentTask(TaskFactory.get(sharkDDLWork, conf))
+      }
+    }
+  }
+
+  def analyzeAlterTableAddParts(ast: ASTNode) {
+    val tableName = getTableName(ast)
+    // Create a SharkDDLTask only if the table is cached.
+    if (SharkEnv.memoryMetadataManager.containsTable(tableName)) {
+      // Hive's DDLSemanticAnalyzer#analyzeInternal() will only populate rootTasks with DDLTasks
+      // and DDLWorks that contain AddPartitionDesc objects.
+      for (ddlTask <- rootTasks) {
+        val addPartitionDesc = ddlTask.getWork.asInstanceOf[DDLWork].getAddPartitionDesc
+        val sharkDDLWork = new SharkDDLWork(addPartitionDesc)
+        ddlTask.addDependentTask(TaskFactory.get(sharkDDLWork, conf))
+      }
+    }
+  }
+
   private def analyzeAlterTableRename(astNode: ASTNode) {
     val oldTableName = getTableName(astNode)
-    if (SharkEnv.memoryMetadataManager.contains(oldTableName)) {
+    if (SharkEnv.memoryMetadataManager.containsTable(oldTableName)) {
       val newTableName = BaseSemanticAnalyzer.getUnescapedName(
         astNode.getChild(1).asInstanceOf[ASTNode])
 
