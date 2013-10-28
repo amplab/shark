@@ -44,7 +44,7 @@ class MemoryMetadataManager {
       databaseName: String,
       tableName: String,
       stats: collection.Map[Int, TablePartitionStats]) {
-    val tableKey = makeTableKey(databaseName, tableKey)
+    val tableKey = makeTableKey(databaseName, tableName)
     _keyToStats.put(tableKey, stats)
   }
 
@@ -75,7 +75,7 @@ class MemoryMetadataManager {
     ): MemoryTable = {
     val tableKey = makeTableKey(databaseName, tableName)
     var newTable = new MemoryTable(tableKey, cacheMode, preferredStorageLevel)
-    _keyToTable.put(tableName.toLowerCase, newTable)
+    _keyToTable.put(tableKey, newTable)
     return newTable
   }
 
@@ -99,10 +99,13 @@ class MemoryMetadataManager {
     return newTable
   }
 
-  def getTable(tableName: String): Option[Table] = _keyToTable.get(tableName.toLowerCase)
+  def getTable(databaseName: String, tableName: String): Option[Table] = {
+    _keyToTable.get(makeTableKey(databaseName, tableName))
+  }
 
-  def getMemoryTable(tableName: String): Option[MemoryTable] = {
-    val tableOpt = _keyToTable.get(tableName.toLowerCase)
+  def getMemoryTable(databaseName: String, tableName: String): Option[MemoryTable] = {
+    val tableKey = makeTableKey(databaseName, tableName)
+    val tableOpt = _keyToTable.get(tableKey)
     if (tableOpt.isDefined) {
      assert(tableOpt.get.isInstanceOf[MemoryTable],
        "getMemoryTable() called for a partitioned table.")
@@ -110,8 +113,11 @@ class MemoryMetadataManager {
     tableOpt.asInstanceOf[Option[MemoryTable]]
   }
 
-  def getPartitionedTable(tableName: String): Option[PartitionedMemoryTable] = {
-    val tableOpt = _keyToTable.get(tableName.toLowerCase)
+  def getPartitionedTable(
+      databaseName: String,
+      tableName: String): Option[PartitionedMemoryTable] = {
+    val tableKey = makeTableKey(databaseName, tableName)
+    val tableOpt = _keyToTable.get(tableKey)
     if (tableOpt.isDefined) {
       assert(tableOpt.get.isInstanceOf[PartitionedMemoryTable],
         "getPartitionedTable() called for a non-partitioned table.")
@@ -160,8 +166,8 @@ class MemoryMetadataManager {
     _keyToTable.keys.collect { case k: String => k } toSeq
   }
 
-  private def makeTableKey(databaseName: String, tableName: String) = {
-    return (databaseName + '.' + tableName).toLowerCase
+  private def makeTableKey(databaseName: String, tableName: String): String = {
+    (databaseName + '.' + tableName).toLowerCase
   }
 
 }

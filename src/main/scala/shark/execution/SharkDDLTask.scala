@@ -96,7 +96,7 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
         tblProps)
     } else {
       val newTable = SharkEnv.memoryMetadataManager.createMemoryTable(
-        tableName, cacheMode, preferredStorageLevel)
+        dbName, tableName, cacheMode, preferredStorageLevel)
       // An empty table has a MemoryTable table entry with 'tableRDD' referencing an EmptyRDD.
       newTable.tableRDD = new EmptyRDD(SharkEnv.sc)
     }

@@ -119,7 +119,7 @@ object SharkEnv extends LogHelper {
    * @param tableName The table that should be dropped from the Shark metastore and from memory storage.
    */
   def dropTable(databaseName: String, tableName: String): Option[RDD[_]] = {
-    val tableKey = makeTableKey(databaseName, tableName)
+    val tableKey = databaseName + "." + tableName
     if (SharkEnv.tachyonUtil.tachyonEnabled() && SharkEnv.tachyonUtil.tableExists(tableKey)) {
       if (SharkEnv.tachyonUtil.dropTable(tableKey)) {
         logInfo("Table " + tableKey + " was deleted from Tachyon.");
