@@ -195,6 +195,7 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
             } else {
               convertedRow match {
                 case _: LazyStruct => convertedRow
+                case _: HiveColumnarStruct => convertedRow
                 case _ => tableSerDe.deserialize(
                   tableSerDe.asInstanceOf[Serializer].serialize(
                     convertedRow, tblConvertedOI))
