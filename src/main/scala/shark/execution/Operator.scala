@@ -108,7 +108,7 @@ abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
     }
   }
 
-  def desc() = _desc
+  def desc = _desc
 
   def setDesc[B >: T](d: B) {_desc = d.asInstanceOf[T]}
   

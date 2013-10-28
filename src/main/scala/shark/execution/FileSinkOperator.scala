@@ -191,7 +191,7 @@ class FileSinkOperator extends TerminalOperator with Serializable {
         logDebug("Total number of rows written: " + rows.sum)
     }
 
-    hiveOp.jobClose(localHconf, true /* success */, new JobCloseFeedBack)
+    localHiveOp.jobClose(localHconf, true /* success */, new JobCloseFeedBack)
     rdd
   }
 }
