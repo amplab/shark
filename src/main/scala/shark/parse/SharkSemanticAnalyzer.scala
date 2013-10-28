@@ -167,7 +167,6 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
             val tableNameSplit = tableName.split('.') // Split from 'databaseName.tableName'
             val cachedTableName = tableNameSplit(1)
             val databaseName = tableNameSplit(0)
-            val cachedTableName = tableName.split('.')(1) // Ignore the database name
             if (SharkEnv.memoryMetadataManager.containsTable(databaseName, cachedTableName)) {
               if (hiveSinkOps.size == 1) {
                 // If useUnionRDD is false, the sink op is for INSERT OVERWRITE.
@@ -176,7 +175,9 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                   databaseName, cachedTableName).get
                 val cacheMode = table.cacheMode
                 var hivePartitionKey = new String
-                if (SharkEnv.memoryMetadataManager.isHivePartitioned(cachedTableName)) {
+                val isHivePartitioned = SharkEnv.memoryMetadataManager.isHivePartitioned(
+                  databaseName, cachedTableName)
+                if (isHivePartitioned) {
                   if (cacheMode == CacheType.TACHYON) {
                     throw new SemanticException(
                       "Shark does not support caching Hive-partitioned table(s) in Tachyon.")

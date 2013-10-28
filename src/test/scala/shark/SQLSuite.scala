@@ -288,8 +288,8 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.runSql("create table test_oldname_cached as select * from test")
     sc.runSql("alter table test_oldname_cached rename to test_rename")
 
-    assert(!SharkEnv.memoryMetadataManager.contains(DEFAULT_DB_NAME, "test_oldname_cached"))
-    assert(SharkEnv.memoryMetadataManager.contains(DEFAULT_DB_NAME, "test_rename"))
+    assert(!SharkEnv.memoryMetadataManager.containsTable(DEFAULT_DB_NAME, "test_oldname_cached"))
+    assert(SharkEnv.memoryMetadataManager.containsTable(DEFAULT_DB_NAME, "test_rename"))
 
     expectSql("select count(*) from test_rename", "500")
   }
@@ -496,7 +496,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     val keypart2RDD = partitionedTable.getPartition("keypart=2")
     val keypart3RDD = partitionedTable.getPartition("keypart=3")
     sc.runSql("drop table drop_mult_part_cached ")
-    assert(!SharkEnv.memoryMetadataManager.containsTable(tableName))
+    assert(!SharkEnv.memoryMetadataManager.containsTable(DEFAULT_DB_NAME, tableName))
     // All RDDs should have been unpersisted.
     assert(keypart1RDD.get.getStorageLevel == StorageLevel.NONE)
     assert(keypart2RDD.get.getStorageLevel == StorageLevel.NONE)
@@ -718,8 +718,8 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.sql("use default")
     expectSql("select * from selstar where val='val_487'","487	val_487")
 
-    assert(SharkEnv.memoryMetadataManager.contains(DEFAULT_DB_NAME, "selstar"))
-    assert(SharkEnv.memoryMetadataManager.contains("seconddb", "selstar"))
+    assert(SharkEnv.memoryMetadataManager.containsTable(DEFAULT_DB_NAME, "selstar"))
+    assert(SharkEnv.memoryMetadataManager.containsTable("seconddb", "selstar"))
 
   }
 
@@ -813,7 +813,4 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     val e = intercept[QueryExecutionException] { sc.sql2rdd("asdfasdfasdfasdf") }
     e.getMessage.contains("semantic")
   }
-
-
-  
 }

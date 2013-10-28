@@ -111,9 +111,9 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
   override def execute(): RDD[_] = {
     assert(parentOperators.size == 0)
 
-    val tableNameSplit = tableName.split('.') // Split from 'databaseName.tableName'
-    val tableName = tableNameSplit(1)
+    val tableNameSplit = tableDesc.getTableName.split('.') // Split from 'databaseName.tableName'
     val databaseName = tableNameSplit(0)
+    val tableName = tableNameSplit(1)
     // There are three places we can load the table from.
     // 1. Tachyon table
     // 2. Spark heap (block manager), accessed through the Shark MemoryMetadataManager
@@ -124,35 +124,36 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
     if (cacheMode == CacheType.HEAP) {
       // Table should be in Spark heap (block manager).
       if (!SharkEnv.memoryMetadataManager.containsTable(databaseName, tableName)) {
-        logError("""|Table %s not found in block manager.
-                    |Are you trying to access a cached table from a Shark session other than
-                    |the one in which it was created?""".stripMargin.format(tableKey))
+        logError("""|Table %s.%s not found in block manager.
+                    |Are you trying to access a cached table from a Shark session other than the one
+                    |in which it was created?""".stripMargin.format(databaseName, tableName))
         throw new QueryExecutionException("Cached table not found")
       }
       if (SharkEnv.memoryMetadataManager.isHivePartitioned(databaseName, tableName)) {
         // Get the union of RDDs repesenting the selected Hive partition(s).
-        return makeCachedPartitionRDD(tableKey, parts)
+        return makeCachedPartitionRDD(databaseName, tableName, parts)
       } else {
         val table = SharkEnv.memoryMetadataManager.getMemoryTable(databaseName, tableName).get
         logInfo("Loading table %s.%s from Spark block manager".format(databaseName, tableName))
-        return createPrunedRdd(databaseNamem, tableName, table.tableRDD)
+        return createPrunedRdd(databaseName, tableName, table.tableRDD)
       }
     } else if (cacheMode == CacheType.TACHYON) {
       // Table is in Tachyon.
+      val tableKey = databaseName + "." + tableName
       if (!SharkEnv.tachyonUtil.tableExists(tableKey)) {
         throw new TachyonException("Table " + tableKey + " does not exist in Tachyon")
       }
       logInfo("Loading table " + tableKey + " from Tachyon.")
 
       var indexToStats: collection.Map[Int, TablePartitionStats] =
-        SharkEnv.memoryMetadataManager.getStats(databaseName, tableKey).getOrElse(null)
+        SharkEnv.memoryMetadataManager.getStats(databaseName, tableName).getOrElse(null)
 
       if (indexToStats == null) {
         val statsByteBuffer = SharkEnv.tachyonUtil.getTableMetadata(tableKey)
         indexToStats = JavaSerializer.deserialize[collection.Map[Int, TablePartitionStats]](
           statsByteBuffer.array())
         logInfo("Loading table " + tableKey + " stats from Tachyon.")
-        SharkEnv.memoryMetadataManager.putStats(databaseName, tableKey, indexToStats)
+        SharkEnv.memoryMetadataManager.putStats(databaseName, tableName, indexToStats)
       }
       return createPrunedRdd(databaseName, tableName, SharkEnv.tachyonUtil.createRDD(tableName))
     } else {
@@ -279,7 +280,10 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
    * @param partitions A collection of Hive-partition metadata, such as partition columns and
    *     partition key specifications.
    */
-  private def makeCachedPartitionRDD(tableKey: String, partitions: Array[Partition]): RDD[_] = {
+  private def makeCachedPartitionRDD(
+      databaseName: String,
+      tableName: String,
+      partitions: Array[Partition]): RDD[_] = {
     val hivePartitionRDDs = partitions.map { partition =>
       val partDesc = Utilities.getPartitionDesc(partition)
       // Get partition field info
@@ -297,7 +301,8 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
       }
 
       val partitionKeyStr = MemoryMetadataManager.makeHivePartitionKeyStr(partCols, partSpec)
-      val hivePartitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableKey).get
+      val hivePartitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(
+        databaseName, tableName).get
       val hivePartitionRDD = hivePartitionedTable.getPartition(partitionKeyStr)
 
       hivePartitionRDD.get.mapPartitions { iter =>

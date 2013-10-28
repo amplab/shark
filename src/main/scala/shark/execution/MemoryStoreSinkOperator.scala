@@ -123,7 +123,8 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       }
     }
 
-    val isHivePartitioned = SharkEnv.memoryMetadataManager.isHivePartitioned(tableName)
+    val isHivePartitioned = SharkEnv.memoryMetadataManager.isHivePartitioned(
+      databaseName, tableName)
 
     // If true, a UnionRDD will be used to combine the RDD that contains the query output with the
     // previous RDD, which is fetched using 'tableName' or - if the table is Hive-partitioned - a
@@ -132,7 +133,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
     if (tachyonWriter != null) {
       // Put the table in Tachyon.
-      op.logInfo("Putting RDD for %s in Tachyon".format(tableName))
+      op.logInfo("Putting RDD for %s.%s in Tachyon".format(databaseName, tableName))
       tachyonWriter.createTable(ByteBuffer.allocate(0))
       outputRDD = outputRDD.mapPartitionsWithIndex { case(part, iter) =>
         val partition = iter.next()
@@ -162,10 +163,11 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         // Handle an INSERT INTO command.
         var previousRDDOpt: Option[RDD[TablePartition]] =
           if (isHivePartitioned) {
-            val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
+            val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(
+              databaseName, tableName).get
             partitionedTable.getPartition(hivePartitionKey)
           } else {
-            SharkEnv.memoryMetadataManager.getMemoryTable(tableName).map(_.tableRDD)
+            SharkEnv.memoryMetadataManager.getMemoryTable(databaseName, tableName).map(_.tableRDD)
           }
         outputRDD = previousRDDOpt match {
           case Some(previousRDD) => {
@@ -186,8 +188,9 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     }
 
     if (isHivePartitioned) {
-      val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(tableName).get
-      outputRDD.setName(tableName + "(" + hivePartitionKey + ")")
+      val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(
+        databaseName, tableName).get
+      outputRDD.setName("%s.%s(%s)".format(databaseName, tableName, hivePartitionKey))
       if (useUnionRDD && hasPreviousRDDForUnion) {
         // An RDD for the Hive partition already exists, so update its metadata entry in
         // 'partitionedTable'.
@@ -200,8 +203,9 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     } else {
       outputRDD.setName(tableName)
       // Create a new MemoryTable entry if one doesn't exist (i.e., this operator is for a CTAS).
-      val memoryTable = SharkEnv.memoryMetadataManager.getMemoryTable(tableName).getOrElse(
-        SharkEnv.memoryMetadataManager.createMemoryTable(tableName, cacheMode, storageLevel))
+      var memoryTable = SharkEnv.memoryMetadataManager.getMemoryTable(databaseName, tableName)
+        .getOrElse(SharkEnv.memoryMetadataManager.createMemoryTable(
+          databaseName, tableName, cacheMode, storageLevel))
       memoryTable.tableRDD = outputRDD
     }
 
@@ -213,7 +217,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         // Combine stats for the two RDDs that were combined into UnionRDD.
         val numPartitions = statsAcc.value.toMap.size
         val currentStats = statsAcc.value
-        SharkEnv.memoryMetadataManager.getStats(databseName, tableName) match {
+        SharkEnv.memoryMetadataManager.getStats(databaseName, tableName) match {
           case Some(otherIndexToStats) => {
             for ((otherIndex, tableStats) <- otherIndexToStats) {
               currentStats.append((otherIndex + numPartitions, tableStats))
