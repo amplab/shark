@@ -30,6 +30,7 @@ import org.apache.hadoop.hive.ql.metadata.{Partition, Table}
 import org.apache.hadoop.hive.ql.plan.{PlanUtils, PartitionDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.Serializer
 import org.apache.hadoop.hive.serde2.`lazy`.LazyStruct
+import org.apache.hadoop.hive.serde2.columnar.{ColumnarStruct => HiveColumnarStruct}
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorConverters, 
   ObjectInspectorFactory, StructObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorConverters.Converter
@@ -318,6 +319,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
             } else {
               convertedRow match {
                 case _: LazyStruct => convertedRow
+                case _: HiveColumnarStruct => convertedRow
                 case _ => tableSerde.deserialize(
                   tableSerde.asInstanceOf[Serializer].serialize(
                     convertedRow, tblConvertedOI))
