@@ -33,6 +33,7 @@ import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.spark.{SparkContext, SparkEnv}
 
 import shark.api._
+import org.apache.spark.rdd.RDD
 
 
 class SharkContext(
@@ -47,6 +48,10 @@ class SharkContext(
 
   SharkContext.init()
   import SharkContext._
+
+  private type M[T] = ClassManifest[T]
+  private def m[T](implicit m : ClassManifest[T]) = classManifest[T](m)
+
 
   /**
    * Execute the command and return the results as a sequence. Each element
@@ -91,7 +96,7 @@ class SharkContext(
    * Execute a SQL command and return the results as a TableRDD. The SQL command must be
    * a SELECT statement.
    */
-  def sql2rdd(cmd: String): TableRDD = {
+  def sqlRowRdd(cmd: String): RowRDD = {
     SparkEnv.set(sparkEnv)
     SessionState.start(sessionState)
     val driver = new SharkDriver(hiveconf)
@@ -102,6 +107,154 @@ class SharkContext(
       driver.destroy()
     }
   }
+
+  /**
+   * Execute a SQL command and return the results as a RDD of Seq. The SQL command must be
+   * a SELECT statement. This is useful if the table has more than 22 columns (more than fits in tuples)
+   * NB: These are auto-generated using resources/tablerdd/table_rdd_generators.py
+   */
+  def sqlSeqRdd(cmd: String): RDD[Seq[Any]] =
+    new TableSeqRDD(sqlRowRdd(cmd))
+
+  /**
+   * Execute a SQL command and return the results as a RDD of Tuple. The SQL command must be
+   * a SELECT statement.
+   */
+  def sqlRdd[T](cmd: String): RDD[Tuple1[T]] =
+    new TableRDD1[T](sqlRowRdd(cmd))
+
+  def sqlRdd[T1: M, T2: M](cmd: String):
+  RDD[Tuple2[T1, T2]] =
+    new TableRDD2[T1, T2](sqlRowRdd(cmd),
+      Seq(m[T1], m[T2]))
+
+  def sqlRdd[T1: M, T2: M, T3: M](cmd: String):
+  RDD[Tuple3[T1, T2, T3]] =
+    new TableRDD3[T1, T2, T3](sqlRowRdd(cmd),
+      Seq(m[T1], m[T2], m[T3]))
+
+  def sqlRdd[T1: M, T2: M, T3: M, T4: M](cmd: String):
+  RDD[Tuple4[T1, T2, T3, T4]] =
+    new TableRDD4[T1, T2, T3, T4](sqlRowRdd(cmd),
+      Seq(m[T1], m[T2], m[T3], m[T4]))
+
+  def sqlRdd[T1: M, T2: M, T3: M, T4: M, T5: M](cmd: String):
+  RDD[Tuple5[T1, T2, T3, T4, T5]] =
+    new TableRDD5[T1, T2, T3, T4, T5](sqlRowRdd(cmd),
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5]))
+
+  def sqlRdd[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M](cmd: String):
+  RDD[Tuple6[T1, T2, T3, T4, T5, T6]] =
+    new TableRDD6[T1, T2, T3, T4, T5, T6](sqlRowRdd(cmd),
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6]))
+
+  def sqlRdd[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M](cmd: String):
+  RDD[Tuple7[T1, T2, T3, T4, T5, T6, T7]] =
+    new TableRDD7[T1, T2, T3, T4, T5, T6, T7](sqlRowRdd(cmd),
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7]))
+
+  def sqlRdd[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M](cmd: String):
+  RDD[Tuple8[T1, T2, T3, T4, T5, T6, T7, T8]] =
+    new TableRDD8[T1, T2, T3, T4, T5, T6, T7, T8](sqlRowRdd(cmd),
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8]))
+
+  def sqlRdd[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M](cmd: String):
+  RDD[Tuple9[T1, T2, T3, T4, T5, T6, T7, T8, T9]] =
+    new TableRDD9[T1, T2, T3, T4, T5, T6, T7, T8, T9](sqlRowRdd(cmd),
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9]))
+
+  def sqlRdd[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M](cmd: String):
+  RDD[Tuple10[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10]] =
+    new TableRDD10[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10](sqlRowRdd(cmd),
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10]))
+
+  def sqlRdd[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M](cmd: String):
+  RDD[Tuple11[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11]] =
+    new TableRDD11[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11](sqlRowRdd(cmd),
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10], m[T11]))
+
+  def sqlRdd[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M](cmd: String):
+  RDD[Tuple12[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12]] =
+    new TableRDD12[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12](sqlRowRdd(cmd),
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10], m[T11], m[T12]))
+
+  def sqlRdd[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+  T13: M](cmd: String):
+  RDD[Tuple13[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13]] =
+    new TableRDD13[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13](sqlRowRdd(cmd),
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10], m[T11], m[T12],
+        m[T13]))
+
+  def sqlRdd[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+  T13: M, T14: M](cmd: String):
+  RDD[Tuple14[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14]] =
+    new TableRDD14[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14](sqlRowRdd(cmd),
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10], m[T11], m[T12],
+        m[T13], m[T14]))
+
+  def sqlRdd[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+  T13: M, T14: M, T15: M](cmd: String):
+  RDD[Tuple15[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15]] =
+    new TableRDD15[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15](sqlRowRdd(cmd),
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10], m[T11], m[T12],
+        m[T13], m[T14], m[T15]))
+
+  def sqlRdd[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+  T13: M, T14: M, T15: M, T16: M](cmd: String):
+  RDD[Tuple16[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16]] =
+    new TableRDD16[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16](sqlRowRdd(cmd),
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10], m[T11], m[T12],
+        m[T13], m[T14], m[T15], m[T16]))
+
+  def sqlRdd[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+  T13: M, T14: M, T15: M, T16: M, T17: M](cmd: String):
+  RDD[Tuple17[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17]] =
+    new TableRDD17[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17](sqlRowRdd(cmd),
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10], m[T11], m[T12],
+        m[T13], m[T14], m[T15], m[T16], m[T17]))
+
+  def sqlRdd[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+  T13: M, T14: M, T15: M, T16: M, T17: M, T18: M](cmd: String):
+  RDD[Tuple18[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18]] =
+    new TableRDD18[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18](sqlRowRdd(cmd),
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10], m[T11], m[T12],
+        m[T13], m[T14], m[T15], m[T16], m[T17], m[T18]))
+
+  def sqlRdd[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+  T13: M, T14: M, T15: M, T16: M, T17: M, T18: M, T19: M](cmd: String):
+  RDD[Tuple19[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18,
+    T19]] =
+    new TableRDD19[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18,
+      T19](sqlRowRdd(cmd),
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10], m[T11], m[T12],
+        m[T13], m[T14], m[T15], m[T16], m[T17], m[T18], m[T19]))
+
+  def sqlRdd[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+  T13: M, T14: M, T15: M, T16: M, T17: M, T18: M, T19: M, T20: M](cmd: String):
+  RDD[Tuple20[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18,
+    T19, T20]] =
+    new TableRDD20[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18,
+      T19, T20](sqlRowRdd(cmd),
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10], m[T11], m[T12],
+        m[T13], m[T14], m[T15], m[T16], m[T17], m[T18], m[T19], m[T20]))
+
+  def sqlRdd[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+  T13: M, T14: M, T15: M, T16: M, T17: M, T18: M, T19: M, T20: M, T21: M](cmd: String):
+  RDD[Tuple21[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18,
+    T19, T20, T21]] =
+    new TableRDD21[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18,
+      T19, T20, T21](sqlRowRdd(cmd),
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10], m[T11], m[T12],
+        m[T13], m[T14], m[T15], m[T16], m[T17], m[T18], m[T19], m[T20], m[T21]))
+
+  def sqlRdd[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+  T13: M, T14: M, T15: M, T16: M, T17: M, T18: M, T19: M, T20: M, T21: M, T22: M](cmd: String):
+  RDD[Tuple22[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18,
+    T19, T20, T21, T22]] =
+    new TableRDD22[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18,
+      T19, T20, T21, T22](sqlRowRdd(cmd),
+      Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10], m[T11], m[T12],
+        m[T13], m[T14], m[T15], m[T16], m[T17], m[T18], m[T19], m[T20], m[T21], m[T22]))
 
   /**
    * Execute a SQL command and collect the results locally.

@@ -25,6 +25,10 @@ object RDDTable {
   private type M[T] = ClassManifest[T]
   private def m[T](implicit m : ClassManifest[T]) = classManifest[T](m)
 
+  /*
+   * NB: These functions are auto-generated using resources/tablerdd/table_rdd_generators.py
+   */
+
   def apply[T1: M, T2: M](rdd: RDD[(T1, T2)]) = {
     new RDDTableFunctions(rdd.asInstanceOf[RDD[Product]], Seq(m[T1], m[T2]))
   }

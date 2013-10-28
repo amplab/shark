@@ -110,6 +110,10 @@ class Row(val rawdata: Any, val colname2indexMap: Map[String, Int], val oi: Stru
     ref.getFieldObjectInspector.asInstanceOf[PrimitiveObjectInspector].getPrimitiveJavaObject(data)
   }
 
+  def getPrimitiveGeneric[T](field: Int): T = getPrimitive(field).asInstanceOf[T]
+
+  def getPrimitiveGeneric[T](field: String): T = getPrimitiveGeneric[T](colname2indexMap(field))
+
   /////////////////////////////////////////////////////////////////////////////////////////////////
   // Complex data types - only return the string representation of them for now.
   /////////////////////////////////////////////////////////////////////////////////////////////////

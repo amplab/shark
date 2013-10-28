@@ -33,7 +33,7 @@ import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hadoop.hive.serde2.{SerDe, SerDeUtils}
 import org.apache.hadoop.util.StringUtils
 
-import shark.api.TableRDD
+import shark.api.RowRDD
 import shark.api.QueryExecutionException
 import shark.execution.{SharkDDLTask, SharkDDLWork, SharkExplainTask, SharkExplainWork, SparkTask,
   SparkWork}
@@ -143,7 +143,7 @@ private[shark] class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHe
     super.init()
   }
 
-  def tableRdd(cmd: String): Option[TableRDD] = {
+  def tableRdd(cmd: String): Option[RowRDD] = {
     useTableRddSink = true
     val response = run(cmd)
     // Throw an exception if there is an error in query processing.
