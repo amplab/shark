@@ -139,7 +139,7 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
       }
     } else if (cacheMode == CacheType.TACHYON) {
       // Table is in Tachyon.
-      val tableKey = databaseName + "." + tableName
+      val tableKey = SharkEnv.makeTachyonTableKey(databaseName, tableName)
       if (!SharkEnv.tachyonUtil.tableExists(tableKey)) {
         throw new TachyonException("Table " + tableKey + " does not exist in Tachyon")
       }
