@@ -30,4 +30,3 @@ package object execution {
 
   implicit def kryoWrapper2object[T](wrapper: KryoSerializationWrapper[T]): T = wrapper.value
 }
-

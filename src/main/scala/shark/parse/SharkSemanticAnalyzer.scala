@@ -40,7 +40,7 @@ import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.spark.storage.StorageLevel
 
 import shark.{CachedTableRecovery, LogHelper, SharkConfVars, SharkEnv,  Utils}
-import shark.execution.{HiveOperator, Operator, OperatorFactory, RDDUtils, ReduceSinkOperator,
+import shark.execution.{HiveDesc, Operator, OperatorFactory, RDDUtils, ReduceSinkOperator,
   SharkDDLWork, SparkWork, TerminalOperator}
 import shark.memstore2.{CacheType, ColumnarSerDe, MemoryMetadataManager}
 
