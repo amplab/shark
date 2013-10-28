@@ -19,11 +19,13 @@ package shark.api
 
 import scala.collection.mutable.ArrayBuffer
 
-import shark.SharkEnv
-import shark.memstore2.{CacheType, TablePartitionStats, TablePartition, TablePartitionBuilder}
-import shark.util.HiveUtils
+import org.apache.hadoop.hive.ql.metadata.Hive
 
 import org.apache.spark.rdd.RDD
+
+import shark.{SharkContext, SharkEnv}
+import shark.memstore2.{CacheType, TablePartitionStats, TablePartition, TablePartitionBuilder}
+import shark.util.HiveUtils
 
 
 class RDDTableFunctions(self: RDD[Product], manifests: Seq[ClassManifest[_]]) {
@@ -57,10 +59,11 @@ class RDDTableFunctions(self: RDD[Product], manifests: Seq[ClassManifest[_]]) {
     var isSucessfulCreateTable = HiveUtils.createTableInHive(tableName, fields, manifests)
 
     // Put the table in the metastore. Only proceed if the DDL statement is executed successfully.
+    val databaseName = Hive.get(SharkContext.hiveconf).getCurrentDatabase()
     if (isSucessfulCreateTable) {
       // Create an entry in the MemoryMetadataManager.
       val newTable = SharkEnv.memoryMetadataManager.createMemoryTable(
-        tableName, CacheType.HEAP, rdd.getStorageLevel)
+        databaseName, tableName, CacheType.HEAP, rdd.getStorageLevel)
       newTable.tableRDD = rdd
       try {
         // Force evaluate to put the data in memory.
@@ -71,13 +74,13 @@ class RDDTableFunctions(self: RDD[Product], manifests: Seq[ClassManifest[_]]) {
           // exception message should already be printed to the console by DDLTask#execute().
           HiveUtils.dropTableInHive(tableName)
           // Drop the table entry from MemoryMetadataManager.
-          SharkEnv.memoryMetadataManager.removeTable(tableName)
+          SharkEnv.memoryMetadataManager.removeTable(databaseName, tableName)
           isSucessfulCreateTable = false
         }
       }
 
       // Gather the partition statistics.
-      SharkEnv.memoryMetadataManager.putStats(tableName, statsAcc.value.toMap)
+      SharkEnv.memoryMetadataManager.putStats(databaseName, tableName, statsAcc.value.toMap)
     }
     return isSucessfulCreateTable
   }
