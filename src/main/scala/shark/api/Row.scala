@@ -97,6 +97,10 @@ class Row(val rawdata: Any, val colname2indexMap: Map[String, Int], val oi: Stru
     ref.getFieldObjectInspector.asInstanceOf[PrimitiveObjectInspector].getPrimitiveJavaObject(data)
   }
 
+  def getPrimitiveGeneric[T](field: Int): T = getPrimitive(field).asInstanceOf[T]
+
+  def getPrimitiveGeneric[T](field: String): T = getPrimitiveGeneric[T](colname2indexMap(field))
+
   /////////////////////////////////////////////////////////////////////////////////////////////////
   // Complex data types
   // rxin: I am not sure how useful these APIs are since they would expose the Hive internal
