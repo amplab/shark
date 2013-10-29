@@ -23,7 +23,7 @@ import scala.reflect.BeanProperty
 import org.apache.hadoop.hive.ql.exec.{LimitOperator => HiveLimitOperator}
 import org.apache.hadoop.hive.ql.plan.LimitDesc
 
-import org.apache.spark.rdd.RDD
+import org.apache.spark.rdd.{EmptyRDD, RDD}
 
 import shark.SharkEnv
 
