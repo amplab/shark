@@ -90,6 +90,8 @@ class DefaultColumnBuilder[T](val stats: ColumnStats[T], val t: ColumnType[T, _]
 trait CompressedColumnBuilder[T] extends ColumnBuilder[T] with LogHelper {
 
   var compressionSchemes: Seq[CompressionAlgorithm] = Seq()
+  // Can be set in tests to ensure chosen compression
+  var scheme: CompressionAlgorithm = new NoCompression
 
   def shouldApply(scheme: CompressionAlgorithm): Boolean = {
     scheme.compressionRatio < 0.8
@@ -111,7 +113,10 @@ trait CompressedColumnBuilder[T] extends ColumnBuilder[T] with LogHelper {
       logInfo("Compression scheme chosen is -1 - no compression")
       new NoCompression().compress(b, t)
     } else {
-      val candidateScheme = compressionSchemes.minBy(_.compressionRatio)
+      val candidateScheme = scheme.compressionType match {
+        case DefaultCompressionType => compressionSchemes.minBy(_.compressionRatio)
+        case _ => scheme
+      }
       logInfo("Compression scheme chosen is %d with ratio %f".
         format(candidateScheme.compressionType.typeID, candidateScheme.compressionRatio))
       if (shouldApply(candidateScheme)) {
@@ -164,7 +169,7 @@ object ColumnBuilder {
         new RLE,
         new BooleanBitSetCompression,
         new DictionaryEncoding)
-      if(bde != null) { 
+      if(bde != null) {
         v.compressionSchemes = bde +: v.compressionSchemes
       }
     }
