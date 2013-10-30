@@ -36,8 +36,10 @@ import org.apache.spark.SerializableWritable
 
 import shark.api.QueryExecutionException
 import shark.execution.optimization.ColumnPruner
+import shark.execution.serialization.JavaSerializer
 import shark.{LogHelper, SharkConfVars, SharkEnv, Utils}
 import shark.memstore2.{MemoryMetadataManager, TablePartition, TablePartitionStats}
+import shark.tachyon.TachyonException
 
 
 /**
@@ -53,6 +55,39 @@ trait TableReader extends LogHelper{
 
 }
 
+class TachyonTableReader(@transient _tableDesc: TableDesc) extends TableReader {
+
+  // Split from 'databaseName.tableName'
+  private val _tableNameSplit = _tableDesc.getTableName.split('.')
+  private val _databaseName = _tableNameSplit(0)
+  private val _tableName = _tableNameSplit(1)
+
+  override def makeRDDForTable(hiveTable: HiveTable): RDD[_] = {
+    // Table is in Tachyon.
+    val tableKey = SharkEnv.makeTachyonTableKey(_databaseName, _tableName)
+    if (!SharkEnv.tachyonUtil.tableExists(tableKey)) {
+      throw new TachyonException("Table " + tableKey + " does not exist in Tachyon")
+    }
+    logInfo("Loading table " + tableKey + " from Tachyon.")
+
+    var indexToStats: collection.Map[Int, TablePartitionStats] =
+      SharkEnv.memoryMetadataManager.getStats(_databaseName, _tableName).getOrElse(null)
+
+    if (indexToStats == null) {
+      val statsByteBuffer = SharkEnv.tachyonUtil.getTableMetadata(tableKey)
+      indexToStats = JavaSerializer.deserialize[collection.Map[Int, TablePartitionStats]](
+        statsByteBuffer.array())
+      logInfo("Loading table " + tableKey + " stats from Tachyon.")
+      SharkEnv.memoryMetadataManager.putStats(_databaseName, _tableName, indexToStats)
+    }
+    SharkEnv.tachyonUtil.createRDD(tableKey)
+  }
+
+  override def makeRDDForTablePartitions(partitions: Seq[Partition]): RDD[_] = {
+    throw new UnsupportedOperationException("Partitioned tables are not yet supported for Tachyon.")
+  }
+
+}
 
 class HeapTableReader(@transient _tableDesc: TableDesc) extends TableReader {
 
@@ -142,16 +177,6 @@ class HeapTableReader(@transient _tableDesc: TableDesc) extends TableReader {
   }
 
 }
-
-
-class TachyonTableReader() extends TableReader {
-
-  override def makeRDDForTable(hiveTable: HiveTable): RDD[_] = null
-
-  override def makeRDDForTablePartitions(partitions: Seq[Partition]): RDD[_] = null
-
-}
-
 
 class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf: HiveConf)
   extends TableReader {
