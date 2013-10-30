@@ -1,12 +1,28 @@
+/*
+ * Copyright (C) 2012 The Regents of The University California.
+ * All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package shark.memstore2.column
 
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.io.Text
-import org.scalatest.FunSuite
 import org.apache.hadoop.io.IntWritable
-import shark.memstore2.column.Implicits._
-import scala.collection.mutable.ArrayBuffer
-import scala.math._
+
+import org.scalatest.FunSuite
+
 
 class NullableColumnIteratorSuite extends FunSuite {
 
@@ -23,9 +39,10 @@ class NullableColumnIteratorSuite extends FunSuite {
     a.foreach {
       t => c.append(t, oi)
     }
-    val b = c.build
+    val b = c.build()
     val i = ColumnIterator.newIterator(b)
     Range(0, a.length).foreach { x =>
+      if (x > 0) assert(i.hasNext)
       i.next()
       val v = i.current
       if (a(x) == null) {
@@ -34,7 +51,9 @@ class NullableColumnIteratorSuite extends FunSuite {
         assert(v.toString == a(x).toString)
       }
     }
+    assert(!i.hasNext)
   }
+
   test("Iterate Strings") {
     val oi = PrimitiveObjectInspectorFactory.writableStringObjectInspector
     val c = ColumnBuilder.create(oi)
@@ -45,7 +64,7 @@ class NullableColumnIteratorSuite extends FunSuite {
     c.append(new Text("b"), oi)
     c.append(new Text("Abcdz"), oi)
     c.append(null, oi)
-    val b = c.build
+    val b = c.build()
     val i = ColumnIterator.newIterator(b)
     i.next()
     assert(i.current.toString() == "a")
@@ -59,43 +78,35 @@ class NullableColumnIteratorSuite extends FunSuite {
     assert(i.current.toString() == "Abcdz")
     i.next()
     assert(i.current == null)
+    assert(false === i.hasNext)
   }
-  
+
   test("Iterate Ints") {
-    val oi = PrimitiveObjectInspectorFactory.javaIntObjectInspector
-    val c = ColumnBuilder.create(oi)
-    c.initialize(4)
-    c.append(123.asInstanceOf[Object],oi)
-    c.append(null, oi)
-    c.append(null, oi)
-    c.append(56.asInstanceOf[Object], oi)
-    val b = c.build
-    val i = ColumnIterator.newIterator(b)
-    i.next()
-    assert(i.current.asInstanceOf[IntWritable].get() == 123)
-    i.next()
-    assert(i.current == null)
-    i.next()
-    assert(i.current == null)
-  }
-  
-  test("Iterate Ints RLE") {
-    val oi = PrimitiveObjectInspectorFactory.javaIntObjectInspector
-    val c = ColumnBuilder.create(oi)
-    c.initialize(4)
-    def toappend(i: Int): Int = i/10000
-    Range(0,1000000).foreach { i => 
-      val v = toappend(i)
-      c.append(v.asInstanceOf[Object], oi)
+    def testList(l: Seq[AnyRef]) {
+      val oi = PrimitiveObjectInspectorFactory.javaIntObjectInspector
+      val c = ColumnBuilder.create(oi)
+      c.initialize(l.size)
+
+      l.foreach { item =>
+        c.append(item, oi)
+      }
+
+      val b = c.build()
+      val i = ColumnIterator.newIterator(b)
+
+      l.foreach { x =>
+        i.next()
+        if (x == null) {
+          assert(i.current === x)
+        } else {
+          assert(i.current.asInstanceOf[IntWritable].get === x)
+        }
+      }
+      assert(false === i.hasNext)
     }
-    val b = c.build
-    val iter = ColumnIterator.newIterator(b)
-    Range(0, 1000000).foreach { i => 
-      val v = toappend(i)
-      iter.next()
-      val w = iter.current().asInstanceOf[IntWritable]
-      assert(v == w.get())
-      
-    }
+
+    testList(List(null, null, 123.asInstanceOf[AnyRef]))
+    testList(List(123.asInstanceOf[AnyRef], 4.asInstanceOf[AnyRef], null))
+    testList(List(null))
   }
 }

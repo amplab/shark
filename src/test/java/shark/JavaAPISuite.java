@@ -17,20 +17,21 @@
 
 package shark;
 
+import java.io.Serializable;
+import java.util.List;
+
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import spark.api.java.JavaRDD;
-import spark.api.java.function.Function;
+import org.apache.spark.api.java.JavaRDD;
+import org.apache.spark.api.java.function.Function;
 
 import shark.api.Row;
 import shark.api.JavaSharkContext;
 import shark.api.JavaTableRDD;
 
-import java.io.Serializable;
-import java.util.List;
 
 // The test suite itself is Serializable so that anonymous Function implementations can be
 // serialized, as an alternative to converting these anonymous classes to static inner classes;
@@ -56,14 +57,14 @@ public class JavaAPISuite implements Serializable {
         sc.sql("set shark.test.data.path=" + TestUtils$.MODULE$.dataFilePath());
 
         // test
-        sc.sql("drop table if exists test");
-        sc.sql("CREATE TABLE test (key INT, val STRING)");
-        sc.sql("LOAD DATA LOCAL INPATH '${hiveconf:shark.test.data.path}/kv1.txt' INTO TABLE test");
+        sc.sql("drop table if exists test_java");
+        sc.sql("CREATE TABLE test_java (key INT, val STRING)");
+        sc.sql("LOAD DATA LOCAL INPATH '${hiveconf:shark.test.data.path}/kv1.txt' INTO TABLE test_java");
 
         // users
-        sc.sql("drop table if exists users");
-        sc.sql("create table users (id int, name string) row format delimited fields terminated by '\t'");
-        sc.sql("load data local inpath '${hiveconf:shark.test.data.path}/users.txt' OVERWRITE INTO TABLE users");
+        sc.sql("drop table if exists users_java");
+        sc.sql("create table users_java (id int, name string) row format delimited fields terminated by '\t'");
+        sc.sql("load data local inpath '${hiveconf:shark.test.data.path}/users.txt' OVERWRITE INTO TABLE users_java");
     }
 
     @AfterClass
@@ -74,14 +75,14 @@ public class JavaAPISuite implements Serializable {
 
     @Test
     public void selectQuery() {
-        List<String> result = sc.sql("select val from test");
+        List<String> result = sc.sql("select val from test_java");
         Assert.assertEquals(500, result.size());
         Assert.assertTrue(result.contains("val_407"));
     }
 
     @Test
     public void sql2rdd() {
-        JavaTableRDD result = sc.sql2rdd("select val from test");
+        JavaTableRDD result = sc.sql2rdd("select val from test_java");
         JavaRDD<String> values = result.map(new Function<Row, String>() {
             @Override
             public String call(Row x) {
@@ -94,7 +95,7 @@ public class JavaAPISuite implements Serializable {
 
     @Test
     public void filter() {
-        JavaTableRDD result = sc.sql2rdd("select * from users");
+        JavaTableRDD result = sc.sql2rdd("select * from users_java");
         JavaTableRDD filtered = result.filter(new Function<Row, Boolean>() {
             @Override
             public Boolean call(Row row) throws Exception {
@@ -107,8 +108,8 @@ public class JavaAPISuite implements Serializable {
 
     @Test
     public void union() {
-        JavaTableRDD a = sc.sql2rdd("select * from users where name = \"A\"");
-        JavaTableRDD b = sc.sql2rdd("select * from users where name = \"B\"");
+        JavaTableRDD a = sc.sql2rdd("select * from users_java where name = \"A\"");
+        JavaTableRDD b = sc.sql2rdd("select * from users_java where name = \"B\"");
         JavaTableRDD union = a.union(b);
         Assert.assertEquals(3, union.count());
         List<String> uniqueNames = union.map(new Function<Row, String>() {

@@ -18,12 +18,9 @@
 package shark.memstore2
 
 import java.io.{DataInput, DataOutput}
-import java.nio.ByteBuffer
 import java.util.{List => JList}
 
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
-import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
-import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
 import org.apache.hadoop.hive.serde2.objectinspector.StructField
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 import org.apache.hadoop.io.Writable
@@ -35,7 +32,10 @@ import shark.memstore2.column.ColumnBuilder
  * Used to build a TablePartition. This is used in the serializer to convert a
  * partition of data into columnar format and to generate a TablePartition.
  */
-class TablePartitionBuilder(oi: StructObjectInspector, initialColumnSize: Int, shouldCompress: Boolean = true)
+class TablePartitionBuilder(
+    oi: StructObjectInspector,
+    initialColumnSize: Int,
+    shouldCompress: Boolean = true)
   extends Writable {
 
   var numRows: Long = 0

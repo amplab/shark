@@ -1,23 +1,45 @@
+/*
+ * Copyright (C) 2012 The Regents of The University California.
+ * All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package shark.memstore2.column
 
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
+import java.nio.{ByteBuffer, ByteOrder}
+
 import scala.collection.mutable.HashMap
-import org.scalatest.FunSuite
 
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.io.Text
+
+import org.scalatest.FunSuite
 
 import shark.memstore2.column.ColumnStats._
 
 class CompressionAlgorithmSuite extends FunSuite {
 
-  test("Compressed Column Builder") {
+  // TODO: clean these tests.
+
+  test("CompressedColumnBuilder using RLE") {
+
     class TestColumnBuilder(val stats: ColumnStats[Int], val t: ColumnType[Int,_])
-    extends CompressedColumnBuilder[Int] {
+      extends CompressedColumnBuilder[Int] {
       compressionSchemes = Seq(new RLE())
       override def shouldApply(scheme: CompressionAlgorithm) = true
     }
+
     val b = new TestColumnBuilder(new NoOpStats, INT)
     b.initialize(100)
     val oi = PrimitiveObjectInspectorFactory.javaIntObjectInspector
@@ -31,7 +53,9 @@ class CompressionAlgorithmSuite extends FunSuite {
 
     assert(compressedBuffer.getInt() == 123)
     assert(compressedBuffer.getInt() == 2)
-    
+    assert(compressedBuffer.getInt() == 56)
+    assert(compressedBuffer.getInt() == 2)
+    assert(!compressedBuffer.hasRemaining)
   }
 
   test("RLE Strings") {
@@ -39,10 +63,7 @@ class CompressionAlgorithmSuite extends FunSuite {
     b.order(ByteOrder.nativeOrder())
     b.putInt(STRING.typeID)
     val rle = new RLE()
-    Array[Text](new Text("abc"),
-        new Text("abc"),
-        new Text("efg"),
-        new Text("abc")).foreach { text =>
+    Seq[Text](new Text("abc"), new Text("abc"), new Text("efg"), new Text("abc")).foreach { text =>
       STRING.append(text, b)
       rle.gatherStatsForCompressibility(text, STRING)
     }
@@ -51,13 +72,16 @@ class CompressionAlgorithmSuite extends FunSuite {
     val compressedBuffer = rle.compress(b, STRING)
     assert(compressedBuffer.getInt() == STRING.typeID)
     assert(compressedBuffer.getInt() == RLECompressionType.typeID)
-    assert(STRING.extract(compressedBuffer.position(), compressedBuffer).equals (new Text("abc")))
+    assert(STRING.extract(compressedBuffer).equals(new Text("abc")))
     assert(compressedBuffer.getInt() == 2)
-    assert(STRING.extract(compressedBuffer.position(), compressedBuffer).equals (new Text("efg")))
+    assert(STRING.extract(compressedBuffer).equals(new Text("efg")))
     assert(compressedBuffer.getInt() == 1)
+    assert(STRING.extract(compressedBuffer).equals(new Text("abc")))
+    assert(compressedBuffer.getInt() == 1)
+    assert(!compressedBuffer.hasRemaining)
   }
 
-  test("RLE no encoding") {
+  test("RLE int with run length 1") {
     val b = ByteBuffer.allocate(16)
     b.order(ByteOrder.nativeOrder())
     b.putInt(INT.typeID)
@@ -75,14 +99,15 @@ class CompressionAlgorithmSuite extends FunSuite {
     assert(compressedBuffer.getInt() == 1)
     assert(compressedBuffer.getInt() == 56)
     assert(compressedBuffer.getInt() == 1)
+    assert(!compressedBuffer.hasRemaining)
   }
-  
-  test("RLE perfect encoding") {
+
+  test("RLE int single run") {
     val b = ByteBuffer.allocate(4008)
     b.order(ByteOrder.nativeOrder())
     b.putInt(INT.typeID)
     val rle = new RLE()
-    Range(0,1000).foreach { x => 
+    Range(0, 1000).foreach { x =>
       b.putInt(6)
       rle.gatherStatsForCompressibility(6, INT)
     }
@@ -93,16 +118,36 @@ class CompressionAlgorithmSuite extends FunSuite {
     assert(compressedBuffer.getInt() == RLECompressionType.typeID)
     assert(compressedBuffer.getInt() == 6)
     assert(compressedBuffer.getInt() == 1000)
+    assert(!compressedBuffer.hasRemaining)
   }
-  
-  test("RLE mixture") {
+
+  test("RLE long single run") {
+    val b = ByteBuffer.allocate(8008)
+    b.order(ByteOrder.nativeOrder())
+    b.putInt(LONG.typeID)
+    val rle = new RLE()
+    Range(0, 1000).foreach { x =>
+      b.putLong(Long.MaxValue - 6)
+      rle.gatherStatsForCompressibility(Long.MaxValue - 6, LONG)
+    }
+    b.limit(b.position())
+    b.rewind()
+    val compressedBuffer = rle.compress(b, LONG)
+    assert(compressedBuffer.getInt() == LONG.typeID)
+    assert(compressedBuffer.getInt() == RLECompressionType.typeID)
+    assert(compressedBuffer.getLong() == Long.MaxValue - 6)
+    assert(compressedBuffer.getInt() == 1000)
+    assert(!compressedBuffer.hasRemaining)
+  }
+
+  test("RLE int 3 runs") {
     val b = ByteBuffer.allocate(4008)
     b.order(ByteOrder.nativeOrder())
     b.putInt(INT.typeID)
     val items = Array[Int](10, 20, 40)
     val rle = new RLE()
 
-    Range(0,1000).foreach { x => 
+    Range(0, 1000).foreach { x =>
       val v = if (x < 100) items(0) else if (x < 500) items(1) else items(2)
       b.putInt(v)
       rle.gatherStatsForCompressibility(v, INT)
@@ -116,27 +161,31 @@ class CompressionAlgorithmSuite extends FunSuite {
     assert(compressedBuffer.getInt() == 100)
     assert(compressedBuffer.getInt() == 20)
     assert(compressedBuffer.getInt() == 400)
+    assert(compressedBuffer.getInt() == 40)
+    assert(compressedBuffer.getInt() == 500)
+    assert(!compressedBuffer.hasRemaining)
   }
-  
-  test("RLE perf") {
+
+  test("RLE int single long run") {
     val b = ByteBuffer.allocate(4000008)
     b.order(ByteOrder.nativeOrder())
     b.putInt(INT.typeID)
     val rle = new RLE()
 
-    Range(0,1000000).foreach { x => 
+    Range(0, 1000000).foreach { x =>
       b.putInt(6)
       rle.gatherStatsForCompressibility(6, INT)
     }
     b.limit(b.position())
     b.rewind()
     val compressedBuffer = rle.compress(b, INT)
-    assert(compressedBuffer.getInt() == INT.typeID)
     assert(compressedBuffer.getInt() == RLECompressionType.typeID)
+    assert(compressedBuffer.getInt() == INT.typeID)
     assert(compressedBuffer.getInt() == 6)
     assert(compressedBuffer.getInt() == 1000000)
+    assert(!compressedBuffer.hasRemaining)
   }
-  
+
   test("Dictionary Encoding") {
 
     def testList[T](
@@ -150,7 +199,7 @@ class CompressionAlgorithmSuite extends FunSuite {
       b.putInt(u.typeID)
       val de = new DictionaryEncoding()
       l.foreach { item =>
-        u.append(item.asInstanceOf[T], b)
+        u.append(item, b)
         de.gatherStatsForCompressibility(item, u.asInstanceOf[ColumnType[Any, _]])
       }
       b.limit(b.position())
@@ -162,21 +211,20 @@ class CompressionAlgorithmSuite extends FunSuite {
       val dictionary = new HashMap[Short, T]()
       var count = 0
       while (count < expectedDictSize) {
-        val v = u.extract(compressedBuffer.position(), compressedBuffer)
-        val index = compressedBuffer.getShort()
-        dictionary.put(index, u.clone(v))
+        val v = u.extract(compressedBuffer)
+        dictionary.put(dictionary.size.toShort, u.clone(v))
         count += 1
       }
       assert(dictionary.get(0).get.equals(l(0)))
       assert(dictionary.get(1).get.equals(l(2)))
-      l.foreach { x => 
+      l.foreach { x =>
         val y = dictionary.get(compressedBuffer.getShort()).get
         assert(compareFunc(y, x))
       }
     }
 
     val iList = Array[Int](10, 10, 20, 10)
-    val lList = iList.map { i => i.toLong }
+    val lList = iList.map { i => Long.MaxValue - i.toLong }
     val sList = iList.map { i => new Text(i.toString) }
 
     testList(iList, INT, 2)
@@ -189,23 +237,55 @@ class CompressionAlgorithmSuite extends FunSuite {
     assert(longList.size === (8 + 2*(Short.MaxValue-1)))
     testList(longList, INT, Short.MaxValue - 1)
   }
-  
-  test("RLE region") {
+
+  test("Uncompressed text") {
     val b = new StringColumnBuilder
     b.initialize(0)
     val oi = PrimitiveObjectInspectorFactory.javaStringObjectInspector
 
-    val lines = Array[String]("lar deposits. blithely final packages cajole. regular waters are final requests. regular accounts are according to",
+    val lines = Array[String](
+      "lar deposits. blithely final packages cajole. regular waters are final requests.",
       "hs use ironic, even requests. s",
       "ges. thinly even pinto beans ca",
       "ly final courts cajole furiously final excuse",
-      "uickly special accounts cajole carefully blithely close requests. carefully final asymptotes haggle furiousl"
+      "uickly special accounts cajole carefully blithely close requests. carefully final"
     )
     lines.foreach { line =>
       b.append(line, oi)
     }
     val newBuffer = b.build()
-    assert(newBuffer.getInt() == STRING.typeID)
-    
+    assert(newBuffer.getInt() === 0)  // null count
+    assert(newBuffer.getInt() === STRING.typeID)
+    assert(newBuffer.getInt() === DefaultCompressionType.typeID)
+  }
+
+  test("BooleanBitSet encoding") {
+    val bbs = new BooleanBitSetCompression()
+    val b = ByteBuffer.allocate(4 + 64 + 2)
+    b.order(ByteOrder.nativeOrder())
+    b.putInt(BOOLEAN.typeID)
+    for(_ <- 1 to 5) {
+      b.put(0.toByte)
+      b.put(1.toByte)
+      bbs.gatherStatsForCompressibility(false, BOOLEAN)
+      bbs.gatherStatsForCompressibility(true, BOOLEAN)
+    }
+    for(_ <- 1 to 54) {
+      b.put(0.toByte)
+      bbs.gatherStatsForCompressibility(false, BOOLEAN)
+    }
+    b.put(0.toByte)
+    b.put(1.toByte)
+    bbs.gatherStatsForCompressibility(false, BOOLEAN)
+    bbs.gatherStatsForCompressibility(true, BOOLEAN)
+    b.limit(b.position())
+    b.rewind()
+    val compressedBuffer = bbs.compress(b, BOOLEAN)
+    assert(compressedBuffer.getInt() === BOOLEAN.typeID)
+    assert(compressedBuffer.getInt() === BooleanBitSetCompressionType.typeID)
+    assert(compressedBuffer.getInt() === 64 + 2)
+    assert(compressedBuffer.getLong() === 682)
+    assert(compressedBuffer.getLong() === 2)
+    assert(!compressedBuffer.hasRemaining)
   }
 }

@@ -42,6 +42,15 @@ class ColumnStatsSuite extends FunSuite {
     assert(c.min == true && c.max == true)
     c.append(false)
     assert(c.min == false && c.max == true)
+    assert(c := true)
+    assert(c := false)
+    c = new ColumnStats.BooleanColumnStats
+    c.append(true)
+    assert(c := true)
+    assert(!(c := false))
+    assert(c :>= false)
+    assert(!(c :<= false))
+    assert(c :>= true)
   }
 
   test("ByteColumnStats") {
@@ -56,6 +65,10 @@ class ColumnStatsSuite extends FunSuite {
     assert(c.min == -1 && c.max == 2)
     c.append(-2)
     assert(c.min == -2 && c.max == 2)
+    assert(c := 0.toByte)
+    assert(c :> 0.toByte)
+    assert(c :<= -1.toByte)
+    assert(!(c :<= -3.toByte))
   }
 
   test("ShortColumnStats") {
@@ -130,6 +143,9 @@ class ColumnStatsSuite extends FunSuite {
     assert(c.min == -1 && c.max == Int.MaxValue.toLong + 1L)
     c.append(Int.MinValue.toLong - 1L)
     assert(c.min == Int.MinValue.toLong - 1L && c.max == Int.MaxValue.toLong + 1L)
+    assert(c := 0.toLong)
+    assert(c :> -2.toLong)
+    assert(c :< 0.toLong)
   }
 
   test("FloatColumnStats") {
@@ -144,6 +160,9 @@ class ColumnStatsSuite extends FunSuite {
     assert(c.min == -1 && c.max == 20.5445F)
     c.append(-20.5445F)
     assert(c.min == -20.5445F && c.max == 20.5445F)
+    assert(c := 20.5F)
+    assert(c :< 20.6F)
+    assert(c :> -20.6F)
   }
 
   test("DoubleColumnStats") {
@@ -158,6 +177,9 @@ class ColumnStatsSuite extends FunSuite {
     assert(c.min == -1 && c.max == 20.5445)
     c.append(-20.5445)
     assert(c.min == -20.5445 && c.max == 20.5445)
+    assert(c := 20.5)
+    assert(!(c :> 20.6))
+    assert(c :< 20.6)
   }
 
   test("TimestampColumnStats") {
@@ -168,20 +190,18 @@ class ColumnStatsSuite extends FunSuite {
     val ts4 = new Timestamp(2000)
     ts4.setNanos(100)
     c.append(ts1)
+
     assert(c.min.equals(ts1) && c.max.equals(ts1))
     c.append(ts2)
     assert(c.min.equals(ts1) && c.max.equals(ts2))
     c.append(ts3)
     assert(c.min.equals(ts1) && c.max.equals(ts2))
+
+
     assert(c.min.equals(ts1) && c.max.equals(ts2))
     c.append(ts4)
     assert(c.min.equals(ts1) && c.max.equals(ts4))
-    assert(c:=new Timestamp(2000) == true)
-    assert(c:>new Timestamp(1500) == true)
-    assert(c:<new Timestamp(2500) == true)
-    assert(c:=new Timestamp(900) == false)
-    assert(c:>new Timestamp(2100) == false)
-    assert(c:<new Timestamp(900) == false)
+
   }
 
   test("StringColumnStats") {
@@ -190,22 +210,17 @@ class ColumnStatsSuite extends FunSuite {
     assert(c.min == null && c.max == null)
     c.append("a")
     assert(c.min.equals(T("a")) && c.max.equals(T("a")))
+
     assert(c.min.equals(T("a")) && c.max.equals(T("a")))
     c.append("b")
     assert(c.min.equals(T("a")) && c.max.equals(T("b")))
     c.append("b")
     assert(c.min.equals(T("a")) && c.max.equals(T("b")))
     c.append("cccc")
+
     assert(c.min.equals(T("a")) && c.max.equals(T("cccc")))
     c.append("0987")
     assert(c.min.equals(T("0987")) && c.max.equals(T("cccc")))
-    assert(c:>"a" == true)
-    assert(c:<"z" == true)
-    assert(c:="c" == true)
-    assert(c:="cccd" == false)
-    assert(c:<"cccd" == true)
-    assert(c:>"cccd" == false)
-    assert(c:>="cccd" == false)
-    assert(c:<="cccd" == true)
+
   }
 }

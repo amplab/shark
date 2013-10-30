@@ -21,6 +21,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.io.PrintStream
 import java.io.UnsupportedEncodingException
+import java.net.InetSocketAddress
 import java.util.ArrayList
 import java.util.{List => JavaList}
 import java.util.Properties
@@ -45,12 +46,11 @@ import org.apache.hadoop.hive.service.ThriftHive
 import org.apache.thrift.TProcessor
 import org.apache.thrift.protocol.TBinaryProtocol
 import org.apache.thrift.server.TThreadPoolServer
-import org.apache.thrift.transport.TServerSocket
+import org.apache.thrift.transport.{TSocket, TServerSocket}
 import org.apache.thrift.transport.TTransport
 import org.apache.thrift.transport.TTransportFactory
-import spark.SparkEnv
-import org.apache.thrift.transport.TSocket
-import java.net.InetSocketAddress
+
+import org.apache.spark.SparkEnv
 
 
 /**

@@ -21,7 +21,7 @@ import com.google.common.primitives.Longs
 class BloomFilter(numBitsPerElement: Double, expectedSize: Int, numHashes: Int) 
 	extends AnyRef with Serializable{
 
-  val SEED = System.getProperty("shark.bloomfilter.seed","123456789").toInt
+  val SEED = System.getProperty("shark.bloomfilter.seed","1234567890").toInt
   val bitSetSize = ceil(numBitsPerElement * expectedSize).toInt
   val bitSet = new BitSet(bitSetSize)
 

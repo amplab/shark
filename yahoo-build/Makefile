@@ -64,11 +64,9 @@ commit_clean: clean
 COMPONENT_BIM=./component.bim
 component: BB_Provision build test package
 component: BB_BIM_FILE=$(COMPONENT_BIM)
-#
-component-dist-push:: BB_BIM_FILE=./component.bim
-component-dist-push:: component BB_Dist_Push
-component-dist-push:: component
-	/home/y/bin/dist_install miners_shark-*.tgz -batch -branch quarantine -group shark-devel
+
+component-dist-push: component
+	/home/y/bin/dist_install miners_shark-*.tgz -batch -branch quarantine -group tortuga
 
 component_clean: clean
 

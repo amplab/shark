@@ -473,7 +473,6 @@ testCliDriver_udf_stddev_pop
 testCliDriver_udf_stddev_samp
 testCliDriver_udf_string
 testCliDriver_udf_struct
-testCliDriver_udf_substr
 testCliDriver_udf_substring
 testCliDriver_udf_subtract
 testCliDriver_udf_sum

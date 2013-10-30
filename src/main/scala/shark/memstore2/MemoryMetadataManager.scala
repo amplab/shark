@@ -22,10 +22,10 @@ import java.util.concurrent.ConcurrentHashMap
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ConcurrentMap
 
+import org.apache.spark.rdd.{RDD, UnionRDD}
+import org.apache.spark.storage.StorageLevel
+
 import shark.SharkConfVars
-import spark.RDD
-import spark.rdd.UnionRDD
-import spark.storage.StorageLevel
 
 
 class MemoryMetadataManager {
@@ -70,6 +70,19 @@ class MemoryMetadataManager {
     _keyToStats.get(key.toLowerCase)
   }
 
+  def rename(oldKey: String, newKey: String) {
+    if (contains(oldKey)) {
+      val oldKeyToLowerCase = oldKey.toLowerCase
+      val newKeyToLowerCase = newKey.toLowerCase
+
+      val statsValueEntry = _keyToStats.remove(oldKeyToLowerCase).get
+      val rddValueEntry = _keyToRdd.remove(oldKeyToLowerCase).get
+
+      _keyToStats.put(newKeyToLowerCase, statsValueEntry)
+      _keyToRdd.put(newKeyToLowerCase, rddValueEntry)
+    }
+  }
+
   /**
    * Find all keys that are strings. Used to drop tables after exiting.
    */
@@ -77,27 +90,38 @@ class MemoryMetadataManager {
     _keyToRdd.keys.collect { case k: String => k } toSeq
   }
 
+  /**
+   * Used to drop an RDD from the Spark in-memory cache and/or disk. All metadata
+   * (e.g. entry in '_keyToStats') about the RDD that's tracked by Shark is deleted as well.
+   *
+   * @param key Used to fetch the an RDD value from '_keyToRDD'.
+   * @return Option::isEmpty() is true if there is no RDD value corresponding to 'key' in
+   *         '_keyToRDD'. Otherwise, returns a reference to the RDD that was unpersist()'ed.
+   */
   def unpersist(key: String): Option[RDD[_]] = {
-    def unpersist(rdd: RDD[_]): Unit = {
+    def unpersistRDD(rdd: RDD[_]): Unit = {
       rdd match {
         case u: UnionRDD[_] => {
+          // Recursively unpersist() all RDDs that compose the UnionRDD.
           u.unpersist()
           u.rdds.foreach {
-            r => unpersist(r)
+            r => unpersistRDD(r)
           }
         }
-        case x => x.unpersist()
+        case r => r.unpersist()
       }
     }
-    val o = _keyToRdd.remove(key.toLowerCase())
+    // Remove RDD's entry from Shark metadata. This also fetches a reference to the RDD object
+    // corresponding to the argument for 'key'.
+    val rddValue = _keyToRdd.remove(key.toLowerCase())
     _keyToStats.remove(key)
-    o match {
-      case Some(rdd) => unpersist(rdd)
+    // Unpersist the RDD using the nested helper fn above.
+    rddValue match {
+      case Some(rdd) => unpersistRDD(rdd)
       case None => Unit
     }
-    o
+    rddValue
   }
-
 }
 
 
@@ -105,17 +129,17 @@ object MemoryMetadataManager {
 
   /** Return a StorageLevel corresponding to its String name. */
   def getStorageLevelFromString(s: String): StorageLevel = {
-    if (s == null || s =="") {
+    if (s == null || s == "") {
       getStorageLevelFromString(SharkConfVars.STORAGE_LEVEL.defaultVal)
     } else {
       s.toUpperCase match {
         case "NONE" => StorageLevel.NONE
         case "DISK_ONLY" => StorageLevel.DISK_ONLY
-        case "DISK_ONLY2" => StorageLevel.DISK_ONLY_2
+        case "DISK_ONLY_2" => StorageLevel.DISK_ONLY_2
         case "MEMORY_ONLY" => StorageLevel.MEMORY_ONLY
         case "MEMORY_ONLY_2" => StorageLevel.MEMORY_ONLY_2
         case "MEMORY_ONLY_SER" => StorageLevel.MEMORY_ONLY_SER
-        case "MEMORY_ONLY_SER2" => StorageLevel.MEMORY_ONLY_SER_2
+        case "MEMORY_ONLY_SER_2" => StorageLevel.MEMORY_ONLY_SER_2
         case "MEMORY_AND_DISK" => StorageLevel.MEMORY_AND_DISK
         case "MEMORY_AND_DISK_2" => StorageLevel.MEMORY_AND_DISK_2
         case "MEMORY_AND_DISK_SER" => StorageLevel.MEMORY_AND_DISK_SER

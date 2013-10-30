@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,24 +17,34 @@
 
 package shark.repl
 
+import org.apache.hadoop.hive.common.LogUtils
+import org.apache.hadoop.hive.common.LogUtils.LogInitializationException
+
+
 /**
  * Shark's REPL entry point.
  */
 object Main {
-  
+
+  try {
+    LogUtils.initHiveLog4j()
+  } catch {
+    case e: LogInitializationException => // Ignore the error.
+  }
+
   private var _interp: SharkILoop = null
-  
+
   def interp = _interp
-  
+
   private def interp_=(i: SharkILoop) { _interp = i }
-  
+
   def main(args: Array[String]) {
 
     _interp = new SharkILoop
 
     // We need to set spark.repl.InterpAccessor.interp since it is used
     // everywhere in spark.repl code.
-    spark.repl.Main.interp = _interp
+    org.apache.spark.repl.Main.interp = _interp
 
     // Start an infinite loop ...
     _interp.process(args)

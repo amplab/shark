@@ -45,7 +45,7 @@ import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hadoop.hive.shims.ShimLoader
 import org.apache.hadoop.io.IOUtils
 
-import spark.SparkContext
+import org.apache.spark.SparkContext
 
 
 object SharkCliDriver {
@@ -222,7 +222,7 @@ object SharkCliDriver {
 
 class SharkCliDriver(loadRdds: Boolean = false) extends CliDriver with LogHelper {
 
-  private val ss = SessionState.get()
+  private val ss = SessionState.get().asInstanceOf[CliSessionState]
 
   private val LOG = LogFactory.getLog("CliDriver")
 
@@ -234,7 +234,9 @@ class SharkCliDriver(loadRdds: Boolean = false) extends CliDriver with LogHelper
 
   // Force initializing SharkEnv. This is put here but not object SharkCliDriver
   // because the Hive unit tests do not go through the main() code path.
-  SharkEnv.init()
+  if (!ss.isRemoteMode()) {
+    SharkEnv.init()
+  }
 
   if(loadRdds) CachedTableRecovery.loadAsRdds(processCmd(_))
 
@@ -252,7 +254,11 @@ class SharkCliDriver(loadRdds: Boolean = false) extends CliDriver with LogHelper
       cmd_trimmed.startsWith("!") ||
       tokens(0).toLowerCase().equals("list") ||
       ss.asInstanceOf[CliSessionState].isRemoteMode()) {
+      val start = System.currentTimeMillis()
       super.processCmd(cmd)
+      val end = System.currentTimeMillis()
+      val timeTaken: Double = (end - start) / 1000.0
+      console.printInfo("Time taken (including network latency): " + timeTaken + " seconds")
     } else {
       val hconf = conf.asInstanceOf[HiveConf]
       val proc: CommandProcessor = CommandProcessorFactory.get(tokens(0), hconf)

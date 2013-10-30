@@ -61,8 +61,6 @@ class TablePartition(private var _numRows: Long, private var _columns: Array[Byt
     buffer
   }
 
-  // TODO: Add column pruning to TablePartition for creating a TablePartitionIterator.
-
   /**
    * Return an iterator for the partition.
    */
@@ -77,8 +75,10 @@ class TablePartition(private var _numRows: Long, private var _columns: Array[Byt
   def prunedIterator(columnsUsed: BitSet) = {
     val columnIterators: Array[ColumnIterator] = _columns.map {
       case buffer: ByteBuffer =>
-        val iter = ColumnIterator.newIterator(buffer)
-        iter
+        ColumnIterator.newIterator(buffer)
+      case _ =>
+        // The buffer might be null if it is pruned in Tachyon.
+        null
     }
     new TablePartitionIterator(_numRows, columnIterators, columnsUsed)
   }
@@ -107,6 +107,7 @@ class TablePartition(private var _numRows: Long, private var _columns: Array[Byt
         out.writeInt(byteArray.length)
         out.write(byteArray, 0, byteArray.length)
       } else {
+        out.writeInt(buf.remaining())
         while (buf.hasRemaining()) {
           out.write(buf.get())
         }

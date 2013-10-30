@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,6 +23,7 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream, ObjectOutput, Objec
 import com.ning.compress.lzf.{LZFEncoder, LZFDecoder}
 
 import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.Utilities.EnumDelegate
 import org.apache.hadoop.hive.ql.plan.GroupByDesc
 import org.apache.hadoop.hive.ql.plan.PlanUtils.ExpressionTypes
@@ -45,6 +46,8 @@ object XmlSerializer {
     // workaround for java 1.5
     e.setPersistenceDelegate(classOf[ExpressionTypes], new EnumDelegate())
     e.setPersistenceDelegate(classOf[GroupByDesc.Mode], new EnumDelegate())
+    // workaround for HiveConf-not-a-javabean
+    e.setPersistenceDelegate(classOf[HiveConf], new HiveConfPersistenceDelegate )
     e.writeObject(o)
     e.close()
 

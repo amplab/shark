@@ -19,10 +19,10 @@ package shark.tachyon
 
 import java.nio.ByteBuffer
 
-import shark.{SharkEnv, SharkEnvSlave}
-
 import tachyon.client.OutStream
 import tachyon.client.WriteType
+
+import shark.{SharkEnv, SharkEnvSlave}
 
 
 class TachyonTableWriterImpl(@transient path: String, @transient numColumns: Int)

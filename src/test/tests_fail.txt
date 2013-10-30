@@ -80,6 +80,8 @@ testCliDriver_stats10
 testCliDriver_stats11
 # udaf_context_ngrams is indeterministic
 testCliDriver_udaf_context_ngrams
+# JDK 7 changed behavior of return value when a string is null for substr.
+testCliDriver_udf_substr
 testCliDriver_union17
 testCliDriver_union22
 testCliDriver_uniquejoin

@@ -17,52 +17,30 @@
 
 package shark.memstore2.column
 
-import java.nio.ByteBuffer
-import org.apache.hadoop.io.Writable
-import java.nio.ByteOrder
+import java.nio.{ByteBuffer, ByteOrder}
 
-/** Iterator interface for a column. The iterator should be initialized by a
- * byte buffer, and next can be invoked to get the value for each cell.
- *
- * Adding a new compression/encoding scheme to the code requires several
- * things. First among them is an addition to the list of iterators here. An
- * iterator that knows how to iterate through an encoding-specific ByteBuffer is
- * required. This ByteBuffer would have been created by the one of the concrete
- * [[shark.memstore2.buffer.ColumnBuilder]] classes.  
- * 
- * 
- * The relationship/composition possibilities between the new
- * encoding/compression and existing schemes dictates how the new iterator is
- * implemented.  Null Encoding and RLE Encoding working as generic wrappers that
- * can be wrapped around any data type.  Dictionary Encoding does not work in a
- * hierarchial manner instead requiring the creation of a separate
- * DictionaryEncoded Iterator per Data type.
- * 
- * The changes required for the LZF encoding's Builder/Iterator might be the
- * easiest to look to get a feel for what is required -
- * [[shark.memstore2.buffer.LZFColumnIterator]]. See SHA 225f4d90d8721a9d9e8f
- * 
- * The base class ColumnIterator is the read side of this equation. For the
- * write side see [[shark.memstore2.buffer.ColumnBuilder]].
- * 
- */
+
 trait ColumnIterator {
 
-  private var _initialized = false
-  
-  def init(): Unit = {}
-  def next(): Unit = {
-    if (!_initialized) {
-      init()
-      _initialized = true
-    }
-    computeNext()
-  }
-  def computeNext(): Unit
+  init()
 
-  // Should be implemented as a read-only operation by the ColumnIterator
-  // Can be called any number of times
-  def current(): Object
+  def init() {}
+
+  /**
+   * Produces the next element of this iterator.
+   */
+  def next()
+
+  /**
+   * Tests whether this iterator can provide another element.
+   */
+  def hasNext: Boolean
+
+  /**
+   * Return the current element. The operation should have no side-effect, i.e. it can be invoked
+   * multiple times returning the same value.
+   */
+  def current: Object
 }
 
 abstract class DefaultColumnIterator[T, V](val buffer: ByteBuffer,
@@ -70,36 +48,43 @@ abstract class DefaultColumnIterator[T, V](val buffer: ByteBuffer,
 
 object Implicits {
   implicit def intToCompressionType(i: Int): CompressionType = i match {
-    case -1 => DefaultCompressionType
-    case 0 => RLECompressionType
-    case 1 => DictionaryCompressionType
-    case _ => throw new UnsupportedOperationException("Compression Type " + i)
+    case DefaultCompressionType.typeID => DefaultCompressionType
+    case RLECompressionType.typeID => RLECompressionType
+    case DictionaryCompressionType.typeID => DictionaryCompressionType
+    case BooleanBitSetCompressionType.typeID => BooleanBitSetCompressionType
+    case _ => throw new MemoryStoreException("Unknown compression type " + i)
   }
 
   implicit def intToColumnType(i: Int): ColumnType[_, _] = i match {
-    case 0 => INT
-    case 1 => LONG
-    case 2 => FLOAT
-    case 3 => DOUBLE
-    case 4 => BOOLEAN
-    case 5 => BYTE
-    case 6 => SHORT
-    case 7 => VOID
-    case 8 => STRING
-    case 9 => TIMESTAMP
-    case 10 => BINARY
-    case 11 => GENERIC
+    case INT.typeID => INT
+    case LONG.typeID => LONG
+    case FLOAT.typeID => FLOAT
+    case DOUBLE.typeID => DOUBLE
+    case BOOLEAN.typeID => BOOLEAN
+    case BYTE.typeID => BYTE
+    case SHORT.typeID => SHORT
+    case VOID.typeID => VOID
+    case STRING.typeID => STRING
+    case TIMESTAMP.typeID => TIMESTAMP
+    case BINARY.typeID => BINARY
+    case GENERIC.typeID => GENERIC
+    case _ => throw new MemoryStoreException("Unknown column type " + i)
   }
 }
 
 object ColumnIterator {
-  
+
   import shark.memstore2.column.Implicits._
 
   def newIterator(b: ByteBuffer): ColumnIterator = {
+    new NullableColumnIterator(b.duplicate().order(ByteOrder.nativeOrder()))
+  }
+
+  def newNonNullIterator(b: ByteBuffer): ColumnIterator = {
+    // The first 4 bytes in the buffer indicates the column type.
     val buffer = b.duplicate().order(ByteOrder.nativeOrder())
     val columnType: ColumnType[_, _] = buffer.getInt()
-    val v = columnType match {
+    columnType match {
       case INT => new IntColumnIterator(buffer)
       case LONG => new LongColumnIterator(buffer)
       case FLOAT => new FloatColumnIterator(buffer)
@@ -113,8 +98,5 @@ object ColumnIterator {
       case TIMESTAMP => new TimestampColumnIterator(buffer)
       case GENERIC => new GenericColumnIterator(buffer)
     }
-    new NullableColumnIterator(v, buffer)
   }
-  
 }
-

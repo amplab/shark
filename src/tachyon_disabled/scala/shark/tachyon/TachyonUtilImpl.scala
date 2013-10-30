@@ -18,15 +18,24 @@
 package shark.tachyon
 
 import java.nio.ByteBuffer
+import java.util.BitSet
 
-import shark.memstore2.ColumnarStruct
+import org.apache.spark.rdd.RDD
 
-import spark.RDD
+import shark.memstore2.TablePartition
 
 
 class TachyonUtilImpl(val master: String, val warehousePath: String) extends TachyonUtil {
+  override def pushDownColumnPruning(rdd: RDD[_], columnUsed: BitSet): Boolean = false
+
+  override def tachyonEnabled(): Boolean = false
 
   override def tableExists(tableName: String): Boolean = {
+    throw new UnsupportedOperationException(
+      "This version of Shark is not compiled with Tachyon support.")
+  }
+
+  override def dropTable(tableName: String): Boolean = {
     throw new UnsupportedOperationException(
       "This version of Shark is not compiled with Tachyon support.")
   }
@@ -36,7 +45,7 @@ class TachyonUtilImpl(val master: String, val warehousePath: String) extends Tac
       "This version of Shark is not compiled with Tachyon support.")
   }
 
-  override def createRDD(tableName: String): RDD[ColumnarStruct] = {
+  override def createRDD(tableName: String): RDD[TablePartition] = {
     throw new UnsupportedOperationException(
       "This version of Shark is not compiled with Tachyon support.")
   }
