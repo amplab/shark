@@ -172,42 +172,42 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
     val columnsUsed = new ColumnPruner(this, table).columnsUsed
     SharkEnv.tachyonUtil.pushDownColumnPruning(rdd, columnsUsed)
 
-    val prunedRdd: RDD[_] =
-      if (SharkConfVars.getBoolVar(localHConf, SharkConfVars.MAP_PRUNING) &&
-          childOperators(0).isInstanceOf[FilterOperator] &&
-          indexToStats.size == rdd.partitions.size) {
+    val shouldPrune = (SharkConfVars.getBoolVar(localHConf, SharkConfVars.MAP_PRUNING) &&
+                       childOperators(0).isInstanceOf[FilterOperator] &&
+                       indexToStats.size == rdd.partitions.size)
 
-        val startTime = System.currentTimeMillis
-        val printPruneDebug = SharkConfVars.getBoolVar(
-          localHConf, SharkConfVars.MAP_PRUNING_PRINT_DEBUG)
+    val prunedRdd: RDD[_] = if (shouldPrune) {
+      val startTime = System.currentTimeMillis
+      val printPruneDebug = SharkConfVars.getBoolVar(
+        localHConf, SharkConfVars.MAP_PRUNING_PRINT_DEBUG)
 
-        // Must initialize the condition evaluator in FilterOperator to get the
-        // udfs and object inspectors set.
-        val filterOp = childOperators(0).asInstanceOf[FilterOperator]
-        filterOp.initializeOnSlave()
+      // Must initialize the condition evaluator in FilterOperator to get the
+      // udfs and object inspectors set.
+      val filterOp = childOperators(0).asInstanceOf[FilterOperator]
+      filterOp.initializeOnSlave()
 
-        def prunePartitionFunc(index: Int): Boolean = {
-          if (printPruneDebug) {
-            logInfo("\nPartition " + index + "\n" + indexToStats(index))
-          }
-          // Only test for pruning if we have stats on the column.
-          val partitionStats = indexToStats(index)
-          if (partitionStats != null && partitionStats.stats != null) {
-            MapSplitPruning.test(partitionStats, filterOp.conditionEvaluator)
-          } else {
-            true
-          }
+      def prunePartitionFunc(index: Int): Boolean = {
+        if (printPruneDebug) {
+          logInfo("\nPartition " + index + "\n" + indexToStats(index))
         }
-
-        // Do the pruning.
-        val prunedRdd = PartitionPruningRDD.create(rdd, prunePartitionFunc)
-        val timeTaken = System.currentTimeMillis - startTime
-        logInfo("Map pruning %d partitions into %s partitions took %d ms".format(
-            rdd.partitions.size, prunedRdd.partitions.size, timeTaken))
-        prunedRdd
-      } else {
-        rdd
+        // Only test for pruning if we have stats on the column.
+        val partitionStats = indexToStats(index)
+        if (partitionStats != null && partitionStats.stats != null) {
+          MapSplitPruning.test(partitionStats, filterOp.conditionEvaluator)
+        } else {
+          true
+        }
       }
+
+      // Do the pruning.
+      val prunedRdd = PartitionPruningRDD.create(rdd, prunePartitionFunc)
+      val timeTaken = System.currentTimeMillis - startTime
+      logInfo("Map pruning %d partitions into %s partitions took %d ms".format(
+          rdd.partitions.size, prunedRdd.partitions.size, timeTaken))
+      prunedRdd
+    } else {
+      rdd
+    }
 
     return prunedRdd.mapPartitions { iter =>
       if (iter.hasNext) {
@@ -221,55 +221,22 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
   }
 
   /**
-   * Create a RDD for a table.
+   * Create an RDD for a table stored in Hadoop.
    */
   def makeRDDFromHadoop(): RDD[_] = {
-    // Choose the minimum number of splits. If mapred.map.tasks is set, use that unless
-    // it is smaller than what Spark suggests.
-    val minSplitsPerRDD = math.max(
-      localHConf.getInt("mapred.map.tasks", 1), SharkEnv.sc.defaultMinSplits)
+    // Try to have the InputFormats filter predicates.
+    TableScanOperator.addFilterExprToConf(localHConf, hiveOp)
 
-    TableScanOperator.prepareHiveConf(localHConf, hiveOp)
-    val broadcastedHiveConf = SharkEnv.sc.broadcast(new SerializableWritable(localHConf))
-
+    val hadoopReader = new HadoopTableReader(tableDesc, localHConf)
     if (table.isPartitioned) {
       logDebug("Making %d Hive partitions".format(parts.size))
       // The returned RDD contains arrays of size two with the elements as
       // (deserialized row, column partition value).
-      return makeHivePartitionRDDs(broadcastedHiveConf, minSplitsPerRDD)
+      return hadoopReader.makeRDDForTablePartitions(parts)
     } else {
       // The returned RDD contains deserialized row Objects.
-      return makeTableRDD(broadcastedHiveConf, minSplitsPerRDD)
+      return hadoopReader.makeRDDForTable(table)
     }
-  }
-
-  /**
-   * Creates a Hadoop RDD to read data from the target table's data directory. Returns a transformed
-   * RDD that contains deserialized rows.
-   */
-  private def makeTableRDD(
-      broadcastedHiveConf: Broadcast[SerializableWritable[HiveConf]],
-      minSplits: Int): RDD[_] = {
-    val tablePath = table.getPath.toString
-    val ifc = table.getInputFormatClass
-        .asInstanceOf[java.lang.Class[InputFormat[Writable, Writable]]]
-    logDebug("Table input: %s".format(tablePath))
-
-    val hadoopRDD = createHadoopRdd(tablePath, ifc, broadcastedHiveConf, minSplits)
-    val deserializedHadoopRDD = hadoopRDD.mapPartitions { iter =>
-      val hconf = broadcastedHiveConf.value.value
-      val deserializer = tableDesc.getDeserializerClass().newInstance()
-      deserializer.initialize(hconf, tableDesc.getProperties)
-
-      // Deserialize each Writable to get the row value.
-      iter.map { value =>
-        value match {
-          case v: Writable => deserializer.deserialize(v)
-          case _ => throw new RuntimeException("Failed to match " + value.toString)
-        }
-      }
-    }
-    return deserializedHadoopRDD
   }
 
   /**
@@ -327,105 +294,6 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
     }
   }
 
-  /**
-   * Create a HadoopRDD for every partition key specified in the query. Note that for on-disk Hive
-   * tables, a data directory is created for each partition corresponding to keys specified using
-   * 'PARTITION BY'.
-   */
-  private def makeHivePartitionRDDs[T](
-      broadcastedHiveConf: Broadcast[SerializableWritable[HiveConf]],
-      minSplitsPerRDD: Int
-    ): RDD[_] = {
-    val partitions = parts
-    val hivePartitionRDDs = new Array[RDD[Any]](partitions.size)
-
-    var i = 0
-    partitions.foreach { partition =>
-      val partDesc = Utilities.getPartitionDesc(partition)
-      val tablePath = partition.getPartitionPath.toString
-
-      val ifc = partition.getInputFormatClass
-        .asInstanceOf[java.lang.Class[InputFormat[Writable, Writable]]]
-      val hivePartitionRDD = createHadoopRdd(
-        tablePath, ifc, broadcastedHiveConf, minSplitsPerRDD)
-
-      val hivePartitionRDDWithColValues = hivePartitionRDD.mapPartitions { iter =>
-        val hconf = broadcastedHiveConf.value.value
-        val deserializer = partDesc.getDeserializerClass().newInstance()
-        deserializer.initialize(hconf, partDesc.getProperties())
-
-        // Get partition field info
-        val partSpec = partDesc.getPartSpec()
-        val partProps = partDesc.getProperties()
-
-        val partColsDelimited = partProps.getProperty(META_TABLE_PARTITION_COLUMNS)
-        // Partitioning keys are delimited by "/"
-        val partCols = partColsDelimited.trim().split("/")
-        // 'partValues[i]' contains the value for the partitioning column at 'partCols[i]'.
-        val partValues = if (partSpec == null) {
-          Array.fill(partCols.size)(new String)
-        } else {
-          partCols.map(col => new String(partSpec.get(col))).toArray
-        }
-
-        val rowWithPartArr = new Array[Object](2)
-        // Map each tuple to a row object
-        iter.map { value =>
-          val deserializedRow = deserializer.deserialize(value) // LazyStruct
-          rowWithPartArr.update(0, deserializedRow)
-          rowWithPartArr.update(1, partValues)
-          rowWithPartArr.asInstanceOf[Object]
-        }
-      }
-      hivePartitionRDDs(i) = hivePartitionRDDWithColValues.asInstanceOf[RDD[Any]]
-      i += 1
-    }
-    // Even if we don't use any partitions, we still need an empty RDD
-    if (hivePartitionRDDs.size == 0) {
-      SharkEnv.sc.makeRDD(Seq[Object]())
-    } else {
-      new UnionRDD(hivePartitionRDDs(0).context, hivePartitionRDDs)
-    }
-  }
-
-  /**
-   * Creates a HadoopRDD based on the broadcasted HiveConf and other job properties that will be
-   * applied locally on each slave.
-   */
-  private def createHadoopRdd(
-      path: String,
-      inputFormatClass: Class[InputFormat[Writable, Writable]],
-      broadcastedHiveConf: Broadcast[SerializableWritable[HiveConf]],
-      minSplits: Int)
-    : RDD[Writable] = {
-    /*
-     * Curried. After given an argument for 'path', the resulting JobConf => Unit closure is used to
-     * instantiate a HadoopRDD.
-     */
-    def initializeLocalJobConfFunc(path: String)(jobConf: JobConf) {
-      FileInputFormat.setInputPaths(jobConf, path)
-      if (tableDesc != null) {
-        Utilities.copyTableJobPropertiesToConf(tableDesc, jobConf)
-      }
-      val bufferSize = System.getProperty("spark.buffer.size", "65536")
-      jobConf.set("io.file.buffer.size", bufferSize)
-    }
-
-    val initializeJobConfFunc = initializeLocalJobConfFunc(path) _
-
-    val rdd = new HadoopRDD(
-      SharkEnv.sc,
-      broadcastedHiveConf.asInstanceOf[Broadcast[SerializableWritable[Configuration]]],
-      Some(initializeJobConfFunc),
-      inputFormatClass,
-      classOf[Writable],
-      classOf[Writable],
-      minSplits)
-
-    // Only take the value (skip the key) because Hive works only with values.
-    rdd.map(_._2)
-  }
-
   // All RDD processing is done in execute().
   override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] =
     throw new UnsupportedOperationException("TableScanOperator.processPartition()")
@@ -435,33 +303,9 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
 object TableScanOperator extends LogHelper {
 
   /**
-   * Add miscellaneous properties to the HiveConf to be used for creating a HadoopRDD. These
-   * properties are impractical to add during local JobConf creation in HadoopRDD - for example,
-   * filter expressions would require a serialized HiveTableScanOperator.
-   */
-  private def prepareHiveConf(hiveConf: HiveConf, hiveTableScanOp: HiveTableScanOperator) {
-    // Set s3/s3n credentials. Setting them in localJobConf ensures the settings propagate
-    // from Spark's master all the way to Spark's slaves.
-    var s3varsSet = false
-    val s3vars = Seq("fs.s3n.awsAccessKeyId", "fs.s3n.awsSecretAccessKey",
-      "fs.s3.awsAccessKeyId", "fs.s3.awsSecretAccessKey").foreach { variableName =>
-      if (hiveConf.get(variableName) != null) {
-        s3varsSet = true
-      }
-    }
-
-    // If none of the s3 credentials are set in Hive conf, try use the environmental
-    // variables for credentials.
-    if (!s3varsSet) {
-      Utils.setAwsCredentials(hiveConf)
-    }
-
-    TableScanOperator.addFilterExprToConf(hiveConf, hiveTableScanOp)
-  }
-
-  /**
-   * Add filter expressions and column metadata to the HiveConf This is meant to be called on the
-   * master, so that we can avoid serializing the HiveTableScanOperator.
+   * Add filter expressions and column metadata to the HiveConf. This is meant to be called on the
+   * master - it's impractical to add filters during slave-local JobConf creation in HadoopRDD,
+   * since we would have to serialize the HiveTableScanOperator.
    */
   private def addFilterExprToConf(hiveConf: HiveConf, hiveTableScanOp: HiveTableScanOperator) {
     val tableScanDesc = hiveTableScanOp.getConf()
