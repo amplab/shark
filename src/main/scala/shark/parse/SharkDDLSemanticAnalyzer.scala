@@ -4,7 +4,8 @@ import scala.collection.JavaConversions._
 
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.TaskFactory
-import org.apache.hadoop.hive.ql.parse.{ASTNode, BaseSemanticAnalyzer, DDLSemanticAnalyzer, HiveParser}
+import org.apache.hadoop.hive.ql.parse.{ASTNode, BaseSemanticAnalyzer, DDLSemanticAnalyzer,
+  HiveParser}
 import org.apache.hadoop.hive.ql.plan.DDLWork
 
 import org.apache.spark.rdd.{UnionRDD, RDD}

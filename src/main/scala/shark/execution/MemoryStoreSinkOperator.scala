@@ -113,13 +113,13 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         builder = serde.serialize(row.asInstanceOf[AnyRef], op.objectInspector)
       }
 
-      if (builder != null) {
-        statsAcc += Tuple2(part, builder.asInstanceOf[TablePartitionBuilder].stats)
-        Iterator(builder.asInstanceOf[TablePartitionBuilder].build)
-      } else {
+      if (builder == null) {
         // Empty partition.
         statsAcc += Tuple2(part, new TablePartitionStats(Array(), 0))
         Iterator(new TablePartition(0, Array()))
+      } else {
+        statsAcc += Tuple2(part, builder.asInstanceOf[TablePartitionBuilder].stats)
+        Iterator(builder.asInstanceOf[TablePartitionBuilder].build)
       }
     }
 

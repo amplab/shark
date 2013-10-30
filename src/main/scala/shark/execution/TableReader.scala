@@ -25,8 +25,8 @@ import org.apache.hadoop.hive.ql.exec.Utilities
 import org.apache.hadoop.hive.ql.metadata.{Partition => HivePartition, Table => HiveTable}
 import org.apache.hadoop.hive.ql.plan.{PartitionDesc, TableDesc}
 
-import org.apache.spark.rdd.{EmptyRDD, RDD, UnionRDD}
 import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.rdd.{EmptyRDD, RDD, UnionRDD}
 import org.apache.spark.SerializableWritable
 
 import shark.{LogHelper, SharkConfVars, SharkEnv}
