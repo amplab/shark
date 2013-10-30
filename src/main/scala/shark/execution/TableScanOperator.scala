@@ -22,31 +22,22 @@ import java.util.{ArrayList, Arrays}
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
-import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.mapred.{FileInputFormat, InputFormat, JobConf}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_PARTITION_COLUMNS
 import org.apache.hadoop.hive.ql.exec.{TableScanOperator => HiveTableScanOperator}
 import org.apache.hadoop.hive.ql.exec.{MapSplitPruning, Utilities}
-import org.apache.hadoop.hive.ql.io.HiveInputFormat
 import org.apache.hadoop.hive.ql.metadata.{Partition, Table}
-import org.apache.hadoop.hive.ql.plan.{PlanUtils, PartitionDesc, TableDesc, TableScanDesc}
+import org.apache.hadoop.hive.ql.plan.{PartitionDesc, TableDesc, TableScanDesc}
 import org.apache.hadoop.hive.serde.Constants
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorFactory,
   StructObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
-import org.apache.hadoop.io.Writable
 
-import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.rdd.{EmptyRDD, HadoopRDD, PartitionPruningRDD, RDD, UnionRDD}
-import org.apache.spark.SerializableWritable
+import org.apache.spark.rdd.{PartitionPruningRDD, RDD}
 
-import shark.{LogHelper, SharkConfVars, SharkEnv, Utils}
-import shark.api.QueryExecutionException
+import shark.{LogHelper, SharkConfVars, SharkEnv}
 import shark.execution.optimization.ColumnPruner
-import shark.execution.serialization.{XmlSerializer, JavaSerializer}
 import shark.memstore2.{CacheType, MemoryMetadataManager, TablePartition, TablePartitionStats}
-import shark.tachyon.TachyonException
 
 
 /**
@@ -125,30 +116,19 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
     if (cacheMode == CacheType.HEAP) {
       val tableReader = new HeapTableReader(tableDesc)
       if (table.isPartitioned) {
-        return tableReader.makeRDDForTablePartitions(parts)
+        return tableReader.makeRDDForPartitionedTable(parts)
       } else {
         val tableRdd = tableReader.makeRDDForTable(table)
         return createPrunedRdd(databaseName, tableName, tableRdd)
       }
     } else if (cacheMode == CacheType.TACHYON) {
-      // Table is in Tachyon.
-      val tableKey = SharkEnv.makeTachyonTableKey(databaseName, tableName)
-      if (!SharkEnv.tachyonUtil.tableExists(tableKey)) {
-        throw new TachyonException("Table " + tableKey + " does not exist in Tachyon")
+      val tableReader = new TachyonTableReader(tableDesc)
+      if (table.isPartitioned) {
+        return tableReader.makeRDDForPartitionedTable(parts)
+      } else {
+        val tableRdd = tableReader.makeRDDForTable(table)
+        return createPrunedRdd(databaseName, tableName, tableRdd)
       }
-      logInfo("Loading table " + tableKey + " from Tachyon.")
-
-      var indexToStats: collection.Map[Int, TablePartitionStats] =
-        SharkEnv.memoryMetadataManager.getStats(databaseName, tableName).getOrElse(null)
-
-      if (indexToStats == null) {
-        val statsByteBuffer = SharkEnv.tachyonUtil.getTableMetadata(tableKey)
-        indexToStats = JavaSerializer.deserialize[collection.Map[Int, TablePartitionStats]](
-          statsByteBuffer.array())
-        logInfo("Loading table " + tableKey + " stats from Tachyon.")
-        SharkEnv.memoryMetadataManager.putStats(databaseName, tableName, indexToStats)
-      }
-      return createPrunedRdd(databaseName, tableName, SharkEnv.tachyonUtil.createRDD(tableName))
     } else {
       // Table is a Hive table on HDFS (or other Hadoop storage).
       return makeRDDFromHadoop()
@@ -224,7 +204,7 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
       logDebug("Making %d Hive partitions".format(parts.size))
       // The returned RDD contains arrays of size two with the elements as
       // (deserialized row, column partition value).
-      return hadoopReader.makeRDDForTablePartitions(parts)
+      return hadoopReader.makeRDDForPartitionedTable(parts)
     } else {
       // The returned RDD contains deserialized row Objects.
       return hadoopReader.makeRDDForTable(table)

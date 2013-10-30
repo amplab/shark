@@ -82,7 +82,6 @@ class TachyonTableReader(@transient _tableDesc: TableDesc) extends TableReader {
   override def makeRDDForPartitionedTable(partitions: Seq[Partition]): RDD[_] = {
     throw new UnsupportedOperationException("Partitioned tables are not yet supported for Tachyon.")
   }
-
 }
 
 /** Helper class for scanning tables stored in Spark's block manager */
@@ -180,5 +179,4 @@ class HeapTableReader(@transient _tableDesc: TableDesc) extends TableReader {
                 |which it was created?""".stripMargin.format(partValues, _databaseName, _tableName))
     throw new QueryExecutionException("Cached table partition not found")
   }
-
 }

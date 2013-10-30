@@ -190,7 +190,6 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
     // Only take the value (skip the key) because Hive works only with values.
     rdd.map(_._2)
   }
-
 }
 
 object HadoopTableReader {
