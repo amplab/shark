@@ -51,7 +51,7 @@ trait TableReader extends LogHelper{
 
   def makeRDDForTable(hiveTable: HiveTable): RDD[_]
 
-  def makeRDDForTablePartitions(partitions: Seq[Partition]): RDD[_]
+  def makeRDDForPartitionedTable(partitions: Seq[Partition]): RDD[_]
 
 }
 
@@ -83,7 +83,7 @@ class TachyonTableReader(@transient _tableDesc: TableDesc) extends TableReader {
     SharkEnv.tachyonUtil.createRDD(tableKey)
   }
 
-  override def makeRDDForTablePartitions(partitions: Seq[Partition]): RDD[_] = {
+  override def makeRDDForPartitionedTable(partitions: Seq[Partition]): RDD[_] = {
     throw new UnsupportedOperationException("Partitioned tables are not yet supported for Tachyon.")
   }
 
@@ -113,7 +113,7 @@ class HeapTableReader(@transient _tableDesc: TableDesc) extends TableReader {
    * @param partitions A collection of Hive-partition metadata, such as partition columns and
    *     partition key specifications.
    */
-  override def makeRDDForTablePartitions(partitions: Seq[Partition]): RDD[_] = {
+  override def makeRDDForPartitionedTable(partitions: Seq[Partition]): RDD[_] = {
     val hivePartitionRDDs = partitions.map { partition =>
       val partDesc = Utilities.getPartitionDesc(partition)
       // Get partition field info
@@ -231,15 +231,15 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
     deserializedHadoopRDD
   }
 
-  override def makeRDDForTablePartitions(partitions: Seq[Partition]): RDD[_] =
-    makeRDDForTablePartitions(partitions, filterOpt = None)
-  
+  override def makeRDDForPartitionedTable(partitions: Seq[Partition]): RDD[_] =
+    makeRDDForPartitionedTable(partitions, filterOpt = None)
+
   /**
    * Create a HadoopRDD for every partition key specified in the query. Note that for on-disk Hive
    * tables, a data directory is created for each partition corresponding to keys specified using
    * 'PARTITION BY'.
    */
-  def makeRDDForTablePartitions(
+  def makeRDDForPartitionedTable(
       partitions: Seq[Partition],
       filterOpt: Option[PathFilter]): RDD[_] = {
     val hivePartitionRDDs = partitions.map { partition =>
