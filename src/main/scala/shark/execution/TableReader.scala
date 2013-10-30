@@ -55,6 +55,7 @@ trait TableReader extends LogHelper{
 
 }
 
+/** Helper class for scanning tables stored in Tachyon. */
 class TachyonTableReader(@transient _tableDesc: TableDesc) extends TableReader {
 
   // Split from 'databaseName.tableName'
@@ -89,6 +90,7 @@ class TachyonTableReader(@transient _tableDesc: TableDesc) extends TableReader {
 
 }
 
+/** Helper class for scanning tables stored in Spark's block manager */
 class HeapTableReader(@transient _tableDesc: TableDesc) extends TableReader {
 
   // Split from 'databaseName.tableName'
@@ -96,6 +98,7 @@ class HeapTableReader(@transient _tableDesc: TableDesc) extends TableReader {
   private val _databaseName = _tableNameSplit(0)
   private val _tableName = _tableNameSplit(1)
 
+  /** Fetches the RDD for `_tableName` from the Shark metastore. */
   override def makeRDDForTable(hiveTable: HiveTable): RDD[_] = {
     logInfo("Loading table %s.%s from Spark block manager".format(_databaseName, _tableName))
     val tableOpt = SharkEnv.memoryMetadataManager.getMemoryTable(_databaseName, _tableName)
@@ -109,7 +112,6 @@ class HeapTableReader(@transient _tableDesc: TableDesc) extends TableReader {
    * Fetch an RDD from the Shark metastore using each partition key given, and return a union of all
    * the fetched RDDs.
    *
-   * @param tableKey Name of the partitioned table.
    * @param partitions A collection of Hive-partition metadata, such as partition columns and
    *     partition key specifications.
    */
@@ -162,6 +164,10 @@ class HeapTableReader(@transient _tableDesc: TableDesc) extends TableReader {
     }
   }
 
+  /**
+   * Thrown if the table identified by the (_databaseName, _tableName) pair cannot be found in
+   * the Shark metastore.
+   */
   private def throwMissingTableException() {
     logError("""|Table %s.%s not found in block manager.
                 |Are you trying to access a cached table from a Shark session other than the one
@@ -169,6 +175,10 @@ class HeapTableReader(@transient _tableDesc: TableDesc) extends TableReader {
     throw new QueryExecutionException("Cached table not found")
   }
 
+  /**
+   * Thrown if the table partition identified by the (_databaseName, _tableName, partValues) tuple
+   * cannot be found in the Shark metastore.
+   */
   private def throwMissingPartitionException(partValues: String) {
     logError("""|Partition %s for table %s.%s not found in block manager.
                 |Are you trying to access a cached table from a Shark session other than the one in
@@ -178,6 +188,10 @@ class HeapTableReader(@transient _tableDesc: TableDesc) extends TableReader {
 
 }
 
+/**
+ * Helper class for scanning tables stored in Hadoop - e.g., to read Hive tables that reside in the
+ * data warehouse directory.
+ */
 class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf: HiveConf)
   extends TableReader {
 
@@ -186,6 +200,8 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
   private val _minSplitsPerRDD = math.max(
     _localHConf.getInt("mapred.map.tasks", 1), SharkEnv.sc.defaultMinSplits)
 
+  // Add security credentials before broadcasting the Hive configuration, which is used accross all
+  // reads done by an instance of this class.
   HadoopTableReader.addCredentialsToConf(_localHConf)
   private val _broadcastedHiveConf = SharkEnv.sc.broadcast(new SerializableWritable(_localHConf))
 
@@ -290,6 +306,10 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
     }
   }
 
+  /**
+   * If `filterOpt` is defined, then it will be used to filter files from `path`. These files are
+   * returned in a single, comma-separated string.
+   */
   private def applyFilterIfNeeded(path: Path, filterOpt: Option[PathFilter]): String = {
     filterOpt match {
       case Some(filter) => {
