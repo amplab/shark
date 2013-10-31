@@ -22,17 +22,17 @@ import org.apache.hadoop.fs.PathFilter
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_PARTITION_COLUMNS
 import org.apache.hadoop.hive.ql.exec.Utilities
-import org.apache.hadoop.hive.ql.metadata.{Partition, Table => HiveTable}
+import org.apache.hadoop.hive.ql.metadata.{Partition => HivePartition, Table => HiveTable}
 import org.apache.hadoop.hive.ql.plan.{PartitionDesc, TableDesc}
 
 import org.apache.spark.rdd.{EmptyRDD, RDD, UnionRDD}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.SerializableWritable
 
+import shark.{LogHelper, SharkConfVars, SharkEnv}
 import shark.api.QueryExecutionException
 import shark.execution.optimization.ColumnPruner
 import shark.execution.serialization.JavaSerializer
-import shark.{LogHelper, SharkConfVars, SharkEnv}
 import shark.memstore2.{MemoryMetadataManager, TablePartition, TablePartitionStats}
 import shark.tachyon.TachyonException
 
@@ -46,7 +46,7 @@ trait TableReader extends LogHelper{
 
   def makeRDDForTable(hiveTable: HiveTable): RDD[_]
 
-  def makeRDDForPartitionedTable(partitions: Seq[Partition]): RDD[_]
+  def makeRDDForPartitionedTable(partitions: Seq[HivePartition]): RDD[_]
 
 }
 
@@ -66,12 +66,14 @@ class TachyonTableReader(@transient _tableDesc: TableDesc) extends TableReader {
     }
     logInfo("Loading table " + tableKey + " from Tachyon.")
 
-    var indexToStats: collection.Map[Int, TablePartitionStats] =
-      SharkEnv.memoryMetadataManager.getStats(_databaseName, _tableName).getOrElse(null)
-
-    if (indexToStats == null) {
+    // True if stats for the target table is missing from the Shark metastore, and should be fetched
+    // and deserialized from Tachyon's metastore. This can happen if that table was created in a
+    // previous Shark session, since Shark's metastore is not persistent.
+    var shouldFetchStatsFromTachyon = SharkEnv.memoryMetadataManager.getStats(
+      _databaseName, _tableName).isEmpty
+    if (shouldFetchStatsFromTachyon) {
       val statsByteBuffer = SharkEnv.tachyonUtil.getTableMetadata(tableKey)
-      indexToStats = JavaSerializer.deserialize[collection.Map[Int, TablePartitionStats]](
+      val indexToStats = JavaSerializer.deserialize[collection.Map[Int, TablePartitionStats]](
         statsByteBuffer.array())
       logInfo("Loading table " + tableKey + " stats from Tachyon.")
       SharkEnv.memoryMetadataManager.putStats(_databaseName, _tableName, indexToStats)
@@ -79,7 +81,7 @@ class TachyonTableReader(@transient _tableDesc: TableDesc) extends TableReader {
     SharkEnv.tachyonUtil.createRDD(tableKey)
   }
 
-  override def makeRDDForPartitionedTable(partitions: Seq[Partition]): RDD[_] = {
+  override def makeRDDForPartitionedTable(partitions: Seq[HivePartition]): RDD[_] = {
     throw new UnsupportedOperationException("Partitioned tables are not yet supported for Tachyon.")
   }
 }
@@ -96,7 +98,9 @@ class HeapTableReader(@transient _tableDesc: TableDesc) extends TableReader {
   override def makeRDDForTable(hiveTable: HiveTable): RDD[_] = {
     logInfo("Loading table %s.%s from Spark block manager".format(_databaseName, _tableName))
     val tableOpt = SharkEnv.memoryMetadataManager.getMemoryTable(_databaseName, _tableName)
-    if (tableOpt.isEmpty) throwMissingTableException()
+    if (tableOpt.isEmpty) {
+      throwMissingTableException()
+    }
 
     val table = tableOpt.get
     table.tableRDD
@@ -109,7 +113,7 @@ class HeapTableReader(@transient _tableDesc: TableDesc) extends TableReader {
    * @param partitions A collection of Hive-partition metadata, such as partition columns and
    *     partition key specifications.
    */
-  override def makeRDDForPartitionedTable(partitions: Seq[Partition]): RDD[_] = {
+  override def makeRDDForPartitionedTable(partitions: Seq[HivePartition]): RDD[_] = {
     val hivePartitionRDDs = partitions.map { partition =>
       val partDesc = Utilities.getPartitionDesc(partition)
       // Get partition field info
@@ -129,7 +133,9 @@ class HeapTableReader(@transient _tableDesc: TableDesc) extends TableReader {
       val partitionKeyStr = MemoryMetadataManager.makeHivePartitionKeyStr(partCols, partSpec)
       val hivePartitionedTableOpt = SharkEnv.memoryMetadataManager.getPartitionedTable(
         _databaseName, _tableName)
-      if (hivePartitionedTableOpt.isEmpty) throwMissingTableException()
+      if (hivePartitionedTableOpt.isEmpty) {
+        throwMissingTableException()
+      }
       val hivePartitionedTable = hivePartitionedTableOpt.get
 
       val hivePartitionRDDOpt = hivePartitionedTable.getPartition(partitionKeyStr)

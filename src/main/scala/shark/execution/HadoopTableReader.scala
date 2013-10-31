@@ -23,12 +23,12 @@ import org.apache.hadoop.mapred.{FileInputFormat, InputFormat, JobConf}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_PARTITION_COLUMNS
 import org.apache.hadoop.hive.ql.exec.Utilities
-import org.apache.hadoop.hive.ql.metadata.{Partition, Table => HiveTable}
+import org.apache.hadoop.hive.ql.metadata.{Partition => HivePartition, Table => HiveTable}
 import org.apache.hadoop.hive.ql.plan.{PartitionDesc, TableDesc}
 import org.apache.hadoop.io.Writable
 
-import org.apache.spark.rdd.{EmptyRDD, HadoopRDD, RDD, UnionRDD}
 import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.rdd.{EmptyRDD, HadoopRDD, RDD, UnionRDD}
 import org.apache.spark.SerializableWritable
 
 import shark.{SharkEnv, Utils}
@@ -93,7 +93,7 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
     deserializedHadoopRDD
   }
 
-  override def makeRDDForPartitionedTable(partitions: Seq[Partition]): RDD[_] =
+  override def makeRDDForPartitionedTable(partitions: Seq[HivePartition]): RDD[_] =
     makeRDDForPartitionedTable(partitions, filterOpt = None)
 
   /**
@@ -102,7 +102,7 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
    * 'PARTITION BY'.
    */
   def makeRDDForPartitionedTable(
-      partitions: Seq[Partition],
+      partitions: Seq[HivePartition],
       filterOpt: Option[PathFilter]): RDD[_] = {
     val hivePartitionRDDs = partitions.map { partition =>
       val partDesc = Utilities.getPartitionDesc(partition)
