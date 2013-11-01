@@ -225,6 +225,10 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
               qb.getTableDesc().getTblProps.get("shark.cache.storageLevel"))
             qb.getTableDesc().getTblProps().put(CachedTableRecovery.QUERY_STRING, ctx.getCmd())
 
+            conf.getAllProperties().keySet().foreach { key =>
+              qb.getTableDesc().getTblProps().put(key.toString(), conf.get(key.toString()))
+            }
+            
             var tableProperties: Properties = new Properties
             qb.getTableDesc().getTblProps().keySet().foreach { k => 
               val v = qb.getTableDesc().getTblProps().get(k)

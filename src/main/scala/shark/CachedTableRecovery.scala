@@ -18,6 +18,8 @@
 package shark
 
 import scala.collection.JavaConversions.asScalaBuffer
+import scala.collection.JavaConversions.mapAsScalaMap
+import scala.collection.JavaConversions.asScalaSet
 
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.metadata.Hive
@@ -49,6 +51,12 @@ object CachedTableRecovery extends LogHelper {
     getMeta.foreach { t =>
       try {
         db.dropTable(t._1)
+        val tblProps : Map[String,String] = t._3
+        
+        tblProps.foreach { tblProp =>
+          cmdRunner("set "+ tblProp._1 + "=" + tblProp._2 )
+        }
+
         cmdRunner(t._2)
       } catch {
         case e: Exception => logError("Failed to reload cache table " + t._1, e)
@@ -59,16 +67,24 @@ object CachedTableRecovery extends LogHelper {
   /**
    * Updates the Hive metastore, with cached table metadata.
    * The cached table metadata is stored in the Hive metastore
-   * of each cached table, as a key value pair, the key being
-   * CTAS_QUERY_STRING and the value being the cached table query itself.
+   * of each cached table, as key value pairs.
+   * The key for the first pair being CTAS_QUERY_STRING 
+   *   and the value being the cached table query itself.
+   * All properties from the hiveconf are read 
+   *    and added as the remaining key value pairs.
    *
-   * @param cachedTableQueries , a collection of pairs of the form
-   *        (cached table name, cached table query).
+   * @param cachedTableQueries , a collection of tuples of the form
+   *        (cached table name, cached table query, hive conf).
    */
-  def updateMeta(cachedTableQueries : Iterable[(String, String)]): Unit = {
+  def updateMeta(cachedTableQueries : Iterable[(String, String, HiveConf)]): Unit = {
     cachedTableQueries.foreach { x =>
       val newTbl = new Table(db.getTable(x._1).getTTable())
       newTbl.setProperty(QUERY_STRING, x._2)
+      val hconf = x._3.asInstanceOf[HiveConf]
+      hconf.getAllProperties().keySet().foreach { k =>
+         val key = k.toString()
+         newTbl.setProperty(key, hconf.get(key))
+      }
       db.alterTable(x._1, newTbl)
     }
   }
@@ -76,14 +92,14 @@ object CachedTableRecovery extends LogHelper {
   /**
    * Returns all the Cached table metadata present in the Hive Meta store.
    *
-   * @return sequence of pairs, each pair representing the cached table name
-   *         and the cached table query.
+   * @return sequence of tuples, each tuple representing the cached table name,
+   *         cached table query and the table properties.
    */
-  def getMeta(): Seq[(String, String)] = {
-    db.getAllTables().foldLeft(List[(String,String)]())((curr, tableName) => {
+  def getMeta(): Seq[(String, String, Map[String,String])] = {
+    db.getAllTables().reverse.foldLeft(List[(String,String,Map[String,String])]())((curr, tableName) => {
       val tbl = db.getTable(tableName)
       Option(tbl.getProperty(QUERY_STRING)) match {
-        case Some(q) => curr.::(tableName, q)
+        case Some(q) => curr.::(tableName, q, tbl.getParameters().toMap)
         case None => curr
       }
     })
