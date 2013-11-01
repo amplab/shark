@@ -20,6 +20,7 @@ package shark
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.FunSuite
 
+import org.apache.spark.rdd.UnionRDD
 import org.apache.spark.storage.StorageLevel
 
 import shark.api.QueryExecutionException
@@ -135,6 +136,10 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(
       DEFAULT_DB_NAME, tableName).get
     return partitionedTable
+  }
+
+  def isFlattenedUnionRDD(unionRDD: UnionRDD[_]) = {
+    unionRDD.rdds.find(_.isInstanceOf[UnionRDD[_]]).isEmpty
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -665,6 +670,48 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     val keypart2StorageLevel = TestUtils.getStorageLevelOfRDD(keypart2RDD.get)
     assert(keypart2StorageLevel == StorageLevel.NONE,
       "StorageLevel for partition(keypart=2) should be NONE, but got: " + keypart2StorageLevel)
+  }
+
+  ///////////////////////////////////////////////////////////////////////////////////////
+  // Prevent nested UnionRDDs - those should be "flattened" in MemoryStoreSinkOperator.
+  ///////////////////////////////////////////////////////////////////////////////////////
+
+  test("flatten UnionRDDs") {
+    sc.sql("create table flat_cached as select * from test_cached")
+    sc.sql("insert into table flat_cached select * from test")
+    val tableName = "flat_cached"
+    var memoryTable = SharkEnv.memoryMetadataManager.getMemoryTable(DEFAULT_DB_NAME, tableName).get
+    var unionRDD = memoryTable.tableRDD.asInstanceOf[UnionRDD[_]]
+    val numParentRDDs = unionRDD.rdds.size
+    assert(isFlattenedUnionRDD(unionRDD))
+
+    // Insert another set of query results. The flattening should kick in here.
+    sc.sql("insert into table flat_cached select * from test")
+    unionRDD = memoryTable.tableRDD.asInstanceOf[UnionRDD[_]]
+    assert(isFlattenedUnionRDD(unionRDD))
+    assert(unionRDD.rdds.size == numParentRDDs + 1)
+  }
+
+  test("flatten UnionRDDs for partitioned tables") {
+    sc.sql("drop table if exists part_table_cached")
+    sc.sql("""create table part_table_cached(key int, value string)
+      partitioned by (keypart int)""")
+    sc.sql("alter table part_table_cached add partition(keypart = 1)")
+    sc.sql("insert into table part_table_cached partition(keypart = 1) select * from flat_cached")
+    val tableName = "part_table_cached"
+    val partitionKey = "keypart=1"
+    var partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(
+      DEFAULT_DB_NAME, tableName).get
+    var unionRDD = partitionedTable.keyToPartitions.get(partitionKey).get.asInstanceOf[UnionRDD[_]]
+    val numParentRDDs = unionRDD.rdds.size
+    assert(isFlattenedUnionRDD(unionRDD))
+
+    // Insert another set of query results into the same partition.
+    // The flattening should kick in here.
+    sc.runSql("insert into table part_table_cached partition(keypart = 1) select * from flat_cached")
+    unionRDD = partitionedTable.getPartition(partitionKey).get.asInstanceOf[UnionRDD[_]]
+    assert(isFlattenedUnionRDD(unionRDD))
+    assert(unionRDD.rdds.size == numParentRDDs + 1)
   }
 
   //////////////////////////////////////////////////////////////////////////////
