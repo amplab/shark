@@ -691,6 +691,28 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     assert(unionRDD.rdds.size == numParentRDDs + 1)
   }
 
+  test("flatten UnionRDDs for partitioned tables") {
+    sc.sql("drop table if exists part_table_cached")
+    sc.sql("""create table part_table_cached(key int, value string)
+      partitioned by (keypart int)""")
+    sc.sql("alter table part_table_cached add partition(keypart = 1)")
+    sc.sql("insert into table part_table_cached partition(keypart = 1) select * from flat_cached")
+    val tableName = "part_table_cached"
+    val partitionKey = "keypart=1"
+    var partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(
+      DEFAULT_DB_NAME, tableName).get
+    var unionRDD = partitionedTable.keyToPartitions.get(partitionKey).get.asInstanceOf[UnionRDD[_]]
+    val numParentRDDs = unionRDD.rdds.size
+    assert(isFlattenedUnionRDD(unionRDD))
+
+    // Insert another set of query results into the same partition.
+    // The flattening should kick in here.
+    sc.runSql("insert into table part_table_cached partition(keypart = 1) select * from flat_cached")
+    unionRDD = partitionedTable.getPartition(partitionKey).get.asInstanceOf[UnionRDD[_]]
+    assert(isFlattenedUnionRDD(unionRDD))
+    assert(unionRDD.rdds.size == numParentRDDs + 1)
+  }
+
   //////////////////////////////////////////////////////////////////////////////
   // Tableau bug
   //////////////////////////////////////////////////////////////////////////////
