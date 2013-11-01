@@ -674,7 +674,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
 
   test("flatten UnionRDDs") {
     def isFlattenedUnionRDD(unionRDD: UnionRDD[_]) = {
-      unionRDD.rdds.filter(_.isInstanceOf[UnionRDD[_]]).isEmpty
+      unionRDD.rdds.find(_.isInstanceOf[UnionRDD[_]]).isEmpty
     }
 
     sc.sql("insert into table test_cached select * from test")
