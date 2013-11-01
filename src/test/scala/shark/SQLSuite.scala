@@ -21,6 +21,7 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.FunSuite
 
 import org.apache.spark.storage.StorageLevel
+import org.apache.spark.rdd.UnionRDD
 
 import shark.api.QueryExecutionException
 import shark.memstore2.PartitionedMemoryTable
@@ -665,6 +666,29 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     val keypart2StorageLevel = TestUtils.getStorageLevelOfRDD(keypart2RDD.get)
     assert(keypart2StorageLevel == StorageLevel.NONE,
       "StorageLevel for partition(keypart=2) should be NONE, but got: " + keypart2StorageLevel)
+  }
+
+  ///////////////////////////////////////////////////////////////////////////////////////
+  // Prevent nested UnionRDDs - those should be "flattened" in MemoryStoreSinkOperator.
+  ///////////////////////////////////////////////////////////////////////////////////////
+
+  test("flatten UnionRDDs") {
+    def isFlattenedUnionRDD(unionRDD: UnionRDD[_]) = {
+      unionRDD.rdds.filter(_.isInstanceOf[UnionRDD[_]]).isEmpty
+    }
+
+    sc.sql("insert into table test_cached select * from test")
+    val tableName = "test_cached"
+    var memoryTable = SharkEnv.memoryMetadataManager.getMemoryTable(DEFAULT_DB_NAME, tableName).get
+    var unionRDD = memoryTable.tableRDD.asInstanceOf[UnionRDD[_]]
+    val numParentRDDs = unionRDD.rdds.size
+    assert(isFlattenedUnionRDD(unionRDD))
+
+    // Insert another set of query results. The flattening should kick in here.
+    sc.sql("insert into table test_cached select * from test")
+    unionRDD = memoryTable.tableRDD.asInstanceOf[UnionRDD[_]]
+    assert(isFlattenedUnionRDD(unionRDD))
+    assert(unionRDD.rdds.size == numParentRDDs + 1)
   }
 
   //////////////////////////////////////////////////////////////////////////////
