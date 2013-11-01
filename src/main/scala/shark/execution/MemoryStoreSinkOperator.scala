@@ -175,7 +175,6 @@ class MemoryStoreSinkOperator extends TerminalOperator {
             // of the current data and the SELECT output.
             hasPreviousRDDForUnion = true
             RDDUtils.unionAndFlatten(queryOutputRDD, previousRDD)
-            queryOutputRDD.union(previousRDD.asInstanceOf[RDD[TablePartition]])
           }
           // This is an INSERT into a new Hive-partition.
           case None => queryOutputRDD
@@ -212,23 +211,22 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     // TODO(harvey): Get this to work for Hive-partitioned tables. It should be a simple
     //     'tableName' + 'hivePartitionKey' concatentation. Though whether stats should belong in
     //     memstore2.Table should be considered...
-    val columnStats =
-      if (useUnionRDD && hasPreviousRDDForUnion) {
-        // Combine stats for the two RDDs that were combined into UnionRDD.
-        val numPartitions = statsAcc.value.toMap.size
-        val currentStats = statsAcc.value
-        SharkEnv.memoryMetadataManager.getStats(databaseName, tableName) match {
-          case Some(otherIndexToStats) => {
-            for ((otherIndex, tableStats) <- otherIndexToStats) {
-              currentStats.append((otherIndex + numPartitions, tableStats))
-            }
+    val columnStats = if (useUnionRDD && hasPreviousRDDForUnion) {
+      // Combine stats for the two RDDs that were combined into UnionRDD.
+      val numPartitions = statsAcc.value.toMap.size
+      val currentStats = statsAcc.value
+      SharkEnv.memoryMetadataManager.getStats(databaseName, tableName) match {
+        case Some(otherIndexToStats) => {
+          for ((otherIndex, tableStats) <- otherIndexToStats) {
+            currentStats.append((otherIndex + numPartitions, tableStats))
           }
-          case _ => Unit
         }
-        currentStats.toMap
-      } else {
-        statsAcc.value.toMap
+        case _ => Unit
       }
+      currentStats.toMap
+    } else {
+      statsAcc.value.toMap
+    }
 
     // Get the column statistics back to the cache manager.
     SharkEnv.memoryMetadataManager.putStats(databaseName, tableName, columnStats)
