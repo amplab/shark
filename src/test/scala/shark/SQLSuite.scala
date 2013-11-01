@@ -138,6 +138,10 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     return partitionedTable
   }
 
+  def isFlattenedUnionRDD(unionRDD: UnionRDD[_]) = {
+    unionRDD.rdds.find(_.isInstanceOf[UnionRDD[_]]).isEmpty
+  }
+
   //////////////////////////////////////////////////////////////////////////////
   // basic SQL
   //////////////////////////////////////////////////////////////////////////////
@@ -673,19 +677,16 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   ///////////////////////////////////////////////////////////////////////////////////////
 
   test("flatten UnionRDDs") {
-    def isFlattenedUnionRDD(unionRDD: UnionRDD[_]) = {
-      unionRDD.rdds.find(_.isInstanceOf[UnionRDD[_]]).isEmpty
-    }
-
-    sc.sql("insert into table test_cached select * from test")
-    val tableName = "test_cached"
+    sc.sql("create table flat_cached as select * from test_cached")
+    sc.sql("insert into table flat_cached select * from test")
+    val tableName = "flat_cached"
     var memoryTable = SharkEnv.memoryMetadataManager.getMemoryTable(DEFAULT_DB_NAME, tableName).get
     var unionRDD = memoryTable.tableRDD.asInstanceOf[UnionRDD[_]]
     val numParentRDDs = unionRDD.rdds.size
     assert(isFlattenedUnionRDD(unionRDD))
 
     // Insert another set of query results. The flattening should kick in here.
-    sc.sql("insert into table test_cached select * from test")
+    sc.sql("insert into table flat_cached select * from test")
     unionRDD = memoryTable.tableRDD.asInstanceOf[UnionRDD[_]]
     assert(isFlattenedUnionRDD(unionRDD))
     assert(unionRDD.rdds.size == numParentRDDs + 1)
