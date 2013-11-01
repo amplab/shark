@@ -20,8 +20,8 @@ package shark
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.FunSuite
 
-import org.apache.spark.storage.StorageLevel
 import org.apache.spark.rdd.UnionRDD
+import org.apache.spark.storage.StorageLevel
 
 import shark.api.QueryExecutionException
 import shark.memstore2.PartitionedMemoryTable
