@@ -22,7 +22,10 @@ import java.sql.Timestamp
 
 import org.apache.hadoop.hive.serde2.ByteStream
 import org.apache.hadoop.hive.serde2.`lazy`.{ByteArrayRef, LazyBinary}
-import org.apache.hadoop.hive.serde2.io.{TimestampWritable, ShortWritable, ByteWritable, DoubleWritable}
+import org.apache.hadoop.hive.serde2.io.ByteWritable
+import org.apache.hadoop.hive.serde2.io.DoubleWritable
+import org.apache.hadoop.hive.serde2.io.ShortWritable
+import org.apache.hadoop.hive.serde2.io.TimestampWritable
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive._
 import org.apache.hadoop.io._

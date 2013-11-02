@@ -27,7 +27,8 @@ import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{JoinOperator => HiveJoinOperator}
 import org.apache.hadoop.hive.ql.plan.{JoinDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.{Deserializer, Serializer, SerDeUtils}
-import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspectorUtils, StandardStructObjectInspector}
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils
+import org.apache.hadoop.hive.serde2.objectinspector.StandardStructObjectInspector
 import org.apache.hadoop.io.BytesWritable
 
 import org.apache.spark.{CoGroupedRDD, HashPartitioner}

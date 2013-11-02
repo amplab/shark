@@ -271,9 +271,11 @@ class SharkServerHandler extends HiveServerHandler with LogHelper {
       ""
     } else {
       val list: JavaList[String] = fetchN(1)
-      if (list.isEmpty)
+      if (list.isEmpty) {
         ""
-      else list.get(0)
+      } else {
+        list.get(0)
+      }
     }
   }
 
