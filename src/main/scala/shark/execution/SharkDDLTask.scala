@@ -22,14 +22,14 @@ import java.util.{List => JavaList, Map => JavaMap}
 import scala.collection.JavaConversions._
 
 import org.apache.hadoop.hive.ql.{Context, DriverContext}
-import org.apache.hadoop.hive.ql.exec.{Task => HiveTask, TaskExecutionException}
+import org.apache.hadoop.hive.ql.exec.{Task => HiveTask}
 import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.hadoop.hive.ql.plan._
 import org.apache.hadoop.hive.ql.plan.api.StageType
 
 import org.apache.spark.rdd.EmptyRDD
 
-import shark.{LogHelper, SharkConfVars, SharkEnv}
+import shark.{LogHelper, SharkEnv}
 import shark.memstore2.{CacheType, MemoryMetadataManager, PartitionedMemoryTable}
 
 

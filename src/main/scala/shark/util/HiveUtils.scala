@@ -75,7 +75,7 @@ private[shark] object HiveUtils {
                               new JavaHashSet[WriteEntity],
                               createTbleDesc)
     val taskExecutionStatus = executeDDLTaskDirectly(ddlWork)
-    return (taskExecutionStatus == 0)
+    taskExecutionStatus == 0
   }
 
   def dropTableInHive(
@@ -92,7 +92,7 @@ private[shark] object HiveUtils {
                               new JavaHashSet[WriteEntity],
                               dropTblDesc)
     val taskExecutionStatus = executeDDLTaskDirectly(ddlWork)
-    return (taskExecutionStatus == 0)
+    taskExecutionStatus == 0
   }
 
   def executeDDLTaskDirectly(ddlWork: DDLWork): Int = {
@@ -101,6 +101,6 @@ private[shark] object HiveUtils {
     task.setWork(ddlWork)
 
     // Hive returns 0 if the create table command is executed successfully.
-    return task.execute(null)
+    task.execute(null)
   }
 }

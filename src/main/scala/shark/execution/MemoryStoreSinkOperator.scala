@@ -115,7 +115,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
       if (builder != null) {
         statsAcc += Tuple2(part, builder.asInstanceOf[TablePartitionBuilder].stats)
-        Iterator(builder.asInstanceOf[TablePartitionBuilder].build)
+        Iterator(builder.asInstanceOf[TablePartitionBuilder].build())
       } else {
         // Empty partition.
         statsAcc += Tuple2(part, new TablePartitionStats(Array(), 0))
@@ -158,10 +158,10 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
       outputRDD.persist(storageLevel)
 
-      var queryOutputRDD = outputRDD
+      val queryOutputRDD = outputRDD
       if (useUnionRDD) {
         // Handle an INSERT INTO command.
-        var previousRDDOpt: Option[RDD[TablePartition]] =
+        val previousRDDOpt: Option[RDD[TablePartition]] =
           if (isHivePartitioned) {
             val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(
               databaseName, tableName).get
@@ -202,7 +202,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     } else {
       outputRDD.setName(tableName)
       // Create a new MemoryTable entry if one doesn't exist (i.e., this operator is for a CTAS).
-      var memoryTable = SharkEnv.memoryMetadataManager.getMemoryTable(databaseName, tableName)
+      val memoryTable = SharkEnv.memoryMetadataManager.getMemoryTable(databaseName, tableName)
         .getOrElse(SharkEnv.memoryMetadataManager.createMemoryTable(
           databaseName, tableName, cacheMode, storageLevel))
       memoryTable.tableRDD = outputRDD

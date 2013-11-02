@@ -19,21 +19,13 @@ package shark.execution
 
 import java.util.{HashMap => JavaHashMap, List => JavaList, ArrayList =>JavaArrayList}
 
-import scala.collection.mutable.ArrayBuffer
-import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
-import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator
-import org.apache.hadoop.hive.ql.exec.{CommonJoinOperator => HiveCommonJoinOperator}
 import org.apache.hadoop.hive.ql.exec.{JoinUtil => HiveJoinUtil}
-import org.apache.hadoop.hive.ql.plan.{ExprNodeDesc, JoinCondDesc, JoinDesc, TableDesc}
-import org.apache.hadoop.hive.serde2.Deserializer
+import org.apache.hadoop.hive.ql.plan.{JoinCondDesc, JoinDesc}
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, PrimitiveObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
-
-import org.apache.spark.rdd.{RDD, UnionRDD}
-import org.apache.spark.SparkContext.rddToPairRDDFunctions
 
 import shark.SharkConfVars
 

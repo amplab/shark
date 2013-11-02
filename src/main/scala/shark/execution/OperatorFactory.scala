@@ -19,8 +19,7 @@ package shark.execution
 
 import scala.collection.JavaConversions._
 
-import org.apache.hadoop.hive.ql.exec.{GroupByPostShuffleOperator}
-import org.apache.hadoop.hive.ql.exec.GroupByPreShuffleOperator
+import org.apache.hadoop.hive.ql.exec.{GroupByPostShuffleOperator, GroupByPreShuffleOperator}
 import org.apache.hadoop.hive.ql.exec.{Operator => HOperator}
 import org.apache.hadoop.hive.ql.metadata.HiveException
 
@@ -55,7 +54,7 @@ object OperatorFactory extends LogHelper {
       cacheMode: CacheType,
       useUnionRDD: Boolean): TerminalOperator = {
     // TODO the terminal operator is the FileSinkOperator in Hive?
-    var hiveOp = hiveTerminalOp.asInstanceOf[org.apache.hadoop.hive.ql.exec.FileSinkOperator]
+    val hiveOp = hiveTerminalOp.asInstanceOf[org.apache.hadoop.hive.ql.exec.FileSinkOperator]
     val sinkOp = _newOperatorInstance(
       classOf[MemoryStoreSinkOperator], hiveOp).asInstanceOf[MemoryStoreSinkOperator]
     sinkOp.localHiveOp = hiveOp
@@ -71,7 +70,7 @@ object OperatorFactory extends LogHelper {
 
   def createSharkFileOutputPlan(hiveTerminalOp: HOperator[_<:HiveDesc]): TerminalOperator = {
     // TODO the terminal operator is the FileSinkOperator in Hive?
-    var hiveOp = hiveTerminalOp.asInstanceOf[org.apache.hadoop.hive.ql.exec.FileSinkOperator]
+    val hiveOp = hiveTerminalOp.asInstanceOf[org.apache.hadoop.hive.ql.exec.FileSinkOperator]
     val sinkOp = _newOperatorInstance(classOf[FileSinkOperator], 
       hiveOp).asInstanceOf[TerminalOperator]
     sinkOp.localHiveOp = hiveOp
@@ -80,7 +79,7 @@ object OperatorFactory extends LogHelper {
 
   def createSharkRddOutputPlan(hiveTerminalOp: HOperator[_<:HiveDesc]): TerminalOperator = {
     // TODO the terminal operator is the FileSinkOperator in Hive?
-    var hiveOp = hiveTerminalOp.asInstanceOf[org.apache.hadoop.hive.ql.exec.FileSinkOperator]
+    val hiveOp = hiveTerminalOp.asInstanceOf[org.apache.hadoop.hive.ql.exec.FileSinkOperator]
     val sinkOp = _newOperatorInstance(classOf[TableRddSinkOperator], 
       hiveOp).asInstanceOf[TableRddSinkOperator]
     sinkOp.localHiveOp = hiveOp
@@ -92,13 +91,13 @@ object OperatorFactory extends LogHelper {
     // This is kind of annoying, but it works with strong typing ...
     val sharkOp = hiveOp match {
       case hop: org.apache.hadoop.hive.ql.exec.TableScanOperator =>
-        var op = _newOperatorInstance(classOf[TableScanOperator], hop)
+        val op = _newOperatorInstance(classOf[TableScanOperator], hop)
         op.asInstanceOf[TableScanOperator].hiveOp = hop
         op
       case hop: org.apache.hadoop.hive.ql.exec.SelectOperator =>
         _newOperatorInstance(classOf[SelectOperator], hop)
       case hop: org.apache.hadoop.hive.ql.exec.FileSinkOperator =>
-        var op = _newOperatorInstance(classOf[TerminalOperator], hop)
+        val op = _newOperatorInstance(classOf[TerminalOperator], hop)
         op.asInstanceOf[TerminalOperator].localHiveOp = hop
         op
       case hop: org.apache.hadoop.hive.ql.exec.LimitOperator =>
@@ -116,7 +115,7 @@ object OperatorFactory extends LogHelper {
       case hop: org.apache.hadoop.hive.ql.exec.MapJoinOperator =>
         _newOperatorInstance(classOf[MapJoinOperator], hop)
       case hop: org.apache.hadoop.hive.ql.exec.ScriptOperator =>
-        var op = _newOperatorInstance(classOf[ScriptOperator], hop)
+        val op = _newOperatorInstance(classOf[ScriptOperator], hop)
         op.asInstanceOf[ScriptOperator].operatorId = hop.getOperatorId()
         op
       case hop: org.apache.hadoop.hive.ql.exec.LateralViewForwardOperator =>

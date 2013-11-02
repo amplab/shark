@@ -24,9 +24,8 @@ import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
 import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.hadoop.hive.ql.exec.{JoinOperator => HiveJoinOperator}
 import org.apache.hadoop.hive.ql.plan.{JoinDesc, TableDesc}
-import org.apache.hadoop.hive.serde2.{Deserializer, Serializer, SerDeUtils}
+import org.apache.hadoop.hive.serde2.{Deserializer, SerDeUtils}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils
 import org.apache.hadoop.hive.serde2.objectinspector.StandardStructObjectInspector
 import org.apache.hadoop.io.BytesWritable
@@ -48,7 +47,7 @@ class JoinOperator extends CommonJoinOperator[JoinDesc] with ReduceSinkTableDesc
 
   override def initializeOnMaster() {
     super.initializeOnMaster()
-    var descs = keyValueDescs()
+    val descs = keyValueDescs()
     valueTableDescMap = new JHashMap[Int, TableDesc]
     valueTableDescMap ++= descs.map { case(tag, kvdescs) => (tag, kvdescs._2) }
     keyTableDesc = descs.head._2._1

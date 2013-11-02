@@ -17,8 +17,8 @@
 
 package shark.execution.serialization
 
-import java.beans.{XMLDecoder, XMLEncoder, PersistenceDelegate}
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, ObjectOutput, ObjectInput}
+import java.beans.{XMLDecoder, XMLEncoder}
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import com.ning.compress.lzf.{LZFEncoder, LZFDecoder}
 
@@ -28,7 +28,7 @@ import org.apache.hadoop.hive.ql.exec.Utilities.EnumDelegate
 import org.apache.hadoop.hive.ql.plan.GroupByDesc
 import org.apache.hadoop.hive.ql.plan.PlanUtils.ExpressionTypes
 
-import shark.{SharkConfVars, SharkEnvSlave}
+import shark.SharkConfVars
 
 
 /**

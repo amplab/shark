@@ -19,7 +19,7 @@ package shark.execution
 
 import java.io.{File, InputStream, IOException}
 import java.lang.Thread.UncaughtExceptionHandler
-import java.util.{Arrays, Properties}
+import java.util.Properties
 
 import scala.collection.JavaConversions._
 import scala.io.Source
@@ -29,13 +29,11 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{ScriptOperator => HiveScriptOperator}
 import org.apache.hadoop.hive.ql.exec.{RecordReader, RecordWriter, ScriptOperatorHelper}
-import org.apache.hadoop.hive.ql.metadata.HiveException
 import org.apache.hadoop.hive.ql.plan.ScriptDesc
 import org.apache.hadoop.hive.serde2.{Serializer, Deserializer}
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.io.{BytesWritable, Writable}
 
-import org.apache.spark.{OneToOneDependency, SparkEnv, SparkFiles}
+import org.apache.spark.{SparkEnv, SparkFiles}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.TaskContext
 
@@ -186,7 +184,7 @@ class ScriptOperator extends UnaryOperator[ScriptDesc] {
     if (!(new File(prog)).isAbsolute()) {
       val finder = scriptOpHelper.newPathFinderInstance("PATH")
       finder.prependPathComponent(currentDir.toString())
-      var f = finder.getAbsolutePath(prog)
+      val f = finder.getAbsolutePath(prog)
       if (f != null) {
         cmdArgs(0) = f.getAbsolutePath()
       }
@@ -341,7 +339,7 @@ object ScriptOperator {
       if (recordLength >= 0) {
         bytesWritable.setSize(recordLength)
       }
-      return recordLength;
+      return recordLength
     }
 
     override def close() { if (in != null) { in.close() } }

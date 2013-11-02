@@ -27,8 +27,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo
 
-import shark.SharkConfVars
-
 
 class ColumnarStructObjectInspector(fields: JList[StructField]) extends StructObjectInspector {
 

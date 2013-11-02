@@ -17,8 +17,6 @@
 
 package shark.execution
 
-import org.apache.hadoop.hive.ql.exec.{ForwardOperator => HiveForwardOperator}
-
 import org.apache.spark.rdd.RDD
 import org.apache.hadoop.hive.ql.plan.ForwardDesc
 

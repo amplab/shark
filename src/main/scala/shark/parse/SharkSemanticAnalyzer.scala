@@ -17,7 +17,6 @@
 
 package shark.parse
 
-import java.lang.reflect.Method
 import java.util.ArrayList
 import java.util.{List => JavaList}
 import java.util.{Map => JavaMap}
@@ -37,11 +36,10 @@ import org.apache.hadoop.hive.ql.parse._
 import org.apache.hadoop.hive.ql.plan._
 import org.apache.hadoop.hive.ql.session.SessionState
 
-import org.apache.spark.storage.StorageLevel
 
-import shark.{CachedTableRecovery, LogHelper, SharkConfVars, SharkEnv,  Utils}
-import shark.execution.{HiveDesc, Operator, OperatorFactory, RDDUtils, ReduceSinkOperator,
-  SharkDDLWork, SparkWork, TerminalOperator}
+import shark.{CachedTableRecovery, LogHelper, SharkConfVars, SharkEnv}
+import shark.execution.{HiveDesc, Operator, OperatorFactory, ReduceSinkOperator, SharkDDLWork,
+  SparkWork, TerminalOperator}
 import shark.memstore2.{CacheType, ColumnarSerDe, MemoryMetadataManager}
 
 
@@ -219,7 +217,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
               preferredStorageLevel,
               _resSchema.size,  /* numColumns */
               new String,  /* hivePartitionKey */
-              qb.getCacheModeForCreateTable,
+              qb.getCacheModeForCreateTable(),
               false  /* useUnionRDD */)
           } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink && !qb.isCTAS) {
             OperatorFactory.createSharkRddOutputPlan(hiveSinkOps.head)

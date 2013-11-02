@@ -17,7 +17,6 @@
 
 package shark.execution
 
-import org.apache.hadoop.hive.ql.exec.{LateralViewForwardOperator => HiveLateralViewForwardOperator}
 import org.apache.hadoop.hive.ql.plan.LateralViewForwardDesc
 
 import org.apache.spark.rdd.RDD
