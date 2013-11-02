@@ -42,7 +42,7 @@ class CompressedColumnIteratorSuite extends FunSuite {
       l: Seq[T],
       t: ColumnType[T, _],
       algo: CompressionAlgorithm,
-      expectedCompressedSize: Int,
+      expectedCompressedSize: Long,
       shouldNotCompress: Boolean = false)
   {
     val b = ByteBuffer.allocate(1024 + (3 * 40 * l.size))
@@ -169,8 +169,56 @@ class CompressedColumnIteratorSuite extends FunSuite {
       true, true, false, false,true, true, false, false, true, true, false, false,true, true, false, false)
     testList(bools, BOOLEAN, new BooleanBitSetCompression, 4+8+8)
   }
-}
 
+  test("BooleanBitSet Boolean should not compress - compression ratio > 1") {
+    // 1 Long worth of Booleans, in addtion to the length field: 4+8
+    val bools = Seq(true, false)
+    testList(bools, BOOLEAN, new BooleanBitSetCompression, 4+8, shouldNotCompress = true)
+  }
+
+  test("ByteDeltaEncoding Int") {
+    // base 5 + 4 small diffs + newBase 5 = 14
+    val ints = Seq[Int](1000000, 1000001, 1000002, 1000003, 1000004, 5)
+    testList(ints, INT, new ByteDeltaEncoding[Int], 5 + 4 + 5)
+
+    val ints2 = Seq[Int](1000000, 1000001, 1000000, 1000004, 1000001, 5)
+    testList(ints2, INT, new ByteDeltaEncoding[Int], 5 + 4 + 5)
+
+    testList(List(0, 62),      INT, new ByteDeltaEncoding[Int], 1 + 4 + 1)
+    testList(List(0, 63),      INT, new ByteDeltaEncoding[Int], 1 + 4 + 1 + 4)
+    testList(List(0, 63, 64),  INT, new ByteDeltaEncoding[Int], 1 + 4 + 1 + 4 + 1)
+    testList(List(0, 64, -25), INT, new ByteDeltaEncoding[Int], 1 + 4 + 1 + 4 + 1 + 4)
+
+    testList(List(0, 12400, 12500, 100, 200), INT, new ByteDeltaEncoding[Int], 5*5)
+    testList(Range(-4, 0), INT, new ByteDeltaEncoding[Int], 1 + 4 + 3)
+
+    val ints3 = Range(0, Byte.MaxValue.toInt - 1)
+    testList(ints3, INT, new ByteDeltaEncoding[Int], 1 + 4 + 125)
+
+    val skips = ints3.map { x => 100*x }
+    testList(skips, INT, new ByteDeltaEncoding[Int], 1 + 4 + 5*125)
+
+    val ints4 = Range(Byte.MinValue.toInt + 2, 0)
+    testList(ints4, INT, new ByteDeltaEncoding[Int], 1 + 4 + 125)
+  }
+
+  test("ByteDeltaEncoding Long") {
+    // base 9 + 3 small deltas + newBase 9 + 2 small deltas = 23
+    val longs = Seq[Long](2147483649L, 2147483649L, 2147483649L, 2147483649L, 500L, 500L, 500L)
+    testList(longs, LONG, new ByteDeltaEncoding[Long], 23)
+  }
+
+  test("ByteDeltaEncoding Short") {
+    // base 3 + 2 small deltas + newBase 3 + 2 small deltas + new Base 3 + 3 deltas = 16
+    val shorts = Seq[Short](10, 10, 10, 20000, 20000, 20000, 500, 500, 500, 500)
+    testList(shorts, SHORT, new ByteDeltaEncoding[Short], 16)
+  }
+
+  test("ByteDeltaEncoding should not compress") {
+    val skips = Range(0, 1000).map { x => 100*x }
+    testList(skips, INT, new ByteDeltaEncoding[Int], 1 + 4 + (5*999))
+  }
+}
 
 class TestIterator(val buffer: ByteBuffer, val columnType: ColumnType[_,_])
     extends CompressedColumnIterator
