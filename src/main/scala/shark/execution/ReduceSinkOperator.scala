@@ -92,8 +92,7 @@ class ReduceSinkOperator extends UnaryOperator[ReduceSinkDesc] {
     val ois = new ArrayList[ObjectInspector]
     ois.add(keySer.getObjectInspector)
     ois.add(valueSer.getObjectInspector)
-
-    ObjectInspectorFactory.getStandardStructObjectInspector(List("KEY","VALUE"), ois)
+    ObjectInspectorFactory.getStandardStructObjectInspector(List("KEY", "VALUE"), ois)
   }
 
   // will be used of the children operators (in JoinOperator/Extractor/GroupByPostShuffleOperator

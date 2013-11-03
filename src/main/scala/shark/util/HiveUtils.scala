@@ -27,9 +27,8 @@ import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.hive.ql.exec.DDLTask
 import org.apache.hadoop.hive.ql.hooks.{ReadEntity, WriteEntity}
-import org.apache.hadoop.hive.ql.plan.{CreateTableDesc, DDLWork, DropTableDesc}
 import org.apache.hadoop.hive.ql.plan.AlterTableDesc
-import org.apache.hadoop.hive.ql.plan.AlterTableDesc.AlterTableTypes
+import org.apache.hadoop.hive.ql.plan.{CreateTableDesc, DDLWork, DropTableDesc}
 
 
 import shark.api.{DataType, DataTypes}
@@ -112,7 +111,7 @@ private[shark] object HiveUtils {
       tableName: String,
       partitionSpec: JavaHashMap[String, String],
       serDeName: String): Boolean = {
-    val alterTableDesc = new AlterTableDesc(AlterTableTypes.ADDSERDE)
+    val alterTableDesc = new AlterTableDesc(AlterTableDesc.AlterTableTypes.ADDSERDE)
     alterTableDesc.setOldName(tableName)
     alterTableDesc.setSerdeName(serDeName)
     alterTableDesc.setPartSpec(partitionSpec)
