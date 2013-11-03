@@ -17,18 +17,22 @@
 
 package shark.util
 
-import java.util.{ArrayList => JavaArrayList, HashSet => JavaHashSet}
+import java.util.{ArrayList => JavaArrayList, HashMap => JavaHashMap, HashSet => JavaHashSet}
+
 import scala.collection.JavaConversions._
 
+import org.apache.hadoop.hive.conf.HiveConf
+import org.apache.hadoop.hive.metastore.api.FieldSchema
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
+import org.apache.hadoop.hive.ql.exec.DDLTask
 import org.apache.hadoop.hive.ql.hooks.{ReadEntity, WriteEntity}
 import org.apache.hadoop.hive.ql.plan.{CreateTableDesc, DDLWork, DropTableDesc}
-import org.apache.hadoop.hive.metastore.api.FieldSchema
+import org.apache.hadoop.hive.ql.plan.AlterTableDesc
+import org.apache.hadoop.hive.ql.plan.AlterTableDesc.AlterTableTypes
+
 
 import shark.api.{DataType, DataTypes}
-import org.apache.hadoop.hive.ql.exec.DDLTask
-import org.apache.hadoop.hive.conf.HiveConf
 
 
 private[shark] object HiveUtils {
@@ -70,16 +74,15 @@ private[shark] object HiveUtils {
     createTbleDesc.setSerName(classOf[shark.memstore2.ColumnarSerDe].getName)
     createTbleDesc.setNumBuckets(-1)
 
-    // Execute the create table against the metastore.
+    // Execute the create table against the Hive metastore.
     val ddlWork = new DDLWork(new JavaHashSet[ReadEntity],
                               new JavaHashSet[WriteEntity],
                               createTbleDesc)
     val taskExecutionStatus = executeDDLTaskDirectly(ddlWork)
-    return (taskExecutionStatus == 0)
+    taskExecutionStatus == 0
   }
 
-  def dropTableInHive(
-      tableName: String): Boolean = {
+  def dropTableInHive(tableName: String): Boolean = {
     // Setup the drop table descriptor with necessary information.
     val dropTblDesc = new DropTableDesc(
       tableName,
@@ -92,7 +95,34 @@ private[shark] object HiveUtils {
                               new JavaHashSet[WriteEntity],
                               dropTblDesc)
     val taskExecutionStatus = executeDDLTaskDirectly(ddlWork)
-    return (taskExecutionStatus == 0)
+    taskExecutionStatus == 0
+  }
+
+  /**
+   * Directly executes a Hive DDLTask that changes the SerDe property for the table (or table
+   * partition) entry in the Hive metastore. Returns `true` if successful.
+   *
+   * @tableName Name of table being altered.
+   * @partitionSpec Map of (partition col, partition key) pairs for which the SerDe is being
+   *     altered. Partition values must always be given if the table is Hive partitioned and must
+   *     be empty if the table isn't Hive partitioned.
+   * @serDeName Class name of new SerDe to use.
+   */
+  def alterSerdeInHive(
+      tableName: String,
+      partitionSpec: JavaHashMap[String, String],
+      serDeName: String): Boolean = {
+    val alterTableDesc = new AlterTableDesc(AlterTableTypes.ADDSERDE)
+    alterTableDesc.setOldName(tableName)
+    alterTableDesc.setSerdeName(serDeName)
+    alterTableDesc.setPartSpec(partitionSpec)
+
+    // Execute the SerDe change against the Hive metastore.
+    val ddlWork = new DDLWork(new JavaHashSet[ReadEntity],
+                              new JavaHashSet[WriteEntity],
+                              alterTableDesc)
+    val taskExecutionStatus = executeDDLTaskDirectly(ddlWork)
+    taskExecutionStatus == 0
   }
 
   def executeDDLTaskDirectly(ddlWork: DDLWork): Int = {
@@ -101,6 +131,6 @@ private[shark] object HiveUtils {
     task.setWork(ddlWork)
 
     // Hive returns 0 if the create table command is executed successfully.
-    return task.execute(null)
+    task.execute(null)
   }
 }
