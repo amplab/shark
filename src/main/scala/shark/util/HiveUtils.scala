@@ -58,7 +58,8 @@ private[shark] object HiveUtils {
   def createTableInHive(
       tableName: String,
       columnNames: Seq[String],
-      columnTypes: Seq[ClassManifest[_]]): Boolean = {
+      columnTypes: Seq[ClassManifest[_]],
+      hiveConf: HiveConf = new HiveConf): Boolean = {
     val schema = columnNames.zip(columnTypes).map { case (colName, manifest) =>
       new FieldSchema(colName, DataTypes.fromManifest(manifest).hiveName, "")
     }
@@ -77,11 +78,11 @@ private[shark] object HiveUtils {
     val ddlWork = new DDLWork(new JavaHashSet[ReadEntity],
                               new JavaHashSet[WriteEntity],
                               createTbleDesc)
-    val taskExecutionStatus = executeDDLTaskDirectly(ddlWork)
+    val taskExecutionStatus = executeDDLTaskDirectly(ddlWork, hiveConf)
     taskExecutionStatus == 0
   }
 
-  def dropTableInHive(tableName: String): Boolean = {
+  def dropTableInHive(tableName: String, hiveConf: HiveConf = new HiveConf): Boolean = {
     // Setup the drop table descriptor with necessary information.
     val dropTblDesc = new DropTableDesc(
       tableName,
@@ -93,7 +94,7 @@ private[shark] object HiveUtils {
     val ddlWork = new DDLWork(new JavaHashSet[ReadEntity],
                               new JavaHashSet[WriteEntity],
                               dropTblDesc)
-    val taskExecutionStatus = executeDDLTaskDirectly(ddlWork)
+    val taskExecutionStatus = executeDDLTaskDirectly(ddlWork, hiveConf)
     taskExecutionStatus == 0
   }
 
@@ -105,11 +106,13 @@ private[shark] object HiveUtils {
    * @partitionSpec Map of (partition col, partition key) pairs for which the SerDe is being
    *     altered. NULL if the table isn't Hive-partitioned.
    * @serDeName Class name of new SerDe to use.
+   * @hiveConf Configuration associated with the current SessionState.
    */
   def alterSerdeInHive(
       tableName: String,
       partitionSpec: JavaHashMap[String, String],
-      serDeName: String): Boolean = {
+      serDeName: String,
+      hiveConf: HiveConf = new HiveConf): Boolean = {
     val alterTableDesc = new AlterTableDesc(AlterTableDesc.AlterTableTypes.ADDSERDE)
     alterTableDesc.setOldName(tableName)
     alterTableDesc.setSerdeName(serDeName)
@@ -119,13 +122,13 @@ private[shark] object HiveUtils {
     val ddlWork = new DDLWork(new JavaHashSet[ReadEntity],
                               new JavaHashSet[WriteEntity],
                               alterTableDesc)
-    val taskExecutionStatus = executeDDLTaskDirectly(ddlWork)
+    val taskExecutionStatus = executeDDLTaskDirectly(ddlWork, hiveConf)
     taskExecutionStatus == 0
   }
 
-  def executeDDLTaskDirectly(ddlWork: DDLWork): Int = {
+  def executeDDLTaskDirectly(ddlWork: DDLWork, hiveConf: HiveConf): Int = {
     val task = new DDLTask()
-    task.initialize(new HiveConf, null /* queryPlan */, null /* ctx: DriverContext */)
+    task.initialize(hiveConf, null /* queryPlan */, null /* ctx: DriverContext */)
 
     task.setWork(ddlWork)
 

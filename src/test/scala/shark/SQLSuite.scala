@@ -874,30 +874,31 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
 
   test("HiveUtils: directly alter table's SerDe") {
     def getTableSerDeName(tableName: String): String = {
-      val hiveTable = Hive.get().getTable(tableName)
+      val hiveTable = Hive.get(SharkContext.hiveconf).getTable(tableName)
       hiveTable.getDeserializer.getClass.getName
     }
 
     sc.runSql("drop table if exists alter_table_serde")
     sc.runSql("create table alter_table_serde (key int, value string)")
     val tableName = "alter_table_serde"
+    val hiveConf = SharkContext.hiveconf
 
     val oldSerDeName = getTableSerDeName(tableName)
     val columnarSerDeName = classOf[shark.memstore2.ColumnarSerDe].getName
 
     // Change the SerDe from the default LazySimpleSerDe to ColumnarSerDe.
-    HiveUtils.alterSerdeInHive(tableName, null /* partitionSpec */, columnarSerDeName)
+    HiveUtils.alterSerdeInHive(tableName, null /* partitionSpec */, columnarSerDeName, hiveConf)
     assert(getTableSerDeName(tableName) == columnarSerDeName)
 
     // Change the SerDe back to LazySimpleSerDe.
-    HiveUtils.alterSerdeInHive(tableName, null /* partitionSpec */, oldSerDeName)
+    HiveUtils.alterSerdeInHive(tableName, null /* partitionSpec */, oldSerDeName, hiveConf)
     assert(getTableSerDeName(tableName) == oldSerDeName)
   }
 
   test("HiveUtils: directly alter table partition's SerDe") {
     def getPartitionSerDeName(tableName: String, partSpec: JavaHashMap[String, String]): String = {
       // Get Hive metadata objects.
-      val metastore = Hive.get()
+      val metastore = Hive.get(SharkContext.hiveconf)
       val table = metastore.getTable(tableName)
       val partition = metastore.getPartition(table, partSpec, false /* forceCreate */)
       partition.getDeserializer.getClass.getName
@@ -907,17 +908,18 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.runSql("create table alter_part_serde (key int, value string) partitioned by (keypart int)")
     sc.runSql("insert into table alter_part_serde partition (keypart = 1) select * from test")
     val tableName = "alter_part_serde"
+    val hiveConf = SharkContext.hiveconf
     val partitionSpec = new JavaHashMap[String, String]()
     partitionSpec.put("keypart", "1")
     val oldSerDeName = getPartitionSerDeName(tableName, partitionSpec)
     val columnarSerDeName = classOf[shark.memstore2.ColumnarSerDe].getName
 
     // Change the SerDe from the default LazySimpleSerDe to ColumnarSerDe
-    HiveUtils.alterSerdeInHive(tableName, partitionSpec, columnarSerDeName)
+    HiveUtils.alterSerdeInHive(tableName, partitionSpec, columnarSerDeName, hiveConf)
     assert(getPartitionSerDeName(tableName, partitionSpec) == columnarSerDeName)
 
     // Change the SerDe back to LazySimpleSerDe.
-    HiveUtils.alterSerdeInHive(tableName, partitionSpec, oldSerDeName)
+    HiveUtils.alterSerdeInHive(tableName, partitionSpec, oldSerDeName, hiveConf)
     assert(getPartitionSerDeName(tableName, partitionSpec) == oldSerDeName)
   }
 }
