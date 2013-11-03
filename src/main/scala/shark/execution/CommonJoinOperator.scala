@@ -228,7 +228,7 @@ object CommonJoinOperator {
       ret = ois.get(j).asInstanceOf[PrimitiveObjectInspector].getPrimitiveJavaObject(
         condition).asInstanceOf[java.lang.Boolean]
       if (ret == null || !ret) {
-        return true;
+        return true
       }
       j += 1
     }

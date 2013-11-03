@@ -103,7 +103,8 @@ class GroupByPreShuffleOperator extends UnaryOperator[GroupByDesc] {
     val keyois = new JArrayList[ObjectInspector](totalFields)
     keyObjectInspectors.foreach(keyois.add(_))
 
-    keyObjectInspector = ObjectInspectorFactory.getStandardStructObjectInspector(keyFieldNames, keyois)
+    keyObjectInspector = ObjectInspectorFactory.
+      getStandardStructObjectInspector(keyFieldNames, keyois)
 
     keyFactory = new KeyWrapperFactory(keyFields, keyObjectInspectors, currentKeyObjectInspectors)
   }
@@ -182,9 +183,9 @@ class GroupByPreShuffleOperator extends UnaryOperator[GroupByDesc] {
         } else {
           logInfo("Mapside hash aggregation enabled")
         }
-        logInfo("#hash table="+numRowsHashTbl+" #rows="+
-          numRowsInput+" reduction="+numRowsHashTbl.toFloat/numRowsInput+
-          " minReduction="+minReductionHashAggr)
+        logInfo("#hash table=" + numRowsHashTbl + " #rows=" +
+          numRowsInput + " reduction=" + numRowsHashTbl.toFloat/numRowsInput +
+          " minReduction=" + minReductionHashAggr)
       }
     }
 

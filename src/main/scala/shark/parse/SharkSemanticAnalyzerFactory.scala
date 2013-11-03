@@ -38,10 +38,9 @@ object SharkSemanticAnalyzerFactory {
         SharkConfVars.getVar(conf, SharkConfVars.EXPLAIN_MODE) == "shark") {
       new SharkExplainSemanticAnalyzer(conf)
     } else if (baseSem.isInstanceOf[DDLSemanticAnalyzer]) {
-    	new SharkDDLSemanticAnalyzer(conf)
+      new SharkDDLSemanticAnalyzer(conf)
     } else {
       baseSem
     }
   }
 }
-

@@ -82,7 +82,7 @@ object JoinUtil {
     if (noOuterJoin) {
       a
     } else {
-      val n = new Array[AnyRef](size+1)
+      val n = new Array[AnyRef](size + 1)
       Array.copy(a, 0, n, 0, size)
       n(size) = new SerializableWritable(new BooleanWritable(isFiltered))
       n

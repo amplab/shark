@@ -70,7 +70,10 @@ object MapSplitPruning {
               }
 
             case _: GenericUDFIn =>
-              testInPredicate(s, e.children(0).asInstanceOf[ExprNodeColumnEvaluator], e.children.drop(1))
+              testInPredicate(
+                s,
+                e.children(0).asInstanceOf[ExprNodeColumnEvaluator],
+                e.children.drop(1))
             case udf: GenericUDFBaseCompare =>
               testComparisonPredicate(s, udf, e.children(0), e.children(1))
             case _ => true
@@ -135,19 +138,23 @@ object MapSplitPruning {
 
     // Try to get the column evaluator.
     val columnEval: ExprNodeColumnEvaluator =
-      if (left.isInstanceOf[ExprNodeColumnEvaluator])
+      if (left.isInstanceOf[ExprNodeColumnEvaluator]) {
         left.asInstanceOf[ExprNodeColumnEvaluator]
-      else if (right.isInstanceOf[ExprNodeColumnEvaluator])
+      } else if (right.isInstanceOf[ExprNodeColumnEvaluator]) {
         right.asInstanceOf[ExprNodeColumnEvaluator]
-      else null
+      } else {
+        null
+      }
 
     // Try to get the constant value.
     val constEval: ExprNodeConstantEvaluator =
-      if (left.isInstanceOf[ExprNodeConstantEvaluator])
+      if (left.isInstanceOf[ExprNodeConstantEvaluator]) {
         left.asInstanceOf[ExprNodeConstantEvaluator]
-      else if (right.isInstanceOf[ExprNodeConstantEvaluator])
+      } else if (right.isInstanceOf[ExprNodeConstantEvaluator]) {
         right.asInstanceOf[ExprNodeConstantEvaluator]
-      else null
+      } else {
+        null
+      }
 
     if (columnEval != null && constEval != null) {
       // We can prune the partition only if it is a predicate of form

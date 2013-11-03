@@ -152,7 +152,6 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc] {
 
       // Collect the RDD and build a hash table.
       val startCollect = System.currentTimeMillis()
-
       val collectedRows: Array[(Seq[AnyRef], Seq[Array[AnyRef]])] = rddForHash.collect()
 
       logDebug("collectedRows size:" + collectedRows.size)
