@@ -30,7 +30,7 @@ import org.apache.hadoop.hive.ql.hooks.{ReadEntity, WriteEntity}
 import org.apache.hadoop.hive.ql.plan.AlterTableDesc
 import org.apache.hadoop.hive.ql.plan.{CreateTableDesc, DDLWork, DropTableDesc}
 
-
+import shark.SharkContext
 import shark.api.{DataType, DataTypes}
 
 
@@ -103,8 +103,7 @@ private[shark] object HiveUtils {
    *
    * @tableName Name of table being altered.
    * @partitionSpec Map of (partition col, partition key) pairs for which the SerDe is being
-   *     altered. Partition values must always be given if the table is Hive partitioned and must
-   *     be empty if the table isn't Hive partitioned.
+   *     altered. NULL if the table isn't Hive-partitioned.
    * @serDeName Class name of new SerDe to use.
    */
   def alterSerdeInHive(
@@ -126,10 +125,11 @@ private[shark] object HiveUtils {
 
   def executeDDLTaskDirectly(ddlWork: DDLWork): Int = {
     val task = new DDLTask()
-    task.initialize(new HiveConf, null, null)
+    task.initialize(new HiveConf, null /* queryPlan */, null /* ctx: DriverContext */)
+
     task.setWork(ddlWork)
 
     // Hive returns 0 if the create table command is executed successfully.
-    task.execute(null)
+    task.execute(null /* driverContext */)
   }
 }
