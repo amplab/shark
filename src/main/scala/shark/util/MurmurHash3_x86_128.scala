@@ -193,7 +193,7 @@ object MurmurHash3_x86_128 {
    * @param rem is the remainder of the byte array to examine.
    */
   @inline final def getInt(data: Array[Byte], index: Int, rem: Int): Int = {
-    rem  match {
+    rem match {
       case 3 => data(index) << 24 | 
                 (data(index + 1) & 0xFF) << 16 |
                 (data(index + 2) & 0xFF) << 8

@@ -115,7 +115,7 @@ class BloomFilter(numBitsPerElement: Double, expectedSize: Int, numHashes: Int)
    * @param data is the bytes to be hashed.
    * @param len is the length of the buffer to examine.
    * @return true with some false positive probability and false if the
-   * bytes is not contained in the bloom filter.
+   *         bytes is not contained in the bloom filter.
    */
   def contains(data: Array[Byte], len: Int): Boolean = {
     !hash(data,numHashes, len).exists {
