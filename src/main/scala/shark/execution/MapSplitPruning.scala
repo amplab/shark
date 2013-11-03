@@ -142,7 +142,9 @@ object MapSplitPruning {
         left.asInstanceOf[ExprNodeColumnEvaluator]
       } else if (right.isInstanceOf[ExprNodeColumnEvaluator]) {
         right.asInstanceOf[ExprNodeColumnEvaluator]
-      } else null
+      } else {
+        null
+      }
 
     // Try to get the constant value.
     val constEval: ExprNodeConstantEvaluator =
@@ -150,7 +152,9 @@ object MapSplitPruning {
         left.asInstanceOf[ExprNodeConstantEvaluator]
       } else if (right.isInstanceOf[ExprNodeConstantEvaluator]) {
         right.asInstanceOf[ExprNodeConstantEvaluator]
-      } else null
+      } else {
+        null
+      }
 
     if (columnEval != null && constEval != null) {
       // We can prune the partition only if it is a predicate of form
