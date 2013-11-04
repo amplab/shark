@@ -276,6 +276,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       val mvTasks = new ArrayList[MoveTask]()
 
       val fileWork = getParseContext.getLoadFileWork
+      // Used for loading non-native tables.
       val tableWork = getParseContext.getLoadTableWork
       tableWork.foreach { ltd =>
         mvTasks.add(TaskFactory.get(
@@ -290,7 +291,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
               val dumpTable = db.newTable(qb.getTableDesc.getTableName)
               val wh = new Warehouse(conf)
               location = wh.getTablePath(db.getDatabase(dumpTable.getDbName()), dumpTable
-                  .getTableName()).toString;
+                .getTableName()).toString;
             } catch {
               case e: HiveException => throw new SemanticException(e)
               case e: MetaException => throw new SemanticException(e)
@@ -305,6 +306,11 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
 
       // The move task depends on all root tasks. In the case of multi outputs,
       // the moves are only started once all outputs are executed.
+      // Note: For a CTAS for a memory-only cached table, a MoveTask is still added as a child of
+      // the main SparkTask. However, there no effects from its execution, since the SELECT query
+      // output is piped to Shark's in-memory columnar storage builder, instead of a Hive tmp
+      // directory.
+      // TODO(harvey): Don't create a MoveTask in this case.
       val hiveFileSinkOp = terminalOps.head.localHiveOp
       mvTasks.foreach { moveTask =>
         rootTasks.foreach { rootTask =>
