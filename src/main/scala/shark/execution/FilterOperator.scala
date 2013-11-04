@@ -21,7 +21,6 @@ import scala.collection.Iterator
 import scala.reflect.BeanProperty
 
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory}
-import org.apache.hadoop.hive.ql.exec.{FilterOperator => HiveFilterOperator}
 import org.apache.hadoop.hive.ql.metadata.HiveException
 import org.apache.hadoop.hive.ql.plan.FilterDesc
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector

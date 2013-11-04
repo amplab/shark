@@ -20,7 +20,7 @@ package shark.execution.optimization
 import java.util.BitSet
 import java.util.{List => JList}
 
-import scala.collection.JavaConversions.{asScalaBuffer, bufferAsJavaList, collectionAsScalaIterable}
+import scala.collection.JavaConversions.{asScalaBuffer, collectionAsScalaIterable}
 import scala.collection.mutable.{Set, HashSet}
 
 import org.apache.hadoop.hive.ql.exec.GroupByPreShuffleOperator
@@ -31,7 +31,6 @@ import org.apache.hadoop.hive.ql.plan.{FilterDesc, MapJoinDesc, ReduceSinkDesc}
 import shark.execution.{FilterOperator, JoinOperator,
   MapJoinOperator, Operator, ReduceSinkOperator,
   SelectOperator, TopOperator}
-import shark.memstore2.{ColumnarStruct, TablePartitionIterator}
 
 
 class ColumnPruner(@transient op: TopOperator[_], @transient tbl: Table) extends Serializable {
@@ -39,8 +38,8 @@ class ColumnPruner(@transient op: TopOperator[_], @transient tbl: Table) extends
   val columnsUsed: BitSet = {
     val colsToKeep = computeColumnsToKeep()
     val allColumns = tbl.getAllCols().map(x => x.getName())
-    var b = new BitSet()
-    for (i <- Range(0, allColumns.size()) if (colsToKeep.contains(allColumns(i)))) {
+    val b = new BitSet()
+    for (i <- Range(0, allColumns.size) if colsToKeep.contains(allColumns(i))) {
       b.set(i, true)
     }
     b
@@ -55,11 +54,15 @@ class ColumnPruner(@transient op: TopOperator[_], @transient tbl: Table) extends
   /**
    * Computes the column names that are referenced in the Query
    */
-  private def computeColumnsToKeep(op: Operator[_],
-    cols: HashSet[String], parentOp: Operator[_] = null): Unit = {
+  private def computeColumnsToKeep(
+      op: Operator[_],
+      cols: HashSet[String],
+      parentOp: Operator[_] = null) {
+
     def nullGuard[T](s: JList[T]): Seq[T] = {
       if (s == null) Seq[T]() else s
     }
+
     op match {
       case selOp: SelectOperator => {
         val cnf:SelectDesc = selOp.getConf
@@ -84,7 +87,7 @@ class ColumnPruner(@transient op: TopOperator[_], @transient tbl: Table) extends
         if (cnf != null) {
           val keyEvals = nullGuard(cnf.getKeyCols)
           val valEvals = nullGuard(cnf.getValueCols)
-          val evals = (HashSet() ++ keyEvals ++ valEvals)
+          val evals = HashSet() ++ keyEvals ++ valEvals
           cols ++= evals.flatMap(x => nullGuard(x.getCols))
         }
       }
@@ -93,7 +96,7 @@ class ColumnPruner(@transient op: TopOperator[_], @transient tbl: Table) extends
         if (cnf != null) {
           val keyEvals = cnf.getKeys.values
           val valEvals = cnf.getExprs.values
-          val evals = (HashSet() ++ keyEvals ++ valEvals)
+          val evals = HashSet() ++ keyEvals ++ valEvals
           cols ++= evals.flatMap(x => x).flatMap(x => nullGuard(x.getCols))
         }
       }

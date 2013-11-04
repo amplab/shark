@@ -18,7 +18,6 @@
 package shark.util
 
 import java.lang.Integer.{ rotateLeft => rotl }
-import scala.math._
 
 /**
  * <p>The MurmurHash3_x86_128(...) is a fast, non-cryptographic, 128-bit hash 
@@ -126,7 +125,7 @@ object MurmurHash3_x86_128 {
    * @param seed is the seed for the murmurhash algorithm.
    * @param length is the length of the buffer to use for hashing.
    * @param results is the output buffer to store the four ints that are returned,
-   *        should have size atleast 4.
+   *        should have size at least 4.
    */
   @inline final def hash(data: Array[Byte], seed: Int, length: Int,
       results: Array[Int]): Unit = {

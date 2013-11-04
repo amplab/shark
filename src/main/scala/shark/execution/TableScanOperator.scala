@@ -37,7 +37,7 @@ import org.apache.spark.rdd.{PartitionPruningRDD, RDD}
 
 import shark.{LogHelper, SharkConfVars, SharkEnv}
 import shark.execution.optimization.ColumnPruner
-import shark.memstore2.{CacheType, MemoryMetadataManager, TablePartition, TablePartitionStats}
+import shark.memstore2.{CacheType, TablePartition, TablePartitionStats}
 
 
 /**
@@ -145,9 +145,9 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
     val columnsUsed = new ColumnPruner(this, table).columnsUsed
     SharkEnv.tachyonUtil.pushDownColumnPruning(rdd, columnsUsed)
 
-    val shouldPrune = (SharkConfVars.getBoolVar(localHConf, SharkConfVars.MAP_PRUNING) &&
-                       childOperators(0).isInstanceOf[FilterOperator] &&
-                       indexToStats.size == rdd.partitions.size)
+    val shouldPrune = SharkConfVars.getBoolVar(localHConf, SharkConfVars.MAP_PRUNING) &&
+      childOperators(0).isInstanceOf[FilterOperator] &&
+      indexToStats.size == rdd.partitions.size
 
     val prunedRdd: RDD[_] = if (shouldPrune) {
       val startTime = System.currentTimeMillis
@@ -184,10 +184,10 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
 
     return prunedRdd.mapPartitions { iter =>
       if (iter.hasNext) {
-        val tablePartition = iter.next.asInstanceOf[TablePartition]
+        val tablePartition = iter.next().asInstanceOf[TablePartition]
         tablePartition.prunedIterator(columnsUsed)
       } else {
-        Iterator()
+        Iterator.empty
       }
     }
   }
@@ -232,25 +232,25 @@ object TableScanOperator extends LogHelper {
     val rowSchema = hiveTableScanOp.getSchema
     if (rowSchema != null) {
       // Add column names to the HiveConf.
-      var columnNames = new StringBuilder()
+      val columnNames = new StringBuilder
       for (columnInfo <- rowSchema.getSignature()) {
-        if (columnNames.length() > 0) {
+        if (columnNames.length > 0) {
           columnNames.append(",")
         }
         columnNames.append(columnInfo.getInternalName())
       }
-      val columnNamesString = columnNames.toString();
-      hiveConf.set(Constants.LIST_COLUMNS, columnNamesString);
+      val columnNamesString = columnNames.toString()
+      hiveConf.set(Constants.LIST_COLUMNS, columnNamesString)
 
       // Add column types to the HiveConf.
-      var columnTypes = new StringBuilder()
+      val columnTypes = new StringBuilder
       for (columnInfo <- rowSchema.getSignature()) {
-        if (columnTypes.length() > 0) {
+        if (columnTypes.length > 0) {
           columnTypes.append(",")
         }
         columnTypes.append(columnInfo.getType().getTypeName())
       }
-      val columnTypesString = columnTypes.toString
+      val columnTypesString = columnTypes.toString()
       hiveConf.set(Constants.LIST_COLUMN_TYPES, columnTypesString)
     }
 

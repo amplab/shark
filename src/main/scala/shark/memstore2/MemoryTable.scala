@@ -17,8 +17,6 @@
 
 package shark.memstore2
 
-import shark.execution.RDDUtils
-
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 
