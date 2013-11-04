@@ -27,11 +27,8 @@ import org.apache.hadoop.hive.ql.parse.DDLSemanticAnalyzer
 import org.apache.hadoop.hive.ql.parse.HiveParser
 import org.apache.hadoop.hive.ql.plan.DDLWork
 
-import org.apache.spark.rdd.{UnionRDD, RDD}
-
 import shark.execution.SharkDDLWork
 import shark.{LogHelper, SharkEnv}
-import shark.memstore2.MemoryMetadataManager
 
 
 class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf) with LogHelper {

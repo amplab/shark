@@ -23,11 +23,11 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
-import org.apache.hadoop.hive.ql.exec.{UDTFOperator => HiveUDTFOperator}
 import org.apache.hadoop.hive.ql.plan.UDTFDesc
 import org.apache.hadoop.hive.ql.udf.generic.Collector
-import org.apache.hadoop.hive.serde2.objectinspector.{ ObjectInspector,
-  StandardStructObjectInspector, StructField, StructObjectInspector }
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.StandardStructObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.StructField
 
 
 class UDTFOperator extends UnaryOperator[UDTFDesc] {

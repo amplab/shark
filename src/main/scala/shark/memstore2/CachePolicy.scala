@@ -23,8 +23,6 @@ import java.util.Map.Entry
 
 import scala.collection.JavaConversions._
 
-import org.apache.spark.rdd.RDD
-
 
 /**
  * An general interface for pluggable cache eviction policies in Shark.

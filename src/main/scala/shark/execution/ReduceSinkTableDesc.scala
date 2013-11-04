@@ -17,8 +17,9 @@
 
 package shark.execution
 
-import shark.LogHelper
 import org.apache.hadoop.hive.ql.plan.TableDesc
+import shark.LogHelper
+
 
 trait ReduceSinkTableDesc extends LogHelper {
   self: Operator[_ <: HiveDesc] =>
@@ -26,9 +27,9 @@ trait ReduceSinkTableDesc extends LogHelper {
   // Seq(tag, (Key TableDesc, Value TableDesc))
   def keyValueDescs(): Seq[(Int, (TableDesc, TableDesc))] = {
     // get the parent ReduceSinkOperator and sort it by tag
-    val reduceSinkOps = 
-      for (op <- self.parentOperators.toSeq; 
-        if (op.isInstanceOf[ReduceSinkOperator])) yield op.asInstanceOf[ReduceSinkOperator]
+    val reduceSinkOps =
+      for (op <- self.parentOperators.toSeq if op.isInstanceOf[ReduceSinkOperator])
+        yield op.asInstanceOf[ReduceSinkOperator]
 
     reduceSinkOps.map(f => (f.getTag, f.getKeyValueTableDescs))
   }

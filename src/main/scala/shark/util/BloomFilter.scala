@@ -19,8 +19,9 @@ package shark.util
 
 import java.util.BitSet
 import java.nio.charset.Charset
-import scala.math._
-import com.google.common.primitives.Bytes
+
+import scala.math.{ceil, log}
+
 import com.google.common.primitives.Ints
 import com.google.common.primitives.Longs
 
@@ -33,13 +34,12 @@ import com.google.common.primitives.Longs
  * @param expectedSize is the number of elements to be contained in the filter.
  * @param numHashes is the number of hash functions.
  * @author Ram Sriharsha (harshars at yahoo-inc dot com)
- * @date 07/07/2013
  */
 class BloomFilter(numBitsPerElement: Double, expectedSize: Int, numHashes: Int) 
-  extends AnyRef with Serializable{
+  extends AnyRef with Serializable {
 
   val SEED = System.getProperty("shark.bloomfilter.seed","1234567890").toInt
-  val bitSetSize = ceil(numBitsPerElement * expectedSize).toInt
+  val bitSetSize = math.ceil(numBitsPerElement * expectedSize).toInt
   val bitSet = new BitSet(bitSetSize)
 
   /**
@@ -68,7 +68,7 @@ class BloomFilter(numBitsPerElement: Double, expectedSize: Int, numHashes: Int)
    * Optimization to allow reusing the same input buffer by specifying
    * the length of the buffer that contains the bytes to be hashed.
    * @param data is the bytes to be hashed.
-   * @param length is the length of the buffer to examine.
+   * @param len is the length of the buffer to examine.
    */
   def add(data: Array[Byte], len: Int) {
     val hashes = hash(data, numHashes, len)
@@ -113,7 +113,7 @@ class BloomFilter(numBitsPerElement: Double, expectedSize: Int, numHashes: Int)
    * Optimization to allow reusing the same input buffer by specifying
    * the length of the buffer that contains the bytes to be hashed.
    * @param data is the bytes to be hashed.
-   * @param length is the length of the buffer to examine.
+   * @param len is the length of the buffer to examine.
    * @return true with some false positive probability and false if the
    *         bytes is not contained in the bloom filter.
    */

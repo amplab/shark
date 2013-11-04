@@ -17,7 +17,7 @@
 
 package shark.execution
 
-import java.util.{List => JavaList, Arrays}
+import java.util.{List => JavaList}
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 
@@ -219,7 +219,7 @@ abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
     val result = new Array[ObjectInspector](length)
     
     for (i <- 0 to length - 1) {
-      result(i) = evals(start + i).initialize(rowInspector);
+      result(i) = evals(start + i).initialize(rowInspector)
     }
     
     result

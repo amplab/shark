@@ -19,13 +19,11 @@ package shark.parse
 
 import java.io.Serializable
 import java.util.ArrayList
-import java.util.List
 
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec._
 import org.apache.hadoop.hive.ql.parse._
-import org.apache.hadoop.hive.ql.plan.ExplainWork
 
 import shark.execution.SharkExplainWork
 

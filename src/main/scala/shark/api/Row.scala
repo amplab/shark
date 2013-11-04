@@ -18,7 +18,6 @@
 package shark.api
 
 import org.apache.hadoop.hive.serde2.objectinspector._
-import org.apache.hadoop.hive.serde2.objectinspector.primitive._
 
 
 /**

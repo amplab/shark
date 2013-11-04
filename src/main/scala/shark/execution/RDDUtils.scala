@@ -38,7 +38,7 @@ object RDDUtils {
     otherRdd: RDD[T]): RDD[T] = {
     val unionedRdd = otherRdd match {
       case unionRdd: UnionRDD[_] => {
-        new UnionRDD(rdd.context, (unionRdd.rdds :+ rdd))
+        new UnionRDD(rdd.context, unionRdd.rdds :+ rdd)
       }
       case _ => rdd.union(otherRdd)
     }
@@ -85,7 +85,7 @@ object RDDUtils {
     shuffled.mapPartitions(iter => {
       val buf = iter.toArray
       buf.sortWith((x, y) => x._1.compareTo(y._1) < 0).iterator
-    }, true)
+    }, preservesPartitioning = true)
   }
 
   /**

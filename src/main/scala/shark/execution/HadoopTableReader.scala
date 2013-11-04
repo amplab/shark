@@ -18,14 +18,14 @@
 package shark.execution
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{FileSystem, Path, PathFilter}
-import org.apache.hadoop.mapred.{FileInputFormat, InputFormat, JobConf}
+import org.apache.hadoop.fs.{Path, PathFilter}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_PARTITION_COLUMNS
 import org.apache.hadoop.hive.ql.exec.Utilities
 import org.apache.hadoop.hive.ql.metadata.{Partition => HivePartition, Table => HiveTable}
-import org.apache.hadoop.hive.ql.plan.{PartitionDesc, TableDesc}
+import org.apache.hadoop.hive.ql.plan.TableDesc
 import org.apache.hadoop.io.Writable
+import org.apache.hadoop.mapred.{FileInputFormat, InputFormat, JobConf}
 
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.{EmptyRDD, HadoopRDD, RDD, UnionRDD}
@@ -212,7 +212,7 @@ object HadoopTableReader {
     // Set s3/s3n credentials. Setting them in localJobConf ensures the settings propagate
     // from Spark's master all the way to Spark's slaves.
     var s3varsSet = false
-    val s3vars = Seq("fs.s3n.awsAccessKeyId", "fs.s3n.awsSecretAccessKey",
+    Seq("fs.s3n.awsAccessKeyId", "fs.s3n.awsSecretAccessKey",
       "fs.s3.awsAccessKeyId", "fs.s3.awsSecretAccessKey").foreach { variableName =>
       if (conf.get(variableName) != null) {
         s3varsSet = true
