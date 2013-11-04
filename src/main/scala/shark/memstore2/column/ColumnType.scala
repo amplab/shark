@@ -412,4 +412,6 @@ object GENERIC extends ColumnType[ByteStream.Output, ByteArrayRef](11, 16) {
   }
 
   override def newWritable() = new ByteArrayRef
+
+  override def actualSize(v: ByteStream.Output): Int = v.getCount() + 4
 }
