@@ -17,16 +17,16 @@
 
 package org.apache.hadoop.hive.ql.exec
 
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPOr
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPAnd
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqual
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFBaseCompare
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFBetween
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPGreaterThan
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPLessThan
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFIn
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPAnd
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqual
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqualOrGreaterThan
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqualOrLessThan
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFIn
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPGreaterThan
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPLessThan
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPOr
 
 import shark.memstore2.ColumnarStructObjectInspector.IDStructField
 import shark.memstore2.TablePartitionStats

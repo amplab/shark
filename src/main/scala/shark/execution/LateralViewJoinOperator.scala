@@ -25,8 +25,7 @@ import scala.reflect.BeanProperty
 
 import org.apache.commons.codec.binary.Base64
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory}
-import org.apache.hadoop.hive.ql.plan.SelectDesc
-import org.apache.hadoop.hive.ql.plan.LateralViewJoinDesc
+import org.apache.hadoop.hive.ql.plan.{LateralViewJoinDesc, SelectDesc}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, StructObjectInspector}
 

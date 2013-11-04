@@ -161,14 +161,13 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       val queryOutputRDD = outputRDD
       if (useUnionRDD) {
         // Handle an INSERT INTO command.
-        val previousRDDOpt: Option[RDD[TablePartition]] =
-          if (isHivePartitioned) {
-            val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(
-              databaseName, tableName).get
-            partitionedTable.getPartition(hivePartitionKey)
-          } else {
-            SharkEnv.memoryMetadataManager.getMemoryTable(databaseName, tableName).map(_.tableRDD)
-          }
+        val previousRDDOpt: Option[RDD[TablePartition]] = if (isHivePartitioned) {
+          val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(
+            databaseName, tableName).get
+          partitionedTable.getPartition(hivePartitionKey)
+        } else {
+          SharkEnv.memoryMetadataManager.getMemoryTable(databaseName, tableName).map(_.tableRDD)
+        }
         outputRDD = previousRDDOpt match {
           case Some(previousRDD) => {
             // If the RDD for a table or Hive-partition has already been created, then take a union

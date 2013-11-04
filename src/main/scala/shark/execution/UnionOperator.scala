@@ -22,8 +22,8 @@ import java.util.{ArrayList, List => JavaList}
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFUtils.ReturnObjectInspectorResolver
 import org.apache.hadoop.hive.ql.plan.UnionDesc
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFUtils.ReturnObjectInspectorResolver
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
 import org.apache.hadoop.hive.serde2.objectinspector.StructField

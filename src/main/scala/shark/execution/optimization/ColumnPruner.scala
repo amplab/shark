@@ -55,7 +55,9 @@ class ColumnPruner(@transient op: TopOperator[_], @transient tbl: Table) extends
    * Computes the column names that are referenced in the Query
    */
   private def computeColumnsToKeep(
-      op: Operator[_], cols: HashSet[String], parentOp: Operator[_] = null): Unit = {
+      op: Operator[_],
+      cols: HashSet[String],
+      parentOp: Operator[_] = null) {
 
     def nullGuard[T](s: JList[T]): Seq[T] = {
       if (s == null) Seq[T]() else s
