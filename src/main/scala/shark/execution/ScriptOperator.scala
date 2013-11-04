@@ -27,8 +27,8 @@ import scala.reflect.BeanProperty
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.hadoop.hive.ql.exec.{ScriptOperator => HiveScriptOperator}
 import org.apache.hadoop.hive.ql.exec.{RecordReader, RecordWriter}
+import org.apache.hadoop.hive.ql.exec.{ScriptOperator => HiveScriptOperator}
 import org.apache.hadoop.hive.ql.exec.{ScriptOperatorHelper => HiveScriptOperatorHelper}
 import org.apache.hadoop.hive.ql.plan.ScriptDesc
 import org.apache.hadoop.hive.serde2.{Serializer, Deserializer}
