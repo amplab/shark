@@ -114,13 +114,14 @@ object MapSplitPruning {
     val invertValue: Boolean = invertEval.expr.getValue.asInstanceOf[Boolean]
 
     if (columnStats != null) {
-       val exists = (columnStats :>< (leftValue , rightValue))
-       if (invertValue) !exists else exists
-      } else {
-        // If there is no stats on the column, don't prune.
-        true
-      }
+      val exists = (columnStats :>< (leftValue , rightValue))
+      if (invertValue) !exists else exists
+    } else {
+      // If there is no stats on the column, don't prune.
+      true
+    }
   }
+
   /**
    * Test whether we should keep the split as a candidate given the comparison
    * predicate. Return true if the split should be kept as a candidate, false if
