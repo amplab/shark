@@ -17,14 +17,22 @@
 
 package shark.util
 
-import java.util.{ArrayList => JavaArrayList, HashMap => JavaHashMap, HashSet => JavaHashSet}
+import java.util.{ArrayList => JavaArrayList, Arrays => JavaArrays}
+import java.util.{HashMap => JavaHashMap, HashSet => JavaHashSet, Map => JavaMap}
+import java.util.Properties
 
 import scala.collection.JavaConversions._
 
 import org.apache.hadoop.hive.conf.HiveConf
+import org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_PARTITION_COLUMNS
 import org.apache.hadoop.hive.metastore.api.FieldSchema
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
+import org.apache.hadoop.hive.serde2.Deserializer
+import org.apache.hadoop.hive.serde2.objectinspector.UnionStructObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 import org.apache.hadoop.hive.ql.exec.DDLTask
 import org.apache.hadoop.hive.ql.hooks.{ReadEntity, WriteEntity}
 import org.apache.hadoop.hive.ql.plan.AlterTableDesc
@@ -32,6 +40,7 @@ import org.apache.hadoop.hive.ql.plan.{CreateTableDesc, DDLWork, DropTableDesc}
 
 import shark.SharkContext
 import shark.api.{DataType, DataTypes}
+
 
 
 private[shark] object HiveUtils {
@@ -50,6 +59,26 @@ private[shark] object HiveUtils {
     case DataTypes.DOUBLE => PrimitiveObjectInspectorFactory.javaDoubleObjectInspector
     case DataTypes.TIMESTAMP => PrimitiveObjectInspectorFactory.javaTimestampObjectInspector
     case DataTypes.STRING => PrimitiveObjectInspectorFactory.javaStringObjectInspector
+  }
+
+  def makeUnionOIForPartitionedTable(
+      partProps: Properties,
+      partSerDe: Deserializer): UnionStructObjectInspector = {
+    val partCols = partProps.getProperty(META_TABLE_PARTITION_COLUMNS)
+    val partColNames = new JavaArrayList[String]
+    val partColObjectInspectors = new JavaArrayList[ObjectInspector]
+    partCols.trim().split("/").foreach { colName =>
+      partColNames.add(colName)
+      partColObjectInspectors.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector)
+    }
+
+    val partColObjectInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
+      partColNames, partColObjectInspectors)
+    val oiList = JavaArrays.asList(
+      partSerDe.getObjectInspector().asInstanceOf[StructObjectInspector],
+      partColObjectInspector.asInstanceOf[StructObjectInspector])
+    // New oi is union of table + partition object inspectors
+    ObjectInspectorFactory.getUnionStructObjectInspector(oiList)
   }
 
   /**
