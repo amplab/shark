@@ -71,10 +71,11 @@ class MemoryMetadataManager {
       databaseName: String,
       tableName: String,
       cacheMode: CacheType.CacheType,
-      preferredStorageLevel: StorageLevel
+      preferredStorageLevel: StorageLevel,
+      unifyView: Boolean
     ): MemoryTable = {
     val tableKey = makeTableKey(databaseName, tableName)
-    var newTable = new MemoryTable(tableKey, cacheMode, preferredStorageLevel)
+    var newTable = new MemoryTable(tableKey, cacheMode, preferredStorageLevel, unifyView)
     _keyToTable.put(tableKey, newTable)
     return newTable
   }
@@ -84,10 +85,15 @@ class MemoryMetadataManager {
       tableName: String,
       cacheMode: CacheType.CacheType,
       preferredStorageLevel: StorageLevel,
+      unifyView: Boolean,
       tblProps: JavaMap[String, String]
     ): PartitionedMemoryTable = {
     val tableKey = makeTableKey(databaseName, tableName)
-    var newTable = new PartitionedMemoryTable(tableKey, cacheMode, preferredStorageLevel)
+    var newTable = new PartitionedMemoryTable(
+      tableKey,
+      cacheMode,
+      preferredStorageLevel,
+      unifyView)
     // Determine the cache policy to use and read any user-specified cache settings.
     val cachePolicyStr = tblProps.getOrElse(SharkConfVars.CACHE_POLICY.varname,
       SharkConfVars.CACHE_POLICY.defaultVal)
