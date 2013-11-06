@@ -134,6 +134,7 @@ object SharkEnv extends LogHelper {
   /** Cleans up and shuts down the Shark environments. */
   def stop() {
     logDebug("Shutting down Shark Environment")
+    memoryMetadataManager.shutdown()
     // Stop the SparkContext
     if (SharkEnv.sc != null) {
       sc.stop()

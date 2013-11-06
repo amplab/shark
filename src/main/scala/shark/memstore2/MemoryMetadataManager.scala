@@ -21,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.{HashMap => JavaHashMap, Map => JavaMap}
 
 import scala.collection.JavaConversions._
-import scala.collection.mutable.ConcurrentMap
+import scala.collection.mutable.{ArrayBuffer, ConcurrentMap}
 
 import org.apache.spark.rdd.{RDD, UnionRDD}
 import org.apache.spark.storage.StorageLevel
@@ -29,6 +29,7 @@ import org.apache.spark.storage.StorageLevel
 import shark.execution.RDDUtils
 import shark.SharkConfVars
 import shark.SharkEnv
+import shark.util.HiveUtils
 
 
 class MemoryMetadataManager {
@@ -39,6 +40,9 @@ class MemoryMetadataManager {
   // TODO(harvey): Support stats for Hive-partitioned tables.
   private val _keyToStats: ConcurrentMap[String, collection.Map[Int, TablePartitionStats]] =
     new ConcurrentHashMap[String, collection.Map[Int, TablePartitionStats]]
+
+  // List of callback functions to execute when the Shark metastore shuts down.
+  private val _onShutdownCallbacks = new ArrayBuffer[() => Unit]
 
   def putStats(
       databaseName: String,
@@ -163,6 +167,29 @@ class MemoryMetadataManager {
     return tableValue.flatMap(MemoryMetadataManager.unpersistRDDsInTable(_))
   }
 
+  def shutdown() {
+    resetUnifiedTableSerdes()
+  }
+
+  def resetUnifiedTableSerdes() {
+    for (table <- _keyToTable.values.filter(_.unifyView)) {
+      table match {
+        case memoryTable: MemoryTable => {
+          HiveUtils.alterSerdeInHive(
+            memoryTable.tableName,
+            None /* partitionSpecOpt */,
+            memoryTable.diskSerDe)
+        }
+        case partitionedTable: PartitionedMemoryTable => {
+          for ((hiveKeyStr, serDeName) <- partitionedTable.keyToDiskSerDes) {
+            val partitionSpec = MemoryMetadataManager.parseHivePartitionKeyStr(hiveKeyStr)
+            HiveUtils.alterSerdeInHive(partitionedTable.tableName, Some(partitionSpec), serDeName)
+          }
+        }
+      }
+    }
+  }
+
   /**
    * Find all keys that are strings. Used to drop tables after exiting.
    *
@@ -207,6 +234,15 @@ object MemoryMetadataManager {
       partColToValue: JavaMap[String, String]): String = {
     val keyStr = partitionCols.map(col => "%s=%s".format(col, partColToValue(col))).mkString("/")
     return keyStr
+  }
+
+  def parseHivePartitionKeyStr(keyStr: String): JavaMap[String, String] = {
+    val partitionSpec = new JavaHashMap[String, String]()
+    for (pair <- keyStr.split("/")) {
+      val pairSplit = pair.split("=")
+      partitionSpec.put(pairSplit(0), pairSplit(1))
+    }
+    partitionSpec
   }
 
   /** Return a StorageLevel corresponding to its String name. */
