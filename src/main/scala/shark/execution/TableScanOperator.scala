@@ -38,6 +38,7 @@ import org.apache.spark.rdd.{PartitionPruningRDD, RDD}
 import shark.{LogHelper, SharkConfVars, SharkEnv}
 import shark.execution.optimization.ColumnPruner
 import shark.memstore2.{CacheType, MemoryMetadataManager, TablePartition, TablePartitionStats}
+import shark.util.HiveUtils
 
 
 /**
@@ -79,23 +80,9 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
       serializer.getObjectInspector()
     } else {
       val partProps = firstConfPartDesc.getProperties()
-      val tableDeser = firstConfPartDesc.getDeserializerClass().newInstance()
-      tableDeser.initialize(hconf, partProps)
-      val partCols = partProps.getProperty(META_TABLE_PARTITION_COLUMNS)
-      val partNames = new ArrayList[String]
-      val partObjectInspectors = new ArrayList[ObjectInspector]
-      partCols.trim().split("/").foreach { key =>
-        partNames.add(key)
-        partObjectInspectors.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector)
-      }
-
-      val partObjectInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
-        partNames, partObjectInspectors)
-      val oiList = Arrays.asList(
-        tableDeser.getObjectInspector().asInstanceOf[StructObjectInspector],
-        partObjectInspector.asInstanceOf[StructObjectInspector])
-      // new oi is union of table + partition object inspectors
-      ObjectInspectorFactory.getUnionStructObjectInspector(oiList)
+      val partSerDe = firstConfPartDesc.getDeserializerClass().newInstance()
+      partSerDe.initialize(hconf, partProps)
+      HiveUtils.makeUnionOIForPartitionedTable(partProps, partSerDe)
     }
   }
 
@@ -137,8 +124,10 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
 
   private def createPrunedRdd(databaseName: String, tableName: String, rdd: RDD[_]): RDD[_] = {
     // Stats used for map pruning.
-    val indexToStats: collection.Map[Int, TablePartitionStats] =
-      SharkEnv.memoryMetadataManager.getStats(databaseName, tableName).get
+    val indexToStatsOpt: Option[collection.Map[Int, TablePartitionStats]] =
+      SharkEnv.memoryMetadataManager.getStats(databaseName, tableName)
+    assert (indexToStatsOpt.isDefined, "Stats not found for table " + tableName)
+    val indexToStats = indexToStatsOpt.get
 
     // Run map pruning if the flag is set, there exists a filter predicate on
     // the input table and we have statistics on the table.

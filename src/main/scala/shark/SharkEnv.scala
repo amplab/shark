@@ -116,7 +116,8 @@ object SharkEnv extends LogHelper {
    * delegating to MemoryMetadataManager#removeTable() for removing the table's entry from the
    * Shark metastore.
    *
-   * @param tableName The table that should be dropped from the Shark metastore and from memory storage.
+   * @param tableName The table that should be dropped from the Shark metastore and from memory
+   *                  storage.
    */
   def dropTable(databaseName: String, tableName: String): Option[RDD[_]] = {
     val tableKey = makeTachyonTableKey(databaseName, tableName)

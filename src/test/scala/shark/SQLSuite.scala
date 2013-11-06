@@ -887,11 +887,11 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     val columnarSerDeName = classOf[shark.memstore2.ColumnarSerDe].getName
 
     // Change the SerDe from the default LazySimpleSerDe to ColumnarSerDe.
-    HiveUtils.alterSerdeInHive(tableName, null /* partitionSpec */, columnarSerDeName, hiveConf)
+    HiveUtils.alterSerdeInHive(tableName, None /* partitionSpecOpt */, columnarSerDeName, hiveConf)
     assert(getTableSerDeName(tableName) == columnarSerDeName)
 
     // Change the SerDe back to LazySimpleSerDe.
-    HiveUtils.alterSerdeInHive(tableName, null /* partitionSpec */, oldSerDeName, hiveConf)
+    HiveUtils.alterSerdeInHive(tableName, None /* partitionSpecOpt */, oldSerDeName, hiveConf)
     assert(getTableSerDeName(tableName) == oldSerDeName)
   }
 
@@ -915,11 +915,11 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     val columnarSerDeName = classOf[shark.memstore2.ColumnarSerDe].getName
 
     // Change the SerDe from the default LazySimpleSerDe to ColumnarSerDe
-    HiveUtils.alterSerdeInHive(tableName, partitionSpec, columnarSerDeName, hiveConf)
+    HiveUtils.alterSerdeInHive(tableName, Some(partitionSpec), columnarSerDeName, hiveConf)
     assert(getPartitionSerDeName(tableName, partitionSpec) == columnarSerDeName)
 
     // Change the SerDe back to LazySimpleSerDe.
-    HiveUtils.alterSerdeInHive(tableName, partitionSpec, oldSerDeName, hiveConf)
+    HiveUtils.alterSerdeInHive(tableName, Some(partitionSpec), oldSerDeName, hiveConf)
     assert(getPartitionSerDeName(tableName, partitionSpec) == oldSerDeName)
   }
 }

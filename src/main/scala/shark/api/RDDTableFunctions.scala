@@ -30,7 +30,7 @@ import shark.util.HiveUtils
 
 class RDDTableFunctions(self: RDD[Product], manifests: Seq[ClassManifest[_]]) {
 
-  def saveAsTable(tableName: String, fields: Seq[String]): Boolean = {
+  def saveAsTable(tableName: String, fields: Seq[String], unifyView: Boolean = false): Boolean = {
     require(fields.size == this.manifests.size,
       "Number of column names != number of fields in the RDD.")
 
@@ -63,7 +63,7 @@ class RDDTableFunctions(self: RDD[Product], manifests: Seq[ClassManifest[_]]) {
     if (isSucessfulCreateTable) {
       // Create an entry in the MemoryMetadataManager.
       val newTable = SharkEnv.memoryMetadataManager.createMemoryTable(
-        databaseName, tableName, CacheType.HEAP, rdd.getStorageLevel)
+        databaseName, tableName, CacheType.HEAP, rdd.getStorageLevel, unifyView)
       newTable.tableRDD = rdd
       try {
         // Force evaluate to put the data in memory.
