@@ -18,6 +18,10 @@
 package shark.parse
 
 import org.apache.hadoop.hive.ql.parse.{QB => HiveQueryBlock}
+import org.apache.hadoop.hive.ql.plan.CreateTableDesc
+import org.apache.hadoop.hive.ql.plan.TableDesc
+
+import org.apache.spark.storage.StorageLevel
 
 import shark.memstore2.CacheType
 import shark.memstore2.CacheType._
@@ -31,11 +35,34 @@ class QueryBlock(outerID: String, alias: String, isSubQuery: Boolean)
     extends HiveQueryBlock(outerID, alias, isSubQuery) {
 
   // The CacheType for the table that will be created from CREATE TABLE/CTAS.
-  private var cacheModeForCreateTable = CacheType.NONE
+  private var _cacheModeForCreateTable = CacheType.NONE
 
-  def setCacheModeForCreateTable(cacheModeToSet: CacheType) {
-    cacheModeForCreateTable = cacheModeToSet
-  }
+  private var _preferredStorageLevel: StorageLevel = StorageLevel.NONE
 
-  def getCacheModeForCreateTable(): CacheType = cacheModeForCreateTable
+  // Whether the created to be created or the table specified by CACHED should be backed by disk.
+  private var _unifyView = false
+
+  // TableDesc for a table being updated by an INSERT.
+  private var _targetTableDesc: TableDesc = _
+
+  def cacheModeForCreateTable_= (mode: CacheType) = _cacheModeForCreateTable = mode
+
+  def cacheModeForCreateTable: CacheType = _cacheModeForCreateTable
+
+  def preferredStorageLevel_= (storageLevel: StorageLevel) = _preferredStorageLevel = storageLevel
+
+  def preferredStorageLevel: StorageLevel = _preferredStorageLevel
+
+  def unifyView_= (shouldUnify: Boolean) = _unifyView = shouldUnify
+
+  def unifyView: Boolean = _unifyView
+
+  def targetTableDesc: TableDesc = _targetTableDesc
+
+  def targetTableDesc_= (desc: TableDesc) = _targetTableDesc = desc
+
+  // Hive uses "tableDesc" to refer to the CreateTableDesc...
+  def createTableDesc: CreateTableDesc = super.getTableDesc
+
+  def createTableDesc_= (desc: CreateTableDesc) = super.setTableDesc(desc)
 }

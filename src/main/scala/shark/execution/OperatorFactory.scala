@@ -23,6 +23,7 @@ import org.apache.hadoop.hive.ql.exec.{GroupByPostShuffleOperator}
 import org.apache.hadoop.hive.ql.exec.GroupByPreShuffleOperator
 import org.apache.hadoop.hive.ql.exec.{Operator => HOperator}
 import org.apache.hadoop.hive.ql.metadata.HiveException
+import org.apache.hadoop.hive.serde2.Deserializer
 
 import org.apache.spark.storage.StorageLevel
 
@@ -76,6 +77,18 @@ object OperatorFactory extends LogHelper {
       hiveOp).asInstanceOf[TerminalOperator]
     sinkOp.localHiveOp = hiveOp
     _createAndSetParents(sinkOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
+  }
+
+  def createUnifiedViewFileOutputPlan(
+      hiveTerminalOp: HOperator[_<:HiveDesc],
+      diskSerDe: String): TerminalOperator = {
+    var hiveOp = hiveTerminalOp.asInstanceOf[org.apache.hadoop.hive.ql.exec.FileSinkOperator]
+    val terminalOp = createSharkFileOutputPlan(hiveTerminalOp)
+    val fileSinkDesc = hiveOp.getConf
+    val tableDesc = fileSinkDesc.getTableInfo()
+    val serDe = Class.forName(diskSerDe).asInstanceOf[Class[Deserializer]]
+    tableDesc.setDeserializerClass(serDe)
+    terminalOp
   }
 
   def createSharkRddOutputPlan(hiveTerminalOp: HOperator[_<:HiveDesc]): TerminalOperator = {
