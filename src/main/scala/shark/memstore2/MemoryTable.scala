@@ -30,8 +30,9 @@ private[shark]
 class MemoryTable(
     tableName: String,
     cacheMode: CacheType.CacheType,
-    preferredStorageLevel: StorageLevel)
-  extends Table(tableName, cacheMode, preferredStorageLevel) {
+    preferredStorageLevel: StorageLevel,
+    unifiedView: Boolean)
+  extends Table(tableName, cacheMode, preferredStorageLevel, unifiedView) {
 
   // RDD that contains the contents of this table.
   private var _tableRDD: RDD[TablePartition] = _
@@ -39,5 +40,4 @@ class MemoryTable(
   def tableRDD: RDD[TablePartition] = _tableRDD
 
   def tableRDD_= (rdd: RDD[TablePartition]) = _tableRDD = rdd
-
 }
