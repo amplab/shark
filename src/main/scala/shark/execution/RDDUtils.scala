@@ -33,16 +33,22 @@ import shark.SharkEnv
  */
 object RDDUtils {
 
+  /**
+   * Returns a UnionRDD using both RDD arguments. Any UnionRDD argument is "flattened", in that
+   * its parent sequence of RDDs are used to compose the returned UnionRDD.
+   */
   def unionAndFlatten[T: ClassManifest](
     rdd: RDD[T],
-    otherRdd: RDD[T]): RDD[T] = {
-    val unionedRdd = otherRdd match {
-      case unionRdd: UnionRDD[_] => {
-        new UnionRDD(rdd.context, (unionRdd.rdds :+ rdd))
-      }
-      case _ => rdd.union(otherRdd)
+    otherRdd: RDD[T]): UnionRDD[T] = {
+    val otherRdds = otherRdd match {
+      case otherUnionRdd: UnionRDD[_] => otherUnionRdd.rdds
+      case _ => Seq(otherRdd)
     }
-    return unionedRdd
+    val rdds = rdd match {
+      case unionRdd: UnionRDD[_] => unionRdd.rdds
+      case _ => Seq(rdd)
+    }
+    new UnionRDD(rdd.context, rdds ++ otherRdds)
   }
 
   def unpersistRDD(rdd: RDD[_]): RDD[_] = {
