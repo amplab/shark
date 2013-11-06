@@ -18,18 +18,17 @@
 package shark.parse
 
 import scala.collection.JavaConversions._
-
 import org.apache.hadoop.fs.{Path, PathFilter}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{CopyTask, MoveTask, TaskFactory}
 import org.apache.hadoop.hive.ql.metadata.{Partition, Table => HiveTable}
 import org.apache.hadoop.hive.ql.parse.{ASTNode, BaseSemanticAnalyzer, LoadSemanticAnalyzer}
 import org.apache.hadoop.hive.ql.plan._
-
 import shark.execution.SparkLoadWork
 import shark.{LogHelper, SharkEnv}
+import shark.Utils
 
-class SharkLoadSemanticAnalyzer(hiveConf: HiveConf) extends LoadSemanticAnalyzer(hiveConf) {
+class SharkLoadSemanticAnalyzer(conf: HiveConf) extends LoadSemanticAnalyzer(conf) {
   
   override def analyzeInternal(ast: ASTNode): Unit = {
     // Delegate to the LoadSemanticAnalyzer parent for error checking the source path formatting.
@@ -43,38 +42,43 @@ class SharkLoadSemanticAnalyzer(hiveConf: HiveConf) extends LoadSemanticAnalyzer
     val tableName = getTableName(tableASTNode)
     val databaseName = db.getCurrentDatabase()
 
-    if (SharkEnv.memoryMetadataManager.containsTable(databaseName, tableName)) {
+    val tableOpt = SharkEnv.memoryMetadataManager.getTable(databaseName, tableName)
+    if (tableOpt.exists(_.unifyView)) {
       // Find the arguments needed to instantiate a SparkLoadWork.
       val tableSpec = new BaseSemanticAnalyzer.tableSpec(db, conf, tableASTNode)
+      val preferredStorageLevel = tableOpt.get.preferredStorageLevel
       val hiveTable = tableSpec.tableHandle
       val partSpecOpt = Option(tableSpec.getPartSpec())
-      var partition: Partition = null
       val dataPath = if (partSpecOpt.isEmpty) {
         // Non-partitioned table.
         hiveTable.getPath
       } else {
         // Partitioned table.
-        partition = db.getPartition(hiveTable, partSpecOpt.get, false /* forceCreate */)
+        val partition = db.getPartition(hiveTable, partSpecOpt.get, false /* forceCreate */)
         partition.getPartitionPath
       }
       val moveTask = getMoveTask()
-      val isOverwrite = moveTask.getWork.getLoadTableWork.getReplace()
+      val loadCommandType = if (moveTask.getWork.getLoadTableWork.getReplace()) {
+        SparkLoadWork.CommandTypes.OVERWRITE
+      } else {
+        SparkLoadWork.CommandTypes.INSERT
+      }
 
       // Capture a snapshot of the data directory being read. When executed, SparkLoadTask will
       // determine the input paths to read using a filter that only accepts files not included in
       // snapshot set (i.e., the accepted file is a new one created by the Hive load process).
-      val fs = dataPath.getFileSystem(hiveConf)
-      val currentFiles = fs.listStatus(dataPath).map(_.getPath).toSet
-      val fileFilter = new PathFilter() {
-        override def accept(path: Path) = {
-          (!path.getName().startsWith(".") && !currentFiles.contains(path))
-        }
-      }
+      val fileFilter = Utils.createSnapshotFilter(dataPath, conf)
 
       // Create a SparkLoadTask that will use a HadoopRDD to read from the source directory. Set it
       // to be a dependent task of the LoadTask so that the SparkLoadTask is executed only if the
       // Hive task executes successfully.
-      val sparkLoadWork = new SparkLoadWork(hiveTable, partSpecOpt, isOverwrite, Some(fileFilter))
+      val sparkLoadWork = new SparkLoadWork(
+        databaseName,
+        tableName,
+        partSpecOpt,
+        loadCommandType,
+        preferredStorageLevel,
+        Some(fileFilter))
       moveTask.addDependentTask(TaskFactory.get(sparkLoadWork, conf))
     }
   }
