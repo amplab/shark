@@ -25,8 +25,9 @@ import org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_PARTITION_COLUM
 import org.apache.hadoop.hive.ql.exec.Utilities
 import org.apache.hadoop.hive.ql.metadata.{Partition => HivePartition, Table => HiveTable}
 import org.apache.hadoop.hive.ql.plan.{PartitionDesc, TableDesc}
-import org.apache.hadoop.io.Writable
+import org.apache.hadoop.hive.serde2.Deserializer
 
+import org.apache.hadoop.io.Writable
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.{EmptyRDD, HadoopRDD, RDD, UnionRDD}
 import org.apache.spark.SerializableWritable
@@ -53,14 +54,22 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
 
   def broadcastedHiveConf = _broadcastedHiveConf
 
+  def hiveConf = _broadcastedHiveConf.value.value
+
   override def makeRDDForTable(hiveTable: HiveTable): RDD[_] =
-    makeRDDForTable(hiveTable, filterOpt = None)
-  
+    makeRDDForTable(
+      hiveTable,
+      None /* fitlerOpt */,
+      _tableDesc.getDeserializerClass.asInstanceOf[Class[Deserializer]])
+
   /**
    * Creates a Hadoop RDD to read data from the target table's data directory. Returns a transformed
    * RDD that contains deserialized rows.
    */
-  def makeRDDForTable(hiveTable: HiveTable, filterOpt: Option[PathFilter] = None): RDD[_] = {
+  def makeRDDForTable(
+      hiveTable: HiveTable,
+      filterOpt: Option[PathFilter],
+      deserializerClass: Class[_ <: Deserializer]): RDD[_] = {
     assert(!hiveTable.isPartitioned, """makeRDDForTable() cannot be called on a partitioned table,
       since input formats may differ across partitions. Use makeRDDForTablePartitions() instead.""")
 
@@ -79,7 +88,7 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
 
     val deserializedHadoopRDD = hadoopRDD.mapPartitions { iter =>
       val hconf = broadcastedHiveConf.value.value
-      val deserializer = tableDesc.getDeserializerClass().newInstance()
+      val deserializer = deserializerClass.newInstance().asInstanceOf[Deserializer]
       deserializer.initialize(hconf, tableDesc.getProperties)
 
       // Deserialize each Writable to get the row value.
@@ -93,8 +102,12 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
     deserializedHadoopRDD
   }
 
-  override def makeRDDForPartitionedTable(partitions: Seq[HivePartition]): RDD[_] =
-    makeRDDForPartitionedTable(partitions, filterOpt = None)
+  override def makeRDDForPartitionedTable(
+      partitions: Seq[HivePartition]): RDD[_] = {
+    val partitionToDeserializer = partitions.map(part =>
+      (part, part.getDeserializer.getClass.asInstanceOf[Class[Deserializer]])).toMap
+    makeRDDForPartitionedTable(partitionToDeserializer, None /* filterOpt */)
+  }
 
   /**
    * Create a HadoopRDD for every partition key specified in the query. Note that for on-disk Hive
@@ -102,9 +115,9 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
    * 'PARTITION BY'.
    */
   def makeRDDForPartitionedTable(
-      partitions: Seq[HivePartition],
+      partitionToDeserializer: Map[HivePartition, Class[_ <: Deserializer]],
       filterOpt: Option[PathFilter]): RDD[_] = {
-    val hivePartitionRDDs = partitions.map { partition =>
+    val hivePartitionRDDs = partitionToDeserializer.map { case (partition, partDeserializer) =>
       val partDesc = Utilities.getPartitionDesc(partition)
       val partPath = partition.getPartitionPath
       val inputPathStr = applyFilterIfNeeded(partPath, filterOpt)
@@ -113,7 +126,6 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
       // Get partition field info
       val partSpec = partDesc.getPartSpec()
       val partProps = partDesc.getProperties()
-      val partDeserializer = partDesc.getDeserializerClass()
 
       val partColsDelimited = partProps.getProperty(META_TABLE_PARTITION_COLUMNS)
       // Partitioning columns are delimited by "/"
@@ -143,7 +155,7 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
           rowWithPartArr.asInstanceOf[Object]
         }
       }
-    }
+    }.toSeq
     // Even if we don't use any partitions, we still need an empty RDD
     if (hivePartitionRDDs.size == 0) {
       new EmptyRDD[Object](SharkEnv.sc)
@@ -190,6 +202,7 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
     // Only take the value (skip the key) because Hive works only with values.
     rdd.map(_._2)
   }
+
 }
 
 object HadoopTableReader {
