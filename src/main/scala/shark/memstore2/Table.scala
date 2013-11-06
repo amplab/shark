@@ -34,6 +34,13 @@ import org.apache.spark.storage.StorageLevel
 private[shark] abstract class Table(
     var tableName: String,
     var cacheMode: CacheType.CacheType,
-    var preferredStorageLevel: StorageLevel)
     var preferredStorageLevel: StorageLevel,
     var unifyView: Boolean) {
+
+  // SerDe used to read from and write to disk.
+  private var _diskSerDe: String = _
+
+  def diskSerDe: String = _diskSerDe
+
+  def diskSerDe_= (newSerDe: String) = _diskSerDe = newSerDe
+}

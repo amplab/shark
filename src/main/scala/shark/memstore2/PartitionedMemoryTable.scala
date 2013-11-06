@@ -58,6 +58,9 @@ class PartitionedMemoryTable(
   private var _keyToPartitions: ConcurrentMap[String, RDDValue] =
     new ConcurrentJavaHashMap[String, RDDValue]()
 
+  private var _keyToDiskSerDes: ConcurrentMap[String, String] =
+    new ConcurrentJavaHashMap[String, String]()
+
   // The eviction policy for this table's cached Hive-partitions. An example of how this
   // can be set from the CLI:
   //   `TBLPROPERTIES("shark.partition.cachePolicy", "LRUCachePolicy")`.
@@ -122,11 +125,17 @@ class PartitionedMemoryTable(
     _cachePolicy = newPolicy
   }
 
+  def setDiskSerDe(partitionKey: String, serDe: String) = _keyToDiskSerDes.put(partitionKey, serDe)
+
+  def getDiskSerDe(partitionKey: String): Option[String] = _keyToDiskSerDes.get(partitionKey)
+
   def cachePolicy: CachePolicy[String, RDDValue] = _cachePolicy
 
-  /** Returns an immutable view of the String->RDD mapping to external callers */
+  /** Returns an immutable view of (partition key -> RDD) mappings to external callers */
   def keyToPartitions: collection.immutable.Map[String, RDD[TablePartition]] = {
-    return _keyToPartitions.mapValues(_.rdd).toMap
+    _keyToPartitions.mapValues(_.rdd).toMap
   }
 
+  /** Returns an immutable view of (partition key -> SerDe name) mappings to external callers */
+  def keyToDiskSerDes: collection.immutable.Map[String, String] = _keyToDiskSerDes.toMap
 }
