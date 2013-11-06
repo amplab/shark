@@ -132,16 +132,21 @@ private[shark] object HiveUtils {
    * partition) entry in the Hive metastore. Returns `true` if successful.
    *
    * @tableName Name of table being altered.
-   * @partitionSpec Map of (partition col, partition key) pairs for which the SerDe is being
-   *     altered. NULL if the table isn't Hive-partitioned.
+   * @partitionSpecOpt Map of (partition col, partition key) pairs for which the SerDe is being
+   *     altered. `None` if the table isn't Hive-partitioned.
    * @serDeName Class name of new SerDe to use.
    * @hiveConf Configuration associated with the current SessionState.
    */
   def alterSerdeInHive(
       tableName: String,
-      partitionSpec: JavaHashMap[String, String],
+      partitionSpecOpt: Option[JavaMap[String, String]],
       serDeName: String,
       hiveConf: HiveConf = new HiveConf): Boolean = {
+    val partitionSpec = if (partitionSpecOpt.isDefined) {
+      partitionSpecOpt.get.asInstanceOf[JavaHashMap[String, String]]
+    } else {
+      null
+    }
     val alterTableDesc = new AlterTableDesc(AlterTableDesc.AlterTableTypes.ADDSERDE)
     alterTableDesc.setOldName(tableName)
     alterTableDesc.setSerdeName(serDeName)
