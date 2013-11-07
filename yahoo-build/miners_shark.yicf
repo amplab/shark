@@ -18,7 +18,7 @@ SRCDIRS = ..
 
 PACKAGE_OS_SPECIFIC = no
 YINST requires pkg yjava_jdk 1.7.0 *
-YINST requires pkg miners_spark 0.8.0.0.2 0.8.0.0.2
+YINST requires pkg miners_spark 0.8.0.0.3 0.8.0.0.3
 YINST requires pkg miners_scala 2.9.3 *
 YINST requires pkg miners_hive 0.9.0.4.7 0.9.0.4.7
 
