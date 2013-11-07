@@ -36,12 +36,12 @@ trait NullableColumnBuilder[T] extends ColumnBuilder[T] {
   private var _pos: Int = _
   private var _nullCount: Int = _
 
-  override def initialize(initialSize: Int): ByteBuffer = {
+  override def initialize(initialSize: Int, cName: String): ByteBuffer = {
     _nulls = ByteBuffer.allocate(1024)
     _nulls.order(ByteOrder.nativeOrder())
     _pos = 0
     _nullCount = 0
-    super.initialize(initialSize)
+    super.initialize(initialSize, cName)
   }
 
   override def append(o: Object, oi: ObjectInspector) {
