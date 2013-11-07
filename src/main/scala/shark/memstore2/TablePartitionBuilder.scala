@@ -42,8 +42,15 @@ class TablePartitionBuilder(
   val fields: JList[_ <: StructField] = oi.getAllStructFieldRefs
 
   val columnBuilders = Array.tabulate[ColumnBuilder[_]](fields.size) { i =>
-    val columnBuilder = ColumnBuilder.create(fields.get(i).getFieldObjectInspector, shouldCompress)
-    columnBuilder.initialize(initialColumnSize)
+    val columnBuilder = ColumnBuilder.create(fields.get(i), shouldCompress)
+    //columnBuilder.initialize(initialColumnSize, fields.get(i).getFieldName)
+    // val cleanField = oi.getStructFieldRef(fields.get(i).getFieldName).getFieldName
+    // println("clean %s without %s".format(cleanField, fields.get(i).getFieldName))
+
+    val cleanField = oi.getStructFieldRef(fields.get(i).getFieldName)
+    println("clean %s without %s".format(cleanField, fields.get(i).getFieldName))
+
+    columnBuilder.initialize(initialColumnSize, cleanField)
     columnBuilder
   }
 
