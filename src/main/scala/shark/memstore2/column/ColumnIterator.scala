@@ -56,6 +56,15 @@ object Implicits {
     case _ => throw new MemoryStoreException("Unknown compression type " + i)
   }
 
+  implicit def compressionTypeToString(c: CompressionType): String = c match {
+    case DefaultCompressionType => "Default"
+    case RLECompressionType => "RLE"
+    case DictionaryCompressionType => "Dictionary"
+    case BooleanBitSetCompressionType => "BooleanBitSet"
+    case ByteDeltaCompressionType => "ByteDelta"
+    case _ => throw new MemoryStoreException("Unknown compression type " + c.typeID)
+  }
+
   implicit def intToColumnType(i: Int): ColumnType[_, _] = i match {
     case INT.typeID => INT
     case LONG.typeID => LONG

@@ -113,17 +113,22 @@ trait CompressedColumnBuilder[T] extends ColumnBuilder[T] with LogHelper {
   override def build() = {
     val b = super.build()
 
+    import shark.memstore2.column.Implicits._
+
     if (compressionSchemes.isEmpty) {
-      logInfo("Compression scheme chosen for %s is %s - no compression".
-        format(columnName, scheme.compressionType.typeID))
+      val strType: String = scheme.compressionType
+      logInfo("Compression scheme chosen for [%s] is %s - no compression".
+        format(columnName, strType))
       new NoCompression().compress(b, t)
     } else {
       val candidateScheme = scheme.compressionType match {
         case DefaultCompressionType => compressionSchemes.minBy(_.compressionRatio)
         case _ => scheme
       }
-      logInfo("Compression scheme chosen for %s is %s with ratio %f".
-        format(columnName, candidateScheme.compressionType.typeID,
+
+      val strType: String = candidateScheme.compressionType
+      logInfo("Compression scheme chosen for [%s] is %s with ratio %f".
+        format(columnName, strType,
           candidateScheme.compressionRatio))
       if (shouldApply(candidateScheme)) {
         candidateScheme.compress(b, t)

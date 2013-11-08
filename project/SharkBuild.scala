@@ -77,8 +77,7 @@ object SharkBuild extends Build {
 
     fork := true,
     javaOptions += "-XX:MaxPermSize=512m",
-//    javaOptions += "-Xmx2g",
-    javaOptions += "-Xmx10g",
+    javaOptions += "-Xmx2g",
     testOptions in Test += Tests.Argument("-oF"), // Full stack trace on test failures
 
     testOptions in Test += Tests.Argument("-oF"), // Full stack trace on test failures
