@@ -110,6 +110,7 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
             }
             SharkEnv.memoryMetadataManager.putStats(databaseName, tableName, tableStats.toMap)
           }
+          // TODO(harvey): Multiple partition specs...
           case partitionedTable: PartitionedMemoryTable => {
             val partCols = hiveTable.getPartCols.map(_.getName)
             val partSpecs = work.partSpecOpt.get
@@ -176,10 +177,7 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
         }
         work.partSpecOpt match {
           case Some(partSpecs) => {
-            val hivePartition = Hive.get(conf).getPartition(
-              hiveTable,
-              partSpecs,
-              false /* forceCreate */)
+            val hivePartition = Hive.get(conf).getPartition(hiveTable, partSpecs, false /* forceCreate */)
             val partSerDe = hivePartition.getDeserializer
             val partCols = hiveTable.getPartCols.map(_.getName)
             val partSchema = hivePartition.getSchema

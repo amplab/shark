@@ -35,7 +35,7 @@ object RDDUtils {
 
   /**
    * Returns a UnionRDD using both RDD arguments. Any UnionRDD argument is "flattened", in that
-   * its parent sequence of RDDs are used to compose the returned UnionRDD.
+   * its parent sequence of RDDs is directly passed to the UnionRDD returned.
    */
   def unionAndFlatten[T: ClassManifest](
     rdd: RDD[T],
