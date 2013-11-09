@@ -46,7 +46,6 @@ class SharkLoadSemanticAnalyzer(conf: HiveConf) extends LoadSemanticAnalyzer(con
     if (tableOpt.exists(_.unifyView)) {
       // Find the arguments needed to instantiate a SparkLoadWork.
       val tableSpec = new BaseSemanticAnalyzer.tableSpec(db, conf, tableASTNode)
-      val preferredStorageLevel = tableOpt.get.preferredStorageLevel
       val hiveTable = tableSpec.tableHandle
       val partSpecOpt = Option(tableSpec.getPartSpec())
       val dataPath = if (partSpecOpt.isEmpty) {
@@ -77,7 +76,6 @@ class SharkLoadSemanticAnalyzer(conf: HiveConf) extends LoadSemanticAnalyzer(con
         tableName,
         partSpecOpt,
         loadCommandType,
-        preferredStorageLevel,
         Some(fileFilter))
       moveTask.addDependentTask(TaskFactory.get(sparkLoadWork, conf))
     }

@@ -384,7 +384,6 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
             qb.createTableDesc.getTableName,
             partSpecOpt = None,
             SparkLoadWork.CommandTypes.NEW_ENTRY,
-            qb.preferredStorageLevel,
             pathFilter = None)
         } else {
           // Split from 'databaseName.tableName'
@@ -418,7 +417,6 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
             cachedTableName,
             Option(partitionSpec),
             insertType,
-            qb.preferredStorageLevel,
             pathFilterOpt)
         }
         val sparkLoadTask = TaskFactory.get(sparkLoadWork, conf)
