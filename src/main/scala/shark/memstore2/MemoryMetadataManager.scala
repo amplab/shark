@@ -28,13 +28,14 @@ import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.spark.rdd.{RDD, UnionRDD}
 import org.apache.spark.storage.StorageLevel
 
-import shark.execution.RDDUtils
+import shark.LogHelper
 import shark.SharkConfVars
 import shark.SharkEnv
+import shark.execution.RDDUtils
 import shark.util.HiveUtils
 
 
-class MemoryMetadataManager {
+class MemoryMetadataManager extends LogHelper {
 
   private val _keyToTable: ConcurrentMap[String, Table] =
     new ConcurrentHashMap[String, Table]()
@@ -175,21 +176,25 @@ class MemoryMetadataManager {
 
   def resetUnifiedTableSerdes() {
     for (table <- _keyToTable.values.filter(_.unifyView)) {
+      val tableName = table.tableName
+      val diskSerDe = table.diskSerDe
+      // Reset unified table SerDes, so that next time we start up in Shark, those tables can
+      // be read from disk without special handling.
+      logInfo("Setting SerDe for table %s back to %s.".format(tableName, diskSerDe))
+      HiveUtils.alterSerdeInHive(
+        tableName,
+        None /* partitionSpecOpt */,
+        diskSerDe)
       table match {
-        case memoryTable: MemoryTable => {
-          // Reset unified table SerDes, so that next time we start up in Shark, those tables can
-          // be read from disk without special handling.
-          HiveUtils.alterSerdeInHive(
-            memoryTable.tableName,
-            None /* partitionSpecOpt */,
-            memoryTable.diskSerDe)
-        }
         case partitionedTable: PartitionedMemoryTable => {
           for ((hiveKeyStr, serDeName) <- partitionedTable.keyToDiskSerDes) {
+            logInfo("Setting SerDe for table %s(partition %s) back to %s.".
+              format(tableName, hiveKeyStr, serDeName))
             val partitionSpec = MemoryMetadataManager.parseHivePartitionKeyStr(hiveKeyStr)
             HiveUtils.alterSerdeInHive(partitionedTable.tableName, Some(partitionSpec), serDeName)
           }
         }
+        case memoryTable: MemoryTable => Unit
       }
     }
   }
@@ -197,7 +202,6 @@ class MemoryMetadataManager {
   private def makeTableKey(databaseName: String, tableName: String): String = {
     (databaseName + '.' + tableName).toLowerCase
   }
-
 }
 
 
