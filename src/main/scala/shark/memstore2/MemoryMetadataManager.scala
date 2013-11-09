@@ -23,6 +23,8 @@ import java.util.{HashMap => JavaHashMap, Map => JavaMap}
 import scala.collection.JavaConversions._
 import scala.collection.mutable.{ArrayBuffer, ConcurrentMap}
 
+import org.apache.hadoop.hive.ql.metadata.Hive
+
 import org.apache.spark.rdd.{RDD, UnionRDD}
 import org.apache.spark.storage.StorageLevel
 
@@ -175,6 +177,8 @@ class MemoryMetadataManager {
     for (table <- _keyToTable.values.filter(_.unifyView)) {
       table match {
         case memoryTable: MemoryTable => {
+          // Reset unified table SerDes, so that next time we start up in Shark, those tables can
+          // be read from disk without special handling.
           HiveUtils.alterSerdeInHive(
             memoryTable.tableName,
             None /* partitionSpecOpt */,
@@ -188,15 +192,6 @@ class MemoryMetadataManager {
         }
       }
     }
-  }
-
-  /**
-   * Find all keys that are strings. Used to drop tables after exiting.
-   *
-   * TODO(harvey): Won't be needed after unifed views are added.
-   */
-  def getAllKeyStrings(): Seq[String] = {
-    _keyToTable.keys.collect { case k: String => k } toSeq
   }
 
   private def makeTableKey(databaseName: String, tableName: String): String = {
