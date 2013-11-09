@@ -81,7 +81,6 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
     val dbName = hiveMetadataDb.getCurrentDatabase()
     val tableName = createTblDesc.getTableName
     val tblProps = createTblDesc.getTblProps
-
     val preferredStorageLevel = MemoryMetadataManager.getStorageLevelFromString(
       tblProps.get("shark.cache.storageLevel"))
     val unifyView = tblProps.getOrElse("shark.cache.unifyView",
