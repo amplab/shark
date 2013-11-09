@@ -51,10 +51,21 @@ private[shark]
 class SparkLoadWork(
     val databaseName: String,
     val tableName: String,
-    val partSpecOpt: Option[JavaMap[String, String]],
+    val partSpecsOpt: Option[Seq[JavaMap[String, String]]],
     val commandType: SparkLoadWork.CommandTypes.Type,
-    val pathFilter: Option[PathFilter])
-  extends java.io.Serializable
+    val pathFilterOpt: Option[PathFilter],
+    val unifyView: Boolean = true)
+  extends java.io.Serializable {
+
+  def this(
+      databaseName: String,
+      tableName: String,
+      partSpec: JavaMap[String, String],
+      commandType: SparkLoadWork.CommandTypes.Type,
+      pathFilterOpt: Option[PathFilter]) {
+    this(databaseName, tableName, Option(partSpec).map(Seq(_)), commandType, pathFilterOpt)
+  }
+}
 
 object SparkLoadWork {
   object CommandTypes extends Enumeration {
@@ -76,19 +87,19 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
 
     val hadoopReader = new HadoopTableReader(Utilities.getTableDesc(hiveTable), conf)
 
-    work.partSpecOpt match {
-      case Some(partSpec) => {
+    work.partSpecsOpt match {
+      case Some(partSpecs) => {
         loadPartitionedTable(
           hiveTable,
-          partSpec,
+          partSpecs,
           hadoopReader,
-          work.pathFilter)
+          work.pathFilterOpt)
       }
       case None => {
         loadMemoryTable(
           hiveTable,
           hadoopReader,
-          work.pathFilter)
+          work.pathFilterOpt)
       }
     }
     // Success!
@@ -126,18 +137,20 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
     (transformedRdd, statsAcc.value)
   }
 
-  def getOrCreateMemoryTable(
-      databaseName: String,
-      tableName: String,
-      cacheMode: CacheType.CacheType,
-      preferredStorageLevel: StorageLevel,
-      defaultDiskSerDe: String,
-      tblProps: JavaMap[String, String]): MemoryTable = {
+  def getOrCreateMemoryTable(hiveTable: HiveTable): MemoryTable = {
+    val databaseName = hiveTable.getDbName
+    val tableName = hiveTable.getTableName
+    val preferredStorageLevel = MemoryMetadataManager.getStorageLevelFromString(
+      hiveTable.getProperty("shark.cache.storageLevel"))
     work.commandType match {
       case SparkLoadWork.CommandTypes.NEW_ENTRY => {
         val newMemoryTable = SharkEnv.memoryMetadataManager.createMemoryTable(
-          databaseName, tableName, cacheMode, preferredStorageLevel, unifyView = true)
-        newMemoryTable.diskSerDe = defaultDiskSerDe
+          databaseName,
+          tableName,
+          CacheType.fromString(hiveTable.getProperty("shark.cache")),
+          preferredStorageLevel,
+          hiveTable.getProperty("shark.cache.unifyView").toBoolean)
+        newMemoryTable.diskSerDe = hiveTable.getDeserializer.getClass.getName
         HiveUtils.alterSerdeInHive(
           tableName,
           partitionSpecOpt = None,
@@ -159,30 +172,21 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
   def loadMemoryTable(
       hiveTable: HiveTable,
       hadoopReader: HadoopTableReader,
-      pathFilter: Option[PathFilter]) {
+      pathFilterOpt: Option[PathFilter]) {
     val databaseName = hiveTable.getDbName
     val tableName = hiveTable.getTableName
-    val tblProps = hiveTable.getParameters
-    val preferredStorageLevel = MemoryMetadataManager.getStorageLevelFromString(
-      tblProps.get("shark.cache.storageLevel"))
-    val memoryTable = getOrCreateMemoryTable(
-      databaseName,
-      tableName,
-      CacheType.fromString(hiveTable.getProperty("shark.cache")),
-      preferredStorageLevel,
-      defaultDiskSerDe = hiveTable.getDeserializer.getClass.getName,
-      tblProps)
+    val memoryTable = getOrCreateMemoryTable(hiveTable)
     val tableSchema = hiveTable.getSchema
     val serDe = Class.forName(memoryTable.diskSerDe).newInstance.asInstanceOf[Deserializer]
     serDe.initialize(conf, tableSchema)
     val inputRDD = hadoopReader.makeRDDForTable(
       hiveTable,
-      pathFilter,
+      pathFilterOpt,
       serDe.getClass)
     val (tablePartitionRDD, tableStats) = transformAndMaterializeInput(
       inputRDD,
       tableSchema,
-      preferredStorageLevel,
+      memoryTable.preferredStorageLevel,
       hadoopReader.broadcastedHiveConf,
       serDe.getObjectInspector.asInstanceOf[StructObjectInspector])
     memoryTable.tableRDD = work.commandType match {
@@ -201,23 +205,22 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
   }
 
   def getOrCreatePartitionedTable(
-      databaseName: String,
-      tableName: String,
-      cacheMode: CacheType.CacheType,
-      preferredStorageLevel: StorageLevel,
-      defaultDiskSerDe: String,
-      tblProps: JavaMap[String, String],
+      hiveTable: HiveTable,
       partSpecs: JavaMap[String, String]): PartitionedMemoryTable = {
+    val databaseName = hiveTable.getDbName
+    val tableName = hiveTable.getTableName
+    val preferredStorageLevel = MemoryMetadataManager.getStorageLevelFromString(
+      hiveTable.getProperty("shark.cache.storageLevel"))
     work.commandType match {
       case SparkLoadWork.CommandTypes.NEW_ENTRY => {
         val newPartitionedTable = SharkEnv.memoryMetadataManager.createPartitionedMemoryTable(
           databaseName,
           tableName,
-          cacheMode,
+          CacheType.fromString(hiveTable.getProperty("shark.cache")),
           preferredStorageLevel,
-          unifyView = true,
-          tblProps)
-        newPartitionedTable.diskSerDe = defaultDiskSerDe
+          hiveTable.getProperty("shark.cache.unifyView").toBoolean,
+          hiveTable.getParameters)
+        newPartitionedTable.diskSerDe = hiveTable.getDeserializer.getClass.getName
         HiveUtils.alterSerdeInHive(
           tableName,
           Some(partSpecs),
@@ -239,9 +242,9 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
 
   def loadPartitionedTable(
       hiveTable: HiveTable,
-      partSpecs: JavaMap[String, String],
+      partSpecs: Seq[JavaMap[String, String]],
       hadoopReader: HadoopTableReader,
-      pathFilter: Option[PathFilter]) {
+      pathFilterOpt: Option[PathFilter]) {
     // TODO(harvey): Multiple partition specs...
     val databaseName = hiveTable.getDbName
     val tableName = hiveTable.getTableName
@@ -249,58 +252,45 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
     val preferredStorageLevel = MemoryMetadataManager.getStorageLevelFromString(
       tblProps.get("shark.cache.storageLevel"))
     val cacheMode = CacheType.fromString(hiveTable.getProperty("shark.cache"))
-    val partitionedTable = getOrCreatePartitionedTable(
-      databaseName,
-      tableName,
-      cacheMode,
-      preferredStorageLevel,
-      defaultDiskSerDe = hiveTable.getDeserializer.getClass.getName,
-      tblProps,
-      partSpecs)
     val partCols = hiveTable.getPartCols.map(_.getName)
-    val partitionKey = MemoryMetadataManager.makeHivePartitionKeyStr(partCols, partSpecs)
-    val partition = db.getPartition(hiveTable, partSpecs, false /* forceCreate */)
-    val partSerDeName = partitionedTable.getDiskSerDe(partitionKey).
-      getOrElse(partitionedTable.diskSerDe)
-    val partSerDe = Class.forName(partSerDeName).newInstance.asInstanceOf[Deserializer]
-    val partSchema = partition.getSchema
-    partSerDe.initialize(conf, partSchema)
-    val unionOI = HiveUtils.makeUnionOIForPartitionedTable(partSchema, partSerDe)
-    val inputRDD = hadoopReader.makeRDDForPartitionedTable(
-      Map(partition -> partSerDe.getClass), pathFilter)
-    val (tablePartitionRDD, tableStats) = transformAndMaterializeInput(
-      inputRDD,
-      addPartitionInfoToSerDeProps(partCols, new Properties(partition.getSchema)),
-      preferredStorageLevel,
-      hadoopReader.broadcastedHiveConf,
-      unionOI)
-    val addNewPartitionEntry = partitionedTable.getPartition(partitionKey) match {
-      case Some(previousRDD) => {
-        work.commandType match {
-          case SparkLoadWork.CommandTypes.NEW_ENTRY | SparkLoadWork.CommandTypes.OVERWRITE => true
-          case SparkLoadWork.CommandTypes.INSERT => {
-            partitionedTable.updatePartition(
-              partitionKey, RDDUtils.unionAndFlatten(tablePartitionRDD, previousRDD))
-            // Note: these matches have to be separate, since an empty partition is represented by
-            // an empty RDD. If it's already cached in memory, then
-            // PartitionedMemoryTable#updatePartition() must be called.
-            // Union stats for the previous RDD with the new RDD loaded.
-            SharkEnv.memoryMetadataManager.getStats(databaseName, tableName) match {
-              case Some(previousStatsMap) => unionStatsMaps(tableStats, previousStatsMap)
-              case None => Unit
-            }
-            false
-          }
+    for (partSpec <- partSpecs) {
+      val partitionedTable = getOrCreatePartitionedTable(hiveTable, partSpec)
+      val partitionKey = MemoryMetadataManager.makeHivePartitionKeyStr(partCols, partSpec)
+      val partition = db.getPartition(hiveTable, partSpec, false /* forceCreate */)
+      val partSerDeName = partitionedTable.getDiskSerDe(partitionKey).
+        getOrElse(partitionedTable.diskSerDe)
+      val partSerDe = Class.forName(partSerDeName).newInstance.asInstanceOf[Deserializer]
+      val partSchema = partition.getSchema
+      partSerDe.initialize(conf, partSchema)
+      val unionOI = HiveUtils.makeUnionOIForPartitionedTable(partSchema, partSerDe)
+      val inputRDD = hadoopReader.makeRDDForPartitionedTable(
+        Map(partition -> partSerDe.getClass), pathFilterOpt)
+      val (tablePartitionRDD, tableStats) = transformAndMaterializeInput(
+        inputRDD,
+        addPartitionInfoToSerDeProps(partCols, new Properties(partition.getSchema)),
+        preferredStorageLevel,
+        hadoopReader.broadcastedHiveConf,
+        unionOI)
+      val tableOpt = partitionedTable.getPartition(partitionKey)
+      if (tableOpt.isDefined && (work.commandType == SparkLoadWork.CommandTypes.INSERT)) {
+        val previousRDD = tableOpt.get
+        partitionedTable.updatePartition(
+          partitionKey, RDDUtils.unionAndFlatten(tablePartitionRDD, previousRDD))
+        // Note: these matches have to be separate, since an empty partition is represented by
+        // an empty RDD. If it's already cached in memory, then
+        // PartitionedMemoryTable#updatePartition() must be called.
+        // Union stats for the previous RDD with the new RDD loaded.
+        SharkEnv.memoryMetadataManager.getStats(databaseName, tableName) match {
+          case Some(previousStatsMap) => unionStatsMaps(tableStats, previousStatsMap)
+          case None => Unit
         }
+      } else {
+        partitionedTable.putPartition(partitionKey, tablePartitionRDD)
+        // If a new partition is added, then the table's SerDe should be used by default.
+        partitionedTable.setDiskSerDe(partitionKey, partitionedTable.diskSerDe)
       }
-      case None => true
+      SharkEnv.memoryMetadataManager.putStats(databaseName, tableName, tableStats.toMap)
     }
-    if (addNewPartitionEntry) {
-      partitionedTable.putPartition(partitionKey, tablePartitionRDD)
-      // If a new partition is added, then the table's SerDe should be used by default.
-      partitionedTable.setDiskSerDe(partitionKey, partitionedTable.diskSerDe)
-    }
-    SharkEnv.memoryMetadataManager.putStats(databaseName, tableName, tableStats.toMap)
   }
 
   def unionStatsMaps(

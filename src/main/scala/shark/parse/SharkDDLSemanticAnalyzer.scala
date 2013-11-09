@@ -17,6 +17,8 @@
 
 package shark.parse
 
+import java.util.{HashMap => JavaHashMap}
+
 import scala.collection.JavaConversions._
 
 import org.apache.hadoop.hive.conf.HiveConf
@@ -25,13 +27,13 @@ import org.apache.hadoop.hive.ql.parse.ASTNode
 import org.apache.hadoop.hive.ql.parse.BaseSemanticAnalyzer
 import org.apache.hadoop.hive.ql.parse.DDLSemanticAnalyzer
 import org.apache.hadoop.hive.ql.parse.HiveParser
-import org.apache.hadoop.hive.ql.plan.DDLWork
+import org.apache.hadoop.hive.ql.plan.{AlterTableDesc, DDLWork}
 
 import org.apache.spark.rdd.{UnionRDD, RDD}
 
-import shark.execution.SharkDDLWork
+import shark.execution.{SharkDDLWork, SparkLoadWork}
 import shark.{LogHelper, SharkEnv}
-import shark.memstore2.MemoryMetadataManager
+import shark.memstore2.{CacheType, MemoryMetadataManager}
 
 
 class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf) with LogHelper {
@@ -40,19 +42,76 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
     super.analyzeInternal(ast)
 
     ast.getToken.getType match {
-      case HiveParser.TOK_DROPTABLE => {
-        analyzeDropTableOrDropParts(ast)
+      case HiveParser.TOK_ALTERTABLE_ADDPARTS => {
+        analyzeAlterTableAddParts(ast)
       }
       case HiveParser.TOK_ALTERTABLE_DROPPARTS => {
         analyzeDropTableOrDropParts(ast)
       }
-      case HiveParser.TOK_ALTERTABLE_ADDPARTS => {
-        analyzeAlterTableAddParts(ast)
-      }
       case HiveParser.TOK_ALTERTABLE_RENAME => {
         analyzeAlterTableRename(ast)
       }
+      case HiveParser.TOK_ALTERTABLE_PROPERTIES => {
+        analyzeAlterTableProperties(ast)
+      }
+      case HiveParser.TOK_DROPTABLE => {
+        analyzeDropTableOrDropParts(ast)
+      }
       case _ => Unit
+    }
+  }
+
+  /**
+   * Handle table property changes.
+   * How Shark-specific changes are handled:
+   * - "shark.cache":
+   *   If 'true', then create a SparkLoadTask to load the Hive table into memory.
+   *   Set it as a dependent of the Hive DDLTask. A SharkDDLTask counterpart isn't created because
+   *   the HadoopRDD creation and transformation isn't a direct Shark metastore operation
+   *   (unlike the other cases handled in SharkDDLSemantiAnalyzer).
+   *
+   *   TODO(harvey): Add "uncache" handling.
+   *   If 'false', then create a SharkDDLTask that will delete the table entry in the Shark
+   *   metastore.
+   * - "shark.cache.unifyView" :
+   *   If 'true' and "shark.cache" is true, then the SparkLoadTask created should read this from the
+   *   table properties when adding an entry to the Shark metastore.
+   * - "shark.cache.storageLevel":
+   *   Throw an exception since we can't change the storage level without rescanning the entire RDD.
+   *
+   *   TODO(harvey): Add this, though reevaluate it too...some Spark RDDs might depend on the old
+   *   version of the RDD, so simply dropping it might not work.
+   */
+  def analyzeAlterTableProperties(ast: ASTNode) {
+    val databaseName = db.getCurrentDatabase()
+    val tableName = getTableName(ast)
+    val hiveTable = db.getTable(databaseName, tableName)
+    val newTblProps = getAlterTblDesc().getProps
+    val oldTblProps = hiveTable.getParameters
+
+    val isAlreadyCached = CacheType.fromString(oldTblProps.get("shark.cache")) == CacheType.HEAP
+    val shouldCache = CacheType.fromString(newTblProps.get("shark.cache")) == CacheType.HEAP
+    if (!isAlreadyCached && shouldCache) {
+      val partSpecsOpt =
+        if (SharkEnv.memoryMetadataManager.isHivePartitioned(databaseName, tableName)) {
+          val columnNames = hiveTable.getPartCols.map(_.getName)
+          val partSpecs = db.getPartitions(hiveTable).map { partition =>
+            val partSpec = new JavaHashMap[String, String]()
+            val values = partition.getValues()
+            columnNames.zipWithIndex.map { case(name, index) => partSpec.put(name, values(index)) }
+            partSpec
+          }
+          Some(partSpecs.toSeq)
+        } else {
+          None
+        }
+      val sparkLoadTask = new SparkLoadWork(
+        databaseName,
+        tableName,
+        partSpecsOpt,
+        SparkLoadWork.CommandTypes.NEW_ENTRY,
+        None /* pathFilterOpt */)
+      rootTasks.head.addDependentTask(TaskFactory.get(sparkLoadTask, conf))
     }
   }
 
@@ -92,18 +151,20 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
     if (SharkEnv.memoryMetadataManager.containsTable(databaseName, oldTableName)) {
       val newTableName = BaseSemanticAnalyzer.getUnescapedName(
         astNode.getChild(1).asInstanceOf[ASTNode])
-
-      // Hive's DDLSemanticAnalyzer#AnalyzeInternal() will only populate rootTasks with a DDLTask
-      // and DDLWork that contains an AlterTableDesc.
-      assert(rootTasks.size == 1)
-      val ddlTask = rootTasks.head
-      val ddlWork = ddlTask.getWork
-      assert(ddlWork.isInstanceOf[DDLWork])
-
-      val alterTableDesc = ddlWork.asInstanceOf[DDLWork].getAlterTblDesc
+      val alterTableDesc = getAlterTblDesc()
       val sharkDDLWork = new SharkDDLWork(alterTableDesc)
-      ddlTask.addDependentTask(TaskFactory.get(sharkDDLWork, conf))
+      rootTasks.head.addDependentTask(TaskFactory.get(sharkDDLWork, conf))
     }
+  }
+
+  private def getAlterTblDesc(): AlterTableDesc = {
+    // Hive's DDLSemanticAnalyzer#analyzeInternal() will only populate rootTasks with a DDLTask
+    // and DDLWork that contains an AlterTableDesc.
+    assert(rootTasks.size == 1)
+    val ddlTask = rootTasks.head
+    val ddlWork = ddlTask.getWork
+    assert(ddlWork.isInstanceOf[DDLWork])
+    ddlWork.asInstanceOf[DDLWork].getAlterTblDesc
   }
 
   private def getTableName(node: ASTNode): String = {

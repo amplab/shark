@@ -174,12 +174,14 @@ class MemoryMetadataManager extends LogHelper {
     resetUnifiedTableSerdes()
   }
 
+  /**
+   * Resets SerDe properties for unified tables to the ones used for deserializing reads.
+   * That way, tables can be read from disk when the Shark session restarts.
+   */
   def resetUnifiedTableSerdes() {
     for (table <- _keyToTable.values.filter(_.unifyView)) {
       val tableName = table.tableName
       val diskSerDe = table.diskSerDe
-      // Reset unified table SerDes, so that next time we start up in Shark, those tables can
-      // be read from disk without special handling.
       logInfo("Setting SerDe for table %s back to %s.".format(tableName, diskSerDe))
       HiveUtils.alterSerdeInHive(
         tableName,

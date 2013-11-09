@@ -77,7 +77,8 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
   /** Handles a CREATE TABLE or CTAS. */
   def createTable(
       hiveMetadataDb: Hive,
-      createTblDesc: CreateTableDesc, cacheMode: CacheType.CacheType) {
+      createTblDesc: CreateTableDesc,
+      cacheMode: CacheType.CacheType) {
     val dbName = hiveMetadataDb.getCurrentDatabase()
     val tableName = createTblDesc.getTableName
     val tblProps = createTblDesc.getTblProps
