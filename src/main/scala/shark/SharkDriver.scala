@@ -111,6 +111,8 @@ private[shark] object SharkDriver extends LogHelper {
     def getOp = this.op
     def getCmd() = this.cmd
   }
+
+  val CACHE_KEYWORD = "CACHE"
 }
 
 
@@ -158,6 +160,12 @@ private[shark] class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHe
     }
   }
 
+  def rewriteCacheCmd(cmd: String): String = {
+    val tableName = cmd.toUpperCase.stripPrefix(SharkDriver.CACHE_KEYWORD)
+    "ALTER TABLE %s SET TBLPROPERTIES ('shark.cache.unifyView' = 'true', 'shark.cache' = 'true')".
+      format(tableName)
+  }
+
   /**
    * Overload compile to use Shark's semantic analyzers.
    */
@@ -179,9 +187,16 @@ private[shark] class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHe
     saveSession(queryState)
 
     try {
-      val command = new VariableSubstitution().substitute(conf, cmd)
+      val command = {
+        val varSubbedCmd = new VariableSubstitution().substitute(conf, cmd)
+        if (varSubbedCmd.toUpperCase.startsWith(SharkDriver.CACHE_KEYWORD)) {
+          rewriteCacheCmd(varSubbedCmd)
+        } else {
+          varSubbedCmd
+        }
+      }
       context = new QueryContext(conf, useTableRddSink)
-      context.setCmd(cmd)
+      context.setCmd(command)
       context.setTryCount(getTryCount())
 
       val tree = ParseUtils.findRootNonNullToken((new ParseDriver()).parse(command, context))
