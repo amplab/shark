@@ -382,9 +382,9 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
           new SparkLoadWork(
             qb.createTableDesc.getDatabaseName,
             qb.createTableDesc.getTableName,
-            partSpecOpt = None,
+            None /* partSpecsOpt */,
             SparkLoadWork.CommandTypes.NEW_ENTRY,
-            pathFilter = None)
+            None /* pathFilterOpt */)
         } else {
           // Split from 'databaseName.tableName'
           val tableNameSplit = qb.targetTableDesc.getTableName.split('.')
@@ -393,14 +393,12 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
           val hiveTable = db.getTable(databaseName, cachedTableName)
           val destPartition = qb.getMetaData.getDestPartitionForAlias(
             qb.getParseInfo.getClauseNamesForDest.head)
-          val partitionSpec = if (destPartition == null) null else destPartition.getSpec
-          val isInsertInto = qb.getParseInfo.isInsertIntoTable(cachedTableName)
-          val (insertType, pathFilterOpt) =
-            if (isInsertInto) {
+          val partSpec = if (destPartition == null) null else destPartition.getSpec
+          val (loadType, pathFilterOpt) =
+            if (qb.getParseInfo.isInsertIntoTable(cachedTableName)) {
               val pathOpt = if (hiveTable.isPartitioned) {
-                val partitionOpt = Option(
-                  db.getPartition(hiveTable, partitionSpec, false /* forceCreate */))
-                partitionOpt.map(_.getPartitionPath)
+                Option(db.getPartition(hiveTable, partSpec, false /* forceCreate */)).
+                  map(_.getPartitionPath)
               } else {
                 Some(hiveTable.getPath)
               }
@@ -415,8 +413,8 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
           new SparkLoadWork(
             databaseName,
             cachedTableName,
-            Option(partitionSpec),
-            insertType,
+            partSpec,
+            loadType,
             pathFilterOpt)
         }
         val sparkLoadTask = TaskFactory.get(sparkLoadWork, conf)

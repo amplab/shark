@@ -47,26 +47,23 @@ class SharkLoadSemanticAnalyzer(conf: HiveConf) extends LoadSemanticAnalyzer(con
       // Find the arguments needed to instantiate a SparkLoadWork.
       val tableSpec = new BaseSemanticAnalyzer.tableSpec(db, conf, tableASTNode)
       val hiveTable = tableSpec.tableHandle
-      val partSpecOpt = Option(tableSpec.getPartSpec())
-      val dataPath = if (partSpecOpt.isEmpty) {
-        // Non-partitioned table.
-        hiveTable.getPath
-      } else {
-        // Partitioned table.
-        val partition = db.getPartition(hiveTable, partSpecOpt.get, false /* forceCreate */)
-        partition.getPartitionPath
-      }
       val moveTask = getMoveTask()
-      val loadCommandType = if (moveTask.getWork.getLoadTableWork.getReplace()) {
-        SparkLoadWork.CommandTypes.OVERWRITE
-      } else {
-        SparkLoadWork.CommandTypes.INSERT
-      }
-
-      // Capture a snapshot of the data directory being read. When executed, SparkLoadTask will
-      // determine the input paths to read using a filter that only accepts files not included in
-      // snapshot set (i.e., the accepted file is a new one created by the Hive load process).
-      val fileFilter = Utils.createSnapshotFilter(dataPath, conf)
+      val partSpec = tableSpec.getPartSpec
+      val (loadCommandType, pathFilterOpt) =
+        if (moveTask.getWork.getLoadTableWork.getReplace) {
+          (SparkLoadWork.CommandTypes.OVERWRITE, None)
+        } else {
+          val pathOpt = if (hiveTable.isPartitioned) {
+            Option(db.getPartition(hiveTable, partSpec, false /* forceCreate */)).
+              map(_.getPartitionPath)
+          } else {
+            Some(hiveTable.getPath)
+          }
+          // Capture a snapshot of the data directory being read. When executed, SparkLoadTask will
+          // determine the input paths to read using a filter that only accepts files not included
+          // in snapshot set (i.e., the accepted file's a new one created by the Hive load process).
+          (SparkLoadWork.CommandTypes.INSERT, pathOpt.map(Utils.createSnapshotFilter(_, conf)))
+        }
 
       // Create a SparkLoadTask that will use a HadoopRDD to read from the source directory. Set it
       // to be a dependent task of the LoadTask so that the SparkLoadTask is executed only if the
@@ -74,9 +71,9 @@ class SharkLoadSemanticAnalyzer(conf: HiveConf) extends LoadSemanticAnalyzer(con
       val sparkLoadWork = new SparkLoadWork(
         databaseName,
         tableName,
-        partSpecOpt,
+        partSpec,
         loadCommandType,
-        Some(fileFilter))
+        pathFilterOpt)
       moveTask.addDependentTask(TaskFactory.get(sparkLoadWork, conf))
     }
   }
