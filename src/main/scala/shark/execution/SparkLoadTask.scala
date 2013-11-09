@@ -53,7 +53,6 @@ class SparkLoadWork(
     val tableName: String,
     val partSpecOpt: Option[JavaMap[String, String]],
     val commandType: SparkLoadWork.CommandTypes.Type,
-    val storageLevel: StorageLevel,
     val pathFilter: Option[PathFilter])
   extends java.io.Serializable
 
@@ -182,7 +181,7 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
     val (tablePartitionRDD, tableStats) = transformAndMaterializeInput(
       inputRDD,
       tableSchema,
-      work.storageLevel,
+      preferredStorageLevel,
       hadoopReader.broadcastedHiveConf,
       serDe.getObjectInspector.asInstanceOf[StructObjectInspector])
     memoryTable.tableRDD = work.commandType match {
