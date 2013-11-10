@@ -56,7 +56,7 @@ class PartitionedMemoryTable(
   // A map from the Hive-partition key to the RDD that contains contents of that partition.
   // The conventional string format for the partition key, 'col1=value1/col2=value2/...', can be
   // computed using MemoryMetadataManager#makeHivePartitionKeyStr()
-  private var _keyToPartitions: ConcurrentMap[String, RDDValue] =
+  private val _keyToPartitions: ConcurrentMap[String, RDDValue] =
     new ConcurrentJavaHashMap[String, RDDValue]()
 
   // Map from Hive-partition key to the SerDe name used to deserialize rows read from disk.
@@ -75,7 +75,7 @@ class PartitionedMemoryTable(
   def getPartition(partitionKey: String): Option[RDD[TablePartition]] = {
     val rddValueOpt: Option[RDDValue] = _keyToPartitions.get(partitionKey)
     if (rddValueOpt.isDefined) _cachePolicy.notifyGet(partitionKey)
-    return rddValueOpt.map(_.rdd)
+    rddValueOpt.map(_.rdd)
   }
 
   def putPartition(
@@ -83,18 +83,18 @@ class PartitionedMemoryTable(
       newRDD: RDD[TablePartition],
       isUpdate: Boolean = false): Option[RDD[TablePartition]] = {
     val rddValueOpt = _keyToPartitions.get(partitionKey)
-    var prevRDD: Option[RDD[TablePartition]] = rddValueOpt.map(_.rdd)
+    val prevRDD: Option[RDD[TablePartition]] = rddValueOpt.map(_.rdd)
     val newRDDValue = new RDDValue(newRDD)
     _keyToPartitions.put(partitionKey, newRDDValue)
     _cachePolicy.notifyPut(partitionKey, newRDDValue)
-    return prevRDD
+    prevRDD
   }
 
   def updatePartition(
       partitionKey: String,
       updatedRDD: RDD[TablePartition]): Option[RDD[TablePartition]] = {
     val rddValueOpt = _keyToPartitions.get(partitionKey)
-    var prevRDD: Option[RDD[TablePartition]] = rddValueOpt.map(_.rdd)
+    val prevRDD: Option[RDD[TablePartition]] = rddValueOpt.map(_.rdd)
     if (rddValueOpt.isDefined) {
       // This is an update of an old value, so update the RDDValue's `rdd` entry.
       // Don't notify the `_cachePolicy`. Assumes that getPartition() has already been called to
@@ -103,7 +103,7 @@ class PartitionedMemoryTable(
       val updatedRDDValue = rddValueOpt.get
       updatedRDDValue.rdd = updatedRDD
     }
-    return prevRDD
+    prevRDD
   }
 
   def removePartition(partitionKey: String): Option[RDD[TablePartition]] = {
@@ -112,17 +112,16 @@ class PartitionedMemoryTable(
     if (rddRemoved.isDefined) {
       _cachePolicy.notifyRemove(partitionKey)
     }
-    return rddRemoved.map(_.rdd)
+    rddRemoved.map(_.rdd)
   }
 
   def setPartitionCachePolicy(cachePolicyStr: String, fallbackMaxSize: Int) {
     // The loadFunc will upgrade the persistence level of the RDD to the preferred storage level.
-    val loadFunc: String => RDDValue =
-      (partitionKey: String) => {
-        val rddValue = _keyToPartitions.get(partitionKey).get
-        rddValue.rdd.persist(preferredStorageLevel)
-        rddValue
-      }
+    val loadFunc: String => RDDValue = (partitionKey: String) => {
+      val rddValue = _keyToPartitions.get(partitionKey).get
+      rddValue.rdd.persist(preferredStorageLevel)
+      rddValue
+    }
     // The evictionFunc will unpersist the RDD.
     val evictionFunc: (String, RDDValue) => Unit =
       (partitionKey: String, rddValue) => RDDUtils.unpersistRDD(rddValue.rdd)

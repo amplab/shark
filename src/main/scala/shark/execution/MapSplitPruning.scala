@@ -17,20 +17,16 @@
 
 package org.apache.hadoop.hive.ql.exec
 
-import java.sql.Timestamp
-
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPOr
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPAnd
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqual
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFBaseCompare
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFBetween
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPGreaterThan
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPLessThan
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFIn
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPAnd
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqual
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqualOrGreaterThan
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqualOrLessThan
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFIn
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
-import org.apache.hadoop.io.Text
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPGreaterThan
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPLessThan
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPOr
 
 import shark.memstore2.ColumnarStructObjectInspector.IDStructField
 import shark.memstore2.TablePartitionStats
@@ -118,13 +114,14 @@ object MapSplitPruning {
     val invertValue: Boolean = invertEval.expr.getValue.asInstanceOf[Boolean]
 
     if (columnStats != null) {
-       val exists = (columnStats :>< (leftValue , rightValue))
-       if (invertValue) !exists else exists
-      } else {
-        // If there is no stats on the column, don't prune.
-        true
-      }
+      val exists = (columnStats :>< (leftValue , rightValue))
+      if (invertValue) !exists else exists
+    } else {
+      // If there is no stats on the column, don't prune.
+      true
+    }
   }
+
   /**
    * Test whether we should keep the split as a candidate given the comparison
    * predicate. Return true if the split should be kept as a candidate, false if

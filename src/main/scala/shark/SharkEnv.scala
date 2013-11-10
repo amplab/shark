@@ -19,10 +19,9 @@ package shark
 
 import scala.collection.mutable.{HashMap, HashSet}
 
-import org.apache.spark.{SparkContext, SparkEnv}
+import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.scheduler.StatsReportListener
-import org.apache.spark.serializer.{KryoSerializer => SparkKryoSerializer}
 
 import shark.api.JavaSharkContext
 import shark.memstore2.MemoryMetadataManager
@@ -36,11 +35,11 @@ object SharkEnv extends LogHelper {
   def init(): SparkContext = {
     if (sc == null) {
       sc = new SparkContext(
-          if (System.getenv("MASTER") == null) "local" else System.getenv("MASTER"),
-          "Shark::" + java.net.InetAddress.getLocalHost.getHostName,
-          System.getenv("SPARK_HOME"),
-          Nil,
-          executorEnvVars)
+        if (System.getenv("MASTER") == null) "local" else System.getenv("MASTER"),
+        "Shark::" + java.net.InetAddress.getLocalHost.getHostName,
+        System.getenv("SPARK_HOME"),
+        Nil,
+        executorEnvVars)
       sc.addSparkListener(new StatsReportListener())
     }
     sc
@@ -53,11 +52,11 @@ object SharkEnv extends LogHelper {
     }
 
     sc = new SharkContext(
-        if (master == null) "local" else master,
-        jobName,
-        System.getenv("SPARK_HOME"),
-        Nil,
-        executorEnvVars)
+      if (master == null) "local" else master,
+      jobName,
+      System.getenv("SPARK_HOME"),
+      Nil,
+      executorEnvVars)
     sc.addSparkListener(new StatsReportListener())
     sc.asInstanceOf[SharkContext]
   }

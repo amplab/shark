@@ -40,9 +40,7 @@ import org.apache.hadoop.hive.ql.parse._
 import org.apache.hadoop.hive.ql.plan._
 import org.apache.hadoop.hive.ql.session.SessionState
 
-import org.apache.spark.storage.StorageLevel
-
-import shark.{CachedTableRecovery, LogHelper, SharkConfVars, SharkEnv,  Utils}
+import shark.{CachedTableRecovery, LogHelper, SharkConfVars, SharkEnv, Utils}
 import shark.execution.{HiveDesc, Operator, OperatorFactory, RDDUtils, ReduceSinkOperator}
 import shark.execution.{SharkDDLWork, SparkLoadWork, SparkWork, TerminalOperator}
 import shark.memstore2.{CacheType, ColumnarSerDe, MemoryMetadataManager}
@@ -245,11 +243,11 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         Seq {
           // For a single output, we have the option of choosing the output
           // destination (e.g. CTAS with table property "shark.cache" = "true").
-          if (qb.isCTAS && qb.getTableDesc != null &&
+          if (qb.isCTAS && qb.createTableDesc != null &&
               CacheType.shouldCache(qb.cacheModeForCreateTable)) {
             // The table being created from CTAS should be cached. Check whether it should be
             // synchronized with disk (i.e., maintain a unified view) or memory-only.
-            val tblProps = qb.getTableDesc().getTblProps
+            val tblProps = qb.createTableDesc.getTblProps
             val preferredStorageLevel = MemoryMetadataManager.getStorageLevelFromString(
               tblProps.get("shark.cache.storageLevel"))
             if (qb.unifyView) {
@@ -258,11 +256,11 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
               qb.preferredStorageLevel = preferredStorageLevel
               OperatorFactory.createSharkFileOutputPlan(hiveSinkOps.head)
             } else {
-              qb.getTableDesc().getTblProps().put(CachedTableRecovery.QUERY_STRING, ctx.getCmd())
+              tblProps.put(CachedTableRecovery.QUERY_STRING, ctx.getCmd())
               OperatorFactory.createSharkMemoryStoreOutputPlan(
                 hiveSinkOps.head,
-                qb.getTableDesc.getTableName,
-                qb.getTableDesc.getDatabaseName,
+                qb.createTableDesc.getTableName,
+                qb.createTableDesc.getDatabaseName,
                 preferredStorageLevel,
                 _resSchema.size,  /* numColumns */
                 new String,  /* hivePartitionKey */

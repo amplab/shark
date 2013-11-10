@@ -91,7 +91,7 @@ object RDDUtils {
     shuffled.mapPartitions(iter => {
       val buf = iter.toArray
       buf.sortWith((x, y) => x._1.compareTo(y._1) < 0).iterator
-    }, true)
+    }, preservesPartitioning = true)
   }
 
   /**

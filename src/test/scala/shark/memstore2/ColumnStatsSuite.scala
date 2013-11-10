@@ -54,7 +54,7 @@ class ColumnStatsSuite extends FunSuite {
   }
 
   test("ByteColumnStats") {
-    var c = new ColumnStats.ByteColumnStats
+    val c = new ColumnStats.ByteColumnStats
     c.append(0)
     assert(c.min == 0 && c.max == 0)
     c.append(1)
@@ -72,7 +72,7 @@ class ColumnStatsSuite extends FunSuite {
   }
 
   test("ShortColumnStats") {
-    var c = new ColumnStats.ShortColumnStats
+    val c = new ColumnStats.ShortColumnStats
     c.append(0)
     assert(c.min == 0 && c.max == 0)
     c.append(1)
@@ -123,7 +123,7 @@ class ColumnStatsSuite extends FunSuite {
   }
 
   test("LongColumnStats") {
-    var c = new ColumnStats.LongColumnStats
+    val c = new ColumnStats.LongColumnStats
     c.append(0)
     assert(c.min == 0 && c.max == 0)
     c.append(1)
@@ -140,7 +140,7 @@ class ColumnStatsSuite extends FunSuite {
   }
 
   test("FloatColumnStats") {
-    var c = new ColumnStats.FloatColumnStats
+    val c = new ColumnStats.FloatColumnStats
     c.append(0)
     assert(c.min == 0 && c.max == 0)
     c.append(1)
@@ -157,7 +157,7 @@ class ColumnStatsSuite extends FunSuite {
   }
 
   test("DoubleColumnStats") {
-    var c = new ColumnStats.DoubleColumnStats
+    val c = new ColumnStats.DoubleColumnStats
     c.append(0)
     assert(c.min == 0 && c.max == 0)
     c.append(1)
@@ -174,7 +174,7 @@ class ColumnStatsSuite extends FunSuite {
   }
 
   test("TimestampColumnStats") {
-    var c = new ColumnStats.TimestampColumnStats
+    val c = new ColumnStats.TimestampColumnStats
     val ts1 = new Timestamp(1000)
     val ts2 = new Timestamp(2000)
     val ts3 = new Timestamp(1500)
@@ -197,8 +197,13 @@ class ColumnStatsSuite extends FunSuite {
 
   test("StringColumnStats") {
     implicit def T(str: String): Text = new Text(str)
-    var c = new ColumnStats.StringColumnStats
+    val c = new ColumnStats.StringColumnStats
     assert(c.min == null && c.max == null)
+
+    assert(!(c :> "test"))
+    assert(!(c :< "test"))
+    assert(!(c == "test"))
+
     c.append("a")
     assert(c.min.equals(T("a")) && c.max.equals(T("a")))
 

@@ -18,7 +18,7 @@
 package shark.memstore2
 
 import java.util.concurrent.ConcurrentHashMap
-import java.util.{HashMap => JavaHashMap, Map => JavaMap}
+import java.util.{Map => JavaMap}
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.{ArrayBuffer, ConcurrentMap}
@@ -28,9 +28,7 @@ import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.spark.rdd.{RDD, UnionRDD}
 import org.apache.spark.storage.StorageLevel
 
-import shark.LogHelper
-import shark.SharkConfVars
-import shark.SharkEnv
+import shark.{LogHelper, SharkConfVars, SharkEnv}
 import shark.execution.RDDUtils
 import shark.util.HiveUtils
 
@@ -65,8 +63,8 @@ class MemoryMetadataManager extends LogHelper {
   def isHivePartitioned(databaseName: String, tableName: String): Boolean = {
     val tableKey = makeTableKey(databaseName, tableName)
     _keyToTable.get(tableKey) match {
-      case Some(table) => return table.isInstanceOf[PartitionedMemoryTable]
-      case None => return false
+      case Some(table) => table.isInstanceOf[PartitionedMemoryTable]
+      case None => false
     }
   }
 
@@ -82,14 +80,14 @@ class MemoryMetadataManager extends LogHelper {
       unifyView: Boolean
     ): MemoryTable = {
     val tableKey = makeTableKey(databaseName, tableName)
-    var newTable = new MemoryTable(
+    val newTable = new MemoryTable(
       databaseName,
       tableName,
       cacheMode,
       preferredStorageLevel,
       unifyView)
     _keyToTable.put(tableKey, newTable)
-    return newTable
+    newTable
   }
 
   def createPartitionedMemoryTable(
@@ -101,7 +99,7 @@ class MemoryMetadataManager extends LogHelper {
       tblProps: JavaMap[String, String]
     ): PartitionedMemoryTable = {
     val tableKey = makeTableKey(databaseName, tableName)
-    var newTable = new PartitionedMemoryTable(
+    val newTable = new PartitionedMemoryTable(
       databaseName,
       tableName,
       cacheMode,
@@ -115,7 +113,7 @@ class MemoryMetadataManager extends LogHelper {
     newTable.setPartitionCachePolicy(cachePolicyStr, maxCacheSize)
 
     _keyToTable.put(tableKey, newTable)
-    return newTable
+    newTable
   }
 
   def getTable(databaseName: String, tableName: String): Option[Table] = {
@@ -162,18 +160,17 @@ class MemoryMetadataManager extends LogHelper {
    * Used to drop a table from the Spark in-memory cache and/or disk. All metadata tracked by Shark
    * (e.g. entry in '_keyToStats' if the table isn't Hive-partitioned) is deleted as well.
    *
-   * @param key Name of the table to drop.
    * @return Option::isEmpty() is true of there is no MemoryTable (and RDD) corresponding to 'key'
    *     in _keyToMemoryTable. For MemoryTables that are Hive-partitioned, the RDD returned will
    *     be a UnionRDD comprising RDDs that represent the table's Hive-partitions.
    */
-  def removeTable(databaseName:String, tableName: String): Option[RDD[_]] = {
+  def removeTable(databaseName: String, tableName: String): Option[RDD[_]] = {
     val tableKey = makeTableKey(databaseName, tableName)
 
     // Remove MemoryTable's entry from Shark metadata.
     _keyToStats.remove(tableKey)
     val tableValue: Option[Table] = _keyToTable.remove(tableKey)
-    return tableValue.flatMap(MemoryMetadataManager.unpersistRDDsInTable(_))
+    tableValue.flatMap(MemoryMetadataManager.unpersistRDDsInTable(_))
   }
 
   def shutdown() {
@@ -238,7 +235,7 @@ object MemoryMetadataManager {
     } else {
       unpersistedRDD = Some(RDDUtils.unpersistRDD(table.asInstanceOf[MemoryTable].tableRDD))
     }
-    return unpersistedRDD
+    unpersistedRDD
   }
 
   /**
@@ -248,8 +245,7 @@ object MemoryMetadataManager {
   def makeHivePartitionKeyStr(
       partitionCols: Seq[String],
       partColToValue: JavaMap[String, String]): String = {
-    val keyStr = partitionCols.map(col => "%s=%s".format(col, partColToValue(col))).mkString("/")
-    return keyStr
+    partitionCols.map(col => "%s=%s".format(col, partColToValue(col))).mkString("/")
   }
 
   /**

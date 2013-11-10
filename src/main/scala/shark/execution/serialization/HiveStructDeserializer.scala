@@ -23,8 +23,6 @@ package org.apache.hadoop.hive.serde2.binarysortable
 import java.io.IOException
 import java.util.{ArrayList => JArrayList}
 
-import scala.collection.JavaConversions._
-
 import org.apache.hadoop.hive.serde2.SerDeException
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 import org.apache.hadoop.hive.serde2.typeinfo.{TypeInfo, TypeInfoUtils}

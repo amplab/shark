@@ -17,21 +17,17 @@
 
 package shark.execution
 
-import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.PathFilter
-import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_PARTITION_COLUMNS
 import org.apache.hadoop.hive.ql.exec.Utilities
 import org.apache.hadoop.hive.ql.metadata.{Partition => HivePartition, Table => HiveTable}
-import org.apache.hadoop.hive.ql.plan.{PartitionDesc, TableDesc}
+import org.apache.hadoop.hive.ql.plan.TableDesc
 
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.{EmptyRDD, RDD, UnionRDD}
 import org.apache.spark.SerializableWritable
 
-import shark.{LogHelper, SharkConfVars, SharkEnv}
+import shark.{LogHelper, SharkEnv}
 import shark.api.QueryExecutionException
-import shark.execution.optimization.ColumnPruner
 import shark.execution.serialization.JavaSerializer
 import shark.memstore2.{MemoryMetadataManager, TablePartition, TablePartitionStats}
 import shark.tachyon.TachyonException
@@ -69,7 +65,7 @@ class TachyonTableReader(@transient _tableDesc: TableDesc) extends TableReader {
     // True if stats for the target table is missing from the Shark metastore, and should be fetched
     // and deserialized from Tachyon's metastore. This can happen if that table was created in a
     // previous Shark session, since Shark's metastore is not persistent.
-    var shouldFetchStatsFromTachyon = SharkEnv.memoryMetadataManager.getStats(
+    val shouldFetchStatsFromTachyon = SharkEnv.memoryMetadataManager.getStats(
       _databaseName, _tableName).isEmpty
     if (shouldFetchStatsFromTachyon) {
       val statsByteBuffer = SharkEnv.tachyonUtil.getTableMetadata(tableKey)
@@ -146,14 +142,14 @@ class HeapTableReader(@transient _tableDesc: TableDesc) extends TableReader {
         if (iter.hasNext) {
           // Map each tuple to a row object
           val rowWithPartArr = new Array[Object](2)
-          val tablePartition = iter.next.asInstanceOf[TablePartition]
+          val tablePartition: TablePartition = iter.next()
           tablePartition.iterator.map { value =>
             rowWithPartArr.update(0, value.asInstanceOf[Object])
             rowWithPartArr.update(1, partValues)
             rowWithPartArr.asInstanceOf[Object]
           }
         } else {
-         Iterator()
+         Iterator.empty
         }
       }
     }
