@@ -59,6 +59,8 @@ class PartitionedMemoryTable(
   private var _keyToPartitions: ConcurrentMap[String, RDDValue] =
     new ConcurrentJavaHashMap[String, RDDValue]()
 
+  // Map from Hive-partition key to the SerDe name used to deserialize rows read from disk.
+  // Should only be used for unified views.
   private var _keyToDiskSerDes: ConcurrentMap[String, String] =
     new ConcurrentJavaHashMap[String, String]()
 
@@ -129,7 +131,10 @@ class PartitionedMemoryTable(
     _cachePolicy = newPolicy
   }
 
-  def setDiskSerDe(partitionKey: String, serDe: String) = _keyToDiskSerDes.put(partitionKey, serDe)
+  def setDiskSerDe(partitionKey: String, serDe: String) = {
+    assert(unifyView, "Setting diskSerDe for %s, but it isn't a unified view.".format(tableName))
+    _keyToDiskSerDes.put(partitionKey, serDe)
+  }
 
   def getDiskSerDe(partitionKey: String): Option[String] = _keyToDiskSerDes.get(partitionKey)
 

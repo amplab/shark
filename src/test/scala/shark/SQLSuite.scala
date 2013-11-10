@@ -162,7 +162,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     unionRDD.rdds.find(_.isInstanceOf[UnionRDD[_]]).isEmpty
   }
 
-  // Takes a sum over the table's 'key' column, for both the cached table and it's copy on disk.
+  // Takes a sum over the table's 'key' column, for both the cached contents and the copy on disk.
   def expectUnifiedKVTable(
       cachedTableName: String,
       partSpecOpt: Option[Map[String, String]] = None) {
@@ -172,7 +172,6 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     assert(sharkTableOpt.get.unifyView, "'unifyView' field for table %s is false")
 
     // Load a non-cached copy of the table into memory.
-    // Compare 'key' counts.
     val cacheSum = sc.sql("select sum(key) from %s".format(cachedTableName))(0)
     val hiveTable = Hive.get().getTable(DEFAULT_DB_NAME, cachedTableName)
     val location = partSpecOpt match {
@@ -182,6 +181,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       }
       case None => hiveTable.getDataLocation.toString
     }
+    // Create a table with contents loaded from the table's data directory.
     val diskTableName = "%s_disk_copy".format(cachedTableName)
     sc.sql("drop table if exists %s".format(diskTableName))
     sc.sql("create table %s (key int, value string)".format(diskTableName))
@@ -1111,7 +1111,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     expectSql("select count(*) from unified_overwrite_cached", "500")
     sc.runSql("drop table if exists unified_overwrite_cached")
   }
-
+a
   test ("INSERT INTO partitioned unified view") {
     sc.runSql("drop table if exists unified_view_part_cached")
     sc.runSql("""create table unified_view_part_cached (key int, value string) 
@@ -1173,39 +1173,35 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   //////////////////////////////////////////////////////////////////////////////
   // Unified view persistence
   //////////////////////////////////////////////////////////////////////////////
-
   test ("Unified views persist across Shark metastore shutdowns.") {
     val columnarSerDeName = classOf[ColumnarSerDe].getName
     // All cached tables are unified by default, so MemoryMetadataManager#resetUnifiedTableSerDes()
     // should reset SerDes for the SQLSuite-global tables.
     val globalCachedTableNames = Seq("test_cached", "test_null_cached", "clicks_cached",
       "users_cached", "test1_cached")
-    val db = Hive.get()
+    // Number of rows for each cached table.
     val cachedTableCounts = new Array[String](globalCachedTableNames.size)
     for ((tableName, i) <- globalCachedTableNames.zipWithIndex) {
       val cachedCount = sc.sql("select count(*) from %s".format(tableName))(0)
-      val cacheSerDe = db.getTable(DEFAULT_DB_NAME, tableName)
+      val cacheSerDe = Hive.get().getTable(DEFAULT_DB_NAME, tableName)
         .getDeserializer.getClass.getName
-
       val table = sharkMetastore.getTable(DEFAULT_DB_NAME, tableName).get
-      assert(table.unifyView)
-      assert(table.diskSerDe == classOf[LazySimpleSerDe].getName)
       assert(cacheSerDe == columnarSerDeName)
       cachedTableCounts(i) = cachedCount
     }
     sharkMetastore.resetUnifiedTableSerDes()
     for ((tableName, i) <- globalCachedTableNames.zipWithIndex) {
-      // Make sure the SerDe has been reset.
+      // Make sure the SerDe has been reset to the one used for deserializing disk reads.
       val diskSerDe = Hive.get().getTable(DEFAULT_DB_NAME, tableName).getDeserializer.getClass.getName
       assert(diskSerDe != columnarSerDeName, """SerDe for %s wasn't reset across Shark metastore
         restart. (disk SerDe: %s)""".format(tableName, diskSerDe))
-      // Check that the number of rows remain the same
+      // Check that the number of rows from the table on disk remains the same.
       val onDiskCount = sc.sql("select count(*) from %s".format(tableName))(0)
       val cachedCount = cachedTableCounts(i)
       assert(onDiskCount == cachedCount, """Num rows for %s differ across Shark metastore restart. 
         (rows cached = %s, rows on disk = %s)""".format(tableName, cachedCount, onDiskCount))
     }
-    // Finally, reload all tables
+    // Finally, reload all tables.
     loadGlobalTables()
   }
 }
