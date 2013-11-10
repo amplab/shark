@@ -496,13 +496,14 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       }
 
       val shouldCache = CacheType.shouldCache(cacheMode)
-      queryBlock.unifyView = shouldCache &&
-        createTableProperties.getOrElse("shark.cache.unifyView",
-          SharkConfVars.DEFAULT_UNIFY_FLAG.defaultVal).toBoolean
-      createTableProperties.put("shark.cache.unifyView", queryBlock.unifyView.toString)
-      if (shouldCache && !queryBlock.unifyView) {
-        // Directly set the ColumnarSerDe if the table persists memory-only.
-        createTableDesc.setSerName(classOf[ColumnarSerDe].getName)
+      if (shouldCache) {
+        queryBlock.unifyView = createTableProperties.getOrElse("shark.cache.unifyView",
+            SharkConfVars.DEFAULT_UNIFY_FLAG.defaultVal).toBoolean
+        createTableProperties.put("shark.cache.unifyView", queryBlock.unifyView.toString)
+        if (!queryBlock.unifyView) {
+          // Directly set the ColumnarSerDe if the table will be stored memory-only.
+          createTableDesc.setSerName(classOf[ColumnarSerDe].getName)
+        }
       }
 
       // For CTAS ('isRegularCreateTable' is false), the MemoryStoreSinkOperator creates a new
