@@ -166,12 +166,16 @@ private[shark] object HiveUtils {
     taskExecutionStatus == 0
   }
 
+  /**
+   * Creates a DDLTask from the DDLWork given, and directly calls DDLTask#execute(). Returns 0 if
+   * the create table command is executed successfully.
+   * This is safe to use for all DDL commands except for AlterTableTypes.ARCHIVE, which actually
+   * requires the DriverContext created in Hive Driver#execute().
+   */
   def executeDDLTaskDirectly(ddlWork: DDLWork, hiveConf: HiveConf): Int = {
     val task = new DDLTask()
     task.initialize(hiveConf, null /* queryPlan */, null /* ctx: DriverContext */)
     task.setWork(ddlWork)
-
-    // Hive returns 0 if the create table command is executed successfully.
     task.execute(null /* driverContext */)
   }
 }
