@@ -82,7 +82,12 @@ class MemoryMetadataManager extends LogHelper {
       unifyView: Boolean
     ): MemoryTable = {
     val tableKey = makeTableKey(databaseName, tableName)
-    var newTable = new MemoryTable(tableKey, cacheMode, preferredStorageLevel, unifyView)
+    var newTable = new MemoryTable(
+      databaseName,
+      tableName,
+      cacheMode,
+      preferredStorageLevel,
+      unifyView)
     _keyToTable.put(tableKey, newTable)
     return newTable
   }
@@ -97,7 +102,8 @@ class MemoryMetadataManager extends LogHelper {
     ): PartitionedMemoryTable = {
     val tableKey = makeTableKey(databaseName, tableName)
     var newTable = new PartitionedMemoryTable(
-      tableKey,
+      databaseName,
+      tableName,
       cacheMode,
       preferredStorageLevel,
       unifyView)
@@ -180,20 +186,29 @@ class MemoryMetadataManager extends LogHelper {
    */
   def resetUnifiedTableSerdes() {
     for (table <- _keyToTable.values.filter(_.unifyView)) {
+      val conf = Hive.get().getConf
       val tableName = table.tableName
+      val databaseName = table.databaseName
       val diskSerDe = table.diskSerDe
-      logInfo("Setting SerDe for table %s back to %s.".format(tableName, diskSerDe))
+      logError("Setting SerDe for table %s back to %s.".format(tableName, diskSerDe))
       HiveUtils.alterSerdeInHive(
+        databaseName,
         tableName,
         None /* partitionSpecOpt */,
-        diskSerDe)
+        diskSerDe,
+        conf)
       table match {
         case partitionedTable: PartitionedMemoryTable => {
           for ((hiveKeyStr, serDeName) <- partitionedTable.keyToDiskSerDes) {
-            logInfo("Setting SerDe for table %s(partition %s) back to %s.".
+            logError("Setting SerDe for table %s(partition %s) back to %s.".
               format(tableName, hiveKeyStr, serDeName))
             val partitionSpec = MemoryMetadataManager.parseHivePartitionKeyStr(hiveKeyStr)
-            HiveUtils.alterSerdeInHive(partitionedTable.tableName, Some(partitionSpec), serDeName)
+            HiveUtils.alterSerdeInHive(
+              databaseName,
+              tableName,
+              Some(partitionSpec),
+              serDeName,
+              conf)
           }
         }
         case memoryTable: MemoryTable => Unit

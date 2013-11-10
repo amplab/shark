@@ -152,6 +152,7 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
           hiveTable.getProperty("shark.cache.unifyView").toBoolean)
         newMemoryTable.diskSerDe = hiveTable.getDeserializer.getClass.getName
         HiveUtils.alterSerdeInHive(
+          databaseName,
           tableName,
           partitionSpecOpt = None,
           classOf[ColumnarSerDe].getName,
@@ -222,6 +223,7 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
           hiveTable.getParameters)
         newPartitionedTable.diskSerDe = hiveTable.getDeserializer.getClass.getName
         HiveUtils.alterSerdeInHive(
+          databaseName,
           tableName,
           Some(partSpecs),
           classOf[ColumnarSerDe].getName,

@@ -32,6 +32,7 @@ import org.apache.spark.storage.StorageLevel
  *     Hive-partition RDD eviction policy.
  */
 private[shark] abstract class Table(
+    var databaseName: String,
     var tableName: String,
     var cacheMode: CacheType.CacheType,
     var preferredStorageLevel: StorageLevel,

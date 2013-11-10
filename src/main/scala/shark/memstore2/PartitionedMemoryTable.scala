@@ -37,11 +37,12 @@ import org.apache.spark.storage.StorageLevel
  */
 private[shark]
 class PartitionedMemoryTable(
+    databaseName: String,
     tableName: String,
     cacheMode: CacheType.CacheType,
     preferredStorageLevel: StorageLevel,
     unifiedView: Boolean)
-  extends Table(tableName, cacheMode, preferredStorageLevel, unifiedView) {
+  extends Table(databaseName, tableName, cacheMode, preferredStorageLevel, unifiedView) {
 
   /**
    * A simple, mutable wrapper for an RDD. This is needed so that a entry maintained by a
@@ -105,7 +106,10 @@ class PartitionedMemoryTable(
 
   def removePartition(partitionKey: String): Option[RDD[TablePartition]] = {
     val rddRemoved = _keyToPartitions.remove(partitionKey)
-    if (rddRemoved.isDefined) _cachePolicy.notifyRemove(partitionKey)
+    _keyToDiskSerDes.remove(partitionKey)
+    if (rddRemoved.isDefined) {
+      _cachePolicy.notifyRemove(partitionKey)
+    }
     return rddRemoved.map(_.rdd)
   }
 

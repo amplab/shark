@@ -92,19 +92,18 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
     val isAlreadyCached = CacheType.fromString(oldTblProps.get("shark.cache")) == CacheType.HEAP
     val shouldCache = CacheType.fromString(newTblProps.get("shark.cache")) == CacheType.HEAP
     if (!isAlreadyCached && shouldCache) {
-      val partSpecsOpt =
-        if (SharkEnv.memoryMetadataManager.isHivePartitioned(databaseName, tableName)) {
-          val columnNames = hiveTable.getPartCols.map(_.getName)
-          val partSpecs = db.getPartitions(hiveTable).map { partition =>
-            val partSpec = new JavaHashMap[String, String]()
-            val values = partition.getValues()
-            columnNames.zipWithIndex.map { case(name, index) => partSpec.put(name, values(index)) }
-            partSpec
-          }
-          Some(partSpecs.toSeq)
-        } else {
-          None
+      val partSpecsOpt = if (hiveTable.isPartitioned) {
+        val columnNames = hiveTable.getPartCols.map(_.getName)
+        val partSpecs = db.getPartitions(hiveTable).map { partition =>
+          val partSpec = new JavaHashMap[String, String]()
+          val values = partition.getValues()
+          columnNames.zipWithIndex.map { case(name, index) => partSpec.put(name, values(index)) }
+          partSpec
         }
+        Some(partSpecs.toSeq)
+      } else {
+        None
+      }
       val sparkLoadTask = new SparkLoadWork(
         databaseName,
         tableName,

@@ -26,21 +26,21 @@ import scala.collection.JavaConversions._
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_PARTITION_COLUMNS
 import org.apache.hadoop.hive.metastore.api.FieldSchema
-import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.hive.serde2.Deserializer
+import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.UnionStructObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.hive.ql.exec.DDLTask
 import org.apache.hadoop.hive.ql.hooks.{ReadEntity, WriteEntity}
+import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.hadoop.hive.ql.plan.AlterTableDesc
 import org.apache.hadoop.hive.ql.plan.{CreateTableDesc, DDLWork, DropTableDesc}
 
 import shark.SharkContext
 import shark.api.{DataType, DataTypes}
-
 
 
 private[shark] object HiveUtils {
@@ -138,6 +138,7 @@ private[shark] object HiveUtils {
    * @hiveConf Configuration associated with the current SessionState.
    */
   def alterSerdeInHive(
+      databaseName: String,
       tableName: String,
       partitionSpecOpt: Option[JavaMap[String, String]],
       serDeName: String,
@@ -151,6 +152,7 @@ private[shark] object HiveUtils {
     alterTableDesc.setOldName(tableName)
     alterTableDesc.setSerdeName(serDeName)
     alterTableDesc.setPartSpec(partitionSpec)
+    val db = Hive.get(hiveConf).setCurrentDatabase(databaseName)
 
     // Execute the SerDe change against the Hive metastore.
     val ddlWork = new DDLWork(new JavaHashSet[ReadEntity],

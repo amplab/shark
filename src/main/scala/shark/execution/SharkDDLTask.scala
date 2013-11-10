@@ -112,6 +112,7 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
       // The alternatives are to either attach a HiveDDLTask dependent to this SharkDDLTask or to
       // copy the necessary code from Hive.
       HiveUtils.alterSerdeInHive(
+        dbName,
         tableName,
         partitionSpecOpt = None,
         classOf[ColumnarSerDe].getName,
