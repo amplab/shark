@@ -1111,7 +1111,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     expectSql("select count(*) from unified_overwrite_cached", "500")
     sc.runSql("drop table if exists unified_overwrite_cached")
   }
-a
+
   test ("INSERT INTO partitioned unified view") {
     sc.runSql("drop table if exists unified_view_part_cached")
     sc.runSql("""create table unified_view_part_cached (key int, value string) 

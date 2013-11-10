@@ -79,6 +79,10 @@ object OperatorFactory extends LogHelper {
     _createAndSetParents(sinkOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }
 
+  /**
+   * Make sure that the FileSinkOperator uses the disk SerDe for deserializing input rows.
+   * For example, it should use a LazySimpleSerDe to deserialize LazySimpleStructObjectInspectors.
+   */
   def createUnifiedViewFileOutputPlan(
       hiveTerminalOp: HOperator[_<:HiveDesc],
       diskSerDe: String): TerminalOperator = {

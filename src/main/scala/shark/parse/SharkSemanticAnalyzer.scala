@@ -72,10 +72,10 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
    *     For CTAS and INSERT INTO/OVERWRITE the generated Shark query plan matches the one
    * created if the target table were not cached. Disk => memory loading is done by a
    * SparkLoadTask that executes _after_ all other tasks (SparkTask, Hive MoveTasks) finish
-   * executing. For INSERT INTO, this allows the SparkLoadTask to determine, based on a
-   * snapshot of the table/partition data directory taken in genMapRedTasks(), and load new
-   * file content into the cache. For CTAS, everything in the data directory is loaded into
-   * the cache.
+   * executing. For INSERT INTO, the SparkLoadTask will be able to determine, using a path filter
+   * based on a snapshot of the table/partition data directory taken in genMapRedTasks(), new files
+   * that should be loaded into the cache. For CTAS, a path filter isn't used - everything in the
+   * data directory is loaded into the cache.
    *
    * Non-unified views (i.e., the cached table content is memory-only):
    *     The query plan's FileSinkOperator is replaced by a MemoryStoreSinkOperator. The
@@ -170,7 +170,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       pCtx.getTopOps().values().head)
 
     // TODO: clean the following code. It's too messy to understand...
-    val terminalOpSeq: Seq[TerminalOperator] = {
+    val terminalOpSeq = {
       val qbParseInfo = qb.getParseInfo
       if (qbParseInfo.isInsertToTable && !qb.isCTAS) {
         // Handle INSERT. There can be multiple Hive sink operators if the single command comprises
@@ -190,7 +190,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
               if (hiveSinkOps.size == 1) {
                 val table = SharkEnv.memoryMetadataManager.getTable(
                   databaseName, cachedTableName).get
-                // INSERT update on a cached table.
+                // INSERT INTO or OVERWRITE update on a cached table.
                 qb.targetTableDesc = tableDesc
                 // If useUnionRDD is true, the sink op is for INSERT INTO.
                 val useUnionRDD = qbParseInfo.isInsertIntoTable(cachedTableName)
@@ -208,6 +208,8 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                   new String
                 }
                 if (table.unifyView) {
+                  // The table being updated is a unified view, a SparkLoadTask will be created
+                  // by the genMapRedTasks() call below. Set fields in `qb` that will be needed.
                   qb.unifyView = true
                   qb.targetTableDesc = tableDesc
                   qb.preferredStorageLevel = preferredStorageLevel
@@ -240,39 +242,39 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
           }
         }
       } else if (hiveSinkOps.size == 1) {
-        // For a single output, we have the option of choosing the output
-        // destination (e.g. CTAS with table property "shark.cache" = "true").
-        if (qb.isCTAS && qb.getTableDesc != null &&
-            CacheType.shouldCache(qb.cacheModeForCreateTable)) {
-          // The table being created from CTAS will be cached. Check whether it should be
-          // synchronized with disk (i.e., maintain a unified view) or memory-only.
-          val tblProps = qb.getTableDesc().getTblProps
-          val preferredStorageLevel = MemoryMetadataManager.getStorageLevelFromString(
-            tblProps.get("shark.cache.storageLevel"))
-          if (qb.unifyView) {
-            // Save the preferred storage level - needed to create a SparkLoadTask in
-            // genMapRedTasks().
-            // Create the usual Shark file output plan.
-            qb.preferredStorageLevel = preferredStorageLevel
-            Seq(OperatorFactory.createSharkFileOutputPlan(hiveSinkOps.head))
+        Seq {
+          // For a single output, we have the option of choosing the output
+          // destination (e.g. CTAS with table property "shark.cache" = "true").
+          if (qb.isCTAS && qb.getTableDesc != null &&
+              CacheType.shouldCache(qb.cacheModeForCreateTable)) {
+            // The table being created from CTAS should be cached. Check whether it should be
+            // synchronized with disk (i.e., maintain a unified view) or memory-only.
+            val tblProps = qb.getTableDesc().getTblProps
+            val preferredStorageLevel = MemoryMetadataManager.getStorageLevelFromString(
+              tblProps.get("shark.cache.storageLevel"))
+            if (qb.unifyView) {
+              // Save the preferred storage level, since it's needed to create a SparkLoadTask in
+              // genMapRedTasks().
+              qb.preferredStorageLevel = preferredStorageLevel
+              OperatorFactory.createSharkFileOutputPlan(hiveSinkOps.head)
+            } else {
+              qb.getTableDesc().getTblProps().put(CachedTableRecovery.QUERY_STRING, ctx.getCmd())
+              OperatorFactory.createSharkMemoryStoreOutputPlan(
+                hiveSinkOps.head,
+                qb.getTableDesc.getTableName,
+                qb.getTableDesc.getDatabaseName,
+                preferredStorageLevel,
+                _resSchema.size,  /* numColumns */
+                new String,  /* hivePartitionKey */
+                qb.cacheModeForCreateTable,
+                false  /* useUnionRDD */)
+            }
+          } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink && !qb.isCTAS) {
+            OperatorFactory.createSharkRddOutputPlan(hiveSinkOps.head)
           } else {
-            qb.getTableDesc().getTblProps().put(CachedTableRecovery.QUERY_STRING, ctx.getCmd())
-            Seq(OperatorFactory.createSharkMemoryStoreOutputPlan(
-              hiveSinkOps.head,
-              qb.getTableDesc.getTableName,
-              qb.getTableDesc.getDatabaseName,
-              preferredStorageLevel,
-              _resSchema.size,  /* numColumns */
-              new String,  /* hivePartitionKey */
-              qb.cacheModeForCreateTable,
-              false  /* useUnionRDD */))
+            OperatorFactory.createSharkFileOutputPlan(hiveSinkOps.head)
           }
-        } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink && !qb.isCTAS) {
-          Seq(OperatorFactory.createSharkRddOutputPlan(hiveSinkOps.head))
-        } else {
-          Seq(OperatorFactory.createSharkFileOutputPlan(hiveSinkOps.head))
         }
-
         // A hack for the query plan dashboard to get the query plan. This was
         // done for SIGMOD demo. Turn it off by default.
         //shark.dashboard.QueryPlanDashboardHandler.terminalOperator = terminalOp
@@ -317,10 +319,10 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       setFetchTask(fetchTask)
 
     } else {
-      // Configure MoveTasks for table updates (CTAS, INSERT).
+      // Configure MoveTasks for CTAS, INSERT.
       val mvTasks = new ArrayList[MoveTask]()
 
-      // For CTAS, 'fileWork' contains a single LoadFileDesc (called "LoadFileWork" in Hive).
+      // For CTAS, `fileWork` contains a single LoadFileDesc (called "LoadFileWork" in Hive).
       val fileWork = getParseContext.getLoadFileWork
       val tableWork = getParseContext.getLoadTableWork
       tableWork.foreach { ltd =>
@@ -330,7 +332,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
 
       fileWork.foreach { lfd =>
         if (qb.isCTAS) {
-          // For CTAS, lfd.targetDir should be the data directory of the table being created.
+          // For CTAS, `lfd.targetDir` references the data directory of the table being created.
           var location = qb.getTableDesc.getLocation
           if (location == null) {
             try {
@@ -378,7 +380,10 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       }
 
       if (qb.unifyView) {
+        // Create a SparkLoadTask used to scan and load disk contents into the cache.
         val sparkLoadWork = if (qb.isCTAS) {
+          // No need to pass a filter, since the entire table data directory should be loaded, or
+          // pass partition specifications, since partitioned tables can't be created from CTAS.
           new SparkLoadWork(
             qb.createTableDesc.getDatabaseName,
             qb.createTableDesc.getTableName,
@@ -386,37 +391,23 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
             SparkLoadWork.CommandTypes.NEW_ENTRY,
             None /* pathFilterOpt */)
         } else {
+          // Determine the path filter to use for an INSERT INTO and fetch the partition key
+          // specifications, if the table being updated is partitioned.
+
           // Split from 'databaseName.tableName'
           val tableNameSplit = qb.targetTableDesc.getTableName.split('.')
           val databaseName = tableNameSplit(0)
           val cachedTableName = tableNameSplit(1)
           val hiveTable = db.getTable(databaseName, cachedTableName)
-          val destPartition = qb.getMetaData.getDestPartitionForAlias(
-            qb.getParseInfo.getClauseNamesForDest.head)
-          val partSpec = if (destPartition == null) null else destPartition.getSpec
-          val (loadType, pathFilterOpt) =
-            if (qb.getParseInfo.isInsertIntoTable(cachedTableName)) {
-              val pathOpt = if (hiveTable.isPartitioned) {
-                Option(db.getPartition(hiveTable, partSpec, false /* forceCreate */)).
-                  map(_.getPartitionPath)
-              } else {
-                Some(hiveTable.getPath)
-              }
-              (SparkLoadWork.CommandTypes.INSERT, pathOpt.map(Utils.createSnapshotFilter(_, conf)))
-            } else {
-              (SparkLoadWork.CommandTypes.OVERWRITE, None)
-            }
-
-          // Add a SparkLoadTask as a dependent of all MoveTasks, so that when executed, the table's
-          // (or table partition's) data directory will contain the updates that need to be loaded
-          // into memory.
-          new SparkLoadWork(
-            databaseName,
-            cachedTableName,
-            partSpec,
-            loadType,
-            pathFilterOpt)
+          // None if the table isn't partitioned, or if the partition specified doesn't exist.
+          val partSpecOpt = Option(qb.getMetaData.getDestPartitionForAlias(
+            qb.getParseInfo.getClauseNamesForDest.head)).map(_.getSpec)
+          val isOverwrite = !qb.getParseInfo.isInsertIntoTable(cachedTableName)
+          SparkLoadWork(db, conf, hiveTable, partSpecOpt, isOverwrite)
         }
+        // Add a SparkLoadTask as a dependent of all MoveTasks, so that when executed, the table's
+        // (or table partition's) data directory will already contain updates that should be
+        // loaded into memory.
         val sparkLoadTask = TaskFactory.get(sparkLoadWork, conf)
         mvTasks.foreach(_.addDependentTask(sparkLoadTask))
       }
@@ -512,6 +503,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
           SharkConfVars.DEFAULT_UNIFY_FLAG.defaultVal).toBoolean
       createTableProperties.put("shark.cache.unifyView", queryBlock.unifyView.toString)
       if (shouldCache && !queryBlock.unifyView) {
+        // Directly set the ColumnarSerDe if the table persists memory-only.
         createTableDesc.setSerName(classOf[ColumnarSerDe].getName)
       }
 

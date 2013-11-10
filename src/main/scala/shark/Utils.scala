@@ -95,7 +95,7 @@ object Utils {
   }
 
   /**
-   * Returns a filter that accepts files missing from the current snapshot of the `path` directory.
+   * Returns a filter that accepts files not in the current snapshot of the `path` directory.
    */
   def createSnapshotFilter(path: Path, conf: Configuration): PathFilter = {
     val fs = path.getFileSystem(conf)

@@ -190,7 +190,7 @@ class MemoryMetadataManager extends LogHelper {
       val tableName = table.tableName
       val databaseName = table.databaseName
       val diskSerDe = table.diskSerDe
-      logError("Setting SerDe for table %s back to %s.".format(tableName, diskSerDe))
+      logInfo("Setting SerDe for table %s back to %s.".format(tableName, diskSerDe))
       HiveUtils.alterSerdeInHive(
         databaseName,
         tableName,
@@ -200,7 +200,7 @@ class MemoryMetadataManager extends LogHelper {
       table match {
         case partitionedTable: PartitionedMemoryTable => {
           for ((hiveKeyStr, serDeName) <- partitionedTable.keyToDiskSerDes) {
-            logError("Setting SerDe for table %s(partition %s) back to %s.".
+            logInfo("Setting SerDe for table %s(partition %s) back to %s.".
               format(tableName, hiveKeyStr, serDeName))
             val partitionSpec = MemoryMetadataManager.parseHivePartitionKeyStr(hiveKeyStr)
             HiveUtils.alterSerdeInHive(
@@ -252,6 +252,10 @@ object MemoryMetadataManager {
     return keyStr
   }
 
+  /**
+   * Returns a (partition column name -> value) mapping by parsing a `keyStr` of the format
+   * 'col1=value1/col2=value2/.../colN=valueN', created by makeHivePartitionKeyStr() above.
+   */
   def parseHivePartitionKeyStr(keyStr: String): JavaMap[String, String] = {
     val partitionSpec = new JavaHashMap[String, String]()
     for (pair <- keyStr.split("/")) {

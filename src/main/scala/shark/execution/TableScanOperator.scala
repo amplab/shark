@@ -126,7 +126,7 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
     // Stats used for map pruning.
     val indexToStatsOpt: Option[collection.Map[Int, TablePartitionStats]] =
       SharkEnv.memoryMetadataManager.getStats(databaseName, tableName)
-    assert (indexToStatsOpt.isDefined, "Stats not found for table " + tableName)
+    assert(indexToStatsOpt.isDefined, "Stats not found for table " + tableName)
     val indexToStats = indexToStatsOpt.get
 
     // Run map pruning if the flag is set, there exists a filter predicate on

@@ -61,6 +61,10 @@ private[shark] object HiveUtils {
     case DataTypes.STRING => PrimitiveObjectInspectorFactory.javaStringObjectInspector
   }
 
+  /**
+   * Return a UnionStructObjectInspector that combines the StructObjectInspectors for the table
+   * schema and the partition columns, which are virtual in Hive.
+   */
   def makeUnionOIForPartitionedTable(
       partProps: Properties,
       partSerDe: Deserializer): UnionStructObjectInspector = {
@@ -165,7 +169,6 @@ private[shark] object HiveUtils {
   def executeDDLTaskDirectly(ddlWork: DDLWork, hiveConf: HiveConf): Int = {
     val task = new DDLTask()
     task.initialize(hiveConf, null /* queryPlan */, null /* ctx: DriverContext */)
-
     task.setWork(ddlWork)
 
     // Hive returns 0 if the create table command is executed successfully.

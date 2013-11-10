@@ -26,7 +26,6 @@ import org.apache.hadoop.hive.ql.parse.{ASTNode, BaseSemanticAnalyzer, LoadSeman
 import org.apache.hadoop.hive.ql.plan._
 import shark.execution.SparkLoadWork
 import shark.{LogHelper, SharkEnv}
-import shark.Utils
 
 class SharkLoadSemanticAnalyzer(conf: HiveConf) extends LoadSemanticAnalyzer(conf) {
   
@@ -48,32 +47,13 @@ class SharkLoadSemanticAnalyzer(conf: HiveConf) extends LoadSemanticAnalyzer(con
       val tableSpec = new BaseSemanticAnalyzer.tableSpec(db, conf, tableASTNode)
       val hiveTable = tableSpec.tableHandle
       val moveTask = getMoveTask()
-      val partSpec = tableSpec.getPartSpec
-      val (loadCommandType, pathFilterOpt) =
-        if (moveTask.getWork.getLoadTableWork.getReplace) {
-          (SparkLoadWork.CommandTypes.OVERWRITE, None)
-        } else {
-          val pathOpt = if (hiveTable.isPartitioned) {
-            Option(db.getPartition(hiveTable, partSpec, false /* forceCreate */)).
-              map(_.getPartitionPath)
-          } else {
-            Some(hiveTable.getPath)
-          }
-          // Capture a snapshot of the data directory being read. When executed, SparkLoadTask will
-          // determine the input paths to read using a filter that only accepts files not included
-          // in snapshot set (i.e., the accepted file's a new one created by the Hive load process).
-          (SparkLoadWork.CommandTypes.INSERT, pathOpt.map(Utils.createSnapshotFilter(_, conf)))
-        }
+      val partSpecOpt = Option(tableSpec.getPartSpec)
+      val isOverwrite = moveTask.getWork.getLoadTableWork.getReplace
+      val sparkLoadWork = SparkLoadWork(db, conf, hiveTable, partSpecOpt, isOverwrite)
 
       // Create a SparkLoadTask that will use a HadoopRDD to read from the source directory. Set it
       // to be a dependent task of the LoadTask so that the SparkLoadTask is executed only if the
       // Hive task executes successfully.
-      val sparkLoadWork = new SparkLoadWork(
-        databaseName,
-        tableName,
-        partSpec,
-        loadCommandType,
-        pathFilterOpt)
       moveTask.addDependentTask(TaskFactory.get(sparkLoadWork, conf))
     }
   }

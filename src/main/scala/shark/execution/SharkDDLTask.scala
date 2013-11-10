@@ -107,10 +107,10 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
     if (unifyView) {
       val table = hiveMetadataDb.getTable(tableName)
       newTable.diskSerDe = table.getDeserializer().getClass.getName
-      // This creates and directly executes a Hive DDLTask to change the table's SerDe property in
+      // Creates and directly execute a Hive DDLTask to change the table's SerDe property in
       // the Hive metastore.
-      // The alternatives are to either attach a HiveDDLTask dependent to this SharkDDLTask or to
-      // copy the necessary code from Hive.
+      // The alternatives are to either attach a HiveDDLTask dependent on this SharkDDLTask or to
+      // copy the necessary code from Hive, both of which are more troublesome...
       HiveUtils.alterSerdeInHive(
         dbName,
         tableName,

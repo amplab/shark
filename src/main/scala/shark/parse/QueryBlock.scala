@@ -57,12 +57,13 @@ class QueryBlock(outerID: String, alias: String, isSubQuery: Boolean)
 
   def unifyView: Boolean = _unifyView
 
-  def targetTableDesc: TableDesc = _targetTableDesc
-
-  def targetTableDesc_= (desc: TableDesc) = _targetTableDesc = desc
-
-  // Hive uses "tableDesc" to refer to the CreateTableDesc...
+  // Hive uses "tableDesc" to refer to the CreateTableDesc. This makes it easier to differentiate
+  // from `_targetTableDesc`.
   def createTableDesc: CreateTableDesc = super.getTableDesc
 
   def createTableDesc_= (desc: CreateTableDesc) = super.setTableDesc(desc)
+
+  def targetTableDesc: TableDesc = _targetTableDesc
+
+  def targetTableDesc_= (desc: TableDesc) = _targetTableDesc = desc
 }

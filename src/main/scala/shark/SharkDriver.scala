@@ -160,6 +160,10 @@ private[shark] class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHe
     }
   }
 
+  /**
+   * Rewrites a CACHE <table_name> command to
+   * ALTER TABLE SET TBLPROPERTIES ('shark.cache.unifyView' = 'true', 'shark.cache' = 'true').
+   */
   def rewriteCacheCmd(cmd: String): String = {
     val cmdSplit = cmd.split(' ')
     if (cmdSplit.size == 2) {
