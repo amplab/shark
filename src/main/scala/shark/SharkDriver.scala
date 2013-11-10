@@ -161,9 +161,14 @@ private[shark] class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHe
   }
 
   def rewriteCacheCmd(cmd: String): String = {
-    val tableName = cmd.toUpperCase.stripPrefix(SharkDriver.CACHE_KEYWORD)
-    "ALTER TABLE %s SET TBLPROPERTIES ('shark.cache.unifyView' = 'true', 'shark.cache' = 'true')".
-      format(tableName)
+    val cmdSplit = cmd.split(' ')
+    if (cmdSplit.size == 2) {
+      val tableName = cmdSplit(1)
+      "ALTER TABLE %s SET TBLPROPERTIES ('shark.cache.unifyView' = 'true', 'shark.cache' = 'true')".
+        format(tableName)
+    } else {
+      throw new SemanticException("CACHE accepts a single table name: 'CACHE <table name>'")
+    }
   }
 
   /**
