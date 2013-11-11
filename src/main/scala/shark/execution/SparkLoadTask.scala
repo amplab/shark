@@ -338,7 +338,6 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
       pathFilterOpt: Option[PathFilter]) {
     val databaseName = hiveTable.getDbName
     val tableName = hiveTable.getTableName
-    val tblProps = hiveTable.getParameters
     val partCols = hiveTable.getPartCols.map(_.getName)
 
     for (partSpec <- partSpecs) {

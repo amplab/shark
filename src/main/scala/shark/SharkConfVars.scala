@@ -53,7 +53,7 @@ object SharkConfVars {
   val MAX_PARTITION_CACHE_SIZE = new ConfVar("shark.cache.policy.maxSize", "10")
 
   // Default value for the "shark.cache.unify" table property.
-  val DEFAULT_UNIFY_FLAG = new ConfVar("shark.cache.unify.default", true)
+  val DEFAULT_UNIFY_FLAG = new ConfVar("shark.cache.unifyView.default", true)
 
   // If true, then cache any table whose name ends in "_cached".
   val CHECK_TABLENAME_FLAG = new ConfVar("shark.cache.flag.checkTableName", true)

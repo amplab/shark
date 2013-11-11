@@ -1182,17 +1182,17 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     // Number of rows for each cached table.
     val cachedTableCounts = new Array[String](globalCachedTableNames.size)
     for ((tableName, i) <- globalCachedTableNames.zipWithIndex) {
+      val hiveTable = Hive.get().getTable(DEFAULT_DB_NAME, tableName)
       val cachedCount = sc.sql("select count(*) from %s".format(tableName))(0)
-      val cacheSerDe = Hive.get().getTable(DEFAULT_DB_NAME, tableName)
-        .getDeserializer.getClass.getName
-      val table = sharkMetastore.getTable(DEFAULT_DB_NAME, tableName).get
+      val cacheSerDe = hiveTable.getDeserializer.getClass.getName
       assert(cacheSerDe == columnarSerDeName)
       cachedTableCounts(i) = cachedCount
     }
     sharkMetastore.resetUnifiedTableSerDes()
     for ((tableName, i) <- globalCachedTableNames.zipWithIndex) {
+      val hiveTable = Hive.get().getTable(DEFAULT_DB_NAME, tableName)
       // Make sure the SerDe has been reset to the one used for deserializing disk reads.
-      val diskSerDe = Hive.get().getTable(DEFAULT_DB_NAME, tableName).getDeserializer.getClass.getName
+      val diskSerDe = hiveTable.getDeserializer.getClass.getName
       assert(diskSerDe != columnarSerDeName, """SerDe for %s wasn't reset across Shark metastore
         restart. (disk SerDe: %s)""".format(tableName, diskSerDe))
       // Check that the number of rows from the table on disk remains the same.
@@ -1200,6 +1200,14 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       val cachedCount = cachedTableCounts(i)
       assert(onDiskCount == cachedCount, """Num rows for %s differ across Shark metastore restart. 
         (rows cached = %s, rows on disk = %s)""".format(tableName, cachedCount, onDiskCount))
+      // Make sure that Shark table properties are removed.
+      val tblProps = hiveTable.getParameters
+      assert(!tblProps.contains("shark.cache"),
+        "'shark.cache' table property should be removed.")
+      assert(!tblProps.contains("shark.storageLevel"),
+        "'shark.storageLevel' table property should be removed.")
+      assert(!tblProps.contains("shark.unifyView"),
+        "'shark.unifyView' table property should be removed.")
     }
     // Finally, reload all tables.
     loadGlobalTables()

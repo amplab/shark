@@ -182,11 +182,12 @@ class MemoryMetadataManager extends LogHelper {
    * That way, tables can be read from disk when the Shark session restarts.
    */
   def resetUnifiedTableSerDes() {
-    for (table <- _keyToTable.values.filter(_.unifyView)) {
-      val conf = Hive.get().getConf
-      val tableName = table.tableName
-      val databaseName = table.databaseName
-      val diskSerDe = table.diskSerDe
+    val db = Hive.get()
+    for (sharkTable <- _keyToTable.values.filter(_.unifyView)) {
+      val conf = db.getConf
+      val tableName = sharkTable.tableName
+      val databaseName = sharkTable.databaseName
+      val diskSerDe = sharkTable.diskSerDe
       logInfo("Setting SerDe for table %s back to %s.".format(tableName, diskSerDe))
       HiveUtils.alterSerdeInHive(
         databaseName,
@@ -194,7 +195,16 @@ class MemoryMetadataManager extends LogHelper {
         None /* partitionSpecOpt */,
         diskSerDe,
         conf)
-      table match {
+      // Also remove all Shark related table properties from the Hive table metadata.
+      val hiveTable = db.getTable(databaseName, tableName)
+      val tblProps = hiveTable.getParameters
+      tblProps.remove("shark.cache")
+      tblProps.remove("shark.cache.storageLevel")
+      tblProps.remove("shark.cache.unifyView")
+      // Refresh the Hive db.
+      db.alterTable(tableName, hiveTable)
+      // Reset SerDes if the table is partitioned.
+      sharkTable match {
         case partitionedTable: PartitionedMemoryTable => {
           for ((hiveKeyStr, serDeName) <- partitionedTable.keyToDiskSerDes) {
             logInfo("Setting SerDe for table %s(partition %s) back to %s.".
