@@ -21,7 +21,7 @@ package shark.execution
 import java.util.{HashMap => JavaHashMap, Properties, Map => JavaMap}
 
 import scala.collection.JavaConversions._
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.{ArrayBuffer, Buffer}
 
 import org.apache.hadoop.fs.{Path, PathFilter}
 import org.apache.hadoop.hive.conf.HiveConf
@@ -51,19 +51,19 @@ private[shark]
 class SparkLoadWork(
     val databaseName: String,
     val tableName: String,
-    val partSpecsOpt: Option[Seq[JavaMap[String, String]]],
     val commandType: SparkLoadWork.CommandTypes.Type,
-    val pathFilterOpt: Option[PathFilter],
-    val unifyView: Boolean = true)
+    val preferredStorageLevel: StorageLevel,
+    val cacheMode: CacheType.CacheType,
+    val unifyView: Boolean)
   extends java.io.Serializable {
 
-  def this(
-      databaseName: String,
-      tableName: String,
-      partSpecOpt: Option[JavaMap[String, String]],
-      commandType: SparkLoadWork.CommandTypes.Type,
-      pathFilterOpt: Option[PathFilter]) {
-    this(databaseName, tableName, partSpecOpt.map(Seq(_)), commandType, pathFilterOpt)
+  var pathFilterOpt: Option[PathFilter] = None
+
+  var partSpecs: Seq[JavaMap[String, String]] = Nil
+
+  def addPartSpec(partSpec: JavaMap[String, String]) {
+    // Not the most efficient, but this method isn't called very often.
+    partSpecs = partSpecs ++ Seq(partSpec)
   }
 }
 
@@ -74,7 +74,8 @@ object SparkLoadWork {
   }
 
   /**
-   * Factory/helper method used in LOAD and INSERT INTO/OVERWRITE analysis.
+   * Factory/helper method used in LOAD and INSERT INTO/OVERWRITE analysis. This sets all
+   * necessary fields in SparkLoadWork.
    * 
    * A path filter is created if the command is an INSERT and under these conditions:
    * - Table is partitioned, and the partition being updated already exists
@@ -86,28 +87,31 @@ object SparkLoadWork {
       conf: HiveConf,
       hiveTable: HiveTable,
       partSpecOpt: Option[JavaMap[String, String]],
-      isOverwrite: Boolean): SparkLoadWork = {
-    val (loadType, pathFilterOpt) =
-      if (isOverwrite) {
-        (SparkLoadWork.CommandTypes.OVERWRITE, None)
-      } else {
-        val pathFilterOpt = if (hiveTable.isPartitioned) {
-          partSpecOpt.flatMap { partSpec =>
-            // Partition being updated exists
-            val partitionOpt = Option(db.getPartition(hiveTable, partSpec, false /* forceCreate */))
-            partitionOpt.map(part => Utils.createSnapshotFilter(part.getPartitionPath, conf))
-          }
-        } else {
-          Some(Utils.createSnapshotFilter(hiveTable.getPath, conf))
-        }
-        (SparkLoadWork.CommandTypes.INSERT, pathFilterOpt)
-      }
-    new SparkLoadWork(
+      commandType: SparkLoadWork.CommandTypes.Type): SparkLoadWork = {
+    val cacheMode = CacheType.fromString(hiveTable.getProperty("shark.cache"))
+    val preferredStorageLevel = MemoryMetadataManager.getStorageLevelFromString(
+      hiveTable.getProperty("shark.cache.storageLevel"))
+    val sparkLoadWork = new SparkLoadWork(
       hiveTable.getDbName,
       hiveTable.getTableName,
-      partSpecOpt,
-      loadType,
-      pathFilterOpt)
+      commandType,
+      preferredStorageLevel,
+      cacheMode,
+      unifyView = hiveTable.getProperty("shark.cache.unifyView").toBoolean)
+    partSpecOpt.foreach(sparkLoadWork.addPartSpec(_))
+    if (commandType == SparkLoadWork.CommandTypes.INSERT) {
+      if (hiveTable.isPartitioned) {
+        partSpecOpt.foreach { partSpec =>
+          // None if the partition being updated doesn't exist yet.
+          val partitionOpt = Option(db.getPartition(hiveTable, partSpec, false /* forceCreate */))
+          sparkLoadWork.pathFilterOpt = partitionOpt.map(part =>
+            Utils.createSnapshotFilter(part.getPartitionPath, conf))
+        }
+      } else {
+        sparkLoadWork.pathFilterOpt = Some(Utils.createSnapshotFilter(hiveTable.getPath, conf))
+      }
+    }
+    sparkLoadWork
   }
 }
 
@@ -126,20 +130,17 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
     val hiveTable = Hive.get(conf).getTable(databaseName, tableName)
     // Used to generate HadoopRDDs.
     val hadoopReader = new HadoopTableReader(Utilities.getTableDesc(hiveTable), conf)
-    work.partSpecsOpt match {
-      case Some(partSpecs) => {
-        loadPartitionedTable(
-          hiveTable,
-          partSpecs,
-          hadoopReader,
-          work.pathFilterOpt)
-      }
-      case None => {
-        loadMemoryTable(
-          hiveTable,
-          hadoopReader,
-          work.pathFilterOpt)
-      }
+    if (hiveTable.isPartitioned) {
+      loadPartitionedTable(
+        hiveTable,
+        work.partSpecs,
+        hadoopReader,
+        work.pathFilterOpt)
+    } else {
+      loadMemoryTable(
+        hiveTable,
+        hadoopReader,
+        work.pathFilterOpt)
     }
     // Success!
     0
@@ -197,16 +198,14 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
   def getOrCreateMemoryTable(hiveTable: HiveTable): MemoryTable = {
     val databaseName = hiveTable.getDbName
     val tableName = hiveTable.getTableName
-    val preferredStorageLevel = MemoryMetadataManager.getStorageLevelFromString(
-      hiveTable.getProperty("shark.cache.storageLevel"))
     work.commandType match {
       case SparkLoadWork.CommandTypes.NEW_ENTRY => {
         val newMemoryTable = SharkEnv.memoryMetadataManager.createMemoryTable(
           databaseName,
           tableName,
-          CacheType.fromString(hiveTable.getProperty("shark.cache")),
-          preferredStorageLevel,
-          hiveTable.getProperty("shark.cache.unifyView").toBoolean)
+          work.cacheMode,
+          work.preferredStorageLevel,
+          work.unifyView)
         // Before setting the table's SerDe property to ColumnarSerDe, record the SerDe used
         // to deserialize rows from disk so that it can be used for successive update operations.
         newMemoryTable.diskSerDe = hiveTable.getDeserializer.getClass.getName
@@ -288,16 +287,14 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
       partSpecs: JavaMap[String, String]): PartitionedMemoryTable = {
     val databaseName = hiveTable.getDbName
     val tableName = hiveTable.getTableName
-    val preferredStorageLevel = MemoryMetadataManager.getStorageLevelFromString(
-      hiveTable.getProperty("shark.cache.storageLevel"))
     work.commandType match {
       case SparkLoadWork.CommandTypes.NEW_ENTRY => {
         val newPartitionedTable = SharkEnv.memoryMetadataManager.createPartitionedMemoryTable(
           databaseName,
           tableName,
-          CacheType.fromString(hiveTable.getProperty("shark.cache")),
-          preferredStorageLevel,
-          hiveTable.getProperty("shark.cache.unifyView").toBoolean,
+          work.cacheMode,
+          work.preferredStorageLevel,
+          work.unifyView,
           hiveTable.getParameters)
         newPartitionedTable.diskSerDe = hiveTable.getDeserializer.getClass.getName
         HiveUtils.alterSerdeInHive(
@@ -342,9 +339,6 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
     val databaseName = hiveTable.getDbName
     val tableName = hiveTable.getTableName
     val tblProps = hiveTable.getParameters
-    val preferredStorageLevel = MemoryMetadataManager.getStorageLevelFromString(
-      tblProps.get("shark.cache.storageLevel"))
-    val cacheMode = CacheType.fromString(hiveTable.getProperty("shark.cache"))
     val partCols = hiveTable.getPartCols.map(_.getName)
 
     for (partSpec <- partSpecs) {
@@ -369,7 +363,7 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
       val (tablePartitionRDD, tableStats) = transformAndMaterializeInput(
         inputRDD,
         addPartitionInfoToSerDeProps(partCols, partition.getSchema),
-        preferredStorageLevel,
+        work.preferredStorageLevel,
         hadoopReader.broadcastedHiveConf,
         unionOI)
       // Determine how to cache the table RDD created.

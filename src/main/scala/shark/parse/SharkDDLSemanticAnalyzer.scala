@@ -17,9 +17,10 @@
 
 package shark.parse
 
-import java.util.{HashMap => JavaHashMap}
+import java.util.{HashMap => JavaHashMap, Map => JavaMap}
 
 import scala.collection.JavaConversions._
+import scala.collection.mutable.Buffer
 
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.TaskFactory
@@ -31,8 +32,8 @@ import org.apache.hadoop.hive.ql.plan.{AlterTableDesc, DDLWork}
 
 import org.apache.spark.rdd.{UnionRDD, RDD}
 
+import shark.{LogHelper, SharkConfVars, SharkEnv}
 import shark.execution.{SharkDDLWork, SparkLoadWork}
-import shark.{LogHelper, SharkEnv}
 import shark.memstore2.{CacheType, MemoryMetadataManager}
 
 
@@ -89,9 +90,10 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
     val newTblProps = getAlterTblDesc().getProps
     val oldTblProps = hiveTable.getParameters
 
-    val isAlreadyCached = CacheType.fromString(oldTblProps.get("shark.cache")) == CacheType.HEAP
-    val shouldCache = CacheType.fromString(newTblProps.get("shark.cache")) == CacheType.HEAP
-    if (!isAlreadyCached && shouldCache) {
+    val oldCacheMode = CacheType.fromString(oldTblProps.get("shark.cache"))
+    val newCacheMode = CacheType.fromString(newTblProps.get("shark.cache"))
+    if (!(oldCacheMode == CacheType.HEAP) && (newCacheMode == CacheType.HEAP)) {
+      // The table should be cached (and is not already cached)
       val partSpecsOpt = if (hiveTable.isPartitioned) {
         val columnNames = hiveTable.getPartCols.map(_.getName)
         val partSpecs = db.getPartitions(hiveTable).map { partition =>
@@ -100,17 +102,24 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
           columnNames.zipWithIndex.map { case(name, index) => partSpec.put(name, values(index)) }
           partSpec
         }
-        Some(partSpecs.toSeq)
+        Some(partSpecs)
       } else {
         None
       }
-      val sparkLoadTask = new SparkLoadWork(
+      val unifyView = newTblProps.getOrElse("shark.cache.unifyView",
+        SharkConfVars.DEFAULT_UNIFY_FLAG.defaultVal).toBoolean
+      val cacheMode = newCacheMode
+      val preferredStorageLevel = MemoryMetadataManager.getStorageLevelFromString(
+        newTblProps.get("shark.cache.storageLevel"))
+      val sparkLoadWork = new SparkLoadWork(
         databaseName,
         tableName,
-        partSpecsOpt,
         SparkLoadWork.CommandTypes.NEW_ENTRY,
-        None /* pathFilterOpt */)
-      rootTasks.head.addDependentTask(TaskFactory.get(sparkLoadTask, conf))
+        preferredStorageLevel,
+        cacheMode,
+        unifyView)
+      partSpecsOpt.foreach(partSpecs => sparkLoadWork.partSpecs = partSpecs)
+      rootTasks.head.addDependentTask(TaskFactory.get(sparkLoadWork, conf))
     }
   }
 

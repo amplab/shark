@@ -48,8 +48,12 @@ class SharkLoadSemanticAnalyzer(conf: HiveConf) extends LoadSemanticAnalyzer(con
       val hiveTable = tableSpec.tableHandle
       val moveTask = getMoveTask()
       val partSpecOpt = Option(tableSpec.getPartSpec)
-      val isOverwrite = moveTask.getWork.getLoadTableWork.getReplace
-      val sparkLoadWork = SparkLoadWork(db, conf, hiveTable, partSpecOpt, isOverwrite)
+      val commandType = if (moveTask.getWork.getLoadTableWork.getReplace) {
+        SparkLoadWork.CommandTypes.OVERWRITE
+      } else {
+        SparkLoadWork.CommandTypes.INSERT
+      }
+      val sparkLoadWork = SparkLoadWork(db, conf, hiveTable, partSpecOpt, commandType)
 
       // Create a SparkLoadTask that will use a HadoopRDD to read from the source directory. Set it
       // to be a dependent task of the LoadTask so that the SparkLoadTask is executed only if the

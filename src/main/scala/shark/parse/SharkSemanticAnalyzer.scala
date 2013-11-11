@@ -380,28 +380,35 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       if (qb.unifyView) {
         // Create a SparkLoadTask used to scan and load disk contents into the cache.
         val sparkLoadWork = if (qb.isCTAS) {
-          // No need to pass a filter, since the entire table data directory should be loaded, or
+          val tblProps = qb.createTableDesc.getTblProps
+          val preferredStorageLevel = MemoryMetadataManager.getStorageLevelFromString(
+            tblProps.get("shark.cache.storageLevel"))
+          val cacheMode = CacheType.fromString(tblProps.get("shark.cache"))
+
+          // No need to create a filter, since the entire table data directory should be loaded, nor
           // pass partition specifications, since partitioned tables can't be created from CTAS.
           new SparkLoadWork(
             qb.createTableDesc.getDatabaseName,
             qb.createTableDesc.getTableName,
-            None /* partSpecsOpt */,
             SparkLoadWork.CommandTypes.NEW_ENTRY,
-            None /* pathFilterOpt */)
+            preferredStorageLevel,
+            cacheMode,
+            unifyView = true)
         } else {
-          // Determine the path filter to use for an INSERT INTO and fetch the partition key
-          // specifications, if the table being updated is partitioned.
-
           // Split from 'databaseName.tableName'
           val tableNameSplit = qb.targetTableDesc.getTableName.split('.')
           val databaseName = tableNameSplit(0)
           val cachedTableName = tableNameSplit(1)
+          val commandType = if (qb.getParseInfo.isInsertIntoTable(cachedTableName)) {
+            SparkLoadWork.CommandTypes.INSERT
+          } else {
+            SparkLoadWork.CommandTypes.OVERWRITE
+          }
           val hiveTable = db.getTable(databaseName, cachedTableName)
           // None if the table isn't partitioned, or if the partition specified doesn't exist.
           val partSpecOpt = Option(qb.getMetaData.getDestPartitionForAlias(
             qb.getParseInfo.getClauseNamesForDest.head)).map(_.getSpec)
-          val isOverwrite = !qb.getParseInfo.isInsertIntoTable(cachedTableName)
-          SparkLoadWork(db, conf, hiveTable, partSpecOpt, isOverwrite)
+          SparkLoadWork(db, conf, hiveTable, partSpecOpt, commandType)
         }
         // Add a SparkLoadTask as a dependent of all MoveTasks, so that when executed, the table's
         // (or table partition's) data directory will already contain updates that should be
