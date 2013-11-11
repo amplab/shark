@@ -125,6 +125,14 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
   override def execute(driveContext: DriverContext): Int = {
     logDebug("Executing " + this.getClass.getName)
 
+    // Set Spark's job description to be this query.
+    SharkEnv.sc.setJobDescription("Loading from Hadoop for a(n) " + work.commandType)
+
+    // Set the fair scheduler's pool using mapred.fairscheduler.pool if it is defined.
+    Option(conf.get("mapred.fairscheduler.pool")).foreach { pool =>
+      SharkEnv.sc.setLocalProperty("spark.scheduler.pool", pool)
+    }
+
     val databaseName = work.databaseName
     val tableName = work.tableName
     val hiveTable = Hive.get(conf).getTable(databaseName, tableName)
