@@ -79,8 +79,8 @@ object OperatorFactory extends LogHelper {
   }
 
   /**
-   * Make sure that the FileSinkOperator uses the disk SerDe for deserializing input rows.
-   * For example, it should use a LazySimpleSerDe to deserialize LazySimpleStructObjectInspectors.
+   * Returns the operator tree constructed by createSharkFileOutputPlan(), but makes sure that the
+   * FileSinkOperator uses the `diskSerDe` (usually a LazySimpleSerDe) for deserializing input rows.
    */
   def createUnifiedViewFileOutputPlan(
       hiveTerminalOp: HOperator[_<:HiveDesc],

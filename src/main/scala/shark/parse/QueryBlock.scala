@@ -42,7 +42,7 @@ class QueryBlock(outerID: String, alias: String, isSubQuery: Boolean)
   // Whether the created to be created or the table specified by CACHED should be backed by disk.
   private var _unifyView = false
 
-  // TableDesc for a table being updated by an INSERT.
+  // Descriptor for the table being updated by an INSERT.
   private var _targetTableDesc: TableDesc = _
 
   def cacheModeForCreateTable_= (mode: CacheType) = _cacheModeForCreateTable = mode
@@ -57,8 +57,8 @@ class QueryBlock(outerID: String, alias: String, isSubQuery: Boolean)
 
   def unifyView: Boolean = _unifyView
 
-  // Hive uses "tableDesc" to refer to the CreateTableDesc. This makes it easier to differentiate
-  // from `_targetTableDesc`.
+  // Hive's QB uses `tableDesc` to refer to the CreateTableDesc. A direct `createTableDesc`
+  // makes it easier to differentiate from `_targetTableDesc`.
   def createTableDesc: CreateTableDesc = super.getTableDesc
 
   def createTableDesc_= (desc: CreateTableDesc) = super.setTableDesc(desc)

@@ -178,8 +178,10 @@ class MemoryMetadataManager extends LogHelper {
   }
 
   /**
-   * Resets SerDe properties for unified tables to the ones used for deserializing reads.
-   * That way, tables can be read from disk when the Shark session restarts.
+   * Resets SerDe properties for unified tables to the ones used for deserializing reads, and clears
+   * any Shark table properties.
+   * That way, tables can be read from disk (they'll be indiscernible from Hive tables) when the
+   * Shark session restarts.
    */
   def resetUnifiedTableSerDes() {
     val db = Hive.get()
@@ -195,13 +197,13 @@ class MemoryMetadataManager extends LogHelper {
         None /* partitionSpecOpt */,
         diskSerDe,
         conf)
-      // Also remove all Shark related table properties from the Hive table metadata.
+      // Remove all Shark related table properties from the Hive table metadata.
       val hiveTable = db.getTable(databaseName, tableName)
       val tblProps = hiveTable.getParameters
       tblProps.remove("shark.cache")
       tblProps.remove("shark.cache.storageLevel")
       tblProps.remove("shark.cache.unifyView")
-      // Refresh the Hive db.
+      // Refresh the Hive `db`/metastore.
       db.alterTable(tableName, hiveTable)
       // Reset SerDes if the table is partitioned.
       sharkTable match {

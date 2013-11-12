@@ -69,14 +69,15 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
    *   If 'true', then create a SparkLoadTask to load the Hive table into memory.
    *   Set it as a dependent of the Hive DDLTask. A SharkDDLTask counterpart isn't created because
    *   the HadoopRDD creation and transformation isn't a direct Shark metastore operation
-   *   (unlike the other cases handled in SharkDDLSemantiAnalyzer).
-   *
-   *   TODO(harvey): Add "uncache" handling.
+   *   (unlike the other cases handled in SharkDDLSemantiAnalyzer).   *
    *   If 'false', then create a SharkDDLTask that will delete the table entry in the Shark
    *   metastore.
+   *   TODO(harvey): Add "uncache" handling.
+   *
    * - "shark.cache.unifyView" :
    *   If 'true' and "shark.cache" is true, then the SparkLoadTask created should read this from the
    *   table properties when adding an entry to the Shark metastore.
+   *
    * - "shark.cache.storageLevel":
    *   Throw an exception since we can't change the storage level without rescanning the entire RDD.
    *
@@ -93,7 +94,7 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
     val oldCacheMode = CacheType.fromString(oldTblProps.get("shark.cache"))
     val newCacheMode = CacheType.fromString(newTblProps.get("shark.cache"))
     if (!(oldCacheMode == CacheType.HEAP) && (newCacheMode == CacheType.HEAP)) {
-      // The table should be cached (and is not already cached)
+      // The table should be cached (and is not already cached).
       val partSpecsOpt = if (hiveTable.isPartitioned) {
         val columnNames = hiveTable.getPartCols.map(_.getName)
         val partSpecs = db.getPartitions(hiveTable).map { partition =>

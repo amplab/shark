@@ -48,16 +48,15 @@ class SharkLoadSemanticAnalyzer(conf: HiveConf) extends LoadSemanticAnalyzer(con
       val hiveTable = tableSpec.tableHandle
       val moveTask = getMoveTask()
       val partSpecOpt = Option(tableSpec.getPartSpec)
-      val commandType = if (moveTask.getWork.getLoadTableWork.getReplace) {
-        SparkLoadWork.CommandTypes.OVERWRITE
-      } else {
-        SparkLoadWork.CommandTypes.INSERT
-      }
-      val sparkLoadWork = SparkLoadWork(db, conf, hiveTable, partSpecOpt, commandType)
+      val sparkLoadWork = SparkLoadWork(
+        db,
+        conf,
+        hiveTable,
+        partSpecOpt,
+        isOverwrite = moveTask.getWork.getLoadTableWork.getReplace)
 
-      // Create a SparkLoadTask that will use a HadoopRDD to read from the source directory. Set it
-      // to be a dependent task of the LoadTask so that the SparkLoadTask is executed only if the
-      // Hive task executes successfully.
+      // Create a SparkLoadTask that will read from the table's data directory. Make it a dependent
+      // task of the LoadTask so that it's executed only if the LoadTask executes successfully.
       moveTask.addDependentTask(TaskFactory.get(sparkLoadWork, conf))
     }
   }
@@ -65,8 +64,8 @@ class SharkLoadSemanticAnalyzer(conf: HiveConf) extends LoadSemanticAnalyzer(con
   private def getMoveTask(): MoveTask = {
     assert(rootTasks.size == 1)
 
-    // If the execution is local, a CopyTask will be the root task, with a MoveTask child.
-    // Otherwise, a MoveTask will be the root.
+    // If the execution is local, then the root task is a CopyTask with a MoveTask child.
+    // Otherwise, the root is a MoveTask.
     var rootTask = rootTasks.head
     val moveTask = if (rootTask.isInstanceOf[CopyTask]) {
       val firstChildTask = rootTask.getChildTasks.head
@@ -76,7 +75,7 @@ class SharkLoadSemanticAnalyzer(conf: HiveConf) extends LoadSemanticAnalyzer(con
       rootTask
     }
 
-    // In Hive, LoadTableDesc is referred to as LoadTableWork...
+    // In Hive, LoadTableDesc is referred to as LoadTableWork ...
     moveTask.asInstanceOf[MoveTask]
   }
 

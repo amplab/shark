@@ -110,7 +110,7 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
       // Creates and directly execute a Hive DDLTask to change the table's SerDe property in
       // the Hive metastore.
       // The alternatives are to either attach a HiveDDLTask dependent on this SharkDDLTask or to
-      // copy the necessary code from Hive, both of which are more troublesome...
+      // copy the necessary code from Hive, both of which are more troublesome to do...
       HiveUtils.alterSerdeInHive(
         dbName,
         tableName,

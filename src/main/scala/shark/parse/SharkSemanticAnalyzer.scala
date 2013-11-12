@@ -399,16 +399,16 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
           val tableNameSplit = qb.targetTableDesc.getTableName.split('.')
           val databaseName = tableNameSplit(0)
           val cachedTableName = tableNameSplit(1)
-          val commandType = if (qb.getParseInfo.isInsertIntoTable(cachedTableName)) {
-            SparkLoadWork.CommandTypes.INSERT
-          } else {
-            SparkLoadWork.CommandTypes.OVERWRITE
-          }
           val hiveTable = db.getTable(databaseName, cachedTableName)
           // None if the table isn't partitioned, or if the partition specified doesn't exist.
           val partSpecOpt = Option(qb.getMetaData.getDestPartitionForAlias(
             qb.getParseInfo.getClauseNamesForDest.head)).map(_.getSpec)
-          SparkLoadWork(db, conf, hiveTable, partSpecOpt, commandType)
+          SparkLoadWork(
+            db,
+            conf,
+            hiveTable,
+            partSpecOpt,
+            isOverwrite = !qb.getParseInfo.isInsertIntoTable(cachedTableName))
         }
         // Add a SparkLoadTask as a dependent of all MoveTasks, so that when executed, the table's
         // (or table partition's) data directory will already contain updates that should be
