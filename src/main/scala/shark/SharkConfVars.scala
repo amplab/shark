@@ -17,6 +17,8 @@
 
 package shark
 
+import java.util.{Map => JavaMap}
+
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hive.conf.HiveConf
 
@@ -34,29 +36,14 @@ object SharkConfVars {
 
   val COLUMNAR_COMPRESSION = new ConfVar("shark.column.compress", true)
 
+  // If true, then cache any table whose name ends in "_cached".
+  val CHECK_TABLENAME_FLAG = new ConfVar("shark.cache.flag.checkTableName", true)
+
   // Specify the initial capacity for ArrayLists used to represent columns in columnar
   // cache. The default -1 for non-local mode means that Shark will try to estimate
   // the number of rows by using: partition_size / (num_columns * avg_field_size).
   val COLUMN_BUILDER_PARTITION_SIZE = new ConfVar("shark.column.partitionSize.mb",
     if (System.getenv("MASTER") == null) 1 else -1)
-
-  // Default storage level for cached tables.
-  val STORAGE_LEVEL = new ConfVar("shark.cache.storageLevel", "MEMORY_AND_DISK")
-
-  // Class name of the default cache policy used to manage partition evictions for cached,
-  // Hive-partitioned tables.
-  val CACHE_POLICY = new ConfVar(
-    "shark.cache.policy", "shark.memstore2.CacheAllPolicy")
-
-  // Maximum size - in terms of the number of objects - of the cache specified by the
-  // "shark.cache.partition.cachePolicy" property above.
-  val MAX_PARTITION_CACHE_SIZE = new ConfVar("shark.cache.policy.maxSize", "10")
-
-  // Default value for the "shark.cache.unify" table property.
-  val DEFAULT_UNIFY_FLAG = new ConfVar("shark.cache.unify.default", true)
-
-  // If true, then cache any table whose name ends in "_cached".
-  val CHECK_TABLENAME_FLAG = new ConfVar("shark.cache.flag.checkTableName", true)
 
   // Prune map splits for cached tables based on predicates in queries.
   val MAP_PRUNING = new ConfVar("shark.mappruning", true)

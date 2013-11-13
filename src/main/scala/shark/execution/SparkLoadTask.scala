@@ -54,7 +54,8 @@ class SparkLoadWork(
     val commandType: SparkLoadWork.CommandTypes.Type,
     val preferredStorageLevel: StorageLevel,
     val cacheMode: CacheType.CacheType,
-    val unifyView: Boolean)
+    val unifyView: Boolean,
+    val reloadOnRestart: Boolean)
   extends java.io.Serializable {
 
   var pathFilterOpt: Option[PathFilter] = None
@@ -104,7 +105,8 @@ object SparkLoadWork {
       commandType,
       preferredStorageLevel,
       cacheMode,
-      unifyView = hiveTable.getProperty("shark.cache.unifyView").toBoolean)
+      unifyView = hiveTable.getProperty("shark.cache.unifyView").toBoolean,
+      reloadOnRestart = hiveTable.getProperty("shark.cache.reloadOnRestart").toBoolean)
     partSpecOpt.foreach(sparkLoadWork.addPartSpec(_))
     if (commandType == SparkLoadWork.CommandTypes.INSERT) {
       if (hiveTable.isPartitioned) {
@@ -221,7 +223,8 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
           tableName,
           work.cacheMode,
           work.preferredStorageLevel,
-          work.unifyView)
+          work.unifyView,
+          work.reloadOnRestart)
         // Before setting the table's SerDe property to ColumnarSerDe, record the SerDe used
         // to deserialize rows from disk so that it can be used for subsequenct update operations.
         newMemoryTable.diskSerDe = hiveTable.getDeserializer.getClass.getName
@@ -311,6 +314,7 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
           work.cacheMode,
           work.preferredStorageLevel,
           work.unifyView,
+          work.reloadOnRestart,
           hiveTable.getParameters)
         newPartitionedTable.diskSerDe = hiveTable.getDeserializer.getClass.getName
         HiveUtils.alterSerdeInHive(

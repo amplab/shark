@@ -36,7 +36,8 @@ private[shark] abstract class Table(
     var tableName: String,
     var cacheMode: CacheType.CacheType,
     var preferredStorageLevel: StorageLevel,
-    var unifyView: Boolean) {
+    var unifyView: Boolean,
+    var reloadOnRestart: Boolean) {
 
   // SerDe used to read from and write to disk. Should only be set for unified views.
   private var _diskSerDe: String = _

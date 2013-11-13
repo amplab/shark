@@ -28,13 +28,14 @@ import org.apache.hadoop.hive.ql.parse.ASTNode
 import org.apache.hadoop.hive.ql.parse.BaseSemanticAnalyzer
 import org.apache.hadoop.hive.ql.parse.DDLSemanticAnalyzer
 import org.apache.hadoop.hive.ql.parse.HiveParser
+import org.apache.hadoop.hive.ql.parse.SemanticException
 import org.apache.hadoop.hive.ql.plan.{AlterTableDesc, DDLWork}
 
 import org.apache.spark.rdd.{UnionRDD, RDD}
 
 import shark.{LogHelper, SharkConfVars, SharkEnv}
 import shark.execution.{SharkDDLWork, SparkLoadWork}
-import shark.memstore2.{CacheType, MemoryMetadataManager}
+import shark.memstore2.{CacheType, MemoryMetadataManager, SharkTblProperties}
 
 
 class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf) with LogHelper {
@@ -72,7 +73,6 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
    *   (unlike the other cases handled in SharkDDLSemantiAnalyzer).   *
    *   If 'false', then create a SharkDDLTask that will delete the table entry in the Shark
    *   metastore.
-   *   TODO(harvey): Add "uncache" handling.
    *
    * - "shark.cache.unifyView" :
    *   If 'true' and "shark.cache" is true, then the SparkLoadTask created should read this from the
@@ -91,9 +91,9 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
     val newTblProps = getAlterTblDesc().getProps
     val oldTblProps = hiveTable.getParameters
 
-    val oldCacheMode = CacheType.fromString(oldTblProps.get("shark.cache"))
-    val newCacheMode = CacheType.fromString(newTblProps.get("shark.cache"))
-    if (!(oldCacheMode == CacheType.HEAP) && (newCacheMode == CacheType.HEAP)) {
+    val oldCacheMode = CacheType.fromString(oldTblProps.get(SharkTblProperties.CACHE_FLAG.varname))
+    val newCacheMode = CacheType.fromString(newTblProps.get(SharkTblProperties.CACHE_FLAG.varname))
+    if (!CacheType.shouldCache(oldCacheMode) && CacheType.shouldCache(newCacheMode)) {
       // The table should be cached (and is not already cached).
       val partSpecsOpt = if (hiveTable.isPartitioned) {
         val columnNames = hiveTable.getPartCols.map(_.getName)
@@ -107,21 +107,36 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
       } else {
         None
       }
-      val unifyView = newTblProps.getOrElse("shark.cache.unifyView",
-        SharkConfVars.DEFAULT_UNIFY_FLAG.defaultVal).toBoolean
-      val cacheMode = newCacheMode
+      newTblProps.put(SharkTblProperties.CACHE_FLAG.varname, newCacheMode.toString)
+      val unifyView = SharkTblProperties.getOrSetDefault(newTblProps,
+        SharkTblProperties.UNIFY_VIEW_FLAG).toBoolean
+      val reloadOnRestart = SharkTblProperties.getOrSetDefault(newTblProps,
+        SharkTblProperties.RELOAD_ON_RESTART_FLAG).toBoolean
       val preferredStorageLevel = MemoryMetadataManager.getStorageLevelFromString(
-        newTblProps.get("shark.cache.storageLevel"))
+        SharkTblProperties.getOrSetDefault(newTblProps, SharkTblProperties.STORAGE_LEVEL))
       val sparkLoadWork = new SparkLoadWork(
         databaseName,
         tableName,
         SparkLoadWork.CommandTypes.NEW_ENTRY,
         preferredStorageLevel,
-        cacheMode,
-        unifyView)
+        newCacheMode,
+        unifyView,
+        reloadOnRestart)
       partSpecsOpt.foreach(partSpecs => sparkLoadWork.partSpecs = partSpecs)
       rootTasks.head.addDependentTask(TaskFactory.get(sparkLoadWork, conf))
     }
+    if (CacheType.shouldCache(oldCacheMode) && !CacheType.shouldCache(newCacheMode)) {
+      val isUnifiedView = Option(oldTblProps.get(SharkTblProperties.UNIFY_VIEW_FLAG.varname)).
+        exists(_.toBoolean)
+      // Uncache the table.
+      if (isUnifiedView) {
+        SharkEnv.memoryMetadataManager.dropUnifiedView(db, databaseName, tableName)
+      } else {
+        throw new SemanticException(
+          "Only unified views can be uncached. A memory-only table should be dropped.")
+      }
+    }
+
   }
 
   def analyzeDropTableOrDropParts(ast: ASTNode) {

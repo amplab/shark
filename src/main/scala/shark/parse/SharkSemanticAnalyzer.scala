@@ -40,11 +40,11 @@ import org.apache.hadoop.hive.ql.parse._
 import org.apache.hadoop.hive.ql.plan._
 import org.apache.hadoop.hive.ql.session.SessionState
 
-import shark.{CachedTableRecovery, LogHelper, SharkConfVars, SharkEnv, Utils}
+import shark.{LogHelper, SharkConfVars, SharkEnv, Utils}
 import shark.execution.{HiveDesc, Operator, OperatorFactory, RDDUtils, ReduceSinkOperator}
 import shark.execution.{SharkDDLWork, SparkLoadWork, SparkWork, TerminalOperator}
 import shark.memstore2.{CacheType, ColumnarSerDe, MemoryMetadataManager}
-import shark.memstore2.{MemoryTable, PartitionedMemoryTable}
+import shark.memstore2.{MemoryTable, PartitionedMemoryTable, SharkTblProperties, TableRecovery}
 
 
 /**
@@ -53,6 +53,8 @@ import shark.memstore2.{MemoryTable, PartitionedMemoryTable}
  * mapreduce. We want our query plan to stay intact as a single tree. Since
  * genMapRedTasks is private, we have to overload analyzeInternal() to use our
  * own genMapRedTasks().
+ *
+ * One day, this will all be deprecated ...
  */
 class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with LogHelper {
 
@@ -248,15 +250,15 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
             // The table being created from CTAS should be cached. Check whether it should be
             // synchronized with disk (i.e., maintain a unified view) or memory-only.
             val tblProps = qb.createTableDesc.getTblProps
+            // TODO(harvey): Set this during analysis
             val preferredStorageLevel = MemoryMetadataManager.getStorageLevelFromString(
-              tblProps.get("shark.cache.storageLevel"))
+              SharkTblProperties.getOrSetDefault(tblProps, SharkTblProperties.STORAGE_LEVEL))
             if (qb.unifyView) {
               // Save the preferred storage level, since it's needed to create a SparkLoadTask in
               // genMapRedTasks().
               qb.preferredStorageLevel = preferredStorageLevel
               OperatorFactory.createSharkFileOutputPlan(hiveSinkOps.head)
             } else {
-              tblProps.put(CachedTableRecovery.QUERY_STRING, ctx.getCmd())
               OperatorFactory.createSharkMemoryStoreOutputPlan(
                 hiveSinkOps.head,
                 qb.createTableDesc.getTableName,
@@ -380,10 +382,9 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       if (qb.unifyView) {
         // Create a SparkLoadTask used to scan and load disk contents into the cache.
         val sparkLoadWork = if (qb.isCTAS) {
+          // For cached tables, Shark-specific table properties should be set in
+          // analyzeCreateTable().
           val tblProps = qb.createTableDesc.getTblProps
-          val preferredStorageLevel = MemoryMetadataManager.getStorageLevelFromString(
-            tblProps.get("shark.cache.storageLevel"))
-          val cacheMode = CacheType.fromString(tblProps.get("shark.cache"))
 
           // No need to create a filter, since the entire table data directory should be loaded, nor
           // pass partition specifications, since partitioned tables can't be created from CTAS.
@@ -391,9 +392,10 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
             qb.createTableDesc.getDatabaseName,
             qb.createTableDesc.getTableName,
             SparkLoadWork.CommandTypes.NEW_ENTRY,
-            preferredStorageLevel,
-            cacheMode,
-            unifyView = true)
+            qb.preferredStorageLevel,
+            qb.cacheModeForCreateTable,
+            qb.unifyView,
+            qb.reloadOnRestart)
         } else {
           // Split from 'databaseName.tableName'
           val tableNameSplit = qb.targetTableDesc.getTableName.split('.')
@@ -491,22 +493,29 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       // 1) Table name includes "_cached" or "_tachyon".
       // 2) The "shark.cache" table property is "true", or the string representation of a supported
       //    cache mode (heap, Tachyon).
-      var cacheMode = CacheType.fromString(createTableProperties.get("shark.cache"))
+      var cacheMode = CacheType.fromString(createTableProperties.get(
+        SharkTblProperties.CACHE_FLAG.varname))
       // Continue planning based on the 'cacheMode' read.
       if (cacheMode == CacheType.HEAP || (checkTableName && tableName.endsWith("_cached"))) {
         cacheMode = CacheType.HEAP
-        createTableProperties.put("shark.cache", cacheMode.toString)
+        createTableProperties.put(SharkTblProperties.CACHE_FLAG.varname, cacheMode.toString)
       } else if (cacheMode == CacheType.TACHYON ||
                  (checkTableName && tableName.endsWith("_tachyon"))) {
         cacheMode = CacheType.TACHYON
-        createTableProperties.put("shark.cache", cacheMode.toString)
+        createTableProperties.put(SharkTblProperties.CACHE_FLAG.varname, cacheMode.toString)
       }
 
       val shouldCache = CacheType.shouldCache(cacheMode)
       if (shouldCache) {
-        queryBlock.unifyView = createTableProperties.getOrElse("shark.cache.unifyView",
-            SharkConfVars.DEFAULT_UNIFY_FLAG.defaultVal).toBoolean
-        createTableProperties.put("shark.cache.unifyView", queryBlock.unifyView.toString)
+        // Add Shark table properties to the QueryBlock.
+        queryBlock.cacheModeForCreateTable = cacheMode
+        queryBlock.unifyView = SharkTblProperties.getOrSetDefault(createTableProperties,
+          SharkTblProperties.UNIFY_VIEW_FLAG).toBoolean
+        queryBlock.reloadOnRestart = SharkTblProperties.getOrSetDefault(createTableProperties,
+          SharkTblProperties.RELOAD_ON_RESTART_FLAG).toBoolean
+        queryBlock.preferredStorageLevel = MemoryMetadataManager.getStorageLevelFromString(
+          SharkTblProperties.getOrSetDefault(createTableProperties, SharkTblProperties.STORAGE_LEVEL))
+
         if (!queryBlock.unifyView) {
           // Directly set the ColumnarSerDe if the table will be stored memory-only.
           createTableDesc.setSerName(classOf[ColumnarSerDe].getName)
@@ -556,7 +565,7 @@ object SharkSemanticAnalyzer extends LogHelper {
     val destPartition = qb.getMetaData.getDestPartitionForAlias(selectClauseKey)
     val partitionColumns = destPartition.getTable.getPartCols.map(_.getName)
     val partitionColumnToValue = destPartition.getSpec
-    return MemoryMetadataManager.makeHivePartitionKeyStr(partitionColumns, partitionColumnToValue)
+    MemoryMetadataManager.makeHivePartitionKeyStr(partitionColumns, partitionColumnToValue)
   }
   
   /**

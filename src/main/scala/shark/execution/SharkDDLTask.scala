@@ -31,6 +31,7 @@ import org.apache.spark.rdd.EmptyRDD
 
 import shark.{LogHelper, SharkConfVars, SharkEnv}
 import shark.memstore2.{CacheType, ColumnarSerDe, MemoryMetadataManager, PartitionedMemoryTable}
+import shark.memstore2.SharkTblProperties
 import shark.util.HiveUtils
 
 
@@ -84,8 +85,8 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
     val tblProps = createTblDesc.getTblProps
     val preferredStorageLevel = MemoryMetadataManager.getStorageLevelFromString(
       tblProps.get("shark.cache.storageLevel"))
-    val unifyView = tblProps.getOrElse("shark.cache.unifyView",
-      SharkConfVars.DEFAULT_UNIFY_FLAG.defaultVal).toBoolean
+    val unifyView = tblProps.get(SharkTblProperties.UNIFY_VIEW_FLAG.varname).toBoolean
+    val reloadOnRestart = tblProps.get(SharkTblProperties.RELOAD_ON_RESTART_FLAG.varname).toBoolean
     val isHivePartitioned = (createTblDesc.getPartCols.size > 0)
     val newTable = if (isHivePartitioned) {
       // Add a new PartitionedMemoryTable entry in the Shark metastore.
@@ -96,10 +97,11 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
         cacheMode,
         preferredStorageLevel,
         unifyView,
+        reloadOnRestart,
         tblProps)
     } else {
       val memoryTable = SharkEnv.memoryMetadataManager.createMemoryTable(
-        dbName, tableName, cacheMode, preferredStorageLevel, unifyView)
+        dbName, tableName, cacheMode, preferredStorageLevel, unifyView, reloadOnRestart)
       // An empty table has a MemoryTable table entry with 'tableRDD' referencing an EmptyRDD.
       memoryTable.tableRDD = new EmptyRDD(SharkEnv.sc)
       memoryTable

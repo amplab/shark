@@ -39,6 +39,7 @@ import shark.execution.{SharkDDLTask, SharkDDLWork, SharkExplainTask, SharkExpla
   SparkLoadWork, SparkLoadTask, SparkTask, SparkWork}
 import shark.memstore2.ColumnarSerDe
 import shark.parse.{QueryContext, SharkSemanticAnalyzerFactory}
+import shark.util.QueryRewriteUtils
 
 
 /**
@@ -111,8 +112,6 @@ private[shark] object SharkDriver extends LogHelper {
     def getOp = this.op
     def getCmd() = this.cmd
   }
-
-  val CACHE_KEYWORD = "CACHE"
 }
 
 
@@ -161,21 +160,6 @@ private[shark] class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHe
   }
 
   /**
-   * Rewrites a CACHE <table_name> command to
-   * ALTER TABLE SET TBLPROPERTIES ('shark.cache.unifyView' = 'true', 'shark.cache' = 'true').
-   */
-  def rewriteCacheCmd(cmd: String): String = {
-    val cmdSplit = cmd.split(' ')
-    if (cmdSplit.size == 2) {
-      val tableName = cmdSplit(1)
-      "ALTER TABLE %s SET TBLPROPERTIES ('shark.cache.unifyView' = 'true', 'shark.cache' = 'true')".
-        format(tableName)
-    } else {
-      throw new SemanticException("CACHE accepts a single table name: 'CACHE <table name>'")
-    }
-  }
-
-  /**
    * Overload compile to use Shark's semantic analyzers.
    */
   override def compile(cmd: String, resetTaskIds: Boolean): Int = {
@@ -198,8 +182,11 @@ private[shark] class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHe
     try {
       val command = {
         val varSubbedCmd = new VariableSubstitution().substitute(conf, cmd)
-        if (varSubbedCmd.toUpperCase.startsWith(SharkDriver.CACHE_KEYWORD)) {
-          rewriteCacheCmd(varSubbedCmd)
+        val cmdInUpperCase = varSubbedCmd.toUpperCase
+        if (cmdInUpperCase.startsWith("CACHE")) {
+          QueryRewriteUtils.cacheToAlterTable(varSubbedCmd)
+        } else if (cmdInUpperCase.startsWith("UNCACHE")) {
+          QueryRewriteUtils.uncacheToAlterTable(varSubbedCmd)
         } else {
           varSubbedCmd
         }

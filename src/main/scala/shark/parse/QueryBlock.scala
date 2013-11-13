@@ -37,6 +37,8 @@ class QueryBlock(outerID: String, alias: String, isSubQuery: Boolean)
   // The CacheType for the table that will be created from CREATE TABLE/CTAS.
   private var _cacheModeForCreateTable = CacheType.NONE
 
+  private var _reloadOnRestart: Boolean = false
+
   private var _preferredStorageLevel: StorageLevel = StorageLevel.NONE
 
   // Whether the created to be created or the table specified by CACHED should be backed by disk.
@@ -48,6 +50,10 @@ class QueryBlock(outerID: String, alias: String, isSubQuery: Boolean)
   def cacheModeForCreateTable_= (mode: CacheType) = _cacheModeForCreateTable = mode
 
   def cacheModeForCreateTable: CacheType = _cacheModeForCreateTable
+
+  def reloadOnRestart: Boolean = _reloadOnRestart
+
+  def reloadOnRestart_= (reload: Boolean) = _reloadOnRestart = reload
 
   def preferredStorageLevel_= (storageLevel: StorageLevel) = _preferredStorageLevel = storageLevel
 

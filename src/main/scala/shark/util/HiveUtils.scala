@@ -39,8 +39,9 @@ import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.hadoop.hive.ql.plan.AlterTableDesc
 import org.apache.hadoop.hive.ql.plan.{CreateTableDesc, DDLWork, DropTableDesc}
 
-import shark.SharkContext
+import shark.{SharkConfVars, SharkContext}
 import shark.api.{DataType, DataTypes}
+import shark.memstore2.SharkTblProperties
 
 
 private[shark] object HiveUtils {
@@ -92,25 +93,28 @@ private[shark] object HiveUtils {
       tableName: String,
       columnNames: Seq[String],
       columnTypes: Seq[ClassManifest[_]],
+      unifyView: Boolean = false,
+      reloadOnRestart: Boolean = false,
       hiveConf: HiveConf = new HiveConf): Boolean = {
     val schema = columnNames.zip(columnTypes).map { case (colName, manifest) =>
       new FieldSchema(colName, DataTypes.fromManifest(manifest).hiveName, "")
     }
 
     // Setup the create table descriptor with necessary information.
-    val createTbleDesc = new CreateTableDesc()
-    createTbleDesc.setTableName(tableName)
-    createTbleDesc.setCols(new JavaArrayList[FieldSchema](schema))
-    createTbleDesc.setTblProps(Map("shark.cache" -> "heap"))
-    createTbleDesc.setInputFormat("org.apache.hadoop.mapred.TextInputFormat")
-    createTbleDesc.setOutputFormat("org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat")
-    createTbleDesc.setSerName(classOf[shark.memstore2.ColumnarSerDe].getName)
-    createTbleDesc.setNumBuckets(-1)
+    val createTableDesc = new CreateTableDesc()
+    createTableDesc.setTableName(tableName)
+    createTableDesc.setCols(new JavaArrayList[FieldSchema](schema))
+    createTableDesc.setTblProps(
+      SharkTblProperties.initializeWithDefaults(createTableDesc.getTblProps))
+    createTableDesc.setInputFormat("org.apache.hadoop.mapred.TextInputFormat")
+    createTableDesc.setOutputFormat("org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat")
+    createTableDesc.setSerName(classOf[shark.memstore2.ColumnarSerDe].getName)
+    createTableDesc.setNumBuckets(-1)
 
     // Execute the create table against the Hive metastore.
     val ddlWork = new DDLWork(new JavaHashSet[ReadEntity],
                               new JavaHashSet[WriteEntity],
-                              createTbleDesc)
+                              createTableDesc)
     val taskExecutionStatus = executeDDLTaskDirectly(ddlWork, hiveConf)
     taskExecutionStatus == 0
   }

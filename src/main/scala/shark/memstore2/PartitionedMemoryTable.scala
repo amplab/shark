@@ -40,9 +40,10 @@ class PartitionedMemoryTable(
     databaseName: String,
     tableName: String,
     cacheMode: CacheType.CacheType,
-    preferredStorageLevel: StorageLevel,
-    unifiedView: Boolean)
-  extends Table(databaseName, tableName, cacheMode, preferredStorageLevel, unifiedView) {
+    storageLevel: StorageLevel,
+    unifiedView: Boolean,
+    reloadOnRestart: Boolean)
+  extends Table(databaseName, tableName, cacheMode, storageLevel, unifiedView, reloadOnRestart) {
 
   /**
    * A simple, mutable wrapper for an RDD. This is needed so that a entry maintained by a

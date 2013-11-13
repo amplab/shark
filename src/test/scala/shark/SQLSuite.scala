@@ -24,6 +24,7 @@ import scala.collection.JavaConversions._
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.FunSuite
 
+import org.apache.hadoop.hive.metastore.MetaStoreUtils.DEFAULT_DATABASE_NAME
 import org.apache.hadoop.hive.serde2.`lazy`.LazySimpleSerDe
 import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.spark.rdd.UnionRDD
@@ -39,7 +40,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   val WAREHOUSE_PATH = TestUtils.getWarehousePath()
   val METASTORE_PATH = TestUtils.getMetastorePath()
   val MASTER = "local"
-  val DEFAULT_DB_NAME = "default"
+  val DEFAULT_DB_NAME = DEFAULT_DATABASE_NAME
   val KV1_TXT_PATH = "${hiveconf:shark.test.data.path}/kv1.txt"
 
   var sc: SharkContext = _
@@ -49,7 +50,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
    * Tables accessible by any test in SQLSuite. Their properties should remain constant across
    * tests.
    */
-  def loadGlobalTables() {
+  def loadTables() {
     // test
     sc.runSql("drop table if exists test")
     sc.runSql("CREATE TABLE test (key INT, val STRING)")
@@ -106,7 +107,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     // second db
     sc.sql("create database if not exists seconddb")
 
-    loadGlobalTables()
+    loadTables()
   }
 
   override def afterAll() {
@@ -1137,7 +1138,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   //////////////////////////////////////////////////////////////////////////////
   // CACHE and ALTER TABLE commands
   //////////////////////////////////////////////////////////////////////////////
-  test ("ALTER TABLE caches contents of non-partitioned table if 'shark.cache' is set to true") {
+  test ("ALTER TABLE caches non-partitioned table if 'shark.cache' is set to true") {
     sc.runSql("drop table if exists unified_load")
     sc.runSql("create table unified_load as select * from test")
     sc.runSql("""alter table unified_load set 
@@ -1146,7 +1147,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.runSql("drop table if exists unified_load")
   }
 
-  test ("ALTER TABLE caches all contents of partitioned table if 'shark.cache' is set to true") {
+  test ("ALTER TABLE caches partitioned table if 'shark.cache' is set to true") {
     sc.runSql("drop table if exists unified_part_load")
     sc.runSql("create table unified_part_load (key int, value string) partitioned by (keypart int)")
     sc.runSql("insert into table unified_part_load partition (keypart=1) select * from test_cached")
@@ -1156,6 +1157,41 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.runSql("drop table if exists unified_part_load")
   }
 
+  test ("ALTER TABLE uncaches non-partitioned table if 'shark.cache' is set to false") {
+    sc.runSql("drop table if exists unified_load")
+    sc.runSql("create table unified_load as select * from test")
+    sc.runSql("""alter table unified_load set 
+      tblproperties('shark.cache' = 'false', 'shark.cache.unifyView' = 'false')""")
+    assert(!sharkMetastore.containsTable(DEFAULT_DB_NAME, "unified_load"))
+    expectSql("select count(*) from unified_load", "500")
+    sc.runSql("drop table if exists unified_load")
+  }
+
+  test ("ALTER TABLE uncaches partitioned table if 'shark.cache' is set to false") {
+    sc.runSql("drop table if exists unified_part_load")
+    sc.runSql("create table unified_part_load (key int, value string) partitioned by (keypart int)")
+    sc.runSql("insert into table unified_part_load partition (keypart=1) select * from test_cached")
+    sc.runSql("""alter table unified_part_load set 
+      tblproperties('shark.cache' = 'false')""")
+    assert(!sharkMetastore.containsTable(DEFAULT_DB_NAME, "unified_part_load"))
+    expectSql("select count(*) from unified_part_load", "500")
+    sc.runSql("drop table if exists unified_part_load")
+  }
+
+  test ("UNCACHE behaves like ALTER TABLE SET TBLPROPERTIES ...") {
+    sc.runSql("drop table if exists unified_load")
+    sc.runSql("create table unified_load as select * from test")
+    sc.runSql("cache unified_load")
+    // Double check the table properties.
+    val tableName = "unified_load"
+    val hiveTable = Hive.get().getTable(DEFAULT_DB_NAME, tableName)
+    assert(hiveTable.getProperty("shark.cache") == "HEAP")
+    assert(hiveTable.getProperty("shark.cache.unifyView") == "true")
+    // Check that the cache and disk contents are synchronized.
+    expectUnifiedKVTable(tableName)
+    sc.runSql("drop table if exists unified_load")
+  }
+
   test ("CACHE behaves like ALTER TABLE SET TBLPROPERTIES ...") {
     sc.runSql("drop table if exists unified_load")
     sc.runSql("create table unified_load as select * from test")
@@ -1163,7 +1199,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     // Double check the table properties.
     val tableName = "unified_load"
     val hiveTable = Hive.get().getTable(DEFAULT_DB_NAME, tableName)
-    assert(hiveTable.getProperty("shark.cache") == "true")
+    assert(hiveTable.getProperty("shark.cache") == "HEAP")
     assert(hiveTable.getProperty("shark.cache.unifyView") == "true")
     // Check that the cache and disk contents are synchronized.
     expectUnifiedKVTable(tableName)
@@ -1179,6 +1215,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     // should reset SerDes for the SQLSuite-global tables.
     val globalCachedTableNames = Seq("test_cached", "test_null_cached", "clicks_cached",
       "users_cached", "test1_cached")
+
     // Number of rows for each cached table.
     val cachedTableCounts = new Array[String](globalCachedTableNames.size)
     for ((tableName, i) <- globalCachedTableNames.zipWithIndex) {
@@ -1188,28 +1225,35 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       assert(cacheSerDe == columnarSerDeName)
       cachedTableCounts(i) = cachedCount
     }
-    sharkMetastore.resetUnifiedTableSerDes()
+    sharkMetastore.processTablesOnShutdown()
     for ((tableName, i) <- globalCachedTableNames.zipWithIndex) {
       val hiveTable = Hive.get().getTable(DEFAULT_DB_NAME, tableName)
+
       // Make sure the SerDe has been reset to the one used for deserializing disk reads.
       val diskSerDe = hiveTable.getDeserializer.getClass.getName
       assert(diskSerDe != columnarSerDeName, """SerDe for %s wasn't reset across Shark metastore
         restart. (disk SerDe: %s)""".format(tableName, diskSerDe))
+
       // Check that the number of rows from the table on disk remains the same.
       val onDiskCount = sc.sql("select count(*) from %s".format(tableName))(0)
       val cachedCount = cachedTableCounts(i)
       assert(onDiskCount == cachedCount, """Num rows for %s differ across Shark metastore restart. 
         (rows cached = %s, rows on disk = %s)""".format(tableName, cachedCount, onDiskCount))
-      // Make sure that Shark table properties are removed.
+
+      // Make sure that some Shark table properties are removed.
       val tblProps = hiveTable.getParameters
       assert(!tblProps.contains("shark.cache"),
         "'shark.cache' table property should be removed.")
-      assert(!tblProps.contains("shark.storageLevel"),
-        "'shark.storageLevel' table property should be removed.")
-      assert(!tblProps.contains("shark.unifyView"),
+      assert(!tblProps.contains("shark.cachy.unifyView"),
         "'shark.unifyView' table property should be removed.")
+
+      // The tables should be recoverable.
+      assert(tblProps.contains("shark.cache.storageLevel"),
+        "'shark.cache.storageLevel' needed for table recovery is missing.")
+      assert(tblProps.contains("shark.cache.reloadOnRestart"),
+        "'shark.cache.reloadOnRestart' should be true, since this table is marked for recovery.")
     }
     // Finally, reload all tables.
-    loadGlobalTables()
+    loadTables()
   }
 }

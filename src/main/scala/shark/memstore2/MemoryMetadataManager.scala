@@ -77,7 +77,8 @@ class MemoryMetadataManager extends LogHelper {
       tableName: String,
       cacheMode: CacheType.CacheType,
       preferredStorageLevel: StorageLevel,
-      unifyView: Boolean
+      unifyView: Boolean,
+      reloadOnRestart: Boolean
     ): MemoryTable = {
     val tableKey = makeTableKey(databaseName, tableName)
     val newTable = new MemoryTable(
@@ -85,7 +86,8 @@ class MemoryMetadataManager extends LogHelper {
       tableName,
       cacheMode,
       preferredStorageLevel,
-      unifyView)
+      unifyView,
+      reloadOnRestart)
     _keyToTable.put(tableKey, newTable)
     newTable
   }
@@ -96,6 +98,7 @@ class MemoryMetadataManager extends LogHelper {
       cacheMode: CacheType.CacheType,
       preferredStorageLevel: StorageLevel,
       unifyView: Boolean,
+      reloadOnRestart: Boolean,
       tblProps: JavaMap[String, String]
     ): PartitionedMemoryTable = {
     val tableKey = makeTableKey(databaseName, tableName)
@@ -104,12 +107,13 @@ class MemoryMetadataManager extends LogHelper {
       tableName,
       cacheMode,
       preferredStorageLevel,
-      unifyView)
+      unifyView,
+      reloadOnRestart)
     // Determine the cache policy to use and read any user-specified cache settings.
-    val cachePolicyStr = tblProps.getOrElse(SharkConfVars.CACHE_POLICY.varname,
-      SharkConfVars.CACHE_POLICY.defaultVal)
-    val maxCacheSize = tblProps.getOrElse(SharkConfVars.MAX_PARTITION_CACHE_SIZE.varname,
-      SharkConfVars.MAX_PARTITION_CACHE_SIZE.defaultVal).toInt
+    val cachePolicyStr = tblProps.getOrElse(SharkTblProperties.CACHE_POLICY.varname,
+      SharkTblProperties.CACHE_POLICY.defaultVal)
+    val maxCacheSize = tblProps.getOrElse(SharkTblProperties.MAX_PARTITION_CACHE_SIZE.varname,
+      SharkTblProperties.MAX_PARTITION_CACHE_SIZE.defaultVal).toInt
     newTable.setPartitionCachePolicy(cachePolicyStr, maxCacheSize)
 
     _keyToTable.put(tableKey, newTable)
@@ -174,56 +178,93 @@ class MemoryMetadataManager extends LogHelper {
   }
 
   def shutdown() {
-    resetUnifiedTableSerDes()
+    processTablesOnShutdown()
   }
 
-  /**
-   * Resets SerDe properties for unified tables to the ones used for deserializing reads, and clears
-   * any Shark table properties.
-   * That way, tables can be read from disk (they'll be indiscernible from Hive tables) when the
-   * Shark session restarts.
-   */
-  def resetUnifiedTableSerDes() {
+  def processTablesOnShutdown() {
     val db = Hive.get()
-    for (sharkTable <- _keyToTable.values.filter(_.unifyView)) {
-      val conf = db.getConf
-      val tableName = sharkTable.tableName
-      val databaseName = sharkTable.databaseName
-      val diskSerDe = sharkTable.diskSerDe
-      logInfo("Setting SerDe for table %s back to %s.".format(tableName, diskSerDe))
-      HiveUtils.alterSerdeInHive(
-        databaseName,
-        tableName,
-        None /* partitionSpecOpt */,
-        diskSerDe,
-        conf)
-      // Remove all Shark related table properties from the Hive table metadata.
-      val hiveTable = db.getTable(databaseName, tableName)
-      val tblProps = hiveTable.getParameters
-      tblProps.remove("shark.cache")
-      tblProps.remove("shark.cache.storageLevel")
-      tblProps.remove("shark.cache.unifyView")
-      // Refresh the Hive `db`/metastore.
-      db.alterTable(tableName, hiveTable)
-      // Reset SerDes if the table is partitioned.
-      sharkTable match {
-        case partitionedTable: PartitionedMemoryTable => {
-          for ((hiveKeyStr, serDeName) <- partitionedTable.keyToDiskSerDes) {
-            logInfo("Setting SerDe for table %s(partition %s) back to %s.".
-              format(tableName, hiveKeyStr, serDeName))
-            val partitionSpec = MemoryMetadataManager.parseHivePartitionKeyStr(hiveKeyStr)
-            HiveUtils.alterSerdeInHive(
-              databaseName,
-              tableName,
-              Some(partitionSpec),
-              serDeName,
-              conf)
-          }
-        }
-        case memoryTable: MemoryTable => Unit
+    for (sharkTable <- _keyToTable.values) {
+      if (sharkTable.unifyView) {
+        resetUnifiedViewProperties(
+          db,
+          sharkTable.databaseName,
+          sharkTable.tableName,
+          sharkTable.diskSerDe,
+          sharkTable.reloadOnRestart)
+      } else {
+        // Drop everything else
+        HiveUtils.dropTableInHive(sharkTable.tableName, db.getConf)
       }
     }
   }
+
+  /**
+   * Drops a unified view from the Shark cache. The table is still backed by disk and its metadata
+   * can be accessible from the Hive metastore.
+   */
+  def dropUnifiedView(
+      db: Hive,
+      databaseName: String,
+      tableName: String,
+      preserveRecoveryProps: Boolean = false) {
+    getTable(databaseName, tableName).foreach { sharkTable =>
+      // Reset Shark table properties (e.g, reset the SerDe).
+      resetUnifiedViewProperties(
+        db,
+        databaseName,
+        tableName,
+        sharkTable.diskSerDe,
+        preserveRecoveryProps)
+      // Unpersist the table from memory.
+      removeTable(databaseName, tableName)
+    }
+  }
+
+  /**
+   * Resets SerDe properties for unified table to the ones used for deserializing reads.
+   * If `preserveRecoveryProps` is true, then Shark properties needed for table recovery won't be
+   * removed.
+   * After this method completes, unified views, upon a Shark server restart, can be loaded into
+   * the cache automatically or read from disk (indiscernible from Hive tables).
+   */
+  def resetUnifiedViewProperties(
+      db: Hive,
+      databaseName: String,
+      tableName: String,
+      diskSerDe: String,
+      preserveRecoveryProps: Boolean) {
+    val conf = db.getConf
+    logInfo("Setting SerDe for table %s back to %s.".format(tableName, diskSerDe))
+    HiveUtils.alterSerdeInHive(
+      databaseName,
+      tableName,
+      None /* partitionSpecOpt */,
+      diskSerDe,
+      conf)
+    // Remove all Shark related table properties from the Hive table metadata.
+    val hiveTable = db.getTable(databaseName, tableName)
+    SharkTblProperties.removeSharkProperties(hiveTable.getParameters, preserveRecoveryProps)
+    // Refresh the Hive `db`.
+    db.alterTable(tableName, hiveTable)
+    // Reset SerDes if the table is partitioned.
+    getTable(databaseName, tableName) match {
+      case partitionedTable: PartitionedMemoryTable => {
+        for ((hiveKeyStr, serDeName) <- partitionedTable.keyToDiskSerDes) {
+          logInfo("Setting SerDe for table %s(partition %s) back to %s.".
+            format(tableName, hiveKeyStr, serDeName))
+          val partitionSpec = MemoryMetadataManager.parseHivePartitionKeyStr(hiveKeyStr)
+          HiveUtils.alterSerdeInHive(
+            databaseName,
+            tableName,
+            Some(partitionSpec),
+            serDeName,
+            conf)
+        }
+      }
+      case _ => Unit
+    }
+  }
+
 
   private def makeTableKey(databaseName: String, tableName: String): String = {
     (databaseName + '.' + tableName).toLowerCase
@@ -276,7 +317,7 @@ object MemoryMetadataManager {
   /** Return a StorageLevel corresponding to its String name. */
   def getStorageLevelFromString(s: String): StorageLevel = {
     if (s == null || s == "") {
-      getStorageLevelFromString(SharkConfVars.STORAGE_LEVEL.defaultVal)
+      getStorageLevelFromString(SharkTblProperties.STORAGE_LEVEL.defaultVal)
     } else {
       s.toUpperCase match {
         case "NONE" => StorageLevel.NONE

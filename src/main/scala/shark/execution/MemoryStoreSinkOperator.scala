@@ -203,7 +203,12 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       // Create a new MemoryTable entry if one doesn't exist (i.e., this operator is for a CTAS).
       val memoryTable = SharkEnv.memoryMetadataManager.getMemoryTable(databaseName, tableName)
         .getOrElse(SharkEnv.memoryMetadataManager.createMemoryTable(
-          databaseName, tableName, cacheMode, storageLevel, unifyView = false))
+          databaseName,
+          tableName,
+          cacheMode,
+          storageLevel,
+          unifyView = false,
+          reloadOnRestart = false))
       memoryTable.tableRDD = outputRDD
     }
 
