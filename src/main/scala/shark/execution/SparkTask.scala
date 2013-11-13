@@ -32,7 +32,7 @@ import org.apache.hadoop.hive.ql.session.SessionState
 
 import org.apache.spark.rdd.RDD
 
-import shark.api.RowRDD
+import shark.api.TableRDD
 import shark.{LogHelper, SharkEnv}
 
 
@@ -49,9 +49,9 @@ extends java.io.Serializable
 private[shark]
 class SparkTask extends HiveTask[SparkWork] with Serializable with LogHelper {
 
-  private var _tableRdd: Option[RowRDD] = None
+  private var _tableRdd: Option[TableRDD] = None
 
-  def tableRdd: Option[RowRDD] = _tableRdd
+  def tableRdd: Option[TableRDD] = _tableRdd
 
   override def execute(driverContext: DriverContext): Int = {
     logDebug("Executing " + this.getClass.getName)
@@ -104,7 +104,7 @@ class SparkTask extends HiveTask[SparkWork] with Serializable with LogHelper {
     }
 
     if (terminalOp.isInstanceOf[TableRddSinkOperator]) {
-      _tableRdd = Some(new RowRDD(sinkRdd, work.resultSchema, terminalOp.objectInspector, limit))
+      _tableRdd = Some(new TableRDD(sinkRdd, work.resultSchema, terminalOp.objectInspector, limit))
     }
 
     0

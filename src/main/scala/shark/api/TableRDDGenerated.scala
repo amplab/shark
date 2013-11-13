@@ -20,7 +20,7 @@ package shark.api
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{TaskContext, Partition}
 
-class TableSeqRDD(prev: RowRDD)
+class TableSeqRDD(prev: TableRDD)
   extends RDD[Seq[Any]](prev) {
 
   def getSchema = prev.schema
@@ -34,7 +34,7 @@ class TableSeqRDD(prev: RowRDD)
   }
 }
 
-class TableRDD1[T1](prev: RowRDD)
+class TableRDD1[T1](prev: TableRDD)
   extends RDD[Tuple1[T1]](prev) {
 
   def getSchema = prev.schema
@@ -53,7 +53,7 @@ class TableRDD1[T1](prev: RowRDD)
   }
 }
 
-class TableRDD2[T1, T2](prev: RowRDD,
+class TableRDD2[T1, T2](prev: TableRDD,
                         mans: Seq[ClassManifest[_]])
   extends RDD[Tuple2[T1, T2]](prev) {
   def schema = prev.schema
@@ -76,7 +76,7 @@ class TableRDD2[T1, T2](prev: RowRDD,
   }
 }
 
-class TableRDD3[T1, T2, T3](prev: RowRDD,
+class TableRDD3[T1, T2, T3](prev: TableRDD,
                             mans: Seq[ClassManifest[_]])
   extends RDD[Tuple3[T1, T2, T3]](prev) {
   def schema = prev.schema
@@ -100,7 +100,7 @@ class TableRDD3[T1, T2, T3](prev: RowRDD,
   }
 }
 
-class TableRDD4[T1, T2, T3, T4](prev: RowRDD,
+class TableRDD4[T1, T2, T3, T4](prev: TableRDD,
                                 mans: Seq[ClassManifest[_]])
   extends RDD[Tuple4[T1, T2, T3, T4]](prev) {
   def schema = prev.schema
@@ -124,7 +124,7 @@ class TableRDD4[T1, T2, T3, T4](prev: RowRDD,
   }
 }
 
-class TableRDD5[T1, T2, T3, T4, T5](prev: RowRDD,
+class TableRDD5[T1, T2, T3, T4, T5](prev: TableRDD,
                                     mans: Seq[ClassManifest[_]])
   extends RDD[Tuple5[T1, T2, T3, T4, T5]](prev) {
   def schema = prev.schema
@@ -148,7 +148,7 @@ class TableRDD5[T1, T2, T3, T4, T5](prev: RowRDD,
   }
 }
 
-class TableRDD6[T1, T2, T3, T4, T5, T6](prev: RowRDD,
+class TableRDD6[T1, T2, T3, T4, T5, T6](prev: TableRDD,
                                         mans: Seq[ClassManifest[_]])
   extends RDD[Tuple6[T1, T2, T3, T4, T5, T6]](prev) {
   def schema = prev.schema
@@ -173,7 +173,7 @@ class TableRDD6[T1, T2, T3, T4, T5, T6](prev: RowRDD,
   }
 }
 
-class TableRDD7[T1, T2, T3, T4, T5, T6, T7](prev: RowRDD,
+class TableRDD7[T1, T2, T3, T4, T5, T6, T7](prev: TableRDD,
                                             mans: Seq[ClassManifest[_]])
   extends RDD[Tuple7[T1, T2, T3, T4, T5, T6, T7]](prev) {
   def schema = prev.schema
@@ -198,7 +198,7 @@ class TableRDD7[T1, T2, T3, T4, T5, T6, T7](prev: RowRDD,
   }
 }
 
-class TableRDD8[T1, T2, T3, T4, T5, T6, T7, T8](prev: RowRDD,
+class TableRDD8[T1, T2, T3, T4, T5, T6, T7, T8](prev: TableRDD,
                                                 mans: Seq[ClassManifest[_]])
   extends RDD[Tuple8[T1, T2, T3, T4, T5, T6, T7, T8]](prev) {
   def schema = prev.schema
@@ -223,7 +223,7 @@ class TableRDD8[T1, T2, T3, T4, T5, T6, T7, T8](prev: RowRDD,
   }
 }
 
-class TableRDD9[T1, T2, T3, T4, T5, T6, T7, T8, T9](prev: RowRDD,
+class TableRDD9[T1, T2, T3, T4, T5, T6, T7, T8, T9](prev: TableRDD,
                                                     mans: Seq[ClassManifest[_]])
   extends RDD[Tuple9[T1, T2, T3, T4, T5, T6, T7, T8, T9]](prev) {
   def schema = prev.schema
@@ -249,7 +249,7 @@ class TableRDD9[T1, T2, T3, T4, T5, T6, T7, T8, T9](prev: RowRDD,
   }
 }
 
-class TableRDD10[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10](prev: RowRDD,
+class TableRDD10[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10](prev: TableRDD,
                                                           mans: Seq[ClassManifest[_]])
   extends RDD[Tuple10[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10]](prev) {
   def schema = prev.schema
@@ -275,7 +275,7 @@ class TableRDD10[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10](prev: RowRDD,
   }
 }
 
-class TableRDD11[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11](prev: RowRDD,
+class TableRDD11[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11](prev: TableRDD,
                                                                mans: Seq[ClassManifest[_]])
   extends RDD[Tuple11[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11]](prev) {
   def schema = prev.schema
@@ -301,7 +301,7 @@ class TableRDD11[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11](prev: RowRDD,
   }
 }
 
-class TableRDD12[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12](prev: RowRDD,
+class TableRDD12[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12](prev: TableRDD,
                                                                     mans: Seq[ClassManifest[_]])
   extends RDD[Tuple12[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12]](prev) {
   def schema = prev.schema
@@ -328,7 +328,7 @@ class TableRDD12[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12](prev: RowRDD
   }
 }
 
-class TableRDD13[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13](prev: RowRDD,
+class TableRDD13[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13](prev: TableRDD,
                                                                          mans: Seq[ClassManifest[_]])
   extends RDD[Tuple13[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13]](prev) {
   def schema = prev.schema
@@ -355,7 +355,7 @@ class TableRDD13[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13](prev: R
   }
 }
 
-class TableRDD14[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14](prev: RowRDD,
+class TableRDD14[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14](prev: TableRDD,
                                                                               mans: Seq[ClassManifest[_]])
   extends RDD[Tuple14[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14]](prev) {
   def schema = prev.schema
@@ -382,7 +382,7 @@ class TableRDD14[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14](pr
   }
 }
 
-class TableRDD15[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15](prev: RowRDD,
+class TableRDD15[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15](prev: TableRDD,
                                                                                    mans: Seq[ClassManifest[_]])
   extends RDD[Tuple15[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15]](prev) {
   def schema = prev.schema
@@ -410,7 +410,7 @@ class TableRDD15[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T1
   }
 }
 
-class TableRDD16[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16](prev: RowRDD,
+class TableRDD16[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16](prev: TableRDD,
                                                                                         mans: Seq[ClassManifest[_]])
   extends RDD[Tuple16[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16]](prev) {
   def schema = prev.schema
@@ -438,7 +438,7 @@ class TableRDD16[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T1
   }
 }
 
-class TableRDD17[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17](prev: RowRDD,
+class TableRDD17[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17](prev: TableRDD,
                                                                                              mans: Seq[ClassManifest[_]])
   extends RDD[Tuple17[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17]](prev) {
   def schema = prev.schema
@@ -466,7 +466,7 @@ class TableRDD17[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T1
   }
 }
 
-class TableRDD18[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18](prev: RowRDD,
+class TableRDD18[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18](prev: TableRDD,
                                                                                                   mans: Seq[ClassManifest[_]])
   extends RDD[Tuple18[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18]](prev) {
   def schema = prev.schema
@@ -496,7 +496,7 @@ class TableRDD18[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T1
 }
 
 class TableRDD19[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18,
-T19](prev: RowRDD,
+T19](prev: TableRDD,
      mans: Seq[ClassManifest[_]])
   extends RDD[Tuple19[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18,
     T19]](prev) {
@@ -529,7 +529,7 @@ T19](prev: RowRDD,
 }
 
 class TableRDD20[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18,
-T19, T20](prev: RowRDD,
+T19, T20](prev: TableRDD,
           mans: Seq[ClassManifest[_]])
   extends RDD[Tuple20[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18,
     T19, T20]](prev) {
@@ -562,7 +562,7 @@ T19, T20](prev: RowRDD,
 }
 
 class TableRDD21[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18,
-T19, T20, T21](prev: RowRDD,
+T19, T20, T21](prev: TableRDD,
                mans: Seq[ClassManifest[_]])
   extends RDD[Tuple21[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18,
     T19, T20, T21]](prev) {
@@ -596,7 +596,7 @@ T19, T20, T21](prev: RowRDD,
 }
 
 class TableRDD22[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18,
-T19, T20, T21, T22](prev: RowRDD,
+T19, T20, T21, T22](prev: TableRDD,
                     mans: Seq[ClassManifest[_]])
   extends RDD[Tuple22[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18,
     T19, T20, T21, T22]](prev) {

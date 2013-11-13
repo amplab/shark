@@ -27,7 +27,7 @@ import shark.execution.serialization.KryoSerializer
 import org.apache.spark.{Partition, TaskContext}
 import org.apache.spark.rdd.RDD
 
-class RowRDD(
+class TableRDD(
     prev: RDD[Any],
     val schema: Array[ColumnDesc],
     @transient oi: ObjectInspector,

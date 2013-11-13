@@ -834,9 +834,9 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   test("sql2rdd") {
-    var rdd = sc.sqlRowRdd("select * from test")
+    var rdd = sc.sql2rdd("select * from test")
     assert(rdd.count === 500)
-    rdd = sc.sqlRowRdd("select * from test_cached")
+    rdd = sc.sql2rdd("select * from test_cached")
     assert(rdd.count === 500)
     val collected = rdd.map(r => r.getInt(0)).collect().sortWith(_ < _)
     assert(collected(0) === 0)
@@ -845,7 +845,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   test("null values in sql2rdd") {
-    val nullsRdd = sc.sqlRowRdd("select * from test_null where key is null")
+    val nullsRdd = sc.sql2rdd("select * from test_null where key is null")
     val nulls = nullsRdd.map(r => r.getInt(0)).collect()
     assert(nulls(0) === null)
     assert(nulls.size === 10)
@@ -857,7 +857,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   test("sql2rdd exception") {
-    val e = intercept[QueryExecutionException] { sc.sqlRowRdd("asdfasdfasdfasdf") }
+    val e = intercept[QueryExecutionException] { sc.sql2rdd("asdfasdfasdfasdf") }
     e.getMessage.contains("semantic")
   }
 }

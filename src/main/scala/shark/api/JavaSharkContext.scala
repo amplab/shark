@@ -78,7 +78,7 @@ class JavaSharkContext(val sharkCtx: SharkContext) extends JavaSparkContext(shar
    * Execute the command and return the results as a TableRDD.
    */
   def sql2rdd(cmd: String): JavaTableRDD = {
-    val rdd = sharkCtx.sqlRowRdd(cmd)
+    val rdd = sharkCtx.sql2rdd(cmd)
     new JavaTableRDD(rdd, rdd.schema)
   }
 
