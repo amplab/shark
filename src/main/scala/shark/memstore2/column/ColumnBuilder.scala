@@ -23,8 +23,10 @@ import java.nio.ByteOrder
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
+import org.apache.hadoop.hive.serde2.objectinspector.StructField
 
 import shark.LogHelper
+import shark.memstore2.column
 
 trait ColumnBuilder[T] {
 
@@ -34,6 +36,7 @@ trait ColumnBuilder[T] {
 
   private var _buffer: ByteBuffer = _
   private var _initialSize: Int = _
+  var columnName: String = _
 
   def append(o: Object, oi: ObjectInspector) {
     val v = t.get(o, oi)
@@ -56,7 +59,8 @@ trait ColumnBuilder[T] {
    * Initialize with an approximate lower bound on the expected number
    * of elements in this column.
    */
-  def initialize(initialSize: Int): ByteBuffer = {
+  def initialize(initialSize: Int, colName: String = ""): ByteBuffer = {
+    columnName = colName
     _initialSize = if(initialSize == 0) 1024*1024*10 else initialSize
     _buffer = ByteBuffer.allocate(_initialSize*t.defaultSize + 4 + 4)
     _buffer.order(ByteOrder.nativeOrder())
@@ -109,16 +113,23 @@ trait CompressedColumnBuilder[T] extends ColumnBuilder[T] with LogHelper {
   override def build() = {
     val b = super.build()
 
+    import shark.memstore2.column.Implicits._
+
     if (compressionSchemes.isEmpty) {
-      logInfo("Compression scheme chosen is -1 - no compression")
+      val strType: String = scheme.compressionType
+      logInfo("Compression scheme chosen for [%s] is %s - no compression".
+        format(columnName, strType))
       new NoCompression().compress(b, t)
     } else {
       val candidateScheme = scheme.compressionType match {
         case DefaultCompressionType => compressionSchemes.minBy(_.compressionRatio)
         case _ => scheme
       }
-      logInfo("Compression scheme chosen is %d with ratio %f".
-        format(candidateScheme.compressionType.typeID, candidateScheme.compressionRatio))
+
+      val strType: String = candidateScheme.compressionType
+      logInfo("Compression scheme chosen for [%s] is %s with ratio %f".
+        format(columnName, strType,
+          candidateScheme.compressionRatio))
       if (shouldApply(candidateScheme)) {
         candidateScheme.compress(b, t)
       } else {
@@ -131,8 +142,9 @@ trait CompressedColumnBuilder[T] extends ColumnBuilder[T] with LogHelper {
 
 object ColumnBuilder {
 
-  def create(columnOi: ObjectInspector, shouldCompress: Boolean = true): ColumnBuilder[_] = {
+  def create(structField: StructField, shouldCompress: Boolean = true): ColumnBuilder[_] = {
     var bde: CompressionAlgorithm = null
+    val columnOi = structField.getFieldObjectInspector
 
     val v = columnOi.getCategory match {
       case ObjectInspector.Category.PRIMITIVE => {

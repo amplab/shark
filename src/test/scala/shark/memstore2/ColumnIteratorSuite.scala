@@ -36,7 +36,7 @@ class ColumnIteratorSuite extends FunSuite {
 
   test("void column") {
     val builder = new VoidColumnBuilder
-    builder.initialize(5)
+    builder.initialize(5, "void")
     builder.append(null, null)
     builder.append(null, null)
     builder.append(null, null)
@@ -385,7 +385,7 @@ class ColumnIteratorSuite extends FunSuite {
     expectEWAHWrapper: Boolean = false,
     compareFunc: (Object, Object) => Boolean = (a, b) => a == b) {
 
-    builder.initialize(testData.size)
+    builder.initialize(testData.size, "")
     testData.foreach { x => builder.append(x, oi)}
     val buf = builder.build()
 

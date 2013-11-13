@@ -9,6 +9,10 @@ v is build number
 
 Release Notes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Version 0.8.0.2.2
+	log column names and schemes during cache table creation.
+Version 0.8.0.2.1
+	include new spark version with fix to handle status messages from unknown executors
 Version 0.8.0.2.0
 	Three more compression techniques now available for columns.
 Version 0.8.0.1.3
