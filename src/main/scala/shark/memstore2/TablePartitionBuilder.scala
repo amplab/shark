@@ -18,37 +18,32 @@
 package shark.memstore2
 
 import java.io.{DataInput, DataOutput}
-import java.nio.ByteBuffer
 import java.util.{List => JList}
-import org.apache.hadoop.hive.serde2.objectinspector.{StructField, StructObjectInspector}
+
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.StructField
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 import org.apache.hadoop.io.Writable
-import shark.memstore2.column._
+
+import shark.memstore2.column.ColumnBuilder
 
 
 /**
  * Used to build a TablePartition. This is used in the serializer to convert a
  * partition of data into columnar format and to generate a TablePartition.
  */
-class TablePartitionBuilder(oi: StructObjectInspector, initialColumnSize: Int,
-                            columnarComprString: String, columnarComprInt: String)
+class TablePartitionBuilder(
+    oi: StructObjectInspector,
+    initialColumnSize: Int,
+    shouldCompress: Boolean = true)
   extends Writable {
 
   var numRows: Long = 0
   val fields: JList[_ <: StructField] = oi.getAllStructFieldRefs
 
   val columnBuilders = Array.tabulate[ColumnBuilder[_]](fields.size) { i =>
-    val columnBuilder = ColumnBuilder.create(fields.get(i).getFieldObjectInspector)
-
-    columnBuilder match {
-      case _: StringColumnBuilder => 
-        columnBuilder.scheme = CompressionScheme.withName(columnarComprString.capitalize)
-      case _: IntColumnBuilder    => 
-        columnBuilder.scheme = CompressionScheme.withName(columnarComprInt.capitalize)
-      case _ => // Do nothing - "Column type does not support compression - TablePartitionBuilder"
-    }
-
-    columnBuilder.initialize(initialColumnSize)
+    val columnBuilder = ColumnBuilder.create(fields.get(i), shouldCompress)
+    columnBuilder.initialize(initialColumnSize, fields.get(i).getFieldName)
     columnBuilder
   }
 

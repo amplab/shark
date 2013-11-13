@@ -17,8 +17,7 @@
 
 package shark.api
 
-import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
-import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector._
 import org.apache.hadoop.hive.serde2.objectinspector.primitive._
 
 
@@ -34,8 +33,22 @@ class Row(val rawdata: Any, val colname2indexMap: Map[String, Int], val oi: Stru
   def apply(field: Int): Object = {
     val ref = oi.getAllStructFieldRefs.get(field)
     val data = oi.getStructFieldData(rawdata, ref)
-    ref.getFieldObjectInspector.asInstanceOf[PrimitiveObjectInspector].getPrimitiveJavaObject(data)
+
+    ref.getFieldObjectInspector match {
+      case poi: PrimitiveObjectInspector => poi.getPrimitiveJavaObject(data)
+      case loi: ListObjectInspector => loi.getList(data)
+      case moi: MapObjectInspector => moi.getMap(data)
+      case soi: StructObjectInspector => soi.getStructFieldsDataAsList(data)
+    }
   }
+
+  def get(field: String) = apply(field)
+
+  def get(field: Int) = apply(field)
+
+  /////////////////////////////////////////////////////////////////////////////////////////////////
+  // Primitive types
+  /////////////////////////////////////////////////////////////////////////////////////////////////
 
   def getBoolean(field: String): java.lang.Boolean = getBoolean(colname2indexMap(field))
 
@@ -55,64 +68,64 @@ class Row(val rawdata: Any, val colname2indexMap: Map[String, Int], val oi: Stru
 
   def getTimestamp(field: String): java.sql.Timestamp = getTimestamp(colname2indexMap(field))
 
+  def getPrimitive(field: String): Object = getPrimitive(colname2indexMap(field))
+
   def getBoolean(field: Int): java.lang.Boolean = {
-    val ref = oi.getAllStructFieldRefs.get(field)
-    val data = oi.getStructFieldData(rawdata, ref)
-    val foi = ref.getFieldObjectInspector.asInstanceOf[BooleanObjectInspector]
-    foi.getPrimitiveJavaObject(data).asInstanceOf[java.lang.Boolean]
+    getPrimitive(field).asInstanceOf[java.lang.Boolean]
   }
 
-  def getByte(field: Int): java.lang.Byte = {
-    val ref = oi.getAllStructFieldRefs.get(field)
-    val data = oi.getStructFieldData(rawdata, ref)
-    val foi = ref.getFieldObjectInspector.asInstanceOf[ByteObjectInspector]
-    foi.getPrimitiveJavaObject(data).asInstanceOf[java.lang.Byte]
-  }
+  def getByte(field: Int): java.lang.Byte = getPrimitive(field).asInstanceOf[java.lang.Byte]
 
-  def getDouble(field: Int): java.lang.Double = {
-    val ref = oi.getAllStructFieldRefs.get(field)
-    val data = oi.getStructFieldData(rawdata, ref)
-    val foi = ref.getFieldObjectInspector.asInstanceOf[DoubleObjectInspector]
-    foi.getPrimitiveJavaObject(data).asInstanceOf[java.lang.Double]
-  }
+  def getDouble(field: Int): java.lang.Double = getPrimitive(field).asInstanceOf[java.lang.Double]
 
-  def getFloat(field: Int): java.lang.Float = {
-    val ref = oi.getAllStructFieldRefs.get(field)
-    val data = oi.getStructFieldData(rawdata, ref)
-    val foi = ref.getFieldObjectInspector.asInstanceOf[FloatObjectInspector]
-    foi.getPrimitiveJavaObject(data).asInstanceOf[java.lang.Float]
-  }
+  def getFloat(field: Int): java.lang.Float = getPrimitive(field).asInstanceOf[java.lang.Float]
 
-  def getInt(field: Int): java.lang.Integer = {
-    val ref = oi.getAllStructFieldRefs.get(field)
-    val data = oi.getStructFieldData(rawdata, ref)
-    val foi = ref.getFieldObjectInspector.asInstanceOf[IntObjectInspector]
-    foi.getPrimitiveJavaObject(data).asInstanceOf[java.lang.Integer]
-  }
+  def getInt(field: Int): java.lang.Integer = getPrimitive(field).asInstanceOf[java.lang.Integer]
 
-  def getLong(field: Int): java.lang.Long = {
-    val ref = oi.getAllStructFieldRefs.get(field)
-    val data = oi.getStructFieldData(rawdata, ref)
-    val foi = ref.getFieldObjectInspector.asInstanceOf[LongObjectInspector]
-    foi.getPrimitiveJavaObject(data).asInstanceOf[java.lang.Long]
-  }
+  def getLong(field: Int): java.lang.Long = getPrimitive(field).asInstanceOf[java.lang.Long]
 
-  def getShort(field: Int): java.lang.Short = {
-    val ref = oi.getAllStructFieldRefs.get(field)
-    val data = oi.getStructFieldData(rawdata, ref)
-    val foi = ref.getFieldObjectInspector.asInstanceOf[ShortObjectInspector]
-    foi.getPrimitiveJavaObject(data).asInstanceOf[java.lang.Short]
-  }
+  def getShort(field: Int): java.lang.Short = getPrimitive(field).asInstanceOf[java.lang.Short]
 
-  def getString(field: Int): String = {
-    val ref = oi.getAllStructFieldRefs.get(field)
-    val data = oi.getStructFieldData(rawdata, ref)
-    ref.getFieldObjectInspector.asInstanceOf[StringObjectInspector].getPrimitiveJavaObject(data)
-  }
+  def getString(field: Int): String = getPrimitive(field).asInstanceOf[String]
 
   def getTimestamp(field: Int): java.sql.Timestamp = {
+    getPrimitive(field).asInstanceOf[java.sql.Timestamp]
+  }
+
+  def getPrimitive(field: Int): Object = {
     val ref = oi.getAllStructFieldRefs.get(field)
     val data = oi.getStructFieldData(rawdata, ref)
-    ref.getFieldObjectInspector.asInstanceOf[TimestampObjectInspector].getPrimitiveJavaObject(data)
+    ref.getFieldObjectInspector.asInstanceOf[PrimitiveObjectInspector].getPrimitiveJavaObject(data)
+  }
+
+  /////////////////////////////////////////////////////////////////////////////////////////////////
+  // Complex data types
+  // rxin: I am not sure how useful these APIs are since they would expose the Hive internal
+  // data structure. For example, in the case of an array of strings, getList would actually
+  // return a List of LazyString.
+  /////////////////////////////////////////////////////////////////////////////////////////////////
+
+  def getList(field: String): java.util.List[_] = getList(colname2indexMap(field))
+
+  def getMap(field: String): java.util.Map[_, _] = getMap(colname2indexMap(field))
+
+  def getStruct(field: String): java.util.List[Object] = getStruct(colname2indexMap(field))
+
+  def getList(field: Int): java.util.List[_] = {
+    val ref = oi.getAllStructFieldRefs.get(field)
+    val data = oi.getStructFieldData(rawdata, ref)
+    ref.getFieldObjectInspector.asInstanceOf[ListObjectInspector].getList(data)
+  }
+
+  def getMap(field: Int): java.util.Map[_, _] = {
+    val ref = oi.getAllStructFieldRefs.get(field)
+    val data = oi.getStructFieldData(rawdata, ref)
+    ref.getFieldObjectInspector.asInstanceOf[MapObjectInspector].getMap(data)
+  }
+
+  def getStruct(field: Int): java.util.List[Object] = {
+    val ref = oi.getAllStructFieldRefs.get(field)
+    val data = oi.getStructFieldData(rawdata, ref)
+    ref.getFieldObjectInspector.asInstanceOf[StructObjectInspector].getStructFieldsDataAsList(data)
   }
 }

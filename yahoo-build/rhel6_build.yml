@@ -1,0 +1,9 @@
+rule_type: Yidf
+inputs:
+ - ./rhel6_build.yidf
+
+outputs: 
+ - legacy
+
+targets:
+ - rhel6_build

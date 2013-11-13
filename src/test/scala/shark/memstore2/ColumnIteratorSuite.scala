@@ -17,57 +17,40 @@
 
 package shark.memstore2
 
-import it.unimi.dsi.fastutil.ints.IntArrayList
-import java.sql.Timestamp
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
-
-import org.apache.hadoop.hive.serde2.io.ByteWritable
-import org.apache.hadoop.hive.serde2.io.DoubleWritable
-import org.apache.hadoop.hive.serde2.io.ShortWritable
 import org.apache.hadoop.hive.serde2.`lazy`.ByteArrayRef
-import org.apache.hadoop.hive.serde2.`lazy`.LazyBinary
-import org.apache.hadoop.hive.serde2.`lazy`.LazyFactory
-import org.apache.hadoop.hive.serde2.`lazy`.objectinspector.primitive.LazyPrimitiveObjectInspectorFactory
-import org.apache.hadoop.hive.serde2.lazybinary.LazyBinaryBinary
-import org.apache.hadoop.hive.serde2.objectinspector.ConstantObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive._
 import org.apache.hadoop.io._
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 
 import org.scalatest.FunSuite
-import collection.mutable.{Set, HashSet, ListBuffer}
 
-import shark.memstore2.buffer.ByteBufferReader
 import shark.memstore2.column._
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
+import shark.memstore2.column.Implicits._
+import java.nio.ByteOrder
 
 
 class ColumnIteratorSuite extends FunSuite {
 
   val PARALLEL_MODE = true
 
-
   test("void column") {
     val builder = new VoidColumnBuilder
-    builder.initialize(5)
+    builder.initialize(5, "void")
     builder.append(null, null)
-    builder.appendNull()
     builder.append(null, null)
-    val buf = builder.build
+    builder.append(null, null)
+    val buf = builder.build()
 
-    val bufreader = ByteBufferReader.createUnsafeReader(buf)
-    val columnType = bufreader.getLong().toInt
+    val iter = ColumnIterator.newIterator(buf)
 
-    val factory = ColumnIterator.getFactory(columnType)
-    assert(factory.createIterator(bufreader).getClass === classOf[VoidColumnIterator.Default])
-
-
-    val iter = new VoidColumnIterator.Default(ByteBufferReader.createUnsafeReader(buf))
     iter.next()
-    assert(iter.current == NullWritable.get())
+
+    assert(iter.current == null)
     iter.next()
-    assert(iter.current == NullWritable.get())
+    assert(iter.current == null)
     iter.next()
-    assert(iter.current == NullWritable.get())
+    assert(iter.current == null)
   }
 
   test("boolean column") {
@@ -75,349 +58,258 @@ class ColumnIteratorSuite extends FunSuite {
     testColumn(
       Array[java.lang.Boolean](true, false, true, true, true),
       builder,
+      PrimitiveObjectInspectorFactory.javaBooleanObjectInspector,
       PrimitiveObjectInspectorFactory.writableBooleanObjectInspector,
-      classOf[BooleanColumnIterator.Default])
+      classOf[BooleanColumnIterator])
     assert(builder.stats.min === false)
     assert(builder.stats.max === true)
 
+    builder = new BooleanColumnBuilder
     testColumn(
       Array[java.lang.Boolean](null, false, null, true, true),
       builder,
+      PrimitiveObjectInspectorFactory.javaBooleanObjectInspector,
       PrimitiveObjectInspectorFactory.writableBooleanObjectInspector,
-      classOf[BooleanColumnIterator.Default],
+      classOf[BooleanColumnIterator],
       true)
     assert(builder.stats.min === false)
     assert(builder.stats.max === true)
+    
+    builder = new BooleanColumnBuilder
+    builder.compressionSchemes = Seq(new RLE())
+    val a = Array.ofDim[java.lang.Boolean](100)
+    Range(0,100).foreach { i => 
+      a(i) = if (i < 10) true else if (i <80) false else null
+    }
+    testColumn(
+      a,
+      builder,
+      PrimitiveObjectInspectorFactory.javaBooleanObjectInspector,
+      PrimitiveObjectInspectorFactory.writableBooleanObjectInspector,
+      classOf[BooleanColumnIterator],
+      true)
   }
 
   test("byte column") {
-    val builder = new ByteColumnBuilder
+    var builder = new ByteColumnBuilder
     testColumn(
       Array[java.lang.Byte](1.toByte, 2.toByte, 15.toByte, 55.toByte, 0.toByte, 40.toByte),
       builder,
+      PrimitiveObjectInspectorFactory.javaByteObjectInspector,
       PrimitiveObjectInspectorFactory.writableByteObjectInspector,
-      classOf[ByteColumnIterator.Default])
+      classOf[ByteColumnIterator])
     assert(builder.stats.min === 0.toByte)
     assert(builder.stats.max === 55.toByte)
 
+    builder = new ByteColumnBuilder
     testColumn(
       Array[java.lang.Byte](null, 2.toByte, 15.toByte, null, 0.toByte, null),
       builder,
+      PrimitiveObjectInspectorFactory.javaByteObjectInspector,
       PrimitiveObjectInspectorFactory.writableByteObjectInspector,
-      classOf[ByteColumnIterator.Default],
+      classOf[ByteColumnIterator],
       true)
     assert(builder.stats.min === 0.toByte)
     assert(builder.stats.max === 15.toByte)
+    
+    builder = new ByteColumnBuilder
+    builder.compressionSchemes = Seq(new RLE())
+    testColumn(
+      Array[java.lang.Byte](null, 2.toByte, 2.toByte, null, 4.toByte, 4.toByte,4.toByte,5.toByte),
+      builder,
+      PrimitiveObjectInspectorFactory.javaByteObjectInspector,
+      PrimitiveObjectInspectorFactory.writableByteObjectInspector,
+      classOf[ByteColumnIterator],
+      true)
   }
 
   test("short column") {
-    val builder = new ShortColumnBuilder
+    var builder = new ShortColumnBuilder
     testColumn(
       Array[java.lang.Short](1.toShort, 2.toShort, -15.toShort, 355.toShort, 0.toShort, 40.toShort),
       builder,
+      PrimitiveObjectInspectorFactory.javaShortObjectInspector,
       PrimitiveObjectInspectorFactory.writableShortObjectInspector,
-      classOf[ShortColumnIterator.Default])
+      classOf[ShortColumnIterator])
     assert(builder.stats.min === -15.toShort)
     assert(builder.stats.max === 355.toShort)
 
+    builder = new ShortColumnBuilder
     testColumn(
       Array[java.lang.Short](1.toShort, 2.toShort, -15.toShort, null, 0.toShort, null),
       builder,
+      PrimitiveObjectInspectorFactory.javaShortObjectInspector,
       PrimitiveObjectInspectorFactory.writableShortObjectInspector,
-      classOf[ShortColumnIterator.Default],
+      classOf[ShortColumnIterator],
       true)
     assert(builder.stats.min === -15.toShort)
     assert(builder.stats.max === 2.toShort)
-  }
-
-  test("dictionary encoding Int") {
-    val l = List[Int](1,22,30,4)
-    val d = new IntDictionary
-    d.initialize(l.toArray)
-
-    assert(d.get(0) == 1)
-
-    val buf = ByteBuffer.allocate(2048)
-    buf.order(ByteOrder.nativeOrder())
-    buf.putInt(5);
-    buf.rewind
-    assert(5 == buf.getInt())
-    buf.rewind
-
-    DictionarySerializer.writeToBuffer(buf, d)
-    buf.rewind
-
-    val bbr = ByteBufferReader.createUnsafeReader(buf)
-
-    val newd = DictionarySerializer.readFromBuffer(bbr)
-
-    assert(d.get(0) == newd.get(0))
-    assert(d.get(3) == newd.get(3))
-  }
- 
-  test("RLE") {
-
-    def testRLE(l: List[Int]) = {
-      // test batch encode
-      var rle = RLESerializer.encode(l)
-      var rle_decoded = RLESerializer.decode(rle)
-      assert(rle_decoded === l)
-      // test one-at-a-time encode
-      var rleSs = new RLEStreamingSerializer[Int]( { () => -1 } )
-      l.foreach(rleSs.encodeSingle(_))
-      rle_decoded = RLESerializer.decode(rleSs.getCoded)
-      assert(rle_decoded === l)
-    }
-
-    def convertList(l: List[Int]): IntArrayList = {
-      var ret = new IntArrayList(l.size)
-      l.foreach { x => ret.add(x) }
-      ret
-    }
-
-    // no runs
-    testRLE(List[Int](1,22,30,4))
-    // same repeating value
-    testRLE(List[Int](5,5,5))
-    // with runs
-    val l = List[Int](1,22,22,30,4,5,5,5)
-    val runs = List[Int](1,2,1,1,3)
-    val values = List[Int](1,22,30,4,5)
-    testRLE(l)
-
-    // does serializing runs alone work?
-    var buf = ByteBuffer.allocate(2048)
-    buf.order(ByteOrder.nativeOrder())
-
-    RLESerializer.writeToBuffer(buf, convertList(l))
-    buf.rewind
-
-    var bbr = ByteBufferReader.createUnsafeReader(buf)
-    val (numNewl, newl) = RLESerializer.readFromBuffer(bbr)
-    var lb = new ListBuffer[Int]()
-    var j = 0
-    while (j < numNewl) {
-      lb  += newl.getInt()
-      j += 1
-    }
-    assert(lb.toList == l)
-
-    // does layered serialization of runs+values & iterator work?
-    buf.rewind
-    RLESerializer.writeToBuffer(buf, convertList(runs))
-    values.foreach { i =>
-      buf.putInt(i)
-    }
-    buf.rewind
-
-    bbr = ByteBufferReader.createUnsafeReader(buf)
-    var it = new RLEColumnIterator(classOf[IntColumnIterator.Default], bbr)
-    var i = 0
-    while(i < l.size) {
-      it.next
-      val writableOi = PrimitiveObjectInspectorFactory.writableIntObjectInspector
-      assert(l(i) === writableOi.getPrimitiveJavaObject(it.current))
-      i += 1
-    }
-
-    {
-      // and now for strings
-      var l = List[Text](new Text("a"), new Text("b"), new Text("b"), new Text("Abc"))
-      var runs = List[Int](1,2,1)
-      var values = List[Text](new Text("a"), new Text("b"), new Text("Abc"))
-      var rle = RLESerializer.encode(l)
-      var rle_decoded = RLESerializer.decode(rle)
-      assert(rle_decoded == l)
-
-
-      // does serializing work?
-      var buf = ByteBuffer.allocate(204800)
-      buf.order(ByteOrder.nativeOrder())
-
-      RLESerializer.writeToBuffer(buf, convertList(runs))
-      buf.rewind
-
-      var bbr = ByteBufferReader.createUnsafeReader(buf)
-      val (newrunsSize, newruns) = RLESerializer.readFromBuffer(bbr)
-
-      var lb = new ListBuffer[Int]()
-      var j = 0
-      while (j < newrunsSize) {
-        lb  += newruns.getInt()
-        j += 1
-      }
-      assert(lb.toList == runs)
-    }
-
+    
+    testColumn(
+      Array[java.lang.Short](1.toShort, 2.toShort, 2.toShort, null, 1.toShort, 1.toShort),
+      builder,
+      PrimitiveObjectInspectorFactory.javaShortObjectInspector,
+      PrimitiveObjectInspectorFactory.writableShortObjectInspector,
+      classOf[ShortColumnIterator],
+      true)
   }
 
   test("int column") {
-    val builder = new IntColumnBuilder
- 
+    var builder = new IntColumnBuilder
     testColumn(
-      Array[java.lang.Integer]
-        (null, 1, 2, null, 5, 134, -12, null, 0, 99, null, null, null, 1),
+      Array[java.lang.Integer](0, 1, 2, 5, 134, -12, 1, 0, 99, 1),
       builder,
+      PrimitiveObjectInspectorFactory.javaIntObjectInspector,
       PrimitiveObjectInspectorFactory.writableIntObjectInspector,
-      classOf[DictionaryEncodedIntColumnIterator.Default],
+      classOf[IntColumnIterator])
+    assert(builder.stats.min === -12)
+    assert(builder.stats.max === 134)
+
+    builder = new IntColumnBuilder
+    testColumn(
+      Array[java.lang.Integer](null, 1, 2, 5, 134, -12, null, 0, 99, 1),
+      builder,
+      PrimitiveObjectInspectorFactory.javaIntObjectInspector,
+      PrimitiveObjectInspectorFactory.writableIntObjectInspector,
+      classOf[IntColumnIterator],
       true)
     assert(builder.stats.min === -12)
     assert(builder.stats.max === 134)
-
-   testColumn(
-     Array[java.lang.Integer](0, 1, 2, 5, 134, -12, 1, 0, 99, 1),
-     builder,
-     PrimitiveObjectInspectorFactory.writableIntObjectInspector,
-     classOf[DictionaryEncodedIntColumnIterator.Default],
-     false)
-    assert(builder.stats.min === -12)
-    assert(builder.stats.max === 134)
-
-    val repeats = List.fill(20000)(2) 
-    val seqWithRepeats = List.concat(repeats, Range(-100, 100, 1))
-    val seqWRJava : Seq[java.lang.Integer] = for {
-      i <- seqWithRepeats
-    } yield new java.lang.Integer(i)
-
+    
+    builder = new IntColumnBuilder
+    builder.compressionSchemes = Seq(new RLE())
+    val a = Array.ofDim[java.lang.Integer](100)
+    Range(0,100).foreach { i => 
+      a(i) = if (i < 10) 10 else if (i <80) 11 else null
+    }
+    
     testColumn(
-      seqWRJava,
+      a,
       builder,
+      PrimitiveObjectInspectorFactory.javaIntObjectInspector,
       PrimitiveObjectInspectorFactory.writableIntObjectInspector,
-      classOf[DictionaryEncodedIntColumnIterator.Default],
-      false)
-    assert(builder.stats.min === -100)
-    assert(builder.stats.max === 99)
-
-    // too many unique values (>256) - compression should not turn on
-    val list = Range(-300, 300, 1)
-    val seqJava : Seq[java.lang.Integer] = for {
-      i <- list
-    } yield new java.lang.Integer(i)
-
-    testColumn(
-      seqJava,
-      builder,
-      PrimitiveObjectInspectorFactory.writableIntObjectInspector,
-      classOf[IntColumnIterator.Default],
-      false)
-    assert(builder.stats.min === -300)
-    assert(builder.stats.max === 299)
-
-
-    val nulls = List.fill(10000)(null)
-    val seqWithNull = List.concat(nulls, seqJava)
-    assert(seqWithNull.size == 10600)
-
-    testColumn(
-      seqJava,
-      builder,
-      PrimitiveObjectInspectorFactory.writableIntObjectInspector,
-      classOf[IntColumnIterator.Default],
-      false) // TODO - should be EWAH nullable - but cannot get types right for
-             // test to pass
-    assert(builder.stats.min === -300)
-    assert(builder.stats.max === 299)
+      classOf[IntColumnIterator],
+      true)
   }
 
   test("long column") {
-    val builder = new LongColumnBuilder
+    var builder = new LongColumnBuilder
     testColumn(
       Array[java.lang.Long](1L, -345345L, 15L, 0L, 23445456L),
       builder,
+      PrimitiveObjectInspectorFactory.javaLongObjectInspector,
       PrimitiveObjectInspectorFactory.writableLongObjectInspector,
-      classOf[LongColumnIterator.Default])
+      classOf[LongColumnIterator])
     assert(builder.stats.min === -345345L)
     assert(builder.stats.max === 23445456L)
-
+    builder = new LongColumnBuilder
     testColumn(
       Array[java.lang.Long](null, -345345L, 15L, 0L, null),
       builder,
+      PrimitiveObjectInspectorFactory.javaLongObjectInspector,
       PrimitiveObjectInspectorFactory.writableLongObjectInspector,
-      classOf[LongColumnIterator.Default],
+      classOf[LongColumnIterator],
       true)
     assert(builder.stats.min === -345345L)
     assert(builder.stats.max === 15L)
+
+    builder = new LongColumnBuilder
+    builder.compressionSchemes = Seq(new RLE())
+    val a = Array.ofDim[java.lang.Long](100)
+    Range(0,100).foreach { i => 
+      a(i) = if (i < 10) 10 else if (i <80) 11 else null
+    }
+    testColumn(
+      a,
+      builder,
+      PrimitiveObjectInspectorFactory.javaLongObjectInspector,
+      PrimitiveObjectInspectorFactory.writableLongObjectInspector,
+      classOf[LongColumnIterator],
+      true)
   }
 
   test("float column") {
-    val builder = new FloatColumnBuilder
+    var builder = new FloatColumnBuilder
     testColumn(
       Array[java.lang.Float](1.1.toFloat, -2.5.toFloat, 20000.toFloat, 0.toFloat, 15.0.toFloat),
       builder,
+      PrimitiveObjectInspectorFactory.javaFloatObjectInspector,
       PrimitiveObjectInspectorFactory.writableFloatObjectInspector,
-      classOf[FloatColumnIterator.Default])
+      classOf[FloatColumnIterator])
     assert(builder.stats.min === -2.5.toFloat)
     assert(builder.stats.max === 20000.toFloat)
-
+    builder = new FloatColumnBuilder
     testColumn(
       Array[java.lang.Float](1.1.toFloat, null, 20000.toFloat, null, 15.0.toFloat),
       builder,
+      PrimitiveObjectInspectorFactory.javaFloatObjectInspector,
       PrimitiveObjectInspectorFactory.writableFloatObjectInspector,
-      classOf[FloatColumnIterator.Default],
+      classOf[FloatColumnIterator],
       true)
     assert(builder.stats.min === 1.1.toFloat)
     assert(builder.stats.max === 20000.toFloat)
   }
 
   test("double column") {
-    val builder = new DoubleColumnBuilder
+    var builder = new DoubleColumnBuilder
     testColumn(
       Array[java.lang.Double](1.1, 2.2, -2.5, 20000, 0, 15.0),
       builder,
+      PrimitiveObjectInspectorFactory.javaDoubleObjectInspector,
       PrimitiveObjectInspectorFactory.writableDoubleObjectInspector,
-      classOf[DoubleColumnIterator.Default])
+      classOf[DoubleColumnIterator])
     assert(builder.stats.min === -2.5)
     assert(builder.stats.max === 20000)
-
+    builder = new DoubleColumnBuilder
     testColumn(
       Array[java.lang.Double](1.1, 2.2, -2.5, null, 0, 15.0),
       builder,
+      PrimitiveObjectInspectorFactory.javaDoubleObjectInspector,
       PrimitiveObjectInspectorFactory.writableDoubleObjectInspector,
-      classOf[DoubleColumnIterator.Default],
+      classOf[DoubleColumnIterator],
       true)
     assert(builder.stats.min === -2.5)
     assert(builder.stats.max === 15.0)
   }
 
   test("string column") {
-    val builder = new StringColumnBuilder
+    var builder = new StringColumnBuilder
     testColumn(
       Array[Text](new Text("a"), new Text(""), new Text("b"), new Text("Abcdz")),
       builder,
       PrimitiveObjectInspectorFactory.writableStringObjectInspector,
-      classOf[StringColumnIterator.Default],
+      PrimitiveObjectInspectorFactory.writableStringObjectInspector,
+      classOf[StringColumnIterator],
       false,
       (a, b) => (a.equals(b.toString))
     )
     assert(builder.stats.min.toString === "")
     assert(builder.stats.max.toString === "b")
 
+    builder = new StringColumnBuilder
     testColumn(
       Array[Text](new Text("a"), new Text(""), null, new Text("b"), new Text("Abcdz"), null),
       builder,
       PrimitiveObjectInspectorFactory.writableStringObjectInspector,
-      classOf[StringColumnIterator.Default],
+      PrimitiveObjectInspectorFactory.writableStringObjectInspector,
+      classOf[StringColumnIterator],
       false,
-      (a, b) => (a.equals(b.toString))
+      (a, b) => if (a == null) b == null else (a.toString.equals(b.toString))
     )
     assert(builder.stats.min.toString === "")
     assert(builder.stats.max.toString === "b")
-
-    val repeats = List.fill(200)(new Text("zz"))
-    val seqWithRepeats = List.concat(repeats,
-      Array[Text](new Text("a"), new Text(""), null, null, null, new Text("b"), 
-        new Text("Abcdz")))
-    val seqWithRepeatedRepeats = List.concat(repeats, repeats, repeats, repeats)
-
+    
+    builder = new StringColumnBuilder
+    builder.compressionSchemes = Seq(new RLE())
     testColumn(
-      seqWithRepeatedRepeats,
+      Array[Text](new Text("a"), new Text("a"), null, new Text("b"), new Text("b"), new Text("Abcdz")),
       builder,
       PrimitiveObjectInspectorFactory.writableStringObjectInspector,
-      classOf[RLEColumnIterator[StringColumnIterator.Default]],
+      PrimitiveObjectInspectorFactory.writableStringObjectInspector,
+      classOf[StringColumnIterator],
       false,
-      (a, b) => (a.equals(b.toString))
+      (a, b) => if (a == null) b == null else (a.toString.equals(b.toString))
     )
-
   }
 
   test("timestamp column") {
@@ -426,23 +318,26 @@ class ColumnIteratorSuite extends FunSuite {
     ts2.setNanos(400)
     val ts3 = new java.sql.Timestamp(1362561610000L)
 
-    val builder = new TimestampColumnBuilder
+    var builder = new TimestampColumnBuilder
     testColumn(
       Array(ts1, ts2, ts3),
       builder,
+      PrimitiveObjectInspectorFactory.javaTimestampObjectInspector,
       PrimitiveObjectInspectorFactory.writableTimestampObjectInspector,
-      classOf[TimestampColumnIterator.Default],
+      classOf[TimestampColumnIterator],
       false,
       (a, b) => (a.equals(b))
     )
     assert(builder.stats.min.equals(ts1))
     assert(builder.stats.max.equals(ts3))
 
+    builder = new TimestampColumnBuilder
     testColumn(
       Array(ts1, ts2, null, ts3, null),
       builder,
+      PrimitiveObjectInspectorFactory.javaTimestampObjectInspector,
       PrimitiveObjectInspectorFactory.writableTimestampObjectInspector,
-      classOf[TimestampColumnIterator.Default],
+      classOf[TimestampColumnIterator],
       true,
       (a, b) => (a.equals(b))
     )
@@ -450,57 +345,52 @@ class ColumnIteratorSuite extends FunSuite {
     assert(builder.stats.max.equals(ts3))
   }
 
-  test("binary column") {
-    val rowOI = LazyPrimitiveObjectInspectorFactory.LAZY_BINARY_OBJECT_INSPECTOR
-    val binary1 = LazyFactory.createLazyPrimitiveClass(rowOI).asInstanceOf[LazyBinary]
-    val ref1 = new ByteArrayRef
-    val data = Array[Byte](0, 1, 2)
-    ref1.setData(data)
-    binary1.init(ref1, 0, 3)
+  test("Binary Column") {
+    val b1 = new BytesWritable()
+    b1.set(Array[Byte](0,1,2), 0, 3)
 
     val builder = new BinaryColumnBuilder
     testColumn(
-      Array[LazyBinary](binary1),
+      Array[BytesWritable](b1),
       builder,
       PrimitiveObjectInspectorFactory.writableBinaryObjectInspector,
-      classOf[BinaryColumnIterator.Default],
+      PrimitiveObjectInspectorFactory.writableBinaryObjectInspector,
+      classOf[BinaryColumnIterator],
       false,
       compareBinary)
-    assert(builder.stats == null)
+    assert(builder.stats.isInstanceOf[ColumnStats.NoOpStats[_]])
  
     def compareBinary(x: Object, y: Object): Boolean = {
       val xdata = x.asInstanceOf[ByteArrayRef].getData
-      val ydata = y.asInstanceOf[LazyBinary].getWritableObject().getBytes()
-      java.util.Arrays.equals(xdata, ydata)
+      val ywritable = y.asInstanceOf[BytesWritable]
+      val ydata = ywritable.getBytes()
+      val length = ywritable.getLength()
+      if (length != xdata.length) {
+        false
+      } else {
+        val ydatapruned = new Array[Byte](length)
+        System.arraycopy(ydata, 0, ydatapruned, 0, length)
+        java.util.Arrays.equals(xdata, ydatapruned)
+      }
     }
   }
 
+
   def testColumn[T, U <: ColumnIterator](
-    testData: Seq[_ <: Object],
+    testData: Array[_ <: Object],
     builder: ColumnBuilder[T],
+    oi: ObjectInspector,
     writableOi: AbstractPrimitiveWritableObjectInspector,
     iteratorClass: Class[U],
     expectEWAHWrapper: Boolean = false,
     compareFunc: (Object, Object) => Boolean = (a, b) => a == b) {
 
-    builder.initialize(5)
-    testData.foreach { x =>
-      if (x == null) builder.appendNull() else builder.append(x.asInstanceOf[T])
-    }
-    val buf = builder.build
+    builder.initialize(testData.size, "")
+    testData.foreach { x => builder.append(x, oi)}
+    val buf = builder.build()
 
     def executeOneTest() {
-      val bufreader = ByteBufferReader.createUnsafeReader(buf)
-      val columnType = bufreader.getLong().toInt
-
-      val factory = ColumnIterator.getFactory(columnType)
-      val iter = factory.createIterator(bufreader)
-
-      // if (expectEWAHWrapper) {
-      //   assert(iter.getClass === classOf[EWAHNullableColumnIterator[U]])
-      // } else {
-      //   assert(iter.getClass === iteratorClass)
-      // }
+      val iter = ColumnIterator.newIterator(buf)
 
       (0 until testData.size).foreach { i =>
         iter.next()

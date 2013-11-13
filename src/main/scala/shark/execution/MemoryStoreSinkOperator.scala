@@ -18,42 +18,44 @@
 package shark.execution
 
 import java.nio.ByteBuffer
-import java.util.Properties
 
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.BeanProperty
 
 import org.apache.hadoop.io.Writable
 
-import shark.{ SharkConfVars, SharkEnv, SharkEnvSlave, Utils }
-import shark.execution.serialization.{ OperatorSerializationWrapper, JavaSerializer }
+import org.apache.spark.rdd.RDD
+import org.apache.spark.storage.StorageLevel
+
+import shark.{SharkConfVars, SharkEnv}
+import shark.execution.serialization.{OperatorSerializationWrapper, JavaSerializer}
 import shark.memstore2._
 import shark.tachyon.TachyonTableWriter
 
-import spark.{ RDD, TaskContext }
-import spark.SparkContext._
-import spark.storage.StorageLevel
 
 /**
  * Cache the RDD and force evaluate it (so the cache is filled).
  */
 class MemoryStoreSinkOperator extends TerminalOperator {
 
-  @BeanProperty var initialColumnSize: Int = _
+  @BeanProperty var partitionSize: Int = _
+  @BeanProperty var shouldCompress: Boolean = _
   @BeanProperty var storageLevel: StorageLevel = _
-  @BeanProperty var createTableProperties: Properties = new Properties
+  @BeanProperty var tableName: String = _
   @transient var useTachyon: Boolean = _
   @transient var useUnionRDD: Boolean = _
   @transient var numColumns: Int = _
 
   override def initializeOnMaster() {
     super.initializeOnMaster()
-    initialColumnSize = SharkConfVars.getIntVar(localHconf, SharkConfVars.COLUMN_INITIALSIZE)
+    partitionSize = SharkConfVars.getIntVar(localHconf, SharkConfVars.COLUMN_BUILDER_PARTITION_SIZE)
+    shouldCompress = SharkConfVars.getBoolVar(localHconf, SharkConfVars.COLUMNAR_COMPRESSION)
   }
 
   override def initializeOnSlave() {
     super.initializeOnSlave()
-    localHconf.setInt(SharkConfVars.COLUMN_INITIALSIZE.varname, initialColumnSize)
+    localHconf.setInt(SharkConfVars.COLUMN_BUILDER_PARTITION_SIZE.varname, partitionSize)
+    localHconf.setBoolean(SharkConfVars.COLUMNAR_COMPRESSION.varname, shouldCompress)
   }
 
   override def execute(): RDD[_] = {
@@ -61,11 +63,6 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
     val statsAcc = SharkEnv.sc.accumulableCollection(ArrayBuffer[(Int, TablePartitionStats)]())
     val op = OperatorSerializationWrapper(this)
-
-    val tableName = createTableProperties.getProperty("name")
-    if (tableName == null) {
-      throw new RuntimeException("Table name is NULL - table properties - " + createTableProperties)
-    }
 
     val tachyonWriter: TachyonTableWriter =
       if (useTachyon) {
@@ -75,40 +72,28 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         null
       }
 
-    var tableProperties = op.localHiveOp.getConf.getTableInfo.getProperties()
-    if (createTableProperties.get(SharkConfVars.COLUMNAR_COMPR_STRING.varname) != null) {
-      tableProperties.setProperty(SharkConfVars.COLUMNAR_COMPR_STRING.varname,
-        createTableProperties.get(SharkConfVars.COLUMNAR_COMPR_STRING.varname).toString)
-    }
-    if (createTableProperties.get(SharkConfVars.COLUMNAR_COMPR_INT.varname) != null) {
-      tableProperties.setProperty(SharkConfVars.COLUMNAR_COMPR_INT.varname,
-        createTableProperties.get(SharkConfVars.COLUMNAR_COMPR_INT.varname).toString)
-    }
-    op.logInfo("Op Table Properties - " + tableProperties)
-
     // Put all rows of the table into a set of TablePartition's. Each partition contains
     // only one TablePartition object.
-    var rdd: RDD[TablePartition] = inputRdd.mapPartitionsWithIndex {
-      case (partitionIndex, iter) =>
-        op.initializeOnSlave()
-        val serde = new ColumnarSerDe
-        serde.initialize(op.hconf, tableProperties)
+    var rdd: RDD[TablePartition] = inputRdd.mapPartitionsWithIndex { case(partitionIndex, iter) =>
+      op.initializeOnSlave()
+      val serde = new ColumnarSerDe
+      serde.initialize(op.localHconf, op.localHiveOp.getConf.getTableInfo.getProperties)
 
-        // Serialize each row into the builder object.
-        // ColumnarSerDe will return a TablePartitionBuilder.
-        var builder: Writable = null
-        iter.foreach { row =>
-          builder = serde.serialize(row.asInstanceOf[AnyRef], op.objectInspector)
-        }
+      // Serialize each row into the builder object.
+      // ColumnarSerDe will return a TablePartitionBuilder.
+      var builder: Writable = null
+      iter.foreach { row =>
+        builder = serde.serialize(row.asInstanceOf[AnyRef], op.objectInspector)
+      }
 
-        if (builder != null) {
-          statsAcc += Tuple2(partitionIndex, builder.asInstanceOf[TablePartitionBuilder].stats)
-          Iterator(builder.asInstanceOf[TablePartitionBuilder].build)
-        } else {
-          // Empty partition.
-          statsAcc += Tuple2(partitionIndex, new TablePartitionStats(Array(), 0))
-          Iterator(new TablePartition(0, Array()))
-        }
+      if (builder != null) {
+        statsAcc += Tuple2(partitionIndex, builder.asInstanceOf[TablePartitionBuilder].stats)
+        Iterator(builder.asInstanceOf[TablePartitionBuilder].build)
+      } else {
+        // Empty partition.
+        statsAcc += Tuple2(partitionIndex, new TablePartitionStats(Array(), 0))
+        Iterator(new TablePartition(0, Array()))
+      }
     }
 
     if (tachyonWriter != null) {
@@ -118,17 +103,15 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       SharkEnv.memoryMetadataManager.put(tableName, rdd)
 
       tachyonWriter.createTable(ByteBuffer.allocate(0))
-      rdd = rdd.mapPartitionsWithIndex {
-        case (partitionIndex, iter) =>
-          val partition = iter.next()
-          partition.toTachyon.zipWithIndex.foreach {
-            case (buf, column) =>
-              tachyonWriter.writeColumnPartition(column, partitionIndex, buf)
-          }
-          Iterator(partition)
+      rdd = rdd.mapPartitionsWithIndex { case(partitionIndex, iter) =>
+        val partition = iter.next()
+        partition.toTachyon.zipWithIndex.foreach { case(buf, column) =>
+          tachyonWriter.writeColumnPartition(column, partitionIndex, buf)
+        }
+        Iterator(partition)
       }
       // Force evaluate so the data gets put into Tachyon.
-      rdd.foreach(_ => Unit)
+      rdd.context.runJob(rdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
     } else {
       // Put the table in Spark block manager.
       op.logInfo("Putting %sRDD for %s in Spark block manager, %s %s %s %s".format(
@@ -141,13 +124,19 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
       // Force evaluate so the data gets put into Spark block manager.
       rdd.persist(storageLevel)
-      rdd.foreach(_ => Unit)
 
+      val origRdd = rdd
       if (useUnionRDD) {
+        // If this is an insert, find the existing RDD and create a union of the two, and then
+        // put the union into the meta data tracker.
         rdd = rdd.union(
           SharkEnv.memoryMetadataManager.get(tableName).get.asInstanceOf[RDD[TablePartition]])
       }
       SharkEnv.memoryMetadataManager.put(tableName, rdd)
+      rdd.setName(tableName)
+
+      // Run a job on the original RDD to force it to go into cache.
+      origRdd.context.runJob(origRdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
     }
 
     // Report remaining memory.
@@ -164,7 +153,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       Utils.memoryBytesToString(remainingMems.map(_._2._1).sum)))
     */
 
-    var columnStats =
+    val columnStats =
       if (useUnionRDD) {
         // Combine stats for the two tables being combined.
         val numPartitions = statsAcc.value.toMap.size
@@ -186,9 +175,8 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     }
 
     if (SharkConfVars.getBoolVar(localHconf, SharkConfVars.MAP_PRUNING_PRINT_DEBUG)) {
-      columnStats.foreach {
-        case (index, tableStats) =>
-          println("Partition " + index + " " + tableStats.toString)
+      columnStats.foreach { case(index, tableStats) =>
+        println("Partition " + index + " " + tableStats.toString)
       }
     }
 

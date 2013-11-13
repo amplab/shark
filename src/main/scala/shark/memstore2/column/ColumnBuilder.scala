@@ -18,101 +18,173 @@
 package shark.memstore2.column
 
 import java.nio.ByteBuffer
-
-import javaewah.EWAHCompressedBitmap
-import javaewah.EWAHCompressedBitmapSerializer
+import java.nio.ByteOrder
 
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
+import org.apache.hadoop.hive.serde2.objectinspector.StructField
 
-import shark.memstore2.column.CompressionScheme._
+import shark.LogHelper
+import shark.memstore2.column
 
-/** Builder interface for a column. Each column type (PrimitiveCategory) would
- * be expected to implement its own builder. Each builder takes an array of
- * these items and puts them into a [[java.nio.ByteBuffer]].
- *
- * Adding a new compression/encoding scheme to the code requires several
- * things. First among them is an addition to the list of iterators in
- * [[shark.memstore2.column.ColumnIterator]] .* Then the concrete builder
- * implementation for each data type is required to add support for this
- * compression/encoding in the manner it deems best.  Not all concrete
- * ColumnBuilders support all encoding schemes. See
- * [[shark.memstore2.buffer.IntColumnBuilder]] and
- * [[shark.memstore2.buffer.StringColumnBuilder]]
- * 
- * The ColumnBuilders do not compose like the ColumnIterators. To know what
- * compositions are possible at any time look at
- * [[shark.memstore2.column.ColumnIterator]].
- * 
- * The changes required for the LZF encoding's Builder/Iterator might be the
- * easiest to look to get a feel for what is required -
- * [[shark.memstore2.buffer.LZFColumnIterator]]. See SHA 225f4d90d8721a9d9e8f
- * 
- * The base class [[shark.memstore2.buffer.ColumnBuilder]] is the write side of
- * this equation. For the read side see [[shark.memstore2.buffer.ColumnIterator]].
- * 
- */
-trait ColumnBuilder[@specialized(Boolean, Byte, Short, Int, Long, Float, Double) T] {
+trait ColumnBuilder[T] {
 
-  def append(o: Object, oi: ObjectInspector)
+  private[column] def t: ColumnType[T, _]
 
-  def append(v: T)
+  private[memstore2] def stats: ColumnStats[T]
 
-  def appendNull()
+  private var _buffer: ByteBuffer = _
+  private var _initialSize: Int = _
+  var columnName: String = _
 
-  def stats: ColumnStats[T]
-
-  def build: ByteBuffer
-
-  /** Subclasses should call super.initialize to initialize the null bitmap. 
-    */
-  def initialize(initialSize: Int) {
-    _nullBitmap = new EWAHCompressedBitmap
+  def append(o: Object, oi: ObjectInspector) {
+    val v = t.get(o, oi)
+    _buffer = growIfNeeded(_buffer, t.actualSize(v))
+    t.append(v, _buffer)
+    gatherStats(v)
   }
 
-  /** Compression/Encoding scheme for the column. Not supported by all types
-    * Setter should be called before build()
-    */
-  var scheme = CompressionScheme.Auto
+  protected def gatherStats(v: T) {
+    stats.append(v)
+  }
 
-  protected var _nullBitmap: EWAHCompressedBitmap = null
+  def build(): ByteBuffer = {
+    _buffer.limit(_buffer.position())
+    _buffer.rewind()
+    _buffer
+  }
 
-  protected def sizeOfNullBitmap: Int = 8 + EWAHCompressedBitmapSerializer.sizeof(_nullBitmap)
+  /**
+   * Initialize with an approximate lower bound on the expected number
+   * of elements in this column.
+   */
+  def initialize(initialSize: Int, colName: String = ""): ByteBuffer = {
+    columnName = colName
+    _initialSize = if(initialSize == 0) 1024*1024*10 else initialSize
+    _buffer = ByteBuffer.allocate(_initialSize*t.defaultSize + 4 + 4)
+    _buffer.order(ByteOrder.nativeOrder())
+    _buffer.putInt(t.typeID)
+  }
 
-  protected def writeNullBitmap(buf: ByteBuffer) = {
-    if (_nullBitmap.cardinality() > 0) {
-      buf.putLong(1L)
-      EWAHCompressedBitmapSerializer.writeToBuffer(buf, _nullBitmap)
+  protected def growIfNeeded(orig: ByteBuffer, size: Int): ByteBuffer = {
+    val capacity = orig.capacity()
+    if (orig.remaining() < size) {
+      // grow in steps of initial size
+      val additionalSize = capacity / 8 + 1
+      var newSize = capacity + additionalSize
+      if (additionalSize  < size) {
+        newSize = capacity + size
+      }
+      val pos = orig.position()
+      orig.clear()
+      val b = ByteBuffer.allocate(newSize)
+      b.order(ByteOrder.nativeOrder())
+      b.put(orig.array(), 0, pos)
     } else {
-      buf.putLong(0L)
+      orig
     }
   }
 }
 
+class DefaultColumnBuilder[T](val stats: ColumnStats[T], val t: ColumnType[T, _])
+  extends CompressedColumnBuilder[T] with NullableColumnBuilder[T]{}
+
+
+trait CompressedColumnBuilder[T] extends ColumnBuilder[T] with LogHelper {
+
+  var compressionSchemes: Seq[CompressionAlgorithm] = Seq()
+  // Can be set in tests to ensure chosen compression
+  var scheme: CompressionAlgorithm = new NoCompression
+
+  def shouldApply(scheme: CompressionAlgorithm): Boolean = {
+    scheme.compressionRatio < 0.8
+  }
+
+  override protected def gatherStats(v: T) = {
+    compressionSchemes.foreach { scheme =>
+      if (scheme.supportsType(t)) {
+        scheme.gatherStatsForCompressibility(v, t)
+      }
+    }
+    super.gatherStats(v)
+  }
+
+  override def build() = {
+    val b = super.build()
+
+    import shark.memstore2.column.Implicits._
+
+    if (compressionSchemes.isEmpty) {
+      val strType: String = scheme.compressionType
+      logInfo("Compression scheme chosen for [%s] is %s - no compression".
+        format(columnName, strType))
+      new NoCompression().compress(b, t)
+    } else {
+      val candidateScheme = scheme.compressionType match {
+        case DefaultCompressionType => compressionSchemes.minBy(_.compressionRatio)
+        case _ => scheme
+      }
+
+      val strType: String = candidateScheme.compressionType
+      logInfo("Compression scheme chosen for [%s] is %s with ratio %f".
+        format(columnName, strType,
+          candidateScheme.compressionRatio))
+      if (shouldApply(candidateScheme)) {
+        candidateScheme.compress(b, t)
+      } else {
+        new NoCompression().compress(b, t)
+      }
+    }
+  }
+}
+
+
 object ColumnBuilder {
 
-  def create(columnOi: ObjectInspector): ColumnBuilder[_] = {
-    columnOi.getCategory match {
+  def create(structField: StructField, shouldCompress: Boolean = true): ColumnBuilder[_] = {
+    var bde: CompressionAlgorithm = null
+    val columnOi = structField.getFieldObjectInspector
+
+    val v = columnOi.getCategory match {
       case ObjectInspector.Category.PRIMITIVE => {
         columnOi.asInstanceOf[PrimitiveObjectInspector].getPrimitiveCategory match {
           case PrimitiveCategory.BOOLEAN   => new BooleanColumnBuilder
-          case PrimitiveCategory.BYTE      => new ByteColumnBuilder
-          case PrimitiveCategory.SHORT     => new ShortColumnBuilder
-          case PrimitiveCategory.INT       => new IntColumnBuilder
-          case PrimitiveCategory.LONG      => new LongColumnBuilder
+          case PrimitiveCategory.INT       => {
+            bde = new ByteDeltaEncoding[Int]
+            new IntColumnBuilder
+          }
+          case PrimitiveCategory.LONG      => {
+            bde = new ByteDeltaEncoding[Long]
+            new LongColumnBuilder
+          }
           case PrimitiveCategory.FLOAT     => new FloatColumnBuilder
           case PrimitiveCategory.DOUBLE    => new DoubleColumnBuilder
           case PrimitiveCategory.STRING    => new StringColumnBuilder
-          case PrimitiveCategory.VOID      => new VoidColumnBuilder
+          case PrimitiveCategory.SHORT     => {
+            bde = new ByteDeltaEncoding[Short]
+            new ShortColumnBuilder
+          }
+          case PrimitiveCategory.BYTE      => new ByteColumnBuilder
           case PrimitiveCategory.TIMESTAMP => new TimestampColumnBuilder
           case PrimitiveCategory.BINARY    => new BinaryColumnBuilder
+
           // TODO: add decimal column.
-          case _ => throw new Exception(
+          case _ => throw new MemoryStoreException(
             "Invalid primitive object inspector category" + columnOi.getCategory)
         }
       }
-      case _ => new ComplexColumnBuilder(columnOi)
+      case _ => new GenericColumnBuilder(columnOi)
     }
+    if (shouldCompress) {
+      v.compressionSchemes = Seq(new NoCompression,
+        new RLE,
+        new BooleanBitSetCompression,
+        new DictionaryEncoding)
+      if(bde != null) {
+        v.compressionSchemes = bde +: v.compressionSchemes
+      }
+    }
+    v
   }
 }

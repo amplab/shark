@@ -28,17 +28,14 @@ import shark.util.BloomFilter
   * These will be get stored in the spark master's memory, per column, per RDD after serialization.
   */
 sealed trait ColumnStats[@specialized(Boolean, Byte, Short, Int, Long, Float, Double) T]
-    extends Serializable {
-  var _nullCount = 0
+  extends Serializable {
 
   def append(v: T)
 
   protected def _min: T
   protected def _max: T
 
-  def appendNull() { _nullCount += 1 }
 
-  def nullCount: Int = _nullCount
   def min: T = _min
   def max: T = _max
 
@@ -57,6 +54,15 @@ sealed trait ColumnStats[@specialized(Boolean, Byte, Short, Int, Long, Float, Do
 // For int columns, we try to do more since int is more common. Examples include
 // ordering of the column and max deltas (max difference between two cells).
 object ColumnStats {
+
+  class NoOpStats[T] extends ColumnStats[T] {
+    protected var _max = null.asInstanceOf[T]
+    protected var _min = null.asInstanceOf[T]
+    override def append(v: T) {}
+    override def :=(v: Any): Boolean = true
+    override def :>(v: Any): Boolean = true
+    override def :<(v: Any): Boolean = true
+  }
 
   class BooleanColumnStats extends ColumnStats[Boolean] {
     protected var _max = false
@@ -85,6 +91,7 @@ object ColumnStats {
         case _ => true
       }
     }
+
   }
 
   class ByteColumnStats extends ColumnStats[Byte] {
@@ -148,7 +155,7 @@ object ColumnStats {
 
   object IntColumnStats {
     private val UNINITIALIZED = 0  // Haven't seen the first value yet.
-    private val INITIALIZED = 1   // Seen first, and processing second value.
+    private val INITIALIAZED = 1   // Seen first, and processing second value.
     private val ASCENDING = 2
     private val DESCENDING = 3
     private val UNORDERED = 4
@@ -160,20 +167,12 @@ object ColumnStats {
 
     protected var _max = Int.MinValue
     protected var _min = Int.MaxValue
-    private var _prev = 0
+    private var _lastValue = 0
     private var _maxDelta = 0
-
-    // nulls are ignored in IntColumnStats for uniques and transition counting because a Null Bit
-    // Vector encoding wrapper is always expected in the buffer.
-
-    var uniqueCount: Int = 0
-    var transitions: Int = 0
-    protected var transitions_ = transitions // setter protected
 
     def isAscending = _orderedState != DESCENDING && _orderedState != UNORDERED
     def isDescending = _orderedState != ASCENDING && _orderedState != UNORDERED
     def isOrdered = isAscending || isDescending
-
     def maxDelta = _maxDelta
 
     def :=(v: Any): Boolean = {
@@ -201,40 +200,29 @@ object ColumnStats {
       if (v > _max) _max = v
       if (v < _min) _min = v
 
-      if (_orderedState != UNINITIALIZED && v != _prev) {
-        transitions += 1
-      }
-
       if (_orderedState == UNINITIALIZED) {
         // First value.
-        _orderedState = INITIALIZED
-        _prev = v
-        transitions = 1
-      } else if (_orderedState == INITIALIZED) {
+        _orderedState = INITIALIAZED
+        _lastValue = v
+      } else if (_orderedState == INITIALIAZED) {
         // Second value.
-        _orderedState = if (v >= _prev) ASCENDING else DESCENDING
-        _maxDelta = math.abs(v - _prev)
-        _prev = v
+        _orderedState = if (v >= _lastValue) ASCENDING else DESCENDING
+        _maxDelta = math.abs(v - _lastValue)
+        _lastValue = v
       } else if (_orderedState == ASCENDING) {
-        if (v < _prev) {
-          _orderedState = UNORDERED
-        } else {
-          if (v - _prev > _maxDelta) _maxDelta = v - _prev
-          _prev = v
+        if (v < _lastValue) _orderedState = UNORDERED
+        else {
+          if (v - _lastValue > _maxDelta) _maxDelta = v - _lastValue
+          _lastValue = v
         }
       } else if (_orderedState == DESCENDING) {
-        if (v > _prev) {
-          _orderedState = UNORDERED
-        } else {
-          if (_prev - v > _maxDelta) _maxDelta = _prev - v
-          _prev = v
+        if (v > _lastValue) _orderedState = UNORDERED
+        else {
+          if (_lastValue - v > _maxDelta) _maxDelta = _lastValue - v
+          _lastValue = v
         }
       }
     }
-
-    // There is no appendNull override because IntColumns are always expected to be wrapped with
-    // Null Bit Vectors so nulls are handled earlier.
-
   }
 
   class LongColumnStats extends ColumnStats[Long] {
@@ -357,65 +345,19 @@ object ColumnStats {
     // Note: this is not Java serializable because Text is not Java serializable.
     protected var _max: Text = null
     protected var _min: Text = null
-    protected var _prev: Text = null
-    private var _filter = new BloomFilter(0.03, 1000000)
-
-    // Use these Text objects to copy over contents because Text is not immutable and we reuse the
-    // same Text object to mitigate frequent GC.
-    private var _maxStore: Text = new Text()
-    private var _minStore: Text = new Text()
-    private var _prevStore: Text = new Text()
-
-    var transitions: Int = 0
-    protected var transitions_ = transitions // setter protected
-
-    override def append(v: Text) {
-      require (v != null) // appendNull() should have been called
-      if (_max == null || v.compareTo(_max) > 0) {
-        _maxStore.set(v)
-        _max = _maxStore
-      }
-      if (_min == null || v.compareTo(_min) < 0) { 
-        _minStore.set(v)
-        _min = _minStore
-      }
-      if (transitions == 0) { 
-        transitions = 1
-      } else if (_prev == null || v.compareTo(_prev) != 0) {
-        transitions += 1
-      }
-      // must compute transitions before updating _prev
-      if (_prev == null || v.compareTo(_prev) != 0) { 
-        _prevStore.set(v)
-        _prev = _prevStore
-      }
-      _filter.add(v.getBytes(), v.getLength())
-    }
-
-    override def appendNull() {
-      super.appendNull()
-      if (transitions == 0) { 
-        transitions = 1
-      } else if (null != _prev) {
-        transitions += 1 
-      }
-      _prev = null
-    }
-
+    
     def :=(v: Any): Boolean = {
       v match {
-        case u:Text => _min.compareTo(u) <= 0 &&
-        			   _max.compareTo(u) >= 0 &&
-        			   _filter.contains(u.toString())
-        case u: String => this:=(new Text(u))
+        case u: Text => _min.compareTo(u) <= 0 && _max.compareTo(u) >= 0
+        case u: String => this := new Text(u)
         case _ => true
       }
     }
 
     def :>(v: Any): Boolean = {
       v match {
-        case u:Text => _max.compareTo(u) > 0
-        case u: String => this:>(new Text(u))
+        case u: Text => _max.compareTo(u) > 0
+        case u: String => this :> new Text(u)
         case _ => true
       }
     }
@@ -423,13 +365,27 @@ object ColumnStats {
     def :<(v: Any): Boolean = {
       v match {
         case u:Text => _min.compareTo(u) < 0
-        case u: String => this:<(new Text(u))
+        case u: String => this :< new Text(u)
         case _ => true
       }
     }
 
+    override def append(v: Text) {
+      // Need to make a copy of Text since Text is not immutable and we reuse
+      // the same Text object in serializer to mitigate frequent GC.
+      if (_max == null) {
+        _max = new Text(v)
+      } else if (v.compareTo(_max) > 0) {
+        _max.set(v.getBytes(), 0, v.getLength())
+      }
+      if (_min == null) {
+        _min = new Text(v)
+      } else if (v.compareTo(_min) < 0) {
+        _min.set(v.getBytes(), 0, v.getLength())
+      } 
+    }
+
     override def readExternal(in: ObjectInput) {
-      _filter = in.readObject().asInstanceOf[BloomFilter]
       if (in.readBoolean()) {
         _max = new Text
         _max.readFields(in)
@@ -441,7 +397,6 @@ object ColumnStats {
     }
 
     override def writeExternal(out: ObjectOutput) {
-      out.writeObject(_filter)
       if (_max == null) {
         out.write(0)
       } else {

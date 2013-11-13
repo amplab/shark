@@ -18,12 +18,17 @@
 package shark
 
 import scala.collection.mutable.{HashMap, HashSet}
+
+import org.apache.spark.{SparkContext, SparkEnv}
+import org.apache.spark.rdd.RDD
+import org.apache.spark.scheduler.StatsReportListener
+import org.apache.spark.serializer.{KryoSerializer => SparkKryoSerializer}
+
 import shark.api.JavaSharkContext
 import shark.memstore2.MemoryMetadataManager
+import shark.execution.serialization.ShuffleSerializer
 import shark.tachyon.TachyonUtilImpl
-import spark.SparkContext
-import spark.scheduler.StatsReportListener
-import spark.RDD
+
 
 /** A singleton object for the master program. The slaves should not access this. */
 object SharkEnv extends LogHelper {
@@ -78,8 +83,9 @@ object SharkEnv extends LogHelper {
     new JavaSharkContext(initWithSharkContext(newSc.sharkCtx))
   }
 
-  logInfo("Initializing SharkEnv")
+  logDebug("Initializing SharkEnv")
 
+  System.setProperty("spark.serializer", classOf[SparkKryoSerializer].getName)
   System.setProperty("spark.kryo.registrator", classOf[KryoRegistrator].getName)
 
   val executorEnvVars = new HashMap[String, String]
@@ -94,6 +100,8 @@ object SharkEnv extends LogHelper {
 
   var sc: SparkContext = _
 
+  val shuffleSerializerName = classOf[ShuffleSerializer].getName
+
   val memoryMetadataManager = new MemoryMetadataManager
 
   val tachyonUtil = new TachyonUtilImpl(
@@ -106,13 +114,22 @@ object SharkEnv extends LogHelper {
   val addedFiles = HashSet[String]()
   val addedJars = HashSet[String]()
 
-  def removeRDD(key: String): Option[RDD[_]] = {
-    memoryMetadataManager.remove(key)
+  def unpersist(key: String): Option[RDD[_]] = {
+    if (SharkEnv.tachyonUtil.tachyonEnabled() && SharkEnv.tachyonUtil.tableExists(key)) {
+      if (SharkEnv.tachyonUtil.dropTable(key)) {
+        logInfo("Table " + key + " was deleted from Tachyon.");
+      } else {
+        logWarning("Failed to remove table " + key + " from Tachyon.");
+      }
+    }
+
+    memoryMetadataManager.unpersist(key)
   }
-  
+
+
   /** Cleans up and shuts down the Shark environments. */
   def stop() {
-    logInfo("Shutting down Shark Environment")
+    logDebug("Shutting down Shark Environment")
     // Stop the SparkContext
     if (SharkEnv.sc != null) {
       sc.stop()

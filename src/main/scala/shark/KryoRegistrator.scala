@@ -24,21 +24,17 @@ import com.esotericsoftware.kryo.{Kryo, Serializer => KSerializer}
 import com.esotericsoftware.kryo.io.{Input => KryoInput, Output => KryoOutput}
 import com.esotericsoftware.kryo.serializers.{JavaSerializer => KryoJavaSerializer}
 
-import de.javakaffee.kryoserializers.ArraysAsListSerializer
-
 import org.apache.hadoop.io.Writable
 import org.apache.hadoop.hive.ql.exec.persistence.{MapJoinSingleKey, MapJoinObjectKey,
     MapJoinDoubleKeys, MapJoinObjectValue}
 
+import org.apache.spark.serializer.{KryoRegistrator => SparkKryoRegistrator}
 
-class KryoRegistrator extends spark.KryoRegistrator {
+
+class KryoRegistrator extends SparkKryoRegistrator {
   def registerClasses(kryo: Kryo) {
 
     kryo.register(classOf[execution.ReduceKey])
-
-    // Java Arrays.asList returns an internal class that cannot be serialized
-    // by default Kryo. This provides a workaround.
-    kryo.register(Arrays.asList().getClass, new ArraysAsListSerializer)
 
     // The map join data structures are Java serializable.
     kryo.register(classOf[MapJoinSingleKey], new KryoJavaSerializer)

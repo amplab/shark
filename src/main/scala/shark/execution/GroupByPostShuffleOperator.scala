@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,53 +18,57 @@
 package org.apache.hadoop.hive.ql.exec
 // Put this file in Hive's exec package to access package level visible fields and methods.
 
-import java.util.ArrayList
-import java.util.{HashMap => JHashMap, HashSet => JHashSet, Set => JSet}
+import java.util.{ArrayList => JArrayList, HashMap => JHashMap, HashSet => JHashSet, Set => JSet}
 
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
 import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.hadoop.hive.ql.exec.{GroupByOperator => HiveGroupByOperator}
 import org.apache.hadoop.hive.ql.plan.{ExprNodeColumnDesc, TableDesc}
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator.AggregationBuffer
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorUtils,
   StandardStructObjectInspector, StructObjectInspector, UnionObject}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption
-import org.apache.hadoop.hive.serde2.{Deserializer, SerDe}
+import org.apache.hadoop.hive.serde2.Deserializer
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils
 import org.apache.hadoop.io.BytesWritable
 
-import shark.execution.{HiveTopOperator, ReduceKey}
-import spark.{Aggregator, HashPartitioner, RDD}
-import spark.rdd.ShuffledRDD
-import spark.SparkContext._
+import org.apache.spark.{Aggregator, HashPartitioner}
+import org.apache.spark.rdd.{RDD, ShuffledRDD}
+
+import shark.SharkEnv
+import shark.execution._
+import shark.execution.serialization.OperatorSerializationWrapper
 
 
 // The final phase of group by.
 // TODO(rxin): For multiple distinct aggregations, use sort-based shuffle.
-class GroupByPostShuffleOperator extends GroupByPreShuffleOperator
-with HiveTopOperator {
+class GroupByPostShuffleOperator extends GroupByPreShuffleOperator with HiveTopOperator {
 
   @BeanProperty var keyTableDesc: TableDesc = _
   @BeanProperty var valueTableDesc: TableDesc = _
 
+  // Use two sets of key deserializer and value deserializer because in sort-based aggregations,
+  // we need to keep two rows deserialized at any given time (to compare whether we have seen
+  // a new input group by key).
   @transient var keySer: Deserializer = _
+  @transient var keySer1: Deserializer = _
   @transient var valueSer: Deserializer = _
+  @transient var valueSer1: Deserializer = _
+
   @transient val distinctKeyAggrs = new JHashMap[Int, JSet[java.lang.Integer]]()
   @transient val nonDistinctKeyAggrs = new JHashMap[Int, JSet[java.lang.Integer]]()
-  @transient val nonDistinctAggrs = new ArrayList[Int]()
-  @transient val distinctKeyWrapperFactories = new JHashMap[Int, ArrayList[KeyWrapperFactory]]()
-  @transient val distinctHashSets = new JHashMap[Int, ArrayList[JHashSet[KeyWrapper]]]()
-
+  @transient val nonDistinctAggrs = new JArrayList[Int]()
+  @transient val distinctKeyWrapperFactories = new JHashMap[Int, JArrayList[KeyWrapperFactory]]()
+  @transient val distinctHashSets = new JHashMap[Int, JArrayList[JHashSet[KeyWrapper]]]()
   @transient var unionExprEvaluator: ExprNodeEvaluator = _
 
   override def initializeOnMaster() {
     super.initializeOnMaster()
     keyTableDesc = keyValueTableDescs.values.head._1
     valueTableDesc = keyValueTableDescs.values.head._2
+    initializeOnSlave()
   }
 
   override def initializeOnSlave() {
@@ -76,11 +80,15 @@ with HiveTopOperator {
     initializeKeyUnionAggregators()
     initializeKeyWrapperFactories()
 
-    keySer = keyTableDesc.getDeserializerClass.newInstance().asInstanceOf[Deserializer]
+    keySer = keyTableDesc.getDeserializerClass.newInstance()
     keySer.initialize(null, keyTableDesc.getProperties())
+    keySer1 = keyTableDesc.getDeserializerClass.newInstance()
+    keySer1.initialize(null, keyTableDesc.getProperties())
 
-    valueSer = valueTableDesc.getDeserializerClass.newInstance().asInstanceOf[SerDe]
+    valueSer = valueTableDesc.getDeserializerClass.newInstance()
     valueSer.initialize(null, valueTableDesc.getProperties())
+    valueSer1 = valueTableDesc.getDeserializerClass.newInstance()
+    valueSer1.initialize(null, valueTableDesc.getProperties())
   }
 
   private def initializeKeyWrapperFactories() {
@@ -92,8 +100,8 @@ with HiveTopOperator {
         ObjectInspectorUtils.getStandardObjectInspector(k, ObjectInspectorCopyOption.WRITABLE)
       }}.toArray
 
-      val keys = new ArrayList[KeyWrapperFactory]()
-      val hashSets = new ArrayList[JHashSet[KeyWrapper]]()
+      val keys = new JArrayList[KeyWrapperFactory]()
+      val hashSets = new JArrayList[JHashSet[KeyWrapper]]()
       for(i <- 0 until evals.size) {
         keys.add(new KeyWrapperFactory(evals(i), ois(i), writableOis(i)))
         hashSets.add(new JHashSet[KeyWrapper])
@@ -182,98 +190,239 @@ with HiveTopOperator {
     }
   }
 
-  override def preprocessRdd(rdd: RDD[_]): RDD[_] = {
+  override def execute(): RDD[_] = {
+    val inputRdd = executeParents().head._2.asInstanceOf[RDD[(Any, Any)]]
+
     var numReduceTasks = hconf.getIntVar(HiveConf.ConfVars.HADOOPNUMREDUCERS)
     // If we have no keys, it needs a total aggregation with 1 reducer.
     if (numReduceTasks < 1 || conf.getKeys.size == 0) numReduceTasks = 1
+    val partitioner = new ReduceKeyPartitioner(numReduceTasks)
 
-    // We don't use Spark's groupByKey to avoid map-side combiners in Spark.
-    //rdd.asInstanceOf[RDD[(Any, Any)]].groupByKey(numReduceTasks)
+    val repartitionedRDD = new ShuffledRDD[Any, Any, (Any, Any)](inputRdd, partitioner)
+      .setSerializer(SharkEnv.shuffleSerializerName)
 
-    // TODO(rxin): Rewrite aggregation logic to integrate it with mergeValue.
-    rdd.asInstanceOf[RDD[(Any, Any)]].combineByKey(
-      GroupByAggregator.createCombiner _,
-      GroupByAggregator.mergeValue _,
-      null,
-      new HashPartitioner(numReduceTasks),
-      false)
+    if (distinctKeyAggrs.size > 0) {
+      // If there are distinct aggregations, do sort-based aggregation.
+      val op = OperatorSerializationWrapper(this)
+
+      repartitionedRDD.mapPartitions(iter => {
+        // Sort the input based on the key.
+        val buf = iter.toArray.asInstanceOf[Array[(ReduceKeyReduceSide, Array[Byte])]]
+        val sorted = buf.sortWith((x, y) => x._1.compareTo(y._1) < 0).iterator
+
+        // Perform sort-based aggregation.
+        op.initializeOnSlave()
+        op.sortAggregate(sorted)
+      }, preservesPartitioning = true)
+
+    } else {
+      // No distinct keys.
+      val aggregator = new Aggregator[Any, Any, ArrayBuffer[Any]](
+        GroupByAggregator.createCombiner _, GroupByAggregator.mergeValue _, null)
+      val hashedRdd = repartitionedRDD.mapPartitions(aggregator.combineValuesByKey(_),
+        preservesPartitioning = true)
+
+      val op = OperatorSerializationWrapper(this)
+      hashedRdd.mapPartitionsWithIndex { case(split, partition) =>
+        op.initializeOnSlave()
+        op.hashAggregate(partition)
+      }
+    }
   }
 
-  override def processPartition(split: Int, iter: Iterator[_]) = {
-    // TODO: we should support outputs besides BytesWritable in case a different
-    // SerDe is used for intermediate data.
+  def sortAggregate(iter: Iterator[_]) = {
+    logDebug("Running Post Shuffle Group-By")
+
+    if (iter.hasNext) {
+      // Sort based aggregation iterator.
+      new Iterator[Array[Object]]() {
+
+        private var currentKeySer = keySer
+        private var currentValueSer = valueSer
+        private var nextKeySer = keySer1
+        private var nextValueSer = valueSer1
+
+        private val outputBuffer = new Array[Object](keyFields.length + aggregationEvals.length)
+        private val bytes = new BytesWritable()
+        private val row = new Array[Object](2)
+        private val nextRow = new Array[Object](2)
+        private val aggrs = newAggregations()
+
+        private val newKeys: KeyWrapper = keyFactory.getKeyWrapper()
+
+        private var _hasNext: Boolean = fetchNextInputTuple()
+        private val currentKeys: KeyWrapper = newKeys.copyKey()
+
+        override def hasNext = _hasNext
+
+        private def swapSerDes() {
+          var tmp = currentKeySer
+          currentKeySer = nextKeySer
+          nextKeySer = tmp
+          tmp = currentValueSer
+          currentValueSer = nextValueSer
+          nextValueSer = tmp
+        }
+
+        /**
+         * Fetch the next input tuple and deserialize them, store the keys in newKeys.
+         * @return True if successfully fetched; false if we have reached the end.
+         */
+        def fetchNextInputTuple(): Boolean = {
+          if (!iter.hasNext) {
+            false
+          } else {
+            val (key: ReduceKeyReduceSide, value: Array[Byte]) = iter.next()
+            bytes.set(key.byteArray, 0, key.length)
+            nextRow(0) = nextKeySer.deserialize(bytes)
+            bytes.set(value, 0, value.length)
+            nextRow(1) = nextValueSer.deserialize(bytes)
+            newKeys.getNewKey(nextRow, rowInspector)
+            swapSerDes()
+            true
+          }
+        }
+
+        override def next(): Array[Object] = {
+
+          currentKeys.copyKey(newKeys)
+          resetAggregations(aggrs)
+
+          // Use to track whether we have moved to a new distinct column.
+          var currentUnionTag = -1
+          // Use to track whether we have seen a new distinct value for the current distinct column.
+          var lastDistinctKey: Array[Object] = null
+
+          // Keep processing inputs until we see a new group by key.
+          // In that case, we need to emit a new output tuple so the next() call should end.
+          while (_hasNext && newKeys.equals(currentKeys)) {
+            row(0) = nextRow(0)
+            row(1) = nextRow(1)
+
+            assert(unionExprEvaluator != null)
+            // union tag is the tag (index) for the distinct column.
+            val uo = unionExprEvaluator.evaluate(row).asInstanceOf[UnionObject]
+            val unionTag = uo.getTag.toInt
+
+            if (unionTag == 0) {
+              // Aggregate the non distinct columns from the values.
+              for (pos <- nonDistinctAggrs) {
+                val o = new Array[Object](aggregationParameterFields(pos).length)
+                var pi = 0
+                while (pi < aggregationParameterFields(pos).length) {
+                  o(pi) = aggregationParameterFields(pos)(pi).evaluate(row)
+                  pi += 1
+                }
+                aggregationEvals(pos).aggregate(aggrs(pos), o)
+              }
+            }
+
+            // update non-distinct aggregations : "KEY._colx:t._coly"
+            val nonDistinctKeyAgg: JSet[java.lang.Integer] = nonDistinctKeyAggrs.get(unionTag)
+            if (nonDistinctKeyAgg != null) {
+              for (pos <- nonDistinctKeyAgg) {
+                val o = new Array[Object](aggregationParameterFields(pos).length)
+                var pi = 0
+                while (pi < aggregationParameterFields(pos).length) {
+                  o(pi) = aggregationParameterFields(pos)(pi).evaluate(row)
+                  pi += 1
+                }
+                aggregationEvals(pos).aggregate(aggrs(pos), o)
+              }
+            }
+
+            // update distinct aggregations
+            val distinctKeyAgg: JSet[java.lang.Integer] = distinctKeyAggrs.get(unionTag)
+            if (distinctKeyAgg != null) {
+              if (currentUnionTag != unionTag) {
+                // New union tag, i.e. move to a new distinct column.
+                currentUnionTag = unionTag
+                lastDistinctKey = null
+              }
+
+              val distinctKeyAggIter = distinctKeyAgg.iterator
+              while (distinctKeyAggIter.hasNext) {
+                val pos = distinctKeyAggIter.next()
+                val o = new Array[Object](aggregationParameterFields(pos).length)
+                var pi = 0
+                while (pi < aggregationParameterFields(pos).length) {
+                  o(pi) = aggregationParameterFields(pos)(pi).evaluate(row)
+                  pi += 1
+                }
+
+                if (lastDistinctKey == null) {
+                  lastDistinctKey = new Array[Object](o.length)
+                }
+
+                val isNewDistinct = ObjectInspectorUtils.compare(
+                  o,
+                  aggregationParameterObjectInspectors(pos),
+                  lastDistinctKey,
+                  aggregationParameterStandardObjectInspectors(pos)) != 0
+
+                if (isNewDistinct) {
+                  // This is a new distinct value for the column.
+                  aggregationEvals(pos).aggregate(aggrs(pos), o)
+                  var pi = 0
+                  while (pi < o.length) {
+                    lastDistinctKey(pi) = ObjectInspectorUtils.copyToStandardObject(
+                      o(pi), aggregationParameterObjectInspectors(pos)(pi),
+                      ObjectInspectorCopyOption.WRITABLE)
+                    pi += 1
+                  }
+                }
+              }
+            }
+
+            // Finished processing the current input tuple. Check if there are more inputs.
+            _hasNext = fetchNextInputTuple()
+          } // end of while (_hasNext && newKeys.equals(currentKeys))
+
+          // Copy output keys and values to our reused output cache
+          var i = 0
+          val numKeys = keyFields.length
+          while (i < numKeys) {
+            outputBuffer(i) = keyFields(i).evaluate(row)
+            i += 1
+          }
+          while (i < numKeys + aggrs.length) {
+            outputBuffer(i) = aggregationEvals(i - numKeys).evaluate(aggrs(i - numKeys))
+            i += 1
+          }
+          outputBuffer
+        } // End of def next(): Array[Object]
+      } // End of Iterator[Array[Object]]
+    } else {
+      // The input iterator is empty.
+      if (keyFields.length == 0) Iterator(createEmptyRow()) else Iterator.empty
+    }
+  }
+
+  def hashAggregate(iter: Iterator[_]) = {
+    // TODO: use MutableBytesWritable to avoid the array copy.
     val bytes = new BytesWritable()
-    logInfo("Running Post Shuffle Group-By")
+    logDebug("Running Post Shuffle Group-By")
     val outputCache = new Array[Object](keyFields.length + aggregationEvals.length)
 
     // The reusedRow is used to conform to Hive's expected row format.
     // It is an array of [key, value] that is reused across rows
     val reusedRow = new Array[Any](2)
-
-    val keys = keyFactory.getKeyWrapper()
     val aggrs = newAggregations()
 
-    val newIter = iter.map { case (key: ReduceKey, values: Seq[_]) =>
-      bytes.set(key.bytes)
-      val deserializedKey = deserializeKey(bytes)
+    val newIter = iter.map { case (key: ReduceKeyReduceSide, values: Seq[Array[Byte]]) =>
+      bytes.set(key.byteArray, 0, key.length)
+      val deserializedKey = keySer.deserialize(bytes)
       reusedRow(0) = deserializedKey
       resetAggregations(aggrs)
-      values.foreach {
-        case v: Array[Byte] => {
-          bytes.set(v)
-          reusedRow(1) = deserializeValue(bytes)
-          aggregate(reusedRow, aggrs, false)
-        }
-        case (key: Array[Byte], value: Array[Byte]) => {
-          bytes.set(key)
-          val deserializedUnionKey = deserializeKey(bytes)
-          bytes.set(value)
-          val deserializedValue = deserializeValue(bytes)
-          val row = Array(deserializedUnionKey, deserializedValue)
-          keys.getNewKey(row, rowInspector)
-          val uo =  unionExprEvaluator.evaluate(row).asInstanceOf[UnionObject]
-          val unionTag = uo.getTag().toInt
-          // Handle non-distincts in the key-union
-          if (nonDistinctKeyAggrs.get(unionTag) != null) {
-            nonDistinctKeyAggrs.get(unionTag).foreach { i =>
-              val o = aggregationParameterFields(i).map(_.evaluate(row)).toArray
-              aggregationEvals(i).aggregate(aggrs(i), o)
-            }
-          }
-          // Handle non-distincts in the value
-          if (unionTag == 0) {
-            nonDistinctAggrs.foreach { i =>
-              val o = aggregationParameterFields(i).map(_.evaluate(row)).toArray
-              aggregationEvals(i).aggregate(aggrs(i), o)
-            }
-          }
-          // Handle distincts
-          if (distinctKeyAggrs.get(unionTag) != null) {
-            // This assumes that we traverse the aggr Params in the same order
-            val aggrIndices = distinctKeyAggrs.get(unionTag).iterator
-            val factories = distinctKeyWrapperFactories.get(unionTag)
-            val hashes = distinctHashSets.get(unionTag)
-            for (i <- 0 until factories.size) {
-              val aggrIndex = aggrIndices.next
-              val key: KeyWrapper = factories.get(i).getKeyWrapper()
-              key.getNewKey(row, rowInspector)
-              key.setHashKey()
-              var seen = hashes(i).contains(key)
-              if (!seen) {
-                aggregationEvals(aggrIndex).aggregate(aggrs(aggrIndex), key.getKeyArray)
-                hashes(i).add(key.copyKey())
-              }
-            }
-          }
-        }
+      values.foreach { case v: Array[Byte] =>
+        bytes.set(v, 0, v.length)
+        reusedRow(1) = valueSer.deserialize(bytes)
+        aggregateExistingKey(reusedRow, aggrs)
       }
-
-      // Reset hash sets for next group-by key
-      distinctHashSets.values.foreach { hashSet => hashSet.foreach { _.clear() } }
 
       // Copy output keys and values to our reused output cache
       var i = 0
-      var numKeys = keyFields.length
+      val numKeys = keyFields.length
       while (i < numKeys) {
         outputCache(i) = keyFields(i).evaluate(reusedRow)
         i += 1
@@ -285,7 +434,7 @@ with HiveTopOperator {
       outputCache
     }
 
-    if (!newIter.hasNext && keyFields.size == 0) {
+    if (!newIter.hasNext && keyFields.length == 0) {
       Iterator(createEmptyRow()) // We return null if there are no rows
     } else {
       newIter
@@ -294,22 +443,21 @@ with HiveTopOperator {
 
   private def createEmptyRow(): Array[Object] = {
     val aggrs = newAggregations()
-    val output = new Array[Object](aggrs.size)
-    for (i <- 0 until aggrs.size) {
+    val output = new Array[Object](aggrs.length)
+    var i = 0
+    while (i < aggrs.length) {
       var emptyObj: Array[Object] = null
       if (aggregationParameterFields(i).length > 0) {
         emptyObj = aggregationParameterFields.map { field => null }.toArray
       }
       aggregationEvals(i).aggregate(aggrs(i), emptyObj)
       output(i) = aggregationEvals(i).evaluate(aggrs(i))
+      i += 1
     }
     output
   }
 
-  private def deserializeKey(bytes: BytesWritable): Object = keySer.deserialize(bytes)
-
-  private def deserializeValue(bytes: BytesWritable): Object = valueSer.deserialize(bytes)
-
+  @inline
   private def resetAggregations(aggs: Array[AggregationBuffer]) {
     var i = 0
     while (i < aggs.length) {

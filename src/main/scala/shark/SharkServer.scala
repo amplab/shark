@@ -21,14 +21,13 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.io.PrintStream
 import java.io.UnsupportedEncodingException
+import java.net.InetSocketAddress
 import java.util.ArrayList
 import java.util.{List => JavaList}
 import java.util.Properties
 import java.util.concurrent.CountDownLatch
-
 import scala.annotation.tailrec
 import scala.concurrent.ops.spawn
-
 import org.apache.commons.logging.LogFactory
 import org.apache.commons.cli.OptionBuilder
 import org.apache.hadoop.conf.Configuration
@@ -47,11 +46,11 @@ import org.apache.hadoop.hive.service.ThriftHive
 import org.apache.thrift.TProcessor
 import org.apache.thrift.protocol.TBinaryProtocol
 import org.apache.thrift.server.TThreadPoolServer
-import org.apache.thrift.transport.TServerSocket
+import org.apache.thrift.transport.{TSocket, TServerSocket}
 import org.apache.thrift.transport.TTransport
 import org.apache.thrift.transport.TTransportFactory
 
-import spark.SparkEnv
+import org.apache.spark.SparkEnv
 
 
 /**
@@ -85,8 +84,15 @@ object SharkServer extends LogHelper {
     serverTransport = new TServerSocket(cli.port)
 
     val hfactory = new ThriftHiveProcessorFactory(null, new HiveConf()) {
-      override def getProcessor(t: TTransport) =
-        new ThriftHive.Processor(new GatedSharkServerHandler(latch))
+      override def getProcessor(t: TTransport) = {
+    	var remoteClient = "Unknown";
+        if (t.isInstanceOf[TSocket]) {
+          remoteClient = t.asInstanceOf[TSocket].getSocket()
+          	.getRemoteSocketAddress().asInstanceOf[InetSocketAddress]
+            .getAddress().toString()
+        }
+        new ThriftHive.Processor(new GatedSharkServerHandler(latch, remoteClient))
+      }
     }
     val ttServerArgs = new TThreadPoolServer.Args(serverTransport)
       .processorFactory(hfactory)
@@ -161,9 +167,11 @@ object SharkServer extends LogHelper {
 }
 
 
-class GatedSharkServerHandler(latch:CountDownLatch) extends SharkServerHandler {
+class GatedSharkServerHandler(latch:CountDownLatch, remoteClient:String) extends SharkServerHandler {
+    
   override def execute(cmd: String): Unit = {
     latch.await
+    logInfo("Audit Log: client=" + remoteClient + "  cmd=" + cmd);
     super.execute(cmd)
   }
 }
@@ -194,7 +202,8 @@ class SharkServerHandler extends HiveServerHandler with LogHelper {
     val tokens = cmd_trimmed.split("\\s")
     val cmd_1 = cmd_trimmed.substring(tokens.apply(0).length()).trim()
     var response: Option[CommandProcessorResponse] = None
-
+    
+    
     val proc = CommandProcessorFactory.get(tokens.apply(0))
     if (proc != null) {
       if (proc.isInstanceOf[Driver]) {

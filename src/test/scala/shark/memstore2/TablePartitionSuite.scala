@@ -21,12 +21,12 @@ import java.nio.ByteBuffer
 
 import org.scalatest.FunSuite
 
-import spark.{JavaSerializer, KryoSerializer}
+import org.apache.spark.serializer.{JavaSerializer, KryoSerializer}
 
 
 class TablePartitionSuite extends FunSuite {
 
-  test("serialize TablePartition using Java") {
+  test("serialize TablePartition backed by non-direct ByteBuffer using Java") {
     val col1 = Array[Byte](0, 1, 2)
     val col2 = Array[Byte](1, 2, 3)
     val tp = new TablePartition(3, Array(ByteBuffer.wrap(col1), ByteBuffer.wrap(col2)))
@@ -35,17 +35,44 @@ class TablePartitionSuite extends FunSuite {
     val bytes = ser.newInstance().serialize(tp)
     val tp1 = ser.newInstance().deserialize[TablePartition](bytes)
     assert(tp1.numRows === 3)
-    assert(tp1.columns(0).array().length == 3)
-    assert(tp1.columns(0).array()(0) == 0)
-    assert(tp1.columns(0).array()(1) == 1)
-    assert(tp1.columns(0).array()(2) == 2)
-    assert(tp1.columns(1).array().length == 3)
-    assert(tp1.columns(1).array()(0) == 1)
-    assert(tp1.columns(1).array()(1) == 2)
-    assert(tp1.columns(1).array()(2) == 3)
+    assert(tp1.columns(0).remaining() == 3)
+    assert(tp1.columns(0).get() == 0)
+    assert(tp1.columns(0).get() == 1)
+    assert(tp1.columns(0).get() == 2)
+    assert(tp1.columns(1).remaining() == 3)
+    assert(tp1.columns(1).get() == 1)
+    assert(tp1.columns(1).get() == 2)
+    assert(tp1.columns(1).get() == 3)
   }
 
-  test("serialize TablePartition using Kryo") {
+  test("serialize TablePartition backed by direct ByteBuffer using Java") {
+    val col1 = ByteBuffer.allocateDirect(3)
+    col1.put(0.toByte)
+    col1.put(1.toByte)
+    col1.put(2.toByte)
+    col1.rewind()
+    val col2 = ByteBuffer.allocateDirect(3)
+    col2.put(1.toByte)
+    col2.put(2.toByte)
+    col2.put(3.toByte)
+    col2.rewind()
+    val tp = new TablePartition(3, Array(col1, col2))
+
+    val ser = new JavaSerializer
+    val bytes = ser.newInstance().serialize(tp)
+    val tp1 = ser.newInstance().deserialize[TablePartition](bytes)
+    assert(tp1.numRows === 3)
+    assert(tp1.columns(0).remaining() == 3)
+    assert(tp1.columns(0).get() == 0)
+    assert(tp1.columns(0).get() == 1)
+    assert(tp1.columns(0).get() == 2)
+    assert(tp1.columns(1).remaining() == 3)
+    assert(tp1.columns(1).get() == 1)
+    assert(tp1.columns(1).get() == 2)
+    assert(tp1.columns(1).get() == 3)
+  }
+
+  test("serialize TablePartition backed by non-direct ByteBuffer using Kryo") {
     val col1 = Array[Byte](0, 1, 2)
     val col2 = Array[Byte](1, 2, 3)
     val tp = new TablePartition(3, Array(ByteBuffer.wrap(col1), ByteBuffer.wrap(col2)))
@@ -54,13 +81,40 @@ class TablePartitionSuite extends FunSuite {
     val bytes = ser.newInstance().serialize(tp)
     val tp1 = ser.newInstance().deserialize[TablePartition](bytes)
     assert(tp1.numRows === 3)
-    assert(tp1.columns(0).array().length == 3)
-    assert(tp1.columns(0).array()(0) == 0)
-    assert(tp1.columns(0).array()(1) == 1)
-    assert(tp1.columns(0).array()(2) == 2)
-    assert(tp1.columns(1).array().length == 3)
-    assert(tp1.columns(1).array()(0) == 1)
-    assert(tp1.columns(1).array()(1) == 2)
-    assert(tp1.columns(1).array()(2) == 3)
+    assert(tp1.columns(0).remaining() == 3)
+    assert(tp1.columns(0).get() == 0)
+    assert(tp1.columns(0).get() == 1)
+    assert(tp1.columns(0).get() == 2)
+    assert(tp1.columns(1).remaining() == 3)
+    assert(tp1.columns(1).get() == 1)
+    assert(tp1.columns(1).get() == 2)
+    assert(tp1.columns(1).get() == 3)
+  }
+
+  test("serialize TablePartition backed by direct ByteBuffer using Kryo") {
+    val col1 = ByteBuffer.allocateDirect(3)
+    col1.put(0.toByte)
+    col1.put(1.toByte)
+    col1.put(2.toByte)
+    col1.rewind()
+    val col2 = ByteBuffer.allocateDirect(3)
+    col2.put(1.toByte)
+    col2.put(2.toByte)
+    col2.put(3.toByte)
+    col2.rewind()
+    val tp = new TablePartition(3, Array(col1, col2))
+
+    val ser = new KryoSerializer
+    val bytes = ser.newInstance().serialize(tp)
+    val tp1 = ser.newInstance().deserialize[TablePartition](bytes)
+    assert(tp1.numRows === 3)
+    assert(tp1.columns(0).remaining() == 3)
+    assert(tp1.columns(0).get() == 0)
+    assert(tp1.columns(0).get() == 1)
+    assert(tp1.columns(0).get() == 2)
+    assert(tp1.columns(1).remaining() == 3)
+    assert(tp1.columns(1).get() == 1)
+    assert(tp1.columns(1).get() == 2)
+    assert(tp1.columns(1).get() == 3)
   }
 }

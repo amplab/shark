@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,12 +17,31 @@
 
 package shark.execution.serialization
 
+import scala.collection.JavaConversions._
+import scala.collection.mutable.ArrayBuffer
+
+import org.apache.commons.lang.ObjectUtils
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
-import org.scalatest.FunSuite
-import scala.collection.mutable.ArrayBuffer
-import spark.{JavaSerializer => SparkJavaSerializer}
+import org.apache.hadoop.hive.conf.HiveConf
 
+import org.scalatest.FunSuite
+
+import org.apache.spark.serializer.{JavaSerializer => SparkJavaSerializer}
+
+
+object SerializationSuite {
+  val DEPRECATED_HIVECONF_PROPERTIES = List(
+    "topology.script.file.name",
+    "topology.script.number.args",
+    "hadoop.configured.node.mapping",
+    "topology.node.switch.mapping.impl",
+    "dfs.df.interval",
+    "dfs.client.buffer.dir",
+    "hadoop.native.lib",
+    "fs.default.name"
+  ).toSet[String]
+}
 
 class SerializationSuite extends FunSuite {
 
@@ -41,7 +60,6 @@ class SerializationSuite extends FunSuite {
   }
 
   test("Java serializing operators") {
-
     import shark.execution.{FileSinkOperator => SharkFileSinkOperator}
 
     val operator = new SharkFileSinkOperator
@@ -57,7 +75,34 @@ class SerializationSuite extends FunSuite {
     assert(desered.value != null)
     assert(desered.value.localHconf != null)
     assert(desered.value.localHiveOp != null)
+    assertHiveConfEquals(opWrapped.localHconf, desered.value.localHconf)
   }
+
+  test("XMLEncoder HiveConfPersistenceDelegate") {
+    val hiveConf = new HiveConf
+    hiveConf.setAuxJars("hive-aux.jar")
+    hiveConf.set("test.test.test", "true")
+    val bytes = XmlSerializer.serialize(hiveConf, hiveConf)
+    val deseredConf = XmlSerializer.deserialize[org.apache.hadoop.hive.conf.HiveConf](bytes)
+
+    assertHiveConfEquals(hiveConf, deseredConf)
+  }
+
+  def assertHiveConfEquals(expectedConf: HiveConf, resultConf: HiveConf) = {
+    expectedConf.getAllProperties.entrySet().foreach { entry =>
+      if (!SerializationSuite.DEPRECATED_HIVECONF_PROPERTIES.contains(entry.getKey)) {
+        assert(resultConf.getAllProperties.get(entry.getKey()) === entry.getValue)
+      }
+    }
+
+    resultConf.getAllProperties.entrySet().foreach { entry =>
+      if (!SerializationSuite.DEPRECATED_HIVECONF_PROPERTIES.contains(entry.getKey)) {
+        assert(expectedConf.getAllProperties.get(entry.getKey()) === entry.getValue)
+      }
+    }
+    assert(ObjectUtils.equals(expectedConf.getAuxJars, resultConf.getAuxJars))
+  }
+
 }
 
 
