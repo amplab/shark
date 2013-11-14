@@ -29,7 +29,7 @@ import shark.util.BloomFilter
   */
 sealed trait ColumnStats[@specialized(Boolean, Byte, Short, Int, Long, Float, Double) T]
   extends Serializable {
-
+  var _nullCount = 0
   def append(v: T)
 
   protected def _min: T
