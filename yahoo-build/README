@@ -9,6 +9,8 @@ v is build number
 
 Release Notes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Version 0.8.0.2.3
+	Revert saving HiveConf on CTAS
 Version 0.8.0.2.2
 	log column names and schemes during cache table creation.
 Version 0.8.0.2.1
