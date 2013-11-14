@@ -19,6 +19,88 @@ package shark.api
 
 import org.apache.spark.rdd.RDD
 
+object RDDTableImplicits {
+  private type M[T] = ClassManifest[T]
+
+  implicit def rddToTable2[T1: M, T2: M](rdd: RDD[(T1, T2)]): RDDTableFunctions = RDDTable(rdd)
+
+  implicit def rddToTable3[T1: M, T2: M, T3: M](rdd: RDD[(T1, T2, T3)]): RDDTableFunctions = RDDTable(rdd)
+
+  implicit def rddToTable4[T1: M, T2: M, T3: M, T4: M](rdd: RDD[(T1, T2, T3, T4)]): RDDTableFunctions = RDDTable(rdd)
+
+  implicit def rddToTable5[T1: M, T2: M, T3: M, T4: M, T5: M]
+  (rdd: RDD[(T1, T2, T3, T4, T5)]): RDDTableFunctions = RDDTable(rdd)
+
+  implicit def rddToTable6[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6)]): RDDTableFunctions = RDDTable(rdd)
+
+  implicit def rddToTable7[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7)]): RDDTableFunctions = RDDTable(rdd)
+
+  implicit def rddToTable8[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8)]): RDDTableFunctions = RDDTable(rdd)
+
+  implicit def rddToTable9[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9)]): RDDTableFunctions = RDDTable(rdd)
+
+  implicit def rddToTable10[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)]): RDDTableFunctions = RDDTable(rdd)
+
+  implicit def rddToTable11[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)]): RDDTableFunctions = RDDTable(rdd)
+
+  implicit def rddToTable12[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12)]): RDDTableFunctions = RDDTable(rdd)
+
+  implicit def rddToTable13[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M, T13: M]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13)]):
+  RDDTableFunctions = RDDTable(rdd)
+
+  implicit def rddToTable14[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+  T13: M, T14: M]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14)]):
+  RDDTableFunctions = RDDTable(rdd)
+
+  implicit def rddToTable15[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+  T13: M, T14: M, T15: M]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15)]):
+  RDDTableFunctions = RDDTable(rdd)
+
+  implicit def rddToTable16[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+  T13: M, T14: M, T15: M, T16: M]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16)]):
+  RDDTableFunctions = RDDTable(rdd)
+
+  implicit def rddToTable17[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+  T13: M, T14: M, T15: M, T16: M, T17: M]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17)]):
+  RDDTableFunctions = RDDTable(rdd)
+
+  implicit def rddToTable18[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+  T13: M, T14: M, T15: M, T16: M, T17: M, T18: M]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18)]):
+  RDDTableFunctions = RDDTable(rdd)
+
+  implicit def rddToTable19[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+  T13: M, T14: M, T15: M, T16: M, T17: M, T18: M, T19: M]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19)]):
+  RDDTableFunctions = RDDTable(rdd)
+
+  implicit def rddToTable20[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+  T13: M, T14: M, T15: M, T16: M, T17: M, T18: M, T19: M, T20: M]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20)]):
+  RDDTableFunctions = RDDTable(rdd)
+
+  implicit def rddToTable21[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+  T13: M, T14: M, T15: M, T16: M, T17: M, T18: M, T19: M, T20: M, T21: M]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21)]):
+  RDDTableFunctions = RDDTable(rdd)
+
+  implicit def rddToTable22[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M, T11: M, T12: M,
+  T13: M, T14: M, T15: M, T16: M, T17: M, T18: M, T19: M, T20: M, T21: M, T22: M]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22)]):
+  RDDTableFunctions = RDDTable(rdd)
+}
 
 object RDDTable {
 
