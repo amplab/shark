@@ -27,7 +27,6 @@ import shark.{SharkContext, SharkEnv}
 import shark.memstore2.{CacheType, TablePartitionStats, TablePartition, TablePartitionBuilder}
 import shark.util.HiveUtils
 
-
 class RDDTableFunctions(self: RDD[Seq[_]], manifests: Seq[ClassManifest[_]]) {
 
   def saveAsTable(tableName: String, fields: Seq[String]): Boolean = {
