@@ -19,10 +19,14 @@ package shark.tgf
 
 import java.sql.Timestamp
 import java.util.Date
+
 import scala.util.parsing.combinator._
-import org.apache.spark.rdd._
+
+import org.apache.spark.rdd.RDD
+
+import shark.api.{QueryExecutionException, RDDTableFunctions}
 import shark.SharkContext
-import shark.api.RDDTableFunctions
+
 
 class TGFParser extends JavaTokenParsers {
 
@@ -34,7 +38,7 @@ class TGFParser extends JavaTokenParsers {
   implicit def stringToRichString(str: String): MyString = new MyString(str)
 
   def gentgf: Parser[Tuple3[String, String, List[String]]] = {
-    ((("GENERATE TABLE".ci ~> ident) <~ "USING".ci) ~ methodName) ~ (("(" ~> repsep(param, ",")) <~ ")") ^^
+    (((("GENERATE".ci ~ "TABLE".ci) ~> ident) <~ "USING".ci) ~ methodName) ~ (("(" ~> repsep(param, ",")) <~ ")") ^^
       { case (id1 ~ id2) ~ x => (id1, id2, x.asInstanceOf[List[String]]) }
   }
 
@@ -42,13 +46,14 @@ class TGFParser extends JavaTokenParsers {
 
   def nameType: Parser[Tuple2[String,String]] = ident ~ ident ^^ { case name~tpe => Tuple2(name, tpe) }
 
-  def param: Parser[Any] = stringLiteral | floatingPointNumber | decimalNumber | ident
+  def param: Parser[Any] = stringLiteral | floatingPointNumber | decimalNumber | ident |
+    failure("Expected a string, number, or identifier as parameters in TGF")
 
   def methodName: Parser[String] =
     """[a-zA-Z_][\w\.]*""".r
-
 }
 
+// Example TGF, should be removed.
 object KulTGF {
   @Schema(spec = "name string, year int")
   def apply(t1: RDD[(Int, String)], n: Int): RDD[(String, Int)] = {
@@ -60,26 +65,31 @@ object TGF {
 
   val parser = new TGFParser
 
-  // GENERATE TABLE minTable USING tgf(sales, dvd, 15, 3);
-
-  def constructParams(tgfName: String, paramStrs: Seq[String], sc: SharkContext):
+  def runTGF(tgfName: String, paramStrs: Seq[String], sc: SharkContext):
   Tuple2[RDD[Product], Seq[Tuple2[String,String]]] = {
-    val tgfClazz = this.getClass.getClassLoader.loadClass(tgfName)
+    val tgfClazz = try {
+      this.getClass.getClassLoader.loadClass(tgfName)
+    } catch {
+      case ex: ClassNotFoundException => throw new QueryExecutionException("Couldn't find TGF class: " + tgfName)
+    }
+
     val methods = tgfClazz.getDeclaredMethods.filter(_.getName == "apply")
 
-    if (methods.length < 1) throw new IllegalArgumentException("TGF " + tgfName + " needs to implement apply()")
+    if (methods.length < 1) throw new QueryExecutionException("TGF " + tgfName + " needs to implement apply()")
 
     val method: java.lang.reflect.Method = methods(0)
 
     val typeNames: Seq[String] = method.getParameterTypes.toList.map(_.toString)
 
-    val colSchema = parser.parseAll(parser.schema, method.getAnnotation(classOf[Schema]).spec()).get
-
+    val annotations = method.getAnnotation(classOf[Schema]).spec()
+    val colSchema = parser.parseAll(parser.schema, annotations).getOrElse(
+      throw new QueryExecutionException("Error parsing TGF schema annotation (@Schema(spec=...)"))
 
     if (colSchema.length != typeNames.length)
-      throw new IllegalArgumentException("Need schema annotation with " + typeNames.length + " columns")
+      throw new QueryExecutionException("Need schema annotation with " + typeNames.length + " columns")
 
-    if (paramStrs.length != typeNames.length) throw new IllegalArgumentException("Expecting " + typeNames.length +
+
+    if (paramStrs.length != typeNames.length) throw new QueryExecutionException("Expecting " + typeNames.length +
       " parameters to " + tgfName + ", got " + paramStrs.length)
 
     val params = (paramStrs.toList zip typeNames.toList).map {
@@ -89,24 +99,21 @@ object TGF {
       case (param: String, tpe: String) if (tpe.startsWith("double")) => param.toDouble
       case (param: String, tpe: String) if (tpe.startsWith("float")) => param.toFloat
       case (param: String, tpe: String) if (tpe.startsWith("class String")) => param
+      case (param: String, tpe: String) => throw
+        new QueryExecutionException("Expected TGF parameter type: " + tpe + " (" + param + ")")
     }
 
-    println("### params " + params)
     val tgfRes: RDD[Product] = method.invoke(null, params.asInstanceOf[List[Object]]:_*).asInstanceOf[RDD[Product]]
-    println("### created " + tgfRes)
 
     Tuple2(tgfRes, colSchema)
   }
 
   def parseInvokeTGF(sql: String, sc: SharkContext): Tuple3[RDD[_], String, Seq[Tuple2[String,String]]] = {
-    val ast = parser.parseAll(parser.gentgf, sql).get
+    val ast = parser.parseAll(parser.gentgf, sql).getOrElse{throw new QueryExecutionException("TGF parse error: "+ sql)}
     val tableName = ast._1
     val tgfName = ast._2
     val paramStrings = ast._3
-    val (rdd, schema) = constructParams(tgfName, paramStrings, sc)
-
-    println("### rdd " + rdd)
-    println("### schema " + schema)
+    val (rdd, schema) = runTGF(tgfName, paramStrings, sc)
 
     val helper = new RDDTableFunctions(rdd, schema.map{ case (_, tpe) => toManifest(tpe)})
     helper.saveAsTable(tableName, schema.map{ case (name, _) => name})
@@ -124,10 +131,6 @@ object TGF {
     else if (tpe == "string") classManifest[java.lang.String]
     else if (tpe == "timestamp") classManifest[Timestamp]
     else if (tpe == "date") classManifest[Date]
-    else throw new IllegalArgumentException("Unknown column type specified in schema (" + tpe + ")")
+    else throw new QueryExecutionException("Unknown column type specified in schema (" + tpe + ")")
   }
-//  def main(args: Array[String]) {
-//    println(parseInvokeTGF("GEnerate table foo using Kul(\"hej\", bkaha, 10)"))
-//    sys.exit(0)
-//  }
 }

@@ -26,7 +26,6 @@ import scala.reflect.ClassManifest;
 import scala.reflect.ClassManifest$;
 
 import org.apache.hadoop.hive.serde.Constants;
-import scala.reflect.Manifest;
 
 /**
  * List of data types defined in Shark APIs.

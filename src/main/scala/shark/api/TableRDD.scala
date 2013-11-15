@@ -20,12 +20,13 @@ package shark.api
 import java.util.{List => JList}
 
 import org.apache.hadoop.hive.metastore.api.FieldSchema
-import org.apache.hadoop.hive.serde2.objectinspector.{PrimitiveObjectInspector, ObjectInspector, StructObjectInspector}
+import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, StructObjectInspector}
 
 import shark.execution.serialization.KryoSerializer
 
 import org.apache.spark.{Partition, TaskContext}
 import org.apache.spark.rdd.RDD
+
 
 class TableRDD(
     prev: RDD[Any],
@@ -73,8 +74,4 @@ class TableRDD(
       case _ => throw new Exception("Only basic StructObjectInspector is supposed.")
     }
   }
-
 }
-
-
-

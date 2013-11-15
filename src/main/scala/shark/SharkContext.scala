@@ -31,9 +31,9 @@ import org.apache.hadoop.hive.ql.processors.CommandProcessorResponse
 import org.apache.hadoop.hive.ql.session.SessionState
 
 import org.apache.spark.{SparkContext, SparkEnv}
+import org.apache.spark.rdd.RDD
 
 import shark.api._
-import org.apache.spark.rdd.RDD
 import shark.tgf.TGF
 
 
@@ -109,6 +109,11 @@ class SharkContext(
     }
   }
 
+  /**
+   * Takes a table name and generates an RDD of tuples of the right size for it, if more than 22 columns it uses Seqs
+   * @param tableName
+   * @return RDD of either Tuple or Seq (if the table contains more than 22 columns)
+   */
   def tableRdd(tableName: String): RDD[_] = {
     val rdd = sql2rdd("SELECT * FROM " + tableName)
     rdd.schema.size match {
@@ -136,6 +141,7 @@ class SharkContext(
       case _ => new TableSeqRDD(rdd)
     }
   }
+
   /**
    * Execute a SQL command and return the results as a RDD of Seq. The SQL command must be
    * a SELECT statement. This is useful if the table has more than 22 columns (more than fits in tuples)

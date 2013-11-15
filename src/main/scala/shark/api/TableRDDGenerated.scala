@@ -20,6 +20,7 @@ package shark.api
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{TaskContext, Partition}
 
+
 class TableSeqRDD(prev: TableRDD)
   extends RDD[Seq[Any]](prev) {
 
@@ -54,7 +55,7 @@ class TableRDD1[T1](prev: TableRDD)
 }
 
 class TableRDD2[T1, T2](prev: TableRDD,
-                        mans: Seq[ClassManifest[_]])
+                        mans: Seq[ClassManifest[_]] = Seq())
   extends RDD[Tuple2[T1, T2]](prev) {
   def schema = prev.schema
 
