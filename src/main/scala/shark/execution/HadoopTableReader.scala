@@ -66,6 +66,11 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
   /**
    * Creates a Hadoop RDD to read data from the target table's data directory. Returns a transformed
    * RDD that contains deserialized rows.
+   * 
+   * @param hiveTable Hive metadata for the table being scanned.
+   * @param filterOpt If defined, then the filter is used to reject files contained in the data
+   *                  directory being read. If None, then all files are accepted.
+   * @param deserializerClass Class of the SerDe used to deserialize Writables read from Hadoop.
    */
   def makeRDDForTable(
       hiveTable: HiveTable,
@@ -114,6 +119,11 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
    * Create a HadoopRDD for every partition key specified in the query. Note that for on-disk Hive
    * tables, a data directory is created for each partition corresponding to keys specified using
    * 'PARTITION BY'.
+   * 
+   * @param partitionToDeserializer Mapping from a Hive partition metadata object to the SerDe
+   *     class to use to deserialize input Writables.
+   * @param filterOpt If defined, then the filter is used to reject files contained in the data
+   *     subdirectory of each partition being read. If None, then all files are accepted.
    */
   def makeRDDForPartitionedTable(
       partitionToDeserializer: Map[HivePartition, Class[_ <: Deserializer]],

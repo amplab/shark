@@ -40,11 +40,11 @@ object RDDUtils {
   def unionAndFlatten[T: ClassManifest](
     rdd: RDD[T],
     otherRdd: RDD[T]): UnionRDD[T] = {
-    val otherRdds = otherRdd match {
+    val otherRdds: Seq[RDD[T]] = otherRdd match {
       case otherUnionRdd: UnionRDD[_] => otherUnionRdd.rdds
       case _ => Seq(otherRdd)
     }
-    val rdds = rdd match {
+    val rdds: Seq[RDD[T]] = rdd match {
       case unionRdd: UnionRDD[_] => unionRdd.rdds
       case _ => Seq(rdd)
     }

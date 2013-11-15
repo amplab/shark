@@ -17,11 +17,7 @@
 
 package shark
 
-import scala.collection.JavaConversions._
 import scala.collection.mutable.{HashMap, HashSet}
-
-import org.apache.hadoop.hive.metastore.MetaStoreUtils.DEFAULT_DATABASE_NAME
-import org.apache.hadoop.hive.ql.metadata.Hive
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
@@ -31,8 +27,6 @@ import shark.api.JavaSharkContext
 import shark.execution.serialization.ShuffleSerializer
 import shark.memstore2.MemoryMetadataManager
 import shark.tachyon.TachyonUtilImpl
-
-import org.apache.hadoop.hive.metastore.api.Database
 
 
 /** A singleton object for the master program. The slaves should not access this. */
