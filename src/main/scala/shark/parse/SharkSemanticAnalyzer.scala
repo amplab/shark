@@ -388,14 +388,15 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
 
           // No need to create a filter, since the entire table data directory should be loaded, nor
           // pass partition specifications, since partitioned tables can't be created from CTAS.
-          new SparkLoadWork(
+          val sparkLoadWork = new SparkLoadWork(
             qb.createTableDesc.getDatabaseName,
             qb.createTableDesc.getTableName,
             SparkLoadWork.CommandTypes.NEW_ENTRY,
             qb.preferredStorageLevel,
-            qb.cacheModeForCreateTable,
-            qb.unifyView,
-            qb.reloadOnRestart)
+            qb.cacheModeForCreateTable)
+          sparkLoadWork.unifyView = qb.unifyView
+          sparkLoadWork.reloadOnRestart = qb.reloadOnRestart
+          sparkLoadWork
         } else {
           // Split from 'databaseName.tableName'
           val tableNameSplit = qb.targetTableDesc.getTableName.split('.')

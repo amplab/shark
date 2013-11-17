@@ -35,41 +35,21 @@ class QueryBlock(outerID: String, alias: String, isSubQuery: Boolean)
     extends HiveQueryBlock(outerID, alias, isSubQuery) {
 
   // The CacheType for the table that will be created from CREATE TABLE/CTAS.
-  private var _cacheModeForCreateTable = CacheType.NONE
+  var cacheModeForCreateTable = CacheType.NONE
 
-  private var _reloadOnRestart: Boolean = false
+  var reloadOnRestart: Boolean = false
 
-  private var _preferredStorageLevel: StorageLevel = StorageLevel.NONE
+  var preferredStorageLevel: StorageLevel = StorageLevel.NONE
 
   // Whether the created to be created or the table specified by CACHED should be backed by disk.
-  private var _unifyView = false
+  var unifyView = false
 
   // Descriptor for the table being updated by an INSERT.
-  private var _targetTableDesc: TableDesc = _
-
-  def cacheModeForCreateTable_= (mode: CacheType) = _cacheModeForCreateTable = mode
-
-  def cacheModeForCreateTable: CacheType = _cacheModeForCreateTable
-
-  def reloadOnRestart: Boolean = _reloadOnRestart
-
-  def reloadOnRestart_= (reload: Boolean) = _reloadOnRestart = reload
-
-  def preferredStorageLevel_= (storageLevel: StorageLevel) = _preferredStorageLevel = storageLevel
-
-  def preferredStorageLevel: StorageLevel = _preferredStorageLevel
-
-  def unifyView_= (shouldUnify: Boolean) = _unifyView = shouldUnify
-
-  def unifyView: Boolean = _unifyView
+  var targetTableDesc: TableDesc = _
 
   // Hive's QB uses `tableDesc` to refer to the CreateTableDesc. A direct `createTableDesc`
   // makes it easier to differentiate from `_targetTableDesc`.
   def createTableDesc: CreateTableDesc = super.getTableDesc
 
   def createTableDesc_= (desc: CreateTableDesc) = super.setTableDesc(desc)
-
-  def targetTableDesc: TableDesc = _targetTableDesc
-
-  def targetTableDesc_= (desc: TableDesc) = _targetTableDesc = desc
 }

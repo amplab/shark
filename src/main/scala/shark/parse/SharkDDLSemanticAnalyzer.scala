@@ -119,9 +119,9 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
         tableName,
         SparkLoadWork.CommandTypes.NEW_ENTRY,
         preferredStorageLevel,
-        newCacheMode,
-        unifyView,
-        reloadOnRestart)
+        newCacheMode)
+      sparkLoadWork.unifyView = unifyView
+      sparkLoadWork.reloadOnRestart = reloadOnRestart
       partSpecsOpt.foreach(partSpecs => sparkLoadWork.partSpecs = partSpecs)
       rootTasks.head.addDependentTask(TaskFactory.get(sparkLoadWork, conf))
     }
