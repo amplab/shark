@@ -39,6 +39,8 @@ class MemoryMetadataManager extends LogHelper {
     new ConcurrentHashMap[String, Table]()
 
   // TODO(harvey): Support stats for Hive-partitioned tables.
+  // A stats entry must exist for any cached tables created, so the sizes of this and `_keyToTable`
+  // are always equal.
   private val _keyToStats: ConcurrentMap[String, collection.Map[Int, TablePartitionStats]] =
     new ConcurrentHashMap[String, collection.Map[Int, TablePartitionStats]]
 
@@ -265,7 +267,7 @@ class MemoryMetadataManager extends LogHelper {
     }
   }
 
-
+  // Returns the key "databaseName.tableName".
   private def makeTableKey(databaseName: String, tableName: String): String = {
     (databaseName + '.' + tableName).toLowerCase
   }

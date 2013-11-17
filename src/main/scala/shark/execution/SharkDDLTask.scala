@@ -31,7 +31,7 @@ import org.apache.spark.rdd.EmptyRDD
 
 import shark.{LogHelper, SharkConfVars, SharkEnv}
 import shark.memstore2.{CacheType, ColumnarSerDe, MemoryMetadataManager, PartitionedMemoryTable}
-import shark.memstore2.SharkTblProperties
+import shark.memstore2.{SharkTblProperties, TablePartitionStats}
 import shark.util.HiveUtils
 
 
@@ -106,6 +106,8 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
       memoryTable.tableRDD = new EmptyRDD(SharkEnv.sc)
       memoryTable
     }
+    // Add an empty stats entry to the Shark metastore.
+    SharkEnv.memoryMetadataManager.putStats(dbName, tableName, Map[Int, TablePartitionStats]())
     if (unifyView) {
       val table = hiveMetadataDb.getTable(tableName)
       newTable.diskSerDe = table.getDeserializer().getClass.getName
