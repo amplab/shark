@@ -25,13 +25,12 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.FunSuite
 
 import org.apache.hadoop.hive.metastore.MetaStoreUtils.DEFAULT_DATABASE_NAME
-import org.apache.hadoop.hive.serde2.`lazy`.LazySimpleSerDe
 import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.spark.rdd.UnionRDD
 import org.apache.spark.storage.StorageLevel
 
 import shark.api.QueryExecutionException
-import shark.memstore2.{ColumnarSerDe, MemoryMetadataManager, PartitionedMemoryTable}
+import shark.memstore2.{MemoryMetadataManager, PartitionedMemoryTable}
 import shark.util.HiveUtils
 
 
@@ -911,83 +910,6 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   //////////////////////////////////////////////////////////////////////////////
-  // HiveUtils methods that modify Hive metastore
-  // TODO(harvey): Tests for methods that directly create/drop tables.
-  //////////////////////////////////////////////////////////////////////////////
-
-  test("HiveUtils: directly alter table's SerDe") {
-    def getTableSerDeName(tableName: String): String = {
-      val hiveTable = Hive.get(SharkContext.hiveconf).getTable(tableName)
-      hiveTable.getDeserializer.getClass.getName
-    }
-
-    sc.runSql("drop table if exists alter_table_serde")
-    sc.runSql("create table alter_table_serde (key int, value string)")
-    val tableName = "alter_table_serde"
-    val hiveConf = SharkContext.hiveconf
-
-    val oldSerDeName = getTableSerDeName(tableName)
-    val columnarSerDeName = classOf[shark.memstore2.ColumnarSerDe].getName
-
-    // Change the SerDe from the default LazySimpleSerDe to ColumnarSerDe.
-    HiveUtils.alterSerdeInHive(
-      DEFAULT_DB_NAME,
-      tableName,
-      None /* partitionSpecOpt */,
-      columnarSerDeName,
-      hiveConf)
-    assert(getTableSerDeName(tableName) == columnarSerDeName)
-
-    // Change the SerDe back to LazySimpleSerDe.
-    HiveUtils.alterSerdeInHive(
-      DEFAULT_DB_NAME,
-      tableName,
-      None /* partitionSpecOpt */,
-      oldSerDeName,
-      hiveConf)
-    assert(getTableSerDeName(tableName) == oldSerDeName)
-  }
-
-  test("HiveUtils: directly alter table partition's SerDe") {
-    def getPartitionSerDeName(tableName: String, partSpec: JavaHashMap[String, String]): String = {
-      // Get Hive metadata objects.
-      val metastore = Hive.get(SharkContext.hiveconf)
-      val table = metastore.getTable(tableName)
-      val partition = metastore.getPartition(table, partSpec, false /* forceCreate */)
-      partition.getDeserializer.getClass.getName
-    }
- 
-    sc.runSql("drop table if exists alter_part_serde")
-    sc.runSql("create table alter_part_serde (key int, value string) partitioned by (keypart int)")
-    sc.runSql("insert into table alter_part_serde partition (keypart = 1) select * from test")
-    val tableName = "alter_part_serde"
-    val hiveConf = SharkContext.hiveconf
-    val partitionSpec = new JavaHashMap[String, String]()
-    partitionSpec.put("keypart", "1")
-    val oldSerDeName = getPartitionSerDeName(tableName, partitionSpec)
-    val columnarSerDeName = classOf[shark.memstore2.ColumnarSerDe].getName
-
-    // Change the SerDe from the default LazySimpleSerDe to ColumnarSerDe
-    HiveUtils.alterSerdeInHive(
-      DEFAULT_DB_NAME,
-      tableName,
-      Some(partitionSpec),
-      columnarSerDeName,
-      hiveConf)
-    assert(getPartitionSerDeName(tableName, partitionSpec) == columnarSerDeName)
-
-    // Change the SerDe back to LazySimpleSerDe.
-    HiveUtils.alterSerdeInHive(
-      DEFAULT_DB_NAME,
-      tableName,
-      Some(partitionSpec),
-      oldSerDeName,
-      hiveConf)
-    assert(getPartitionSerDeName(tableName, partitionSpec) == oldSerDeName)
-  }
-
-
-  //////////////////////////////////////////////////////////////////////////////
   // Creating unified views
   //////////////////////////////////////////////////////////////////////////////
   test ("Cached table created by CREATE TABLE, with table properties, is unified view by default") {
@@ -1210,9 +1132,6 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   // Unified view persistence
   //////////////////////////////////////////////////////////////////////////////
   test ("Unified views persist across Shark metastore shutdowns.") {
-    val columnarSerDeName = classOf[ColumnarSerDe].getName
-    // All cached tables are unified by default, so MemoryMetadataManager#resetUnifiedTableSerDes()
-    // should reset SerDes for the SQLSuite-global tables.
     val globalCachedTableNames = Seq("test_cached", "test_null_cached", "clicks_cached",
       "users_cached", "test1_cached")
 
@@ -1221,18 +1140,11 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     for ((tableName, i) <- globalCachedTableNames.zipWithIndex) {
       val hiveTable = Hive.get().getTable(DEFAULT_DB_NAME, tableName)
       val cachedCount = sc.sql("select count(*) from %s".format(tableName))(0)
-      val cacheSerDe = hiveTable.getDeserializer.getClass.getName
-      assert(cacheSerDe == columnarSerDeName)
       cachedTableCounts(i) = cachedCount
     }
     sharkMetastore.processTablesOnShutdown()
     for ((tableName, i) <- globalCachedTableNames.zipWithIndex) {
       val hiveTable = Hive.get().getTable(DEFAULT_DB_NAME, tableName)
-
-      // Make sure the SerDe has been reset to the one used for deserializing disk reads.
-      val diskSerDe = hiveTable.getDeserializer.getClass.getName
-      assert(diskSerDe != columnarSerDeName, """SerDe for %s wasn't reset across Shark metastore
-        restart. (disk SerDe: %s)""".format(tableName, diskSerDe))
 
       // Check that the number of rows from the table on disk remains the same.
       val onDiskCount = sc.sql("select count(*) from %s".format(tableName))(0)

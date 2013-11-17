@@ -187,22 +187,22 @@ class MemoryMetadataManager extends LogHelper {
     val db = Hive.get()
     for (sharkTable <- _keyToTable.values) {
       if (sharkTable.unifyView) {
-        resetUnifiedViewProperties(
+        dropUnifiedView(
           db,
           sharkTable.databaseName,
           sharkTable.tableName,
-          sharkTable.diskSerDe,
           sharkTable.reloadOnRestart)
       } else {
-        // Drop everything else
         HiveUtils.dropTableInHive(sharkTable.tableName, db.getConf)
       }
     }
   }
 
   /**
-   * Drops a unified view from the Shark cache. The table is still backed by disk and its metadata
-   * can be accessible from the Hive metastore.
+   * Removes Shark table properties and drops a unified view from the Shark cache. However, if
+   * `preserveRecoveryProps` is true, then Shark properties needed for table recovery won't be
+   * removed.
+   * After this method completes, the table can still be scanned from disk.
    */
   def dropUnifiedView(
       db: Hive,
@@ -210,60 +210,13 @@ class MemoryMetadataManager extends LogHelper {
       tableName: String,
       preserveRecoveryProps: Boolean = false) {
     getTable(databaseName, tableName).foreach { sharkTable =>
-      // Reset Shark table properties (e.g, reset the SerDe).
-      resetUnifiedViewProperties(
-        db,
-        databaseName,
-        tableName,
-        sharkTable.diskSerDe,
-        preserveRecoveryProps)
-      // Unpersist the table from memory.
+      db.setCurrentDatabase(databaseName)
+      val hiveTable = db.getTable(databaseName, tableName)
+      SharkTblProperties.removeSharkProperties(hiveTable.getParameters, preserveRecoveryProps)
+      // Refresh the Hive `db`.
+      db.alterTable(tableName, hiveTable)
+      // Unpersist the table's RDDs from memory.
       removeTable(databaseName, tableName)
-    }
-  }
-
-  /**
-   * Resets SerDe properties for unified table to the ones used for deserializing reads.
-   * If `preserveRecoveryProps` is true, then Shark properties needed for table recovery won't be
-   * removed.
-   * After this method completes, unified views, upon a Shark server restart, can be loaded into
-   * the cache automatically or read from disk (indiscernible from Hive tables).
-   */
-  def resetUnifiedViewProperties(
-      db: Hive,
-      databaseName: String,
-      tableName: String,
-      diskSerDe: String,
-      preserveRecoveryProps: Boolean) {
-    val conf = db.getConf
-    logInfo("Setting SerDe for table %s back to %s.".format(tableName, diskSerDe))
-    HiveUtils.alterSerdeInHive(
-      databaseName,
-      tableName,
-      None /* partitionSpecOpt */,
-      diskSerDe,
-      conf)
-    // Remove all Shark related table properties from the Hive table metadata.
-    val hiveTable = db.getTable(databaseName, tableName)
-    SharkTblProperties.removeSharkProperties(hiveTable.getParameters, preserveRecoveryProps)
-    // Refresh the Hive `db`.
-    db.alterTable(tableName, hiveTable)
-    // Reset SerDes if the table is partitioned.
-    getTable(databaseName, tableName) match {
-      case partitionedTable: PartitionedMemoryTable => {
-        for ((hiveKeyStr, serDeName) <- partitionedTable.keyToDiskSerDes) {
-          logInfo("Setting SerDe for table %s(partition %s) back to %s.".
-            format(tableName, hiveKeyStr, serDeName))
-          val partitionSpec = MemoryMetadataManager.parseHivePartitionKeyStr(hiveKeyStr)
-          HiveUtils.alterSerdeInHive(
-            databaseName,
-            tableName,
-            Some(partitionSpec),
-            serDeName,
-            conf)
-        }
-      }
-      case _ => Unit
     }
   }
 

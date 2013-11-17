@@ -78,22 +78,6 @@ object OperatorFactory extends LogHelper {
     _createAndSetParents(sinkOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }
 
-  /**
-   * Returns the operator tree constructed by createSharkFileOutputPlan(), but makes sure that the
-   * FileSinkOperator uses the `diskSerDe` (usually a LazySimpleSerDe) for deserializing input rows.
-   */
-  def createUnifiedViewFileOutputPlan(
-      hiveTerminalOp: HOperator[_<:HiveDesc],
-      diskSerDe: String): TerminalOperator = {
-    var hiveOp = hiveTerminalOp.asInstanceOf[org.apache.hadoop.hive.ql.exec.FileSinkOperator]
-    val terminalOp = createSharkFileOutputPlan(hiveTerminalOp)
-    val fileSinkDesc = hiveOp.getConf
-    val tableDesc = fileSinkDesc.getTableInfo()
-    val serDe = Class.forName(diskSerDe).asInstanceOf[Class[Deserializer]]
-    tableDesc.setDeserializerClass(serDe)
-    terminalOp
-  }
-
   def createSharkRddOutputPlan(hiveTerminalOp: HOperator[_<:HiveDesc]): TerminalOperator = {
     // TODO the terminal operator is the FileSinkOperator in Hive?
     val hiveOp = hiveTerminalOp.asInstanceOf[org.apache.hadoop.hive.ql.exec.FileSinkOperator]

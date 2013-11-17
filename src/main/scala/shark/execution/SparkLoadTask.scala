@@ -255,15 +255,6 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
           work.preferredStorageLevel,
           work.unifyView,
           work.reloadOnRestart)
-        // Before setting the table's SerDe property to ColumnarSerDe, record the SerDe used
-        // to deserialize rows from disk so that it can be used for subsequenct update operations.
-        newMemoryTable.diskSerDe = hiveTable.getDeserializer.getClass.getName
-        HiveUtils.alterSerdeInHive(
-          databaseName,
-          tableName,
-          partitionSpecOpt = None,
-          classOf[ColumnarSerDe].getName,
-          conf)
         newMemoryTable
       }
       case _ => {
@@ -293,7 +284,7 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
     val tableName = hiveTable.getTableName
     val memoryTable = getOrCreateMemoryTable(hiveTable)
     val tableSchema = hiveTable.getSchema
-    val serDe = Class.forName(memoryTable.diskSerDe).newInstance.asInstanceOf[Deserializer]
+    val serDe = hiveTable.getDeserializer
     serDe.initialize(conf, tableSchema)
     // Scan the Hive table's data directory.
     val inputRDD = hadoopReader.makeRDDForTable(
@@ -338,7 +329,7 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
     val tableName = hiveTable.getTableName
     work.commandType match {
       case SparkLoadWork.CommandTypes.NEW_ENTRY => {
-        val newPartitionedTable = SharkEnv.memoryMetadataManager.createPartitionedMemoryTable(
+        SharkEnv.memoryMetadataManager.createPartitionedMemoryTable(
           databaseName,
           tableName,
           work.cacheMode,
@@ -346,14 +337,6 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
           work.unifyView,
           work.reloadOnRestart,
           hiveTable.getParameters)
-        newPartitionedTable.diskSerDe = hiveTable.getDeserializer.getClass.getName
-        HiveUtils.alterSerdeInHive(
-          databaseName,
-          tableName,
-          Some(partSpecs),
-          classOf[ColumnarSerDe].getName,
-          conf)
-        newPartitionedTable
       }
       case _ => {
         SharkEnv.memoryMetadataManager.getTable(databaseName, tableName) match {
@@ -397,12 +380,7 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
       val partitionedTable = getOrCreatePartitionedMemoryTable(hiveTable, partSpec)
       val partitionKey = MemoryMetadataManager.makeHivePartitionKeyStr(partCols, partSpec)
       val partition = db.getPartition(hiveTable, partSpec, false /* forceCreate */)
-
-      // Name of the SerDe used to deserialize the partition contents on disk. If the partition
-      // specified doesn't currently exist, then default to the table's disk SerDe.
-      val partSerDeName = partitionedTable.getDiskSerDe(partitionKey).
-        getOrElse(partitionedTable.diskSerDe)
-      val partSerDe = Class.forName(partSerDeName).newInstance.asInstanceOf[Deserializer]
+      val partSerDe = partition.getDeserializer()
       val partSchema = partition.getSchema
       partSerDe.initialize(conf, partSchema)
       // Get a UnionStructObjectInspector that unifies the two StructObjectInspectors for the table
@@ -431,8 +409,6 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
         SparkLoadTask.unionStatsMaps(tableStats, previousStatsMapOpt.get)
       } else {
         partitionedTable.putPartition(partitionKey, tablePartitionRDD)
-        // If a new partition is added, then the table's SerDe should be used by default.
-        partitionedTable.setDiskSerDe(partitionKey, partitionedTable.diskSerDe)
       }
       SharkEnv.memoryMetadataManager.putStats(databaseName, tableName, tableStats.toMap)
     }

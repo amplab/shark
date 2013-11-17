@@ -37,7 +37,8 @@ import org.apache.spark.rdd.{PartitionPruningRDD, RDD}
 
 import shark.{LogHelper, SharkConfVars, SharkEnv}
 import shark.execution.optimization.ColumnPruner
-import shark.memstore2.{CacheType, MemoryMetadataManager, TablePartition, TablePartitionStats}
+import shark.memstore2.{CacheType, ColumnarSerDe, MemoryMetadataManager}
+import shark.memstore2.{TablePartition, TablePartitionStats}
 import shark.util.HiveUtils
 
 
@@ -46,7 +47,10 @@ import shark.util.HiveUtils
  */
 class TableScanOperator extends TopOperator[TableScanDesc] {
 
+  // TODO(harvey): Try to use 'TableDesc' for execution and save 'Table' for analysis/planning.
+  //     Decouple `Table` from TableReader and ColumnPruner.
   @transient var table: Table = _
+
   @transient var hiveOp: HiveTableScanOperator = _
 
   // Metadata for Hive-partitions (i.e if the table was created from PARTITION BY). NULL if this
@@ -66,21 +70,33 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
 
   @BeanProperty var tableDesc: TableDesc = _
 
+  @BeanProperty var isInMemoryTableScan: Boolean = _
+
 
   override def initializeOnMaster() {
     // Create a local copy of the HiveConf that will be assigned job properties and, for disk reads,
     // broadcasted to slaves.
     localHConf = new HiveConf(super.hconf)
+    isInMemoryTableScan = SharkEnv.memoryMetadataManager.containsTable(
+      table.getDbName, table.getTableName)
   }
 
   override def outputObjectInspector() = {
     if (parts == null) {
-      val serializer = tableDesc.getDeserializerClass().newInstance()
+      val serializer = if (isInMemoryTableScan) {
+        new ColumnarSerDe
+      } else {
+        tableDesc.getDeserializerClass().newInstance()
+      }
       serializer.initialize(hconf, tableDesc.getProperties)
       serializer.getObjectInspector()
     } else {
       val partProps = firstConfPartDesc.getProperties()
-      val partSerDe = firstConfPartDesc.getDeserializerClass().newInstance()
+      val partSerDe = if (isInMemoryTableScan) {
+        new ColumnarSerDe
+      } else {
+        firstConfPartDesc.getDeserializerClass().newInstance()
+      }
       partSerDe.initialize(hconf, partProps)
       HiveUtils.makeUnionOIForPartitionedTable(partProps, partSerDe)
     }

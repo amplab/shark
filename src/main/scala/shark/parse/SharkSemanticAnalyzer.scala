@@ -213,14 +213,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                   qb.unifyView = true
                   qb.targetTableDesc = tableDesc
                   qb.preferredStorageLevel = preferredStorageLevel
-                  val diskSerDe = table match {
-                    case memoryTable: MemoryTable => memoryTable.diskSerDe
-                    case partitionedTable: PartitionedMemoryTable => {
-                      partitionedTable.getDiskSerDe(hivePartitionKey).getOrElse(
-                        partitionedTable.diskSerDe)
-                    }
-                  }
-                  OperatorFactory.createUnifiedViewFileOutputPlan(hiveSinkOp, diskSerDe)
+                  OperatorFactory.createSharkFileOutputPlan(hiveSinkOp)
                 } else {
                   OperatorFactory.createSharkMemoryStoreOutputPlan(
                     hiveSinkOp,

@@ -108,20 +108,6 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
     }
     // Add an empty stats entry to the Shark metastore.
     SharkEnv.memoryMetadataManager.putStats(dbName, tableName, Map[Int, TablePartitionStats]())
-    if (unifyView) {
-      val table = hiveMetadataDb.getTable(tableName)
-      newTable.diskSerDe = table.getDeserializer().getClass.getName
-      // Creates and directly execute a Hive DDLTask to change the table's SerDe property in
-      // the Hive metastore.
-      // The alternatives are to either attach a HiveDDLTask dependent on this SharkDDLTask or to
-      // copy the necessary code from Hive, both of which are more troublesome to do...
-      HiveUtils.alterSerdeInHive(
-        dbName,
-        tableName,
-        partitionSpecOpt = None,
-        classOf[ColumnarSerDe].getName,
-        conf)
-    }
   }
 
   /** Handles an ALTER TABLE ADD PARTITION. */

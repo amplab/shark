@@ -136,41 +136,6 @@ private[shark] object HiveUtils {
   }
 
   /**
-   * Directly executes a Hive DDLTask that changes the SerDe property for the table (or table
-   * partition) entry in the Hive metastore. Returns `true` if successful.
-   *
-   * @tableName Name of table being altered.
-   * @partitionSpecOpt Map of (partition col, partition key) pairs for which the SerDe is being
-   *     altered. `None` if the table isn't Hive-partitioned.
-   * @serDeName Class name of new SerDe to use.
-   * @hiveConf Configuration associated with the current SessionState.
-   */
-  def alterSerdeInHive(
-      databaseName: String,
-      tableName: String,
-      partitionSpecOpt: Option[JavaMap[String, String]],
-      serDeName: String,
-      hiveConf: HiveConf = new HiveConf): Boolean = {
-    val partitionSpec = if (partitionSpecOpt.isDefined) {
-      partitionSpecOpt.get.asInstanceOf[JavaHashMap[String, String]]
-    } else {
-      null
-    }
-    val alterTableDesc = new AlterTableDesc(AlterTableDesc.AlterTableTypes.ADDSERDE)
-    alterTableDesc.setOldName(tableName)
-    alterTableDesc.setSerdeName(serDeName)
-    alterTableDesc.setPartSpec(partitionSpec)
-    val db = Hive.get(hiveConf).setCurrentDatabase(databaseName)
-
-    // Execute the SerDe change against the Hive metastore.
-    val ddlWork = new DDLWork(new JavaHashSet[ReadEntity],
-                              new JavaHashSet[WriteEntity],
-                              alterTableDesc)
-    val taskExecutionStatus = executeDDLTaskDirectly(ddlWork, hiveConf)
-    taskExecutionStatus == 0
-  }
-
-  /**
    * Creates a DDLTask from the DDLWork given, and directly calls DDLTask#execute(). Returns 0 if
    * the create table command is executed successfully.
    * This is safe to use for all DDL commands except for AlterTableTypes.ARCHIVE, which actually

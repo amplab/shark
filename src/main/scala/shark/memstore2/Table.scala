@@ -37,15 +37,4 @@ private[shark] abstract class Table(
     var cacheMode: CacheType.CacheType,
     var preferredStorageLevel: StorageLevel,
     var unifyView: Boolean,
-    var reloadOnRestart: Boolean) {
-
-  // SerDe used to read from and write to disk. Should only be set for unified views.
-  private var _diskSerDe: String = _
-
-  def diskSerDe: String = _diskSerDe
-
-  def diskSerDe_= (newSerDe: String) = {
-    assert(unifyView, "Setting diskSerDe for %s, but it isn't a unified view.".format(tableName))
-    _diskSerDe = newSerDe
-  }
-}
+    var reloadOnRestart: Boolean)

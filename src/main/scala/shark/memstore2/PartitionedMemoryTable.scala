@@ -60,11 +60,6 @@ class PartitionedMemoryTable(
   private val _keyToPartitions: ConcurrentMap[String, RDDValue] =
     new ConcurrentJavaHashMap[String, RDDValue]()
 
-  // Map from Hive-partition key to the SerDe name used to deserialize rows read from disk.
-  // Should only be used for unified views.
-  private var _keyToDiskSerDes: ConcurrentMap[String, String] =
-    new ConcurrentJavaHashMap[String, String]()
-
   // The eviction policy for this table's cached Hive-partitions. An example of how this
   // can be set from the CLI:
   //   `TBLPROPERTIES("shark.partition.cachePolicy", "LRUCachePolicy")`.
@@ -109,7 +104,6 @@ class PartitionedMemoryTable(
 
   def removePartition(partitionKey: String): Option[RDD[TablePartition]] = {
     val rddRemoved = _keyToPartitions.remove(partitionKey)
-    _keyToDiskSerDes.remove(partitionKey)
     if (rddRemoved.isDefined) {
       _cachePolicy.notifyRemove(partitionKey)
     }
@@ -131,13 +125,6 @@ class PartitionedMemoryTable(
     _cachePolicy = newPolicy
   }
 
-  def setDiskSerDe(partitionKey: String, serDe: String) = {
-    assert(unifyView, "Setting diskSerDe for %s, but it isn't a unified view.".format(tableName))
-    _keyToDiskSerDes.put(partitionKey, serDe)
-  }
-
-  def getDiskSerDe(partitionKey: String): Option[String] = _keyToDiskSerDes.get(partitionKey)
-
   def cachePolicy: CachePolicy[String, RDDValue] = _cachePolicy
 
   /** Returns an immutable view of (partition key -> RDD) mappings to external callers */
@@ -145,6 +132,4 @@ class PartitionedMemoryTable(
     _keyToPartitions.mapValues(_.rdd).toMap
   }
 
-  /** Returns an immutable view of (partition key -> SerDe name) mappings to external callers */
-  def keyToDiskSerDes: collection.immutable.Map[String, String] = _keyToDiskSerDes.toMap
 }
