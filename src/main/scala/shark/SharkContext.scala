@@ -300,8 +300,7 @@ class SharkContext(
   def runSql(cmd2: String, maxRows: Int = 1000): ResultSet = {
     var cmd = cmd2
     if (cmd.trim.toLowerCase().startsWith("generate")) {
-      val (rdd, tableName, colnames) = TGF.parseInvokeTGF(cmd.trim, this)
-      cmd = "select * from " + tableName + " limit 0"
+      return TGF.execute(cmd.trim, this)
     }
 
     SparkEnv.set(sparkEnv)

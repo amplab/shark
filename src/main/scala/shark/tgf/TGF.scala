@@ -18,17 +18,20 @@
 package shark.tgf
 
 import java.sql.Timestamp
-import java.util.Date
+import java.util.{Random, Date}
 
 import scala.util.parsing.combinator._
 
 import org.apache.spark.rdd.RDD
 
-import shark.api.{QueryExecutionException, RDDTableFunctions}
+import shark.api._
 import shark.SharkContext
+import scala.Tuple3
+import scala.Some
+import scala.Tuple2
 
 
-class TGFParser extends JavaTokenParsers {
+private class TGFParser extends JavaTokenParsers {
 
   /* Code to enable case-insensitive modifiers to strings, e.g. "DataBricks".ci will match "databricks" */
   class MyString(str: String) {
@@ -37,11 +40,24 @@ class TGFParser extends JavaTokenParsers {
 
   implicit def stringToRichString(str: String): MyString = new MyString(str)
 
-  def gentgf: Parser[Tuple3[String, String, List[String]]] = {
-    (((("GENERATE".ci ~ "TABLE".ci) ~> ident) <~ "USING".ci) ~ methodName) ~ (("(" ~> repsep(param, ",")) <~ ")") ^^
-      { case (id1 ~ id2) ~ x => (id1, id2, x.asInstanceOf[List[String]]) }
+  def tgf: Parser[Any] = saveTgf | basicTgf
+
+  /**
+   * @return Tuple2 containing a TGF method name and a List of parameters as strings
+   */
+  def basicTgf: Parser[Tuple2[String, List[String]]] = {
+    (("GENERATE".ci ~ "USING".ci) ~> methodName) ~ (("(" ~> repsep(param, ",")) <~ ")") ^^
+      { case id1 ~ x => (id1, x.asInstanceOf[List[String]]) }
   }
 
+  /**
+   * @return Tuple3 containing a table name, TGF method name and a List of parameters as strings
+   */
+  def saveTgf: Parser[Tuple3[String, String, List[String]]] = {
+    ((("GENERATE".ci ~ "USING".ci) ~> methodName) ~ (("(" ~> repsep(param, ",")) <~ ")")) ~ (("SAVE".ci ~ "AS".ci) ~>
+      ident) ^^ { case id1 ~ x ~ id2 => (id2, id1, x.asInstanceOf[List[String]]) }
+  }
+  
   def schema: Parser[List[Tuple2[String,String]]] = repsep(nameType, ",")
 
   def nameType: Parser[Tuple2[String,String]] = ident ~ ident ^^ { case name~tpe => Tuple2(name, tpe) }
@@ -53,19 +69,11 @@ class TGFParser extends JavaTokenParsers {
     """[a-zA-Z_][\w\.]*""".r
 }
 
-// Example TGF, should be removed.
-object KulTGF {
-  @Schema(spec = "name string, year int")
-  def apply(t1: RDD[(Int, String)], n: Int): RDD[(String, Int)] = {
-    t1.map{ case (i, s) => Tuple2(s, (i + n))}
-  }
-}
-
 object TGF {
 
-  val parser = new TGFParser
+  private val parser = new TGFParser
 
-  def runTGF(tgfName: String, paramStrs: Seq[String], sc: SharkContext):
+  private def reflectInvoke(tgfName: String, paramStrs: Seq[String], sc: SharkContext):
   Tuple2[RDD[Product], Seq[Tuple2[String,String]]] = {
     val tgfClazz = try {
       this.getClass.getClassLoader.loadClass(tgfName)
@@ -84,10 +92,6 @@ object TGF {
     val annotations = method.getAnnotation(classOf[Schema]).spec()
     val colSchema = parser.parseAll(parser.schema, annotations).getOrElse(
       throw new QueryExecutionException("Error parsing TGF schema annotation (@Schema(spec=...)"))
-
-    if (colSchema.length != typeNames.length)
-      throw new QueryExecutionException("Need schema annotation with " + typeNames.length + " columns")
-
 
     if (paramStrs.length != typeNames.length) throw new QueryExecutionException("Expecting " + typeNames.length +
       " parameters to " + tgfName + ", got " + paramStrs.length)
@@ -108,19 +112,33 @@ object TGF {
     Tuple2(tgfRes, colSchema)
   }
 
-  def parseInvokeTGF(sql: String, sc: SharkContext): Tuple3[RDD[_], String, Seq[Tuple2[String,String]]] = {
-    val ast = parser.parseAll(parser.gentgf, sql).getOrElse{throw new QueryExecutionException("TGF parse error: "+ sql)}
-    val tableName = ast._1
-    val tgfName = ast._2
-    val paramStrings = ast._3
-    val (rdd, schema) = runTGF(tgfName, paramStrings, sc)
+  def execute(sql: String, sc: SharkContext): ResultSet = {
+    val ast = parser.parseAll(parser.tgf, sql).getOrElse{throw new QueryExecutionException("TGF parse error: "+ sql)}
 
-    val helper = new RDDTableFunctions(rdd, schema.map{ case (_, tpe) => toManifest(tpe)})
-    helper.saveAsTable(tableName, schema.map{ case (name, _) => name})
-    (rdd, tableName, schema)
+    val (tableNameOpt, tgfName, params) = ast match {
+      case Tuple2(tgfName, params) => (None, tgfName.asInstanceOf[String], params.asInstanceOf[List[String]])
+      case Tuple3(tableName, tgfName, params) => (Some(tableName.asInstanceOf[String]), tgfName.asInstanceOf[String],
+        params.asInstanceOf[List[String]])
+    }
+
+    val (resultRdd, schema) = reflectInvoke(tgfName, params, sc)
+
+    val (sharkSchema, resultArr) = tableNameOpt match {
+
+      case Some(tableName) =>  // materialize results
+      val helper = new RDDTableFunctions(resultRdd, schema.map{ case (_, tpe) => toManifest(tpe)})
+      helper.saveAsTable(tableName, schema.map{ case (name, _) => name})
+      (Array[ColumnDesc](), Array[Array[Object]]())
+
+      case None =>  // return results
+      val newSchema = schema.map{ case (name, tpe) => new ColumnDesc(name, DataTypes.fromManifest(toManifest(tpe)))}
+      val res = resultRdd.collect().map{p => p.productIterator.map( _.asInstanceOf[Object] ).toArray}
+      (newSchema.toArray, res)
+    }
+    new ResultSet(sharkSchema, resultArr)
   }
 
-  def toManifest(tpe: String): ClassManifest[_] = {
+  private def toManifest(tpe: String): ClassManifest[_] = {
     if (tpe == "boolean") classManifest[java.lang.Boolean]
     else if (tpe == "tinyint") classManifest[java.lang.Byte]
     else if (tpe == "smallint") classManifest[java.lang.Short]
@@ -132,5 +150,21 @@ object TGF {
     else if (tpe == "timestamp") classManifest[Timestamp]
     else if (tpe == "date") classManifest[Date]
     else throw new QueryExecutionException("Unknown column type specified in schema (" + tpe + ")")
+  }
+}
+
+
+// Example TGF, should be removed.
+object Clustering {
+  import org.apache.spark.mllib.clustering._
+
+  @Schema(spec = "year int, state string, product string, sales double, cluster int")
+  def apply(sales: RDD[(Int, String, String, Double)], k: Int):
+  RDD[(Int, String, String, Double, Int)] = {
+
+    val dataset = sales.map{ case (year, state, product, sales) => Array[Double](sales) }
+    val model = KMeans.train(dataset, k, 2, 2)
+
+    sales.map{ case (year, state, product, sales) => (year, state, product, sales, model.predict(Array(sales))) }
   }
 }
