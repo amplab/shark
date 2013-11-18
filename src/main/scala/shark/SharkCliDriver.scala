@@ -43,7 +43,7 @@ import org.apache.hadoop.hive.ql.processors.{CommandProcessor, CommandProcessorF
 import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hadoop.hive.shims.ShimLoader
 import org.apache.hadoop.io.IOUtils
-import org.apache.thrift.transport.TSocket;
+import org.apache.thrift.transport.TSocket
 
 
 
@@ -69,7 +69,7 @@ object SharkCliDriver {
         } else {
           if (transport != null) {
             // Force closing of TCP connection upon session termination
-        	transport.getSocket().close()
+            transport.getSocket().close()
           }
         }
       }

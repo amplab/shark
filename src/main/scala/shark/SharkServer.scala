@@ -168,20 +168,20 @@ object SharkServer extends LogHelper {
   
   class JDBCWatcher(sock:java.net.Socket, sessionID:String) extends Thread {
     
-	override def run() {
-	  try {
-	    while (sock.isConnected && SharkEnv.activeSessions.contains(sessionID)) {	    
-	      sock.getOutputStream().write((new Array[Byte](0)).toArray)
-	      logDebug("Session Socket Alive - " + sessionID)
+    override def run() {
+      try {
+        while (sock.isConnected && SharkEnv.activeSessions.contains(sessionID)) {	    
+          sock.getOutputStream().write((new Array[Byte](0)).toArray)
+          logDebug("Session Socket Alive - " + sessionID)
           Thread.sleep(2*1000)
         }
-	  } catch {
-	      case ioe: IOException => Unit
-	  }
+      } catch {
+        case ioe: IOException => Unit
+      }
 
 
-	  logInfo("Session Socket connection lost, cleaning up - " + sessionID)
-	  SharkEnv.sc.cancelJobGroup(sessionID)
+      logInfo("Session Socket connection lost, cleaning up - " + sessionID)
+      SharkEnv.sc.cancelJobGroup(sessionID)
     }
 
   }
