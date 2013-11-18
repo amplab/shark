@@ -21,6 +21,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.io.PrintStream
 import java.io.UnsupportedEncodingException
+import java.net.InetSocketAddress 
 import java.util.ArrayList
 import java.util.{List => JavaList}
 import java.util.Properties
@@ -50,6 +51,7 @@ import org.apache.thrift.server.TThreadPoolServer
 import org.apache.thrift.transport.TServerSocket
 import org.apache.thrift.transport.TTransport
 import org.apache.thrift.transport.TTransportFactory
+import org.apache.thrift.transport.TSocket
 
 import org.apache.spark.SparkEnv
 
@@ -85,8 +87,15 @@ object SharkServer extends LogHelper {
     serverTransport = new TServerSocket(cli.port)
 
     val hfactory = new ThriftHiveProcessorFactory(null, new HiveConf()) {
-      override def getProcessor(t: TTransport) =
-        new ThriftHive.Processor(new GatedSharkServerHandler(latch))
+      override def getProcessor(t: TTransport) = {
+        var remoteClient = "Unknown"
+        if (t.isInstanceOf[TSocket]) {
+          remoteClient = t.asInstanceOf[TSocket].getSocket()
+            .getRemoteSocketAddress().asInstanceOf[InetSocketAddress]
+            .getAddress().toString()
+        }
+        new ThriftHive.Processor(new GatedSharkServerHandler(latch, remoteClient))
+      }
     }
     val ttServerArgs = new TThreadPoolServer.Args(serverTransport)
       .processorFactory(hfactory)
@@ -161,9 +170,10 @@ object SharkServer extends LogHelper {
 }
 
 
-class GatedSharkServerHandler(latch:CountDownLatch) extends SharkServerHandler {
+class GatedSharkServerHandler(latch:CountDownLatch, remoteClient:String) extends SharkServerHandler {
   override def execute(cmd: String): Unit = {
     latch.await
+    logInfo("Audit Log: client=" + remoteClient + "  cmd=" + cmd)
     super.execute(cmd)
   }
 }
