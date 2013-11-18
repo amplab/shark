@@ -46,7 +46,7 @@ private class TGFParser extends JavaTokenParsers {
    * @return Tuple2 containing a TGF method name and a List of parameters as strings
    */
   def basicTgf: Parser[Tuple2[String, List[String]]] = {
-    (("GENERATE".ci ~ "USING".ci) ~> methodName) ~ (("(" ~> repsep(param, ",")) <~ ")") ^^
+    ("GENERATE".ci  ~> methodName) ~ (("(" ~> repsep(param, ",")) <~ ")") ^^
       { case id1 ~ x => (id1, x.asInstanceOf[List[String]]) }
   }
 
@@ -54,7 +54,7 @@ private class TGFParser extends JavaTokenParsers {
    * @return Tuple3 containing a table name, TGF method name and a List of parameters as strings
    */
   def saveTgf: Parser[Tuple3[String, String, List[String]]] = {
-    ((("GENERATE".ci ~ "USING".ci) ~> methodName) ~ (("(" ~> repsep(param, ",")) <~ ")")) ~ (("SAVE".ci ~ "AS".ci) ~>
+    (("GENERATE".ci ~> methodName) ~ (("(" ~> repsep(param, ",")) <~ ")")) ~ (("SAVE".ci ~ "AS".ci) ~>
       ident) ^^ { case id1 ~ x ~ id2 => (id2, id1, x.asInstanceOf[List[String]]) }
   }
   
