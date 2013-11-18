@@ -17,10 +17,9 @@
 
 package shark.parse
 
-import java.util.{HashMap => JavaHashMap, Map => JavaMap}
+import java.util.{HashMap => JavaHashMap}
 
 import scala.collection.JavaConversions._
-import scala.collection.mutable.Buffer
 
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.TaskFactory
@@ -33,7 +32,7 @@ import org.apache.hadoop.hive.ql.plan.{AlterTableDesc, DDLWork}
 
 import org.apache.spark.rdd.{UnionRDD, RDD}
 
-import shark.{LogHelper, SharkConfVars, SharkEnv}
+import shark.{LogHelper, SharkEnv}
 import shark.execution.{SharkDDLWork, SparkLoadWork}
 import shark.memstore2.{CacheType, MemoryMetadataManager, SharkTblProperties}
 

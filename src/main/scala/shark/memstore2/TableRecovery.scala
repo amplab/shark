@@ -19,11 +19,9 @@ package shark.memstore2
 
 import scala.collection.JavaConversions.asScalaBuffer
 
-import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.metadata.Hive
 
-import shark.{LogHelper, SharkConfVars}
-import shark.memstore2.SharkTblProperties
+import shark.LogHelper
 import shark.util.QueryRewriteUtils
 
 /**
@@ -49,6 +47,7 @@ object TableRecovery extends LogHelper {
         val shouldReload = Option(tblProps.get(SharkTblProperties.RELOAD_ON_RESTART_FLAG.varname)).
           exists(_.toBoolean)
         if (shouldReload) {
+          logInfo("Reloading %s.%s into memory.".format(databaseName, tableName))
           // Alter the table's properties.
           val storageLevelStr = SharkTblProperties.getOrSetDefault(tblProps,
             SharkTblProperties.STORAGE_LEVEL)

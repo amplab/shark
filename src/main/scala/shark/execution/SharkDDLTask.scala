@@ -29,8 +29,8 @@ import org.apache.hadoop.hive.ql.plan.api.StageType
 
 import org.apache.spark.rdd.EmptyRDD
 
-import shark.{LogHelper, SharkConfVars, SharkEnv}
-import shark.memstore2.{CacheType, ColumnarSerDe, MemoryMetadataManager, PartitionedMemoryTable}
+import shark.{LogHelper, SharkEnv}
+import shark.memstore2.{CacheType, MemoryMetadataManager, PartitionedMemoryTable}
 import shark.memstore2.{SharkTblProperties, TablePartitionStats}
 import shark.util.HiveUtils
 

@@ -18,7 +18,6 @@
 package shark.parse
 
 import scala.collection.JavaConversions._
-import org.apache.hadoop.fs.{Path, PathFilter}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{CopyTask, MoveTask, TaskFactory}
 import org.apache.hadoop.hive.ql.metadata.{Partition, Table => HiveTable}

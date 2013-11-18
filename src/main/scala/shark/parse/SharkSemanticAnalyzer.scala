@@ -18,10 +18,8 @@
 package shark.parse
 
 import java.util.ArrayList
-import java.util.{HashSet => JavaHashSet}
 import java.util.{List => JavaList}
 import java.util.{Map => JavaMap}
-import java.lang.reflect.Method
 
 import scala.collection.JavaConversions._
 
@@ -31,8 +29,8 @@ import org.apache.hadoop.hive.metastore.Warehouse
 import org.apache.hadoop.hive.metastore.api.{FieldSchema, MetaException}
 import org.apache.hadoop.hive.ql.exec.{DDLTask, FetchTask}
 import org.apache.hadoop.hive.ql.exec.{FileSinkOperator => HiveFileSinkOperator}
-import org.apache.hadoop.hive.ql.exec.{Operator => HiveOperator}
 import org.apache.hadoop.hive.ql.exec.MoveTask
+import org.apache.hadoop.hive.ql.exec.{Operator => HiveOperator}
 import org.apache.hadoop.hive.ql.exec.TaskFactory
 import org.apache.hadoop.hive.ql.metadata.HiveException
 import org.apache.hadoop.hive.ql.optimizer.Optimizer

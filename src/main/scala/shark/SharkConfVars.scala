@@ -17,8 +17,6 @@
 
 package shark
 
-import java.util.{Map => JavaMap}
-
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hive.conf.HiveConf
 

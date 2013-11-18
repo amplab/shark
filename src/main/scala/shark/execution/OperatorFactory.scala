@@ -22,7 +22,6 @@ import scala.collection.JavaConversions._
 import org.apache.hadoop.hive.ql.exec.{GroupByPostShuffleOperator, GroupByPreShuffleOperator}
 import org.apache.hadoop.hive.ql.exec.{Operator => HOperator}
 import org.apache.hadoop.hive.ql.metadata.HiveException
-import org.apache.hadoop.hive.serde2.Deserializer
 
 import org.apache.spark.storage.StorageLevel
 

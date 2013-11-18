@@ -19,20 +19,18 @@
 package shark.execution
 
 import java.io.Serializable
-import java.util.{HashMap => JavaHashMap, Properties, Map => JavaMap}
+import java.util.{Properties, Map => JavaMap}
 
 import scala.collection.JavaConversions._
-import scala.collection.mutable.{ArrayBuffer, Buffer}
+import scala.collection.mutable.ArrayBuffer
 
-import org.apache.hadoop.fs.{Path, PathFilter}
+import org.apache.hadoop.fs.PathFilter
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.{Context, DriverContext}
 import org.apache.hadoop.hive.ql.exec.{Task => HiveTask, Utilities}
 import org.apache.hadoop.hive.ql.metadata.{Hive, Partition, Table => HiveTable}
-import org.apache.hadoop.hive.ql.plan.TableDesc
 import org.apache.hadoop.hive.ql.plan.api.StageType
 import org.apache.hadoop.hive.serde.Constants;
-import org.apache.hadoop.hive.serde2.Deserializer
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, StructObjectInspector}
 import org.apache.hadoop.io.Writable
 import org.apache.hadoop.mapred.{FileInputFormat, InputFormat}
@@ -45,7 +43,6 @@ import org.apache.spark.storage.StorageLevel
 import shark.{LogHelper, SharkEnv, Utils}
 import shark.execution.serialization.KryoSerializer
 import shark.memstore2._
-import shark.parse.QueryBlock
 import shark.util.HiveUtils
 
 

@@ -28,12 +28,11 @@ import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.spark.rdd.{RDD, UnionRDD}
 import org.apache.spark.storage.StorageLevel
 
-import shark.{LogHelper, SharkConfVars, SharkEnv}
 import shark.execution.RDDUtils
 import shark.util.HiveUtils
 
 
-class MemoryMetadataManager extends LogHelper {
+class MemoryMetadataManager {
 
   private val _keyToTable: ConcurrentMap[String, Table] =
     new ConcurrentHashMap[String, Table]()

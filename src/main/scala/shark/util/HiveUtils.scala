@@ -18,7 +18,7 @@
 package shark.util
 
 import java.util.{ArrayList => JavaArrayList, Arrays => JavaArrays}
-import java.util.{HashMap => JavaHashMap, HashSet => JavaHashSet, Map => JavaMap}
+import java.util.{HashSet => JavaHashSet}
 import java.util.Properties
 
 import scala.collection.JavaConversions._
@@ -35,11 +35,9 @@ import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.hive.ql.exec.DDLTask
 import org.apache.hadoop.hive.ql.hooks.{ReadEntity, WriteEntity}
-import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.hadoop.hive.ql.plan.AlterTableDesc
 import org.apache.hadoop.hive.ql.plan.{CreateTableDesc, DDLWork, DropTableDesc}
 
-import shark.{SharkConfVars, SharkContext}
 import shark.api.{DataType, DataTypes}
 import shark.memstore2.SharkTblProperties
 

@@ -31,7 +31,6 @@ import org.apache.spark.storage.StorageLevel
 
 import shark.api.QueryExecutionException
 import shark.memstore2.{MemoryMetadataManager, PartitionedMemoryTable}
-import shark.util.HiveUtils
 
 
 class SQLSuite extends FunSuite with BeforeAndAfterAll {
