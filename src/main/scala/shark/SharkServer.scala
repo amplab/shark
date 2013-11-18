@@ -94,7 +94,18 @@ object SharkServer extends LogHelper {
             .getRemoteSocketAddress().asInstanceOf[InetSocketAddress]
             .getAddress().toString()
         }
-        new ThriftHive.Processor(new GatedSharkServerHandler(latch, remoteClient))
+        logInfo("Audit Log: Connection Initiated with JDBC client - " + remoteClient)
+        
+        val sessionID = remoteClient + '/' + System.currentTimeMillis()
+        // Add and enable watcher thread
+        val jdbcSocket = t.asInstanceOf[TSocket].getSocket()
+        jdbcSocket.setKeepAlive(true)
+        val watcher = new JDBCWatcher(jdbcSocket, sessionID)
+        SharkEnv.activeSessions.add(sessionID)
+        watcher.start()
+        
+        new ThriftHive.Processor(new GatedSharkServerHandler(latch, remoteClient, 
+            sessionID))
       }
     }
     val ttServerArgs = new TThreadPoolServer.Args(serverTransport)
@@ -154,6 +165,26 @@ object SharkServer extends LogHelper {
       }
     }
   }
+  
+  class JDBCWatcher(sock:java.net.Socket, sessionID:String) extends Thread {
+    
+	override def run() {
+	  try {
+	    while (sock.isConnected && SharkEnv.activeSessions.contains(sessionID)) {	    
+	      sock.getOutputStream().write((new Array[Byte](0)).toArray)
+	      logDebug("Session Socket Alive - " + sessionID)
+          Thread.sleep(2*1000)
+        }
+	  } catch {
+	      case ioe: IOException => Unit
+	  }
+
+
+	  logInfo("Session Socket connection lost, cleaning up - " + sessionID)
+	  SharkEnv.sc.cancelJobGroup(sessionID)
+    }
+
+  }
 
   // Used to parse command line arguments for the server.
   class SharkServerCliOptions extends HiveServerCli {
@@ -170,11 +201,24 @@ object SharkServer extends LogHelper {
 }
 
 
-class GatedSharkServerHandler(latch:CountDownLatch, remoteClient:String) extends SharkServerHandler {
+class GatedSharkServerHandler(latch:CountDownLatch, remoteClient:String,
+    sessionID:String) extends SharkServerHandler {
   override def execute(cmd: String): Unit = {
     latch.await
-    logInfo("Audit Log: client=" + remoteClient + "  cmd=" + cmd)
-    super.execute(cmd)
+    
+    logInfo("Audit Log: SessionID=" + sessionID + " client=" + remoteClient + "  cmd=" + cmd)
+    
+    // Handle cancel commands
+    if (cmd.startsWith("kill ")) {
+      logInfo("killing group - " + cmd)
+      val sessionIDToCancel = cmd.split("\\s+|\\s*;").apply(1)
+      SharkEnv.activeSessions.remove(sessionIDToCancel)
+    } else {
+      // Session ID is used as spark job group
+      // Job groups control cleanup/cancelling of unneeded jobs on connection terminations
+      SharkEnv.sc.setJobGroup(sessionID, "Session ID = " + sessionID)
+      super.execute(cmd)
+    }
   }
 }
 

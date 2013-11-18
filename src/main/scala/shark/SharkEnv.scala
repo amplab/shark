@@ -94,6 +94,8 @@ object SharkEnv extends LogHelper {
   executorEnvVars.put("TACHYON_MASTER", getEnv("TACHYON_MASTER"))
   executorEnvVars.put("TACHYON_WAREHOUSE_PATH", getEnv("TACHYON_WAREHOUSE_PATH"))
 
+  val activeSessions = new HashSet[String]
+  
   var sc: SparkContext = _
 
   val shuffleSerializerName = classOf[ShuffleSerializer].getName
