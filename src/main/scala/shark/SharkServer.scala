@@ -98,8 +98,9 @@ object SharkServer extends LogHelper {
         
         val jdbcSocket = t.asInstanceOf[TSocket].getSocket()
         jdbcSocket.setKeepAlive(true)
-        val sessionID = remoteClient + "/" + System.currentTimeMillis()
-
+        val sessionID = remoteClient + "/" + jdbcSocket
+          .getRemoteSocketAddress().asInstanceOf[InetSocketAddress].getPort().toString
+        
         // Add and enable watcher thread
         val watcher = new JDBCWatcher(jdbcSocket, sessionID)
         SharkEnv.activeSessions.add(sessionID)
