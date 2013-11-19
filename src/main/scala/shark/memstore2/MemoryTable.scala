@@ -26,10 +26,13 @@ import org.apache.spark.storage.StorageLevel
  */
 private[shark]
 class MemoryTable(
+    databaseName: String,
     tableName: String,
     cacheMode: CacheType.CacheType,
-    preferredStorageLevel: StorageLevel)
-  extends Table(tableName, cacheMode, preferredStorageLevel) {
+    storageLevel: StorageLevel,
+    unifiedView: Boolean,
+    reloadOnRestart: Boolean)
+  extends Table(databaseName, tableName, cacheMode, storageLevel, unifiedView, reloadOnRestart) {
 
   // RDD that contains the contents of this table.
   private var _tableRDD: RDD[TablePartition] = _
@@ -37,5 +40,4 @@ class MemoryTable(
   def tableRDD: RDD[TablePartition] = _tableRDD
 
   def tableRDD_= (rdd: RDD[TablePartition]) = _tableRDD = rdd
-
 }

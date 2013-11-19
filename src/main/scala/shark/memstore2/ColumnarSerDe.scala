@@ -51,7 +51,7 @@ class ColumnarSerDe extends SerDe with LogHelper {
     objectInspector = ColumnarStructObjectInspector(serDeParams)
 
     // This null check is needed because Hive's SemanticAnalyzer.genFileSinkPlan() creates
-    // an instance of the table's StructObjectInspector by creating an instance SerDe, which
+    // an instance of the table's StructObjectInspector by creating an instance of SerDe, which
     // it initializes by passing a 'null' argument for 'conf'.
     if (conf != null) {
       var partitionSize = {

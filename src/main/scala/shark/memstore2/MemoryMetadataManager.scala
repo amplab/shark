@@ -18,16 +18,18 @@
 package shark.memstore2
 
 import java.util.concurrent.ConcurrentHashMap
-import java.util.{Map => JavaMap}
+import java.util.{HashMap=> JavaHashMap, Map => JavaMap}
 
 import scala.collection.JavaConversions._
-import scala.collection.mutable.ConcurrentMap
+import scala.collection.mutable.{ArrayBuffer, ConcurrentMap}
+
+import org.apache.hadoop.hive.ql.metadata.Hive
 
 import org.apache.spark.rdd.{RDD, UnionRDD}
 import org.apache.spark.storage.StorageLevel
 
 import shark.execution.RDDUtils
-import shark.SharkConfVars
+import shark.util.HiveUtils
 
 
 class MemoryMetadataManager {
@@ -36,8 +38,13 @@ class MemoryMetadataManager {
     new ConcurrentHashMap[String, Table]()
 
   // TODO(harvey): Support stats for Hive-partitioned tables.
+  // A stats entry must exist for any cached tables created, so the sizes of this and `_keyToTable`
+  // are always equal.
   private val _keyToStats: ConcurrentMap[String, collection.Map[Int, TablePartitionStats]] =
     new ConcurrentHashMap[String, collection.Map[Int, TablePartitionStats]]
+
+  // List of callback functions to execute when the Shark metastore shuts down.
+  private val _onShutdownCallbacks = new ArrayBuffer[() => Unit]
 
   def putStats(
       databaseName: String,
@@ -70,10 +77,18 @@ class MemoryMetadataManager {
       databaseName: String,
       tableName: String,
       cacheMode: CacheType.CacheType,
-      preferredStorageLevel: StorageLevel
+      preferredStorageLevel: StorageLevel,
+      unifyView: Boolean,
+      reloadOnRestart: Boolean
     ): MemoryTable = {
     val tableKey = makeTableKey(databaseName, tableName)
-    val newTable = new MemoryTable(tableKey, cacheMode, preferredStorageLevel)
+    val newTable = new MemoryTable(
+      databaseName,
+      tableName,
+      cacheMode,
+      preferredStorageLevel,
+      unifyView,
+      reloadOnRestart)
     _keyToTable.put(tableKey, newTable)
     newTable
   }
@@ -83,15 +98,23 @@ class MemoryMetadataManager {
       tableName: String,
       cacheMode: CacheType.CacheType,
       preferredStorageLevel: StorageLevel,
+      unifyView: Boolean,
+      reloadOnRestart: Boolean,
       tblProps: JavaMap[String, String]
     ): PartitionedMemoryTable = {
     val tableKey = makeTableKey(databaseName, tableName)
-    val newTable = new PartitionedMemoryTable(tableKey, cacheMode, preferredStorageLevel)
+    val newTable = new PartitionedMemoryTable(
+      databaseName,
+      tableName,
+      cacheMode,
+      preferredStorageLevel,
+      unifyView,
+      reloadOnRestart)
     // Determine the cache policy to use and read any user-specified cache settings.
-    val cachePolicyStr = tblProps.getOrElse(SharkConfVars.CACHE_POLICY.varname,
-      SharkConfVars.CACHE_POLICY.defaultVal)
-    val maxCacheSize = tblProps.getOrElse(SharkConfVars.MAX_PARTITION_CACHE_SIZE.varname,
-      SharkConfVars.MAX_PARTITION_CACHE_SIZE.defaultVal).toInt
+    val cachePolicyStr = tblProps.getOrElse(SharkTblProperties.CACHE_POLICY.varname,
+      SharkTblProperties.CACHE_POLICY.defaultVal)
+    val maxCacheSize = tblProps.getOrElse(SharkTblProperties.MAX_PARTITION_CACHE_SIZE.varname,
+      SharkTblProperties.MAX_PARTITION_CACHE_SIZE.defaultVal).toInt
     newTable.setPartitionCachePolicy(cachePolicyStr, maxCacheSize)
 
     _keyToTable.put(tableKey, newTable)
@@ -155,19 +178,51 @@ class MemoryMetadataManager {
     tableValue.flatMap(MemoryMetadataManager.unpersistRDDsInTable(_))
   }
 
-  /**
-   * Find all keys that are strings. Used to drop tables after exiting.
-   *
-   * TODO(harvey): Won't be needed after unifed views are added.
-   */
-  def getAllKeyStrings(): Seq[String] = {
-    _keyToTable.keys.collect { case k: String => k } toSeq
+  def shutdown() {
+    processTablesOnShutdown()
   }
 
+  def processTablesOnShutdown() {
+    val db = Hive.get()
+    for (sharkTable <- _keyToTable.values) {
+      if (sharkTable.unifyView) {
+        dropUnifiedView(
+          db,
+          sharkTable.databaseName,
+          sharkTable.tableName,
+          sharkTable.reloadOnRestart)
+      } else {
+        HiveUtils.dropTableInHive(sharkTable.tableName, db.getConf)
+      }
+    }
+  }
+
+  /**
+   * Removes Shark table properties and drops a unified view from the Shark cache. However, if
+   * `preserveRecoveryProps` is true, then Shark properties needed for table recovery won't be
+   * removed.
+   * After this method completes, the table can still be scanned from disk.
+   */
+  def dropUnifiedView(
+      db: Hive,
+      databaseName: String,
+      tableName: String,
+      preserveRecoveryProps: Boolean = false) {
+    getTable(databaseName, tableName).foreach { sharkTable =>
+      db.setCurrentDatabase(databaseName)
+      val hiveTable = db.getTable(databaseName, tableName)
+      SharkTblProperties.removeSharkProperties(hiveTable.getParameters, preserveRecoveryProps)
+      // Refresh the Hive `db`.
+      db.alterTable(tableName, hiveTable)
+      // Unpersist the table's RDDs from memory.
+      removeTable(databaseName, tableName)
+    }
+  }
+
+  // Returns the key "databaseName.tableName".
   private def makeTableKey(databaseName: String, tableName: String): String = {
     (databaseName + '.' + tableName).toLowerCase
   }
-
 }
 
 
@@ -200,10 +255,23 @@ object MemoryMetadataManager {
     partitionCols.map(col => "%s=%s".format(col, partColToValue(col))).mkString("/")
   }
 
+  /**
+   * Returns a (partition column name -> value) mapping by parsing a `keyStr` of the format
+   * 'col1=value1/col2=value2/.../colN=valueN', created by makeHivePartitionKeyStr() above.
+   */
+  def parseHivePartitionKeyStr(keyStr: String): JavaMap[String, String] = {
+    val partitionSpec = new JavaHashMap[String, String]()
+    for (pair <- keyStr.split("/")) {
+      val pairSplit = pair.split("=")
+      partitionSpec.put(pairSplit(0), pairSplit(1))
+    }
+    partitionSpec
+  }
+
   /** Return a StorageLevel corresponding to its String name. */
   def getStorageLevelFromString(s: String): StorageLevel = {
     if (s == null || s == "") {
-      getStorageLevelFromString(SharkConfVars.STORAGE_LEVEL.defaultVal)
+      getStorageLevelFromString(SharkTblProperties.STORAGE_LEVEL.defaultVal)
     } else {
       s.toUpperCase match {
         case "NONE" => StorageLevel.NONE

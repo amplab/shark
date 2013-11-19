@@ -37,10 +37,13 @@ import org.apache.spark.storage.StorageLevel
  */
 private[shark]
 class PartitionedMemoryTable(
+    databaseName: String,
     tableName: String,
     cacheMode: CacheType.CacheType,
-    preferredStorageLevel: StorageLevel)
-  extends Table(tableName, cacheMode, preferredStorageLevel) {
+    storageLevel: StorageLevel,
+    unifiedView: Boolean,
+    reloadOnRestart: Boolean)
+  extends Table(databaseName, tableName, cacheMode, storageLevel, unifiedView, reloadOnRestart) {
 
   /**
    * A simple, mutable wrapper for an RDD. This is needed so that a entry maintained by a
@@ -124,7 +127,7 @@ class PartitionedMemoryTable(
 
   def cachePolicy: CachePolicy[String, RDDValue] = _cachePolicy
 
-  /** Returns an immutable view of the String->RDD mapping to external callers */
+  /** Returns an immutable view of (partition key -> RDD) mappings to external callers */
   def keyToPartitions: collection.immutable.Map[String, RDD[TablePartition]] = {
     _keyToPartitions.mapValues(_.rdd).toMap
   }

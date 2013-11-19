@@ -18,6 +18,10 @@
 package shark.parse
 
 import org.apache.hadoop.hive.ql.parse.{QB => HiveQueryBlock}
+import org.apache.hadoop.hive.ql.plan.CreateTableDesc
+import org.apache.hadoop.hive.ql.plan.TableDesc
+
+import org.apache.spark.storage.StorageLevel
 
 import shark.memstore2.CacheType
 import shark.memstore2.CacheType._
@@ -31,11 +35,21 @@ class QueryBlock(outerID: String, alias: String, isSubQuery: Boolean)
     extends HiveQueryBlock(outerID, alias, isSubQuery) {
 
   // The CacheType for the table that will be created from CREATE TABLE/CTAS.
-  private var cacheModeForCreateTable = CacheType.NONE
+  var cacheModeForCreateTable = CacheType.NONE
 
-  def setCacheModeForCreateTable(cacheModeToSet: CacheType) {
-    cacheModeForCreateTable = cacheModeToSet
-  }
+  var reloadOnRestart: Boolean = false
 
-  def getCacheModeForCreateTable(): CacheType = cacheModeForCreateTable
+  var preferredStorageLevel: StorageLevel = StorageLevel.NONE
+
+  // Whether the created to be created or the table specified by CACHED should be backed by disk.
+  var unifyView = false
+
+  // Descriptor for the table being updated by an INSERT.
+  var targetTableDesc: TableDesc = _
+
+  // Hive's QB uses `tableDesc` to refer to the CreateTableDesc. A direct `createTableDesc`
+  // makes it easier to differentiate from `_targetTableDesc`.
+  def createTableDesc: CreateTableDesc = super.getTableDesc
+
+  def createTableDesc_= (desc: CreateTableDesc) = super.setTableDesc(desc)
 }

@@ -37,7 +37,9 @@ import org.apache.spark.rdd.{PartitionPruningRDD, RDD}
 
 import shark.{LogHelper, SharkConfVars, SharkEnv}
 import shark.execution.optimization.ColumnPruner
-import shark.memstore2.{CacheType, TablePartition, TablePartitionStats}
+import shark.memstore2.{CacheType, ColumnarSerDe, MemoryMetadataManager}
+import shark.memstore2.{TablePartition, TablePartitionStats}
+import shark.util.HiveUtils
 
 
 /**
@@ -45,7 +47,10 @@ import shark.memstore2.{CacheType, TablePartition, TablePartitionStats}
  */
 class TableScanOperator extends TopOperator[TableScanDesc] {
 
+  // TODO(harvey): Try to use 'TableDesc' for execution and save 'Table' for analysis/planning.
+  //     Decouple `Table` from TableReader and ColumnPruner.
   @transient var table: Table = _
+
   @transient var hiveOp: HiveTableScanOperator = _
 
   // Metadata for Hive-partitions (i.e if the table was created from PARTITION BY). NULL if this
@@ -65,37 +70,35 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
 
   @BeanProperty var tableDesc: TableDesc = _
 
+  @BeanProperty var isInMemoryTableScan: Boolean = _
+
 
   override def initializeOnMaster() {
     // Create a local copy of the HiveConf that will be assigned job properties and, for disk reads,
     // broadcasted to slaves.
     localHConf = new HiveConf(super.hconf)
+    isInMemoryTableScan = SharkEnv.memoryMetadataManager.containsTable(
+      table.getDbName, table.getTableName)
   }
 
   override def outputObjectInspector() = {
     if (parts == null) {
-      val serializer = tableDesc.getDeserializerClass().newInstance()
+      val serializer = if (isInMemoryTableScan) {
+        new ColumnarSerDe
+      } else {
+        tableDesc.getDeserializerClass().newInstance()
+      }
       serializer.initialize(hconf, tableDesc.getProperties)
       serializer.getObjectInspector()
     } else {
       val partProps = firstConfPartDesc.getProperties()
-      val tableDeser = firstConfPartDesc.getDeserializerClass().newInstance()
-      tableDeser.initialize(hconf, partProps)
-      val partCols = partProps.getProperty(META_TABLE_PARTITION_COLUMNS)
-      val partNames = new ArrayList[String]
-      val partObjectInspectors = new ArrayList[ObjectInspector]
-      partCols.trim().split("/").foreach { key =>
-        partNames.add(key)
-        partObjectInspectors.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector)
+      val partSerDe = if (isInMemoryTableScan) {
+        new ColumnarSerDe
+      } else {
+        firstConfPartDesc.getDeserializerClass().newInstance()
       }
-
-      val partObjectInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
-        partNames, partObjectInspectors)
-      val oiList = Arrays.asList(
-        tableDeser.getObjectInspector().asInstanceOf[StructObjectInspector],
-        partObjectInspector.asInstanceOf[StructObjectInspector])
-      // new oi is union of table + partition object inspectors
-      ObjectInspectorFactory.getUnionStructObjectInspector(oiList)
+      partSerDe.initialize(hconf, partProps)
+      HiveUtils.makeUnionOIForPartitionedTable(partProps, partSerDe)
     }
   }
 
@@ -137,8 +140,10 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
 
   private def createPrunedRdd(databaseName: String, tableName: String, rdd: RDD[_]): RDD[_] = {
     // Stats used for map pruning.
-    val indexToStats: collection.Map[Int, TablePartitionStats] =
-      SharkEnv.memoryMetadataManager.getStats(databaseName, tableName).get
+    val indexToStatsOpt: Option[collection.Map[Int, TablePartitionStats]] =
+      SharkEnv.memoryMetadataManager.getStats(databaseName, tableName)
+    assert(indexToStatsOpt.isDefined, "Stats not found for table " + tableName)
+    val indexToStats = indexToStatsOpt.get
 
     // Run map pruning if the flag is set, there exists a filter predicate on
     // the input table and we have statistics on the table.
