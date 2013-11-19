@@ -129,7 +129,7 @@ class CoGroupedRDD[K](@transient var rdds: Seq[RDD[(_, _)]], part: Partitioner)
           .foreach(mergePair)
       }
     }
-    map.iterator
+    new InterruptibleIterator(context, map.iterator)
   }
 
   override def clearDependencies() {
