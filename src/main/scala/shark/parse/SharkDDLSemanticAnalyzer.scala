@@ -77,9 +77,6 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
    *   If 'true' and "shark.cache" is true, then the SparkLoadTask created should read this from the
    *   table properties when adding an entry to the Shark metastore.
    *
-   * - "shark.cache.storageLevel":
-   *   Throw an exception since we can't change the storage level without rescanning the entire RDD.
-   *
    *   TODO(harvey): Add this, though reevaluate it too...some Spark RDDs might depend on the old
    *   version of the RDD, so simply dropping it might not work.
    */
@@ -111,14 +108,8 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
         SharkTblProperties.UNIFY_VIEW_FLAG).toBoolean
       val reloadOnRestart = SharkTblProperties.getOrSetDefault(newTblProps,
         SharkTblProperties.RELOAD_ON_RESTART_FLAG).toBoolean
-      val preferredStorageLevel = MemoryMetadataManager.getStorageLevelFromString(
-        SharkTblProperties.getOrSetDefault(newTblProps, SharkTblProperties.STORAGE_LEVEL))
-      val sparkLoadWork = new SparkLoadWork(
-        databaseName,
-        tableName,
-        SparkLoadWork.CommandTypes.NEW_ENTRY,
-        preferredStorageLevel,
-        newCacheMode)
+      val sparkLoadWork = new SparkLoadWork(databaseName, tableName,
+        SparkLoadWork.CommandTypes.NEW_ENTRY, newCacheMode)
       sparkLoadWork.unifyView = unifyView
       sparkLoadWork.reloadOnRestart = reloadOnRestart
       partSpecsOpt.foreach(partSpecs => sparkLoadWork.partSpecs = partSpecs)

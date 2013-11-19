@@ -51,8 +51,6 @@ import shark.memstore2.{MemoryTable, PartitionedMemoryTable, SharkTblProperties,
  * mapreduce. We want our query plan to stay intact as a single tree. Since
  * genMapRedTasks is private, we have to overload analyzeInternal() to use our
  * own genMapRedTasks().
- *
- * One day, this will all be deprecated ...
  */
 class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with LogHelper {
 
@@ -193,7 +191,6 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                 // If useUnionRDD is true, the sink op is for INSERT INTO.
                 val useUnionRDD = qbParseInfo.isInsertIntoTable(cachedTableName)
                 val cacheMode = table.cacheMode
-                val preferredStorageLevel = table.preferredStorageLevel
                 val isPartitioned = SharkEnv.memoryMetadataManager.isHivePartitioned(
                   databaseName, cachedTableName)
                 var hivePartitionKey = if (isPartitioned) {
@@ -210,14 +207,12 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                   // by the genMapRedTasks() call below. Set fields in `qb` that will be needed.
                   qb.unifyView = true
                   qb.targetTableDesc = tableDesc
-                  qb.preferredStorageLevel = preferredStorageLevel
                   OperatorFactory.createSharkFileOutputPlan(hiveSinkOp)
                 } else {
                   OperatorFactory.createSharkMemoryStoreOutputPlan(
                     hiveSinkOp,
                     cachedTableName,
                     databaseName,
-                    preferredStorageLevel,
                     _resSchema.size,  /* numColumns */
                     hivePartitionKey,
                     cacheMode,
@@ -242,19 +237,15 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
             // synchronized with disk (i.e., maintain a unified view) or memory-only.
             val tblProps = qb.createTableDesc.getTblProps
             // TODO(harvey): Set this during analysis
-            val preferredStorageLevel = MemoryMetadataManager.getStorageLevelFromString(
-              SharkTblProperties.getOrSetDefault(tblProps, SharkTblProperties.STORAGE_LEVEL))
             if (qb.unifyView) {
               // Save the preferred storage level, since it's needed to create a SparkLoadTask in
               // genMapRedTasks().
-              qb.preferredStorageLevel = preferredStorageLevel
               OperatorFactory.createSharkFileOutputPlan(hiveSinkOps.head)
             } else {
               OperatorFactory.createSharkMemoryStoreOutputPlan(
                 hiveSinkOps.head,
                 qb.createTableDesc.getTableName,
                 qb.createTableDesc.getDatabaseName,
-                preferredStorageLevel,
                 _resSchema.size,  /* numColumns */
                 new String,  /* hivePartitionKey */
                 qb.cacheModeForCreateTable,
@@ -383,7 +374,6 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
             qb.createTableDesc.getDatabaseName,
             qb.createTableDesc.getTableName,
             SparkLoadWork.CommandTypes.NEW_ENTRY,
-            qb.preferredStorageLevel,
             qb.cacheModeForCreateTable)
           sparkLoadWork.unifyView = qb.unifyView
           sparkLoadWork.reloadOnRestart = qb.reloadOnRestart
@@ -505,8 +495,6 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
           SharkTblProperties.UNIFY_VIEW_FLAG).toBoolean
         queryBlock.reloadOnRestart = SharkTblProperties.getOrSetDefault(createTableProperties,
           SharkTblProperties.RELOAD_ON_RESTART_FLAG).toBoolean
-        queryBlock.preferredStorageLevel = MemoryMetadataManager.getStorageLevelFromString(
-          SharkTblProperties.getOrSetDefault(createTableProperties, SharkTblProperties.STORAGE_LEVEL))
 
         if (!queryBlock.unifyView) {
           // Directly set the ColumnarSerDe if the table will be stored memory-only.

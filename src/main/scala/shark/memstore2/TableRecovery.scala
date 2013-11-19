@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -48,12 +48,8 @@ object TableRecovery extends LogHelper {
           exists(_.toBoolean)
         if (shouldReload) {
           logInfo("Reloading %s.%s into memory.".format(databaseName, tableName))
-          // Alter the table's properties.
-          val storageLevelStr = SharkTblProperties.getOrSetDefault(tblProps,
-            SharkTblProperties.STORAGE_LEVEL)
           // TODO(harvey): Executing SQL directly is a bit of a cop-out...
-          val cmd = QueryRewriteUtils.cacheToAlterTable(
-            "CACHE %s".format(tableName), storageLevelStr)
+          val cmd = QueryRewriteUtils.cacheToAlterTable("CACHE %s".format(tableName))
           cmdRunner(cmd)
         }
       }

@@ -21,8 +21,6 @@ import org.apache.hadoop.hive.ql.parse.{QB => HiveQueryBlock}
 import org.apache.hadoop.hive.ql.plan.CreateTableDesc
 import org.apache.hadoop.hive.ql.plan.TableDesc
 
-import org.apache.spark.storage.StorageLevel
-
 import shark.memstore2.CacheType
 import shark.memstore2.CacheType._
 
@@ -32,14 +30,12 @@ import shark.memstore2.CacheType._
  * and analyzing ASTs (e.g. in SharkSemanticAnalyzer#analyzeCreateTable()).
  */
 class QueryBlock(outerID: String, alias: String, isSubQuery: Boolean)
-    extends HiveQueryBlock(outerID, alias, isSubQuery) {
+  extends HiveQueryBlock(outerID, alias, isSubQuery) {
 
   // The CacheType for the table that will be created from CREATE TABLE/CTAS.
   var cacheModeForCreateTable = CacheType.NONE
 
   var reloadOnRestart: Boolean = false
-
-  var preferredStorageLevel: StorageLevel = StorageLevel.NONE
 
   // Whether the created to be created or the table specified by CACHED should be backed by disk.
   var unifyView = false

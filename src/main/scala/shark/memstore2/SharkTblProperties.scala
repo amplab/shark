@@ -28,13 +28,9 @@ object SharkTblProperties {
 
   case class TableProperty(varname: String, defaultVal: String)
 
-  // Default storage level for cached tables.
-  val STORAGE_LEVEL = new TableProperty("shark.cache.storageLevel", "MEMORY_AND_DISK")
-
   // Class name of the default cache policy used to manage partition evictions for cached,
   // Hive-partitioned tables.
-  val CACHE_POLICY = new TableProperty(
-    "shark.cache.policy", "shark.memstore2.CacheAllPolicy")
+  val CACHE_POLICY = new TableProperty("shark.cache.policy", "shark.memstore2.CacheAllPolicy")
 
   // Maximum size - in terms of the number of objects - of the cache specified by the
   // "shark.cache.partition.cachePolicy" property above.
@@ -63,7 +59,6 @@ object SharkTblProperties {
   def initializeWithDefaults(tblProps: JavaMap[String, String]): JavaMap[String, String] = {
     tblProps.put(CACHE_FLAG.varname, CACHE_FLAG.defaultVal)
     tblProps.put(UNIFY_VIEW_FLAG.varname, UNIFY_VIEW_FLAG.defaultVal)
-    tblProps.put(STORAGE_LEVEL.varname, STORAGE_LEVEL.defaultVal)
     tblProps.put(RELOAD_ON_RESTART_FLAG.varname, RELOAD_ON_RESTART_FLAG.defaultVal)
     tblProps
   }
@@ -72,7 +67,6 @@ object SharkTblProperties {
     tblProps.remove(CACHE_FLAG.varname)
     tblProps.remove(UNIFY_VIEW_FLAG.varname)
     if (!preserveRecoveryProps) {
-      tblProps.remove(STORAGE_LEVEL.varname)
       tblProps.remove(RELOAD_ON_RESTART_FLAG.varname)
     }
   }
