@@ -96,10 +96,11 @@ object SharkServer extends LogHelper {
         }
         logInfo("Audit Log: Connection Initiated with JDBC client - " + remoteClient)
         
-        val sessionID = remoteClient + '/' + System.currentTimeMillis()
-        // Add and enable watcher thread
         val jdbcSocket = t.asInstanceOf[TSocket].getSocket()
         jdbcSocket.setKeepAlive(true)
+        val sessionID = remoteClient + "/" + System.currentTimeMillis()
+
+        // Add and enable watcher thread
         val watcher = new JDBCWatcher(jdbcSocket, sessionID)
         SharkEnv.activeSessions.add(sessionID)
         watcher.start()
@@ -166,6 +167,10 @@ object SharkServer extends LogHelper {
     }
   }
   
+  // Detecting socket connection drops relies on TCP keep alives
+  // The approach is very platform specific on the duration and nature of detection
+  // Since java does not expose any mechanisms for tuning keepalive configurations,
+  //  the users should explore the server OS settings for the same.
   class JDBCWatcher(sock:java.net.Socket, sessionID:String) extends Thread {
     
     override def run() {
@@ -179,7 +184,8 @@ object SharkServer extends LogHelper {
         case ioe: IOException => Unit
       }
 
-
+      // Session is terminated either manually or automatically
+      // clean up the jobs associated with the session ID
       logInfo("Session Socket connection lost, cleaning up - " + sessionID)
       SharkEnv.sc.cancelJobGroup(sessionID)
     }
