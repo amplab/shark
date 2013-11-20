@@ -30,6 +30,7 @@ import scala.Tuple3
 import scala.Some
 import scala.Tuple2
 
+case class RDDSchema(rdd: RDD[Seq[_]], schema: Seq[Tuple2[String,String]])
 
 private class TGFParser extends JavaTokenParsers {
 
@@ -58,7 +59,7 @@ private class TGFParser extends JavaTokenParsers {
       ident) ^^ { case id1 ~ x ~ id2 => (id2, id1, x.asInstanceOf[List[String]]) }
   }
   
-  def schema: Parser[List[Tuple2[String,String]]] = repsep(nameType, ",")
+  def schema: Parser[Seq[Tuple2[String,String]]] = repsep(nameType, ",")
 
   def nameType: Parser[Tuple2[String,String]] = ident ~ ident ^^ { case name~tpe => Tuple2(name, tpe) }
 
@@ -73,25 +74,45 @@ object TGF {
 
   private val parser = new TGFParser
 
-  private def reflectInvoke(tgfName: String, paramStrs: Seq[String], sc: SharkContext):
-  Tuple2[RDD[Product], Seq[Tuple2[String,String]]] = {
+  private def getMethod(tgfName: String, methodName: String) = {
     val tgfClazz = try {
-      this.getClass.getClassLoader.loadClass(tgfName)
+      Thread.currentThread().getContextClassLoader.loadClass(tgfName)
     } catch {
       case ex: ClassNotFoundException => throw new QueryExecutionException("Couldn't find TGF class: " + tgfName)
     }
 
-    val methods = tgfClazz.getDeclaredMethods.filter(_.getName == "apply")
+    val methods = tgfClazz.getDeclaredMethods.filter(_.getName == methodName)
+    if (methods.isEmpty) None else Some(methods(0))
+  }
 
-    if (methods.length < 1) throw new QueryExecutionException("TGF " + tgfName + " needs to implement apply()")
+//  private def isOfType(obj: AnyRef, typeString: String) = {
+//    obj.getClass.getTy
+//  }
 
-    val method: java.lang.reflect.Method = methods(0)
+  private def getSchema(tgfOutput: Object, tgfName: String): Tuple2[RDD[Seq[_]], Seq[Tuple2[String,String]]] = {
+    if (tgfOutput.isInstanceOf[RDDSchema]) {
+      val rddSchema = tgfOutput.asInstanceOf[RDDSchema]
+      (rddSchema.rdd, rddSchema.schema)
+    } else if (tgfOutput.isInstanceOf[RDD[Product]]) {
+      val applyMethod = getMethod(tgfName, "apply")
+      if (applyMethod == None) throw new QueryExecutionException("TGF lacking apply() method")
 
-    val typeNames: Seq[String] = method.getParameterTypes.toList.map(_.toString)
+      val annotations = applyMethod.get.getAnnotation(classOf[Schema]).spec()
+      if (annotations == None) throw new QueryExecutionException("No schema annotation found for TGF")
 
-    val annotations = method.getAnnotation(classOf[Schema]).spec()
-    val colSchema = parser.parseAll(parser.schema, annotations).getOrElse(
-      throw new QueryExecutionException("Error parsing TGF schema annotation (@Schema(spec=...)"))
+      val schema = parser.parseAll(parser.schema, annotations)
+      if (schema == None) throw new QueryExecutionException("Error parsing TGF schema annotation (@Schema(spec=...)")
+      (tgfOutput.asInstanceOf[RDD[Product]].map(_.productIterator.toList), schema.get)
+    } else throw new QueryExecutionException("TGF output needs to be of type RDD or RDDSchema")
+  }
+
+  private def reflectInvoke(tgfName: String, paramStrs: Seq[String], sc: SharkContext) = {
+
+    val applyMethodOpt = getMethod(tgfName, "apply")
+    if (applyMethodOpt.isEmpty) throw new QueryExecutionException("TGF " + tgfName + " needs to implement apply()")
+    val applyMethod = applyMethodOpt.get
+
+    val typeNames: Seq[String] = applyMethod.getParameterTypes.toList.map(_.toString)
 
     if (paramStrs.length != typeNames.length) throw new QueryExecutionException("Expecting " + typeNames.length +
       " parameters to " + tgfName + ", got " + paramStrs.length)
@@ -107,9 +128,7 @@ object TGF {
         new QueryExecutionException("Expected TGF parameter type: " + tpe + " (" + param + ")")
     }
 
-    val tgfRes: RDD[Product] = method.invoke(null, params.asInstanceOf[List[Object]]:_*).asInstanceOf[RDD[Product]]
-
-    Tuple2(tgfRes, colSchema)
+    applyMethod.invoke(null, params.asInstanceOf[List[Object]]:_*)
   }
 
   def execute(sql: String, sc: SharkContext): ResultSet = {
@@ -121,18 +140,18 @@ object TGF {
         params.asInstanceOf[List[String]])
     }
 
-    val (resultRdd, schema) = reflectInvoke(tgfName, params, sc)
+    val obj = reflectInvoke(tgfName, params, sc)
+    val (rdd, schema) = getSchema(obj, tgfName)
 
     val (sharkSchema, resultArr) = tableNameOpt match {
-
       case Some(tableName) =>  // materialize results
-      val helper = new RDDTableFunctions(resultRdd, schema.map{ case (_, tpe) => toManifest(tpe)})
+      val helper = new RDDTableFunctions(rdd, schema.map{ case (_, tpe) => toManifest(tpe)})
       helper.saveAsTable(tableName, schema.map{ case (name, _) => name})
       (Array[ColumnDesc](), Array[Array[Object]]())
 
       case None =>  // return results
       val newSchema = schema.map{ case (name, tpe) => new ColumnDesc(name, DataTypes.fromManifest(toManifest(tpe)))}
-      val res = resultRdd.collect().map{p => p.productIterator.map( _.asInstanceOf[Object] ).toArray}
+      val res = rdd.collect().map{p => p.map( _.asInstanceOf[Object] ).toArray}
       (newSchema.toArray, res)
     }
     new ResultSet(sharkSchema, resultArr)
@@ -153,18 +172,22 @@ object TGF {
   }
 }
 
-
-// Example TGF, should be removed.
-object Clustering {
-  import org.apache.spark.mllib.clustering._
-
-  @Schema(spec = "year int, state string, product string, sales double, cluster int")
-  def apply(sales: RDD[(Int, String, String, Double)], k: Int):
-  RDD[(Int, String, String, Double, Int)] = {
-
-    val dataset = sales.map{ case (year, state, product, sales) => Array[Double](sales) }
-    val model = KMeans.train(dataset, k, 2, 2)
-
-    sales.map{ case (year, state, product, sales) => (year, state, product, sales, model.predict(Array(sales))) }
-  }
-}
+//object NameOfTGF {
+//  import org.apache.spark.mllib.clustering._
+//
+//  // TGFs need to implement an apply() method.
+//  // The TGF has to have an apply function that takes any arbitrary primitive types and any number of RDDs.
+//  // When a TGF is invoked from Shark, every type of RDD is produced by converting Hive tables to RDDs
+//  // TGFs need to have a return type that is either an RDD[Product] or RDDSchema
+//  // The former case requires that the apply method has an annotation of the schema (see below)
+//  // In the latter case the schema is embedded in the RDDSchema function
+//  @Schema(spec = "year int, state string, product string, sales double, cluster int")
+//  def apply(sales: RDD[(Int, String, String, Double)], k: Int):
+//  RDD[(Int, String, String, Double, Int)] = {
+//
+//    val dataset = sales.map{ case (year, state, product, sales) => Array[Double](sales) }
+//    val model = KMeans.train(dataset, k, 2, 2)
+//
+//    sales.map{ case (year, state, product, sales) => (year, state, product, sales, model.predict(Array(sales))) }
+//  }
+//}
