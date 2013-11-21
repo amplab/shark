@@ -18,7 +18,7 @@
 package shark.util
 
 import java.util.{ArrayList => JavaArrayList, Arrays => JavaArrays}
-import java.util.{HashSet => JavaHashSet}
+import java.util.{HashSet => JHashSet}
 import java.util.Properties
 
 import scala.collection.JavaConversions._
@@ -35,7 +35,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.hive.ql.exec.DDLTask
 import org.apache.hadoop.hive.ql.hooks.{ReadEntity, WriteEntity}
-import org.apache.hadoop.hive.ql.plan.AlterTableDesc
 import org.apache.hadoop.hive.ql.plan.{CreateTableDesc, DDLWork, DropTableDesc}
 
 import shark.api.{DataType, DataTypes}
@@ -78,7 +77,7 @@ private[shark] object HiveUtils {
     val partColObjectInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
       partColNames, partColObjectInspectors)
     val oiList = JavaArrays.asList(
-      partSerDe.getObjectInspector().asInstanceOf[StructObjectInspector],
+      partSerDe.getObjectInspector.asInstanceOf[StructObjectInspector],
       partColObjectInspector.asInstanceOf[StructObjectInspector])
     // New oi is union of table + partition object inspectors
     ObjectInspectorFactory.getUnionStructObjectInspector(oiList)
@@ -110,10 +109,8 @@ private[shark] object HiveUtils {
     createTableDesc.setNumBuckets(-1)
 
     // Execute the create table against the Hive metastore.
-    val ddlWork = new DDLWork(new JavaHashSet[ReadEntity],
-                              new JavaHashSet[WriteEntity],
-                              createTableDesc)
-    val taskExecutionStatus = executeDDLTaskDirectly(ddlWork, hiveConf)
+    val work = new DDLWork(new JHashSet[ReadEntity], new JHashSet[WriteEntity], createTableDesc)
+    val taskExecutionStatus = executeDDLTaskDirectly(work, hiveConf)
     taskExecutionStatus == 0
   }
 
@@ -126,10 +123,8 @@ private[shark] object HiveUtils {
       false /* stringPartitionColumns */)
 
     // Execute the drop table against the metastore.
-    val ddlWork = new DDLWork(new JavaHashSet[ReadEntity],
-                              new JavaHashSet[WriteEntity],
-                              dropTblDesc)
-    val taskExecutionStatus = executeDDLTaskDirectly(ddlWork, hiveConf)
+    val work = new DDLWork(new JHashSet[ReadEntity], new JHashSet[WriteEntity], dropTblDesc)
+    val taskExecutionStatus = executeDDLTaskDirectly(work, hiveConf)
     taskExecutionStatus == 0
   }
 

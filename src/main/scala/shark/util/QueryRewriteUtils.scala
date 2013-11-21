@@ -24,9 +24,7 @@ import shark.memstore2.SharkTblProperties
 
 object QueryRewriteUtils {
 
-  def cacheToAlterTable(
-      cmd: String,
-      storageLevelStr: String = SharkTblProperties.STORAGE_LEVEL.defaultVal): String = {
+  def cacheToAlterTable(cmd: String): String = {
     val cmdSplit = cmd.split(' ')
     if (cmdSplit.size == 2) {
       val tableName = cmdSplit(1)
@@ -34,9 +32,8 @@ object QueryRewriteUtils {
       ALTER TABLE %s SET TBLPROPERTIES (
         'shark.cache' = 'true',
         'shark.cache.unifyView' = 'true',
-        'shark.cache.reloadOnRestart' = 'true',
-        'shark.cache.storageLevel' = '%s')
-      """.format(tableName, storageLevelStr)
+        'shark.cache.reloadOnRestart' = 'true')
+      """.format(tableName)
     } else {
       throw new SemanticException("CACHE accepts a single table name: 'CACHE <table name>'")
     }

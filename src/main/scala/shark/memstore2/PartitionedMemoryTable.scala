@@ -22,10 +22,10 @@ import java.util.concurrent.{ConcurrentHashMap => ConcurrentJavaHashMap}
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ConcurrentMap
 
-import shark.execution.RDDUtils
-
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
+
+import shark.execution.RDDUtils
 
 
 /**
@@ -40,10 +40,9 @@ class PartitionedMemoryTable(
     databaseName: String,
     tableName: String,
     cacheMode: CacheType.CacheType,
-    storageLevel: StorageLevel,
     unifiedView: Boolean,
     reloadOnRestart: Boolean)
-  extends Table(databaseName, tableName, cacheMode, storageLevel, unifiedView, reloadOnRestart) {
+  extends Table(databaseName, tableName, cacheMode, unifiedView, reloadOnRestart) {
 
   /**
    * A simple, mutable wrapper for an RDD. This is needed so that a entry maintained by a
@@ -63,7 +62,7 @@ class PartitionedMemoryTable(
   // The eviction policy for this table's cached Hive-partitions. An example of how this
   // can be set from the CLI:
   //   `TBLPROPERTIES("shark.partition.cachePolicy", "LRUCachePolicy")`.
-  // If 'None', then all partitions will be persisted in memory using the `preferredStorageLevel`.
+  // If 'None', then all partitions will be put in memory.
   private var _cachePolicy: CachePolicy[String, RDDValue] = _
 
   def containsPartition(partitionKey: String): Boolean = _keyToPartitions.contains(partitionKey)
@@ -114,12 +113,13 @@ class PartitionedMemoryTable(
     // The loadFunc will upgrade the persistence level of the RDD to the preferred storage level.
     val loadFunc: String => RDDValue = (partitionKey: String) => {
       val rddValue = _keyToPartitions.get(partitionKey).get
-      rddValue.rdd.persist(preferredStorageLevel)
+      rddValue.rdd.persist(StorageLevel.MEMORY_AND_DISK)
       rddValue
     }
     // The evictionFunc will unpersist the RDD.
-    val evictionFunc: (String, RDDValue) => Unit =
-      (partitionKey: String, rddValue) => RDDUtils.unpersistRDD(rddValue.rdd)
+    val evictionFunc: (String, RDDValue) => Unit = (partitionKey, rddValue) => {
+      RDDUtils.unpersistRDD(rddValue.rdd)
+    }
     val newPolicy = CachePolicy.instantiateWithUserSpecs[String, RDDValue](
       cachePolicyStr, fallbackMaxSize, loadFunc, evictionFunc)
     _cachePolicy = newPolicy
