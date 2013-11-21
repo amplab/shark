@@ -110,13 +110,16 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
     val tableName = tableNameSplit(1)
 
     // There are three places we can load the table from.
-    // 1. Tachyon table
-    // 2. Spark heap (block manager), accessed through the Shark MemoryMetadataManager
+    // 1. Spark heap (block manager), accessed through the Shark MemoryMetadataManager
+    // 2. Tachyon table
     // 3. Hive table on HDFS (or other Hadoop storage)
     val cacheMode = CacheType.fromString(
       tableDesc.getProperties().get("shark.cache").asInstanceOf[String])
     // TODO(harvey): Pruning Hive-partitioned, cached tables isn't supported yet.
-    if (cacheMode == CacheType.HEAP) {
+    if (isInMemoryTableScan) {
+      assert (cacheMode == CacheType.MEMORY || cacheMode == CacheType.MEMORY_ONLY,
+        "Table %s.%s is in Shark metastore, but its cacheMode (%s) indicates otherwise".
+          format(databaseName, tableName, cacheMode))
       val tableReader = new HeapTableReader(tableDesc)
       if (table.isPartitioned) {
         return tableReader.makeRDDForPartitionedTable(parts)

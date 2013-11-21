@@ -190,11 +190,10 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                 qb.targetTableDesc = tableDesc
                 // If useUnionRDD is true, the sink op is for INSERT INTO.
                 val useUnionRDD = qbParseInfo.isInsertIntoTable(cachedTableName)
-                val cacheMode = table.cacheMode
                 val isPartitioned = SharkEnv.memoryMetadataManager.isHivePartitioned(
                   databaseName, cachedTableName)
                 var hivePartitionKey = if (isPartitioned) {
-                  if (cacheMode == CacheType.TACHYON) {
+                  if (table.cacheMode == CacheType.TACHYON) {
                     throw new SemanticException(
                       "Shark does not support caching Hive-partitioned table(s) in Tachyon.")
                   }
@@ -202,10 +201,11 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                 } else {
                   new String
                 }
-                if (table.unifyView) {
-                  // The table being updated is a unified view, a SparkLoadTask will be created
-                  // by the genMapRedTasks() call below. Set fields in `qb` that will be needed.
-                  qb.unifyView = true
+                if (table.cacheMode == CacheType.MEMORY) {
+                  // The table being updated is stored in memory and backed by disk, a
+                  // SparkLoadTask will be created by the genMapRedTasks() call below. Set fields
+                  // in `qb` that will be needed.
+                  qb.cacheMode = table.cacheMode
                   qb.targetTableDesc = tableDesc
                   OperatorFactory.createSharkFileOutputPlan(hiveSinkOp)
                 } else {
@@ -215,7 +215,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                     databaseName,
                     _resSchema.size,  /* numColumns */
                     hivePartitionKey,
-                    cacheMode,
+                    table.cacheMode,
                     useUnionRDD)
                 }
               } else {
@@ -231,13 +231,10 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         Seq {
           // For a single output, we have the option of choosing the output
           // destination (e.g. CTAS with table property "shark.cache" = "true").
-          if (qb.isCTAS && qb.createTableDesc != null &&
-              CacheType.shouldCache(qb.cacheModeForCreateTable)) {
-            // The table being created from CTAS should be cached. Check whether it should be
-            // synchronized with disk (i.e., maintain a unified view) or memory-only.
+          if (qb.isCTAS && qb.createTableDesc != null && CacheType.shouldCache(qb.cacheMode)) {
+            // The table being created from CTAS should be cached.
             val tblProps = qb.createTableDesc.getTblProps
-            // TODO(harvey): Set this during analysis
-            if (qb.unifyView) {
+            if (qb.cacheMode == CacheType.MEMORY) {
               // Save the preferred storage level, since it's needed to create a SparkLoadTask in
               // genMapRedTasks().
               OperatorFactory.createSharkFileOutputPlan(hiveSinkOps.head)
@@ -248,7 +245,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                 qb.createTableDesc.getDatabaseName,
                 _resSchema.size,  /* numColumns */
                 new String,  /* hivePartitionKey */
-                qb.cacheModeForCreateTable,
+                qb.cacheMode,
                 false  /* useUnionRDD */)
             }
           } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink && !qb.isCTAS) {
@@ -361,7 +358,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         */
       }
 
-      if (qb.unifyView) {
+      if (qb.cacheMode == CacheType.MEMORY) {
         // Create a SparkLoadTask used to scan and load disk contents into the cache.
         val sparkLoadWork = if (qb.isCTAS) {
           // For cached tables, Shark-specific table properties should be set in
@@ -374,9 +371,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
             qb.createTableDesc.getDatabaseName,
             qb.createTableDesc.getTableName,
             SparkLoadWork.CommandTypes.NEW_ENTRY,
-            qb.cacheModeForCreateTable)
-          sparkLoadWork.unifyView = qb.unifyView
-          sparkLoadWork.reloadOnRestart = qb.reloadOnRestart
+            qb.cacheMode)
           sparkLoadWork
         } else {
           // Split from 'databaseName.tableName'
@@ -474,32 +469,25 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       // There are two cases that will enable caching:
       // 1) Table name includes "_cached" or "_tachyon".
       // 2) The "shark.cache" table property is "true", or the string representation of a supported
-      //    cache mode (heap, Tachyon).
-      var cacheMode = CacheType.fromString(createTableProperties.get(
-        SharkTblProperties.CACHE_FLAG.varname))
-      // Continue planning based on the 'cacheMode' read.
-      if (cacheMode == CacheType.HEAP || (checkTableName && tableName.endsWith("_cached"))) {
-        cacheMode = CacheType.HEAP
-        createTableProperties.put(SharkTblProperties.CACHE_FLAG.varname, cacheMode.toString)
-      } else if (cacheMode == CacheType.TACHYON ||
-                 (checkTableName && tableName.endsWith("_tachyon"))) {
-        cacheMode = CacheType.TACHYON
-        createTableProperties.put(SharkTblProperties.CACHE_FLAG.varname, cacheMode.toString)
+      //    cache mode (memory, memory-only, Tachyon).
+      var cacheMode = CacheType.fromString(
+        createTableProperties.get(SharkTblProperties.CACHE_FLAG.varname))
+      if (checkTableName) {
+        if (tableName.endsWith("_cached")) {
+          cacheMode = CacheType.MEMORY
+        } else if (tableName.endsWith("_tachyon")) {
+          cacheMode = CacheType.TACHYON
+        }
       }
 
+      // Continue planning based on the 'cacheMode' read.
       val shouldCache = CacheType.shouldCache(cacheMode)
       if (shouldCache) {
-        // Add Shark table properties to the QueryBlock.
-        queryBlock.cacheModeForCreateTable = cacheMode
-        queryBlock.unifyView = SharkTblProperties.getOrSetDefault(createTableProperties,
-          SharkTblProperties.UNIFY_VIEW_FLAG).toBoolean
-        queryBlock.reloadOnRestart = SharkTblProperties.getOrSetDefault(createTableProperties,
-          SharkTblProperties.RELOAD_ON_RESTART_FLAG).toBoolean
-
-        if (!queryBlock.unifyView) {
-          // Directly set the ColumnarSerDe if the table will be stored memory-only.
+        if (cacheMode == CacheType.MEMORY_ONLY) {
+          // Directly set the ColumnarSerDe property.
           createTableDesc.setSerName(classOf[ColumnarSerDe].getName)
         }
+        createTableProperties.put(SharkTblProperties.CACHE_FLAG.varname, cacheMode.toString)
       }
 
       // For CTAS ('isRegularCreateTable' is false), the MemoryStoreSinkOperator creates a new
@@ -517,11 +505,12 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         hiveDDLTask.addDependentTask(TaskFactory.get(sharkDDLWork, conf))
       }
 
-      queryBlock.cacheModeForCreateTable = cacheMode
+      queryBlock.cacheMode = cacheMode
       queryBlock.setTableDesc(createTableDesc)
     }
-    return queryStmtASTNode
+    queryStmtASTNode
   }
+
 }
 
 

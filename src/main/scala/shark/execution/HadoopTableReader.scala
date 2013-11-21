@@ -59,22 +59,22 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
   override def makeRDDForTable(hiveTable: HiveTable): RDD[_] =
     makeRDDForTable(
       hiveTable,
-      None /* fitlerOpt */,
-      _tableDesc.getDeserializerClass.asInstanceOf[Class[Deserializer]])
+      _tableDesc.getDeserializerClass.asInstanceOf[Class[Deserializer]],
+      filterOpt = None)
 
   /**
    * Creates a Hadoop RDD to read data from the target table's data directory. Returns a transformed
    * RDD that contains deserialized rows.
    * 
    * @param hiveTable Hive metadata for the table being scanned.
+   * @param deserializerClass Class of the SerDe used to deserialize Writables read from Hadoop.
    * @param filterOpt If defined, then the filter is used to reject files contained in the data
    *                  directory being read. If None, then all files are accepted.
-   * @param deserializerClass Class of the SerDe used to deserialize Writables read from Hadoop.
    */
   def makeRDDForTable(
       hiveTable: HiveTable,
-      filterOpt: Option[PathFilter],
-      deserializerClass: Class[_ <: Deserializer]): RDD[_] = {
+      deserializerClass: Class[_ <: Deserializer],
+      filterOpt: Option[PathFilter]): RDD[_] = {
     assert(!hiveTable.isPartitioned, """makeRDDForTable() cannot be called on a partitioned table,
       since input formats may differ across partitions. Use makeRDDForTablePartitions() instead.""")
 
@@ -107,11 +107,10 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
     deserializedHadoopRDD
   }
 
-  override def makeRDDForPartitionedTable(
-      partitions: Seq[HivePartition]): RDD[_] = {
+  override def makeRDDForPartitionedTable(partitions: Seq[HivePartition]): RDD[_] = {
     val partitionToDeserializer = partitions.map(part =>
       (part, part.getDeserializer.getClass.asInstanceOf[Class[Deserializer]])).toMap
-    makeRDDForPartitionedTable(partitionToDeserializer, None /* filterOpt */)
+    makeRDDForPartitionedTable(partitionToDeserializer, filterOpt = None)
   }
 
   /**
@@ -119,8 +118,8 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
    * tables, a data directory is created for each partition corresponding to keys specified using
    * 'PARTITION BY'.
    * 
-   * @param partitionToDeserializer Mapping from a Hive partition metadata object to the SerDe
-   *     class to use to deserialize input Writables.
+   * @param partitionToDeserializer Mapping from a Hive Partition metadata object to the SerDe
+   *     class to use to deserialize input Writables from the corresponding partition.
    * @param filterOpt If defined, then the filter is used to reject files contained in the data
    *     subdirectory of each partition being read. If None, then all files are accepted.
    */

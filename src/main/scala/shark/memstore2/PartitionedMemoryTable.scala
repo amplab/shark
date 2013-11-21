@@ -39,10 +39,8 @@ private[shark]
 class PartitionedMemoryTable(
     databaseName: String,
     tableName: String,
-    cacheMode: CacheType.CacheType,
-    unifiedView: Boolean,
-    reloadOnRestart: Boolean)
-  extends Table(databaseName, tableName, cacheMode, unifiedView, reloadOnRestart) {
+    cacheMode: CacheType.CacheType)
+  extends Table(databaseName, tableName, cacheMode) {
 
   /**
    * A simple, mutable wrapper for an RDD. This is needed so that a entry maintained by a

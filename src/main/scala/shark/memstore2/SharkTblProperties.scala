@@ -36,12 +36,6 @@ object SharkTblProperties {
   // "shark.cache.partition.cachePolicy" property above.
   val MAX_PARTITION_CACHE_SIZE = new TableProperty("shark.cache.policy.maxSize", "10")
 
-  // Default value for the "shark.cache.unify" table property.
-  val UNIFY_VIEW_FLAG = new TableProperty("shark.cache.unifyView", "true")
-
-  // Default value for the "shark.cache.reloadOnRestart" table property.
-  val RELOAD_ON_RESTART_FLAG = new TableProperty("shark.cache.reloadOnRestart", "true")
-
   // Default value for the "shark.cache" table property
   val CACHE_FLAG = new TableProperty("shark.cache", "true")
 
@@ -56,18 +50,19 @@ object SharkTblProperties {
    * Returns value for the `variable` table property. If a value isn't present in `tblProps`, then
    * the default for `variable` will be returned.
    */
-  def initializeWithDefaults(tblProps: JavaMap[String, String]): JavaMap[String, String] = {
+  def initializeWithDefaults(
+      tblProps: JavaMap[String, String],
+      isPartitioned: Boolean = false): JavaMap[String, String] = {
     tblProps.put(CACHE_FLAG.varname, CACHE_FLAG.defaultVal)
-    tblProps.put(UNIFY_VIEW_FLAG.varname, UNIFY_VIEW_FLAG.defaultVal)
-    tblProps.put(RELOAD_ON_RESTART_FLAG.varname, RELOAD_ON_RESTART_FLAG.defaultVal)
+    if (isPartitioned) {
+      tblProps.put(CACHE_POLICY.varname, CACHE_POLICY.defaultVal)
+    }
     tblProps
   }
 
-  def removeSharkProperties(tblProps: JavaMap[String, String], preserveRecoveryProps: Boolean) {
+  def removeSharkProperties(tblProps: JavaMap[String, String]) {
     tblProps.remove(CACHE_FLAG.varname)
-    tblProps.remove(UNIFY_VIEW_FLAG.varname)
-    if (!preserveRecoveryProps) {
-      tblProps.remove(RELOAD_ON_RESTART_FLAG.varname)
-    }
+    tblProps.remove(CACHE_POLICY.varname)
+    tblProps.remove(MAX_PARTITION_CACHE_SIZE.varname)
   }
 }

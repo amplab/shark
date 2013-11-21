@@ -51,10 +51,10 @@ import shark.util.HiveUtils
  *
  * @param databaseName Namespace for the table being handled.
  * @param tableName Name of the table being handled.
- * @param commandType Type (an enum) of command that will be executed for the target table. See
+ * @param commandType Enum representing the command that will be executed for the target table. See
  *     SparkLoadWork.CommandTypes for a description of which SQL commands correspond to each type.
  * @param cacheMode Cache type that the RDD should be stored in (e.g., Spark heap).
- *     TODO(harvey): Support Tachyon.
+ *                  TODO(harvey): Support Tachyon.
  */
 private[shark]
 class SparkLoadWork(
@@ -63,17 +63,6 @@ class SparkLoadWork(
     val commandType: SparkLoadWork.CommandTypes.Type,
     val cacheMode: CacheType.CacheType)
   extends Serializable {
-
-  // Used for CommandTypes.NEW_ENTRY.
-  // True if the table should be stored both on disk and in memory.
-  var unifyView: Boolean = _
-
-  // Used for CommandTypes.NEW_ENTRY
-  // True if the Shark table entry created should be marked as recoverable. Table properties needed
-  // reload the table across sessions will be preserved by the server shutdown hook. See
-  // MemoryMetadataManager#processTablesOnShutdown() for shutdown handling and
-  // TblProperties#removeSharkProperties() for the properties that are preserved.
-  var reloadOnRestart: Boolean = _
 
   // Defined if the command is an INSERT and under these conditions:
   // - Table is partitioned, and the partition being updated already exists
@@ -100,7 +89,7 @@ object SparkLoadWork {
     // Type of commands executed by the SparkLoadTask created from a SparkLoadWork.
     // Corresponding SQL commands for each enum:
     // - NEW_ENTRY:
-    //   CACHE or ALTER TABLE <table> SET TBLPROPERTIES('shark.cache' = true ... )
+    //   CACHE or ALTER TABLE <table> SET TBLPROPERTIES('shark.cache' = `true` ... )
     // - INSERT:
     //   INSERT INTO TABLE <table> or LOAD DATA INPATH '...' INTO <table>
     // - OVERWRITE:
@@ -236,12 +225,11 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
       case SparkLoadWork.CommandTypes.NEW_ENTRY => {
         // This is a new entry, e.g. we are caching a new table or partition.
         // Create a new MemoryTable object and return that.
-        SharkEnv.memoryMetadataManager.createMemoryTable(databaseName, tableName, work.cacheMode,
-          work.unifyView, work.reloadOnRestart)
+        SharkEnv.memoryMetadataManager.createMemoryTable(databaseName, tableName, work.cacheMode)
       }
       case _ => {
-        // This is an existing entry (e.g. we are doing insert or insert overwrite).
-        // Get the MemoryTable object from the metadata manager.
+        // This is an existing entry (e.g. we are handling an INSERT or INSERT OVERWRITE).
+        // Get the MemoryTable object from the Shark metastore.
         val tableOpt = SharkEnv.memoryMetadataManager.getTable(databaseName, tableName)
         assert(tableOpt.exists(_.isInstanceOf[MemoryTable]),
           "Memory table being updated cannot be found in the Shark metastore.")
@@ -271,10 +259,7 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
     val serDe = hiveTable.getDeserializer
     serDe.initialize(conf, tableSchema)
     // Scan the Hive table's data directory.
-    val inputRDD = hadoopReader.makeRDDForTable(
-      hiveTable,
-      pathFilterOpt,
-      serDe.getClass)
+    val inputRDD = hadoopReader.makeRDDForTable(hiveTable, serDe.getClass, pathFilterOpt)
     // Transform the HadoopRDD to an RDD[TablePartition].
     val (tablePartitionRDD, tableStats) = materialize(
       inputRDD,
@@ -316,8 +301,6 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
           databaseName,
           tableName,
           work.cacheMode,
-          work.unifyView,
-          work.reloadOnRestart,
           hiveTable.getParameters)
       }
       case _ => {
@@ -410,8 +393,8 @@ object SparkLoadTask {
    * columns appended to respective row metadata properties.
    */
   private def addPartitionInfoToSerDeProps(
-    partCols: Seq[String],
-    baseSerDeProps: Properties): Properties = {
+      partCols: Seq[String],
+      baseSerDeProps: Properties): Properties = {
     val serDeProps = new Properties(baseSerDeProps)
 
     // Column names specified by the Constants.LIST_COLUMNS key are delimited by ",".

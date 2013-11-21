@@ -72,19 +72,19 @@ object SharkServer extends LogHelper {
 
   def main(args: Array[String]) {
 
-    val cli = new SharkServerCliOptions
-    cli.parse(args)
+    val cliOptions = new SharkServerCliOptions
+    cliOptions.parse(args)
 
     // From Hive: It is critical to do this prior to initializing log4j, otherwise
     // any log specific settings via hiveconf will be ignored.
-    val hiveconf: Properties = cli.addHiveconfToSystemProperties()
+    val hiveconf: Properties = cliOptions.addHiveconfToSystemProperties()
 
     // From Hive: It is critical to do this here so that log4j is reinitialized
     // before any of the other core hive classes are loaded
     LogUtils.initHiveLog4j()
 
     val latch = new CountDownLatch(1)
-    serverTransport = new TServerSocket(cli.port)
+    serverTransport = new TServerSocket(cliOptions.port)
 
     val hfactory = new ThriftHiveProcessorFactory(null, new HiveConf()) {
       override def getProcessor(t: TTransport) =
@@ -92,8 +92,8 @@ object SharkServer extends LogHelper {
     }
     val ttServerArgs = new TThreadPoolServer.Args(serverTransport)
       .processorFactory(hfactory)
-      .minWorkerThreads(cli.minWorkerThreads)
-      .maxWorkerThreads(cli.maxWorkerThreads)
+      .minWorkerThreads(cliOptions.minWorkerThreads)
+      .maxWorkerThreads(cliOptions.maxWorkerThreads)
       .transportFactory(new TTransportFactory())
       .protocolFactory(new TBinaryProtocol.Factory())
     server = new TThreadPoolServer(ttServerArgs)
@@ -112,12 +112,13 @@ object SharkServer extends LogHelper {
       }
     )
 
-    // Optionally load the cached tables.
-    execLoadRdds(cli.loadRdds, latch)
+    // Optionally reload cached tables from a previous session.
+    execLoadRdds(cliOptions.reloadRdds, latch)
 
     // Start serving.
-    val startupMsg = "Starting Shark server on port " + cli.port + " with " + cli.minWorkerThreads +
-      " min worker threads and " + cli.maxWorkerThreads + " max worker threads"
+    val startupMsg = "Starting Shark server on port " + cliOptions.port + " with " +
+      cliOptions.minWorkerThreads + " min worker threads and " + cliOptions.maxWorkerThreads +
+      " max worker threads."
     logInfo(startupMsg)
     println(startupMsg)
     server.serve()
@@ -138,7 +139,7 @@ object SharkServer extends LogHelper {
       while (!server.isServing()) {}
       try {
         val sshandler = new SharkServerHandler
-        TableRecovery.loadUnifiedViews(sshandler.execute(_))
+        TableRecovery.reloadRdds(sshandler.execute(_))
       } catch {
         case (e: Exception) => logWarning("Unable to load RDDs upon startup", e)
       } finally {
@@ -149,14 +150,14 @@ object SharkServer extends LogHelper {
 
   // Used to parse command line arguments for the server.
   class SharkServerCliOptions extends HiveServerCli {
-    var loadRdds = false
+    var reloadRdds = false
 
-    val OPTION_LOAD_RDDS = "loadRdds"
-    OPTIONS.addOption(OptionBuilder.create(OPTION_LOAD_RDDS))
+    val OPTION_SKIP_RELOAD_RDDS = "skipRddReload"
+    OPTIONS.addOption(OptionBuilder.create(OPTION_SKIP_RELOAD_RDDS))
 
     override def parse(args: Array[String]) {
       super.parse(args)
-      loadRdds = commandLine.hasOption(OPTION_LOAD_RDDS)
+      reloadRdds = !commandLine.hasOption(OPTION_SKIP_RELOAD_RDDS)
     }
   }
 }

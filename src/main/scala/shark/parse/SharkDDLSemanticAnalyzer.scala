@@ -66,19 +66,13 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
    * Handle table property changes.
    * How Shark-specific changes are handled:
    * - "shark.cache":
-   *   If 'true', then create a SparkLoadTask to load the Hive table into memory.
+   *   If the value evaluated by CacheType#shouldCache() is `true`, then create a SparkLoadTask to
+   *   load the Hive table into memory.
    *   Set it as a dependent of the Hive DDLTask. A SharkDDLTask counterpart isn't created because
    *   the HadoopRDD creation and transformation isn't a direct Shark metastore operation
    *   (unlike the other cases handled in SharkDDLSemantiAnalyzer).   *
    *   If 'false', then create a SharkDDLTask that will delete the table entry in the Shark
    *   metastore.
-   *
-   * - "shark.cache.unifyView" :
-   *   If 'true' and "shark.cache" is true, then the SparkLoadTask created should read this from the
-   *   table properties when adding an entry to the Shark metastore.
-   *
-   *   TODO(harvey): Add this, though reevaluate it too...some Spark RDDs might depend on the old
-   *   version of the RDD, so simply dropping it might not work.
    */
   def analyzeAlterTableProperties(ast: ASTNode) {
     val databaseName = db.getCurrentDatabase()
@@ -89,7 +83,8 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
 
     val oldCacheMode = CacheType.fromString(oldTblProps.get(SharkTblProperties.CACHE_FLAG.varname))
     val newCacheMode = CacheType.fromString(newTblProps.get(SharkTblProperties.CACHE_FLAG.varname))
-    if (!CacheType.shouldCache(oldCacheMode) && CacheType.shouldCache(newCacheMode)) {
+    val isAlreadyCached = SharkEnv.memoryMetadataManager.containsTable(databaseName, tableName)
+    if (!isAlreadyCached && newCacheMode == CacheType.MEMORY) {
       // The table should be cached (and is not already cached).
       val partSpecsOpt = if (hiveTable.isPartitioned) {
         val columnNames = hiveTable.getPartCols.map(_.getName)
@@ -104,26 +99,21 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
         None
       }
       newTblProps.put(SharkTblProperties.CACHE_FLAG.varname, newCacheMode.toString)
-      val unifyView = SharkTblProperties.getOrSetDefault(newTblProps,
-        SharkTblProperties.UNIFY_VIEW_FLAG).toBoolean
-      val reloadOnRestart = SharkTblProperties.getOrSetDefault(newTblProps,
-        SharkTblProperties.RELOAD_ON_RESTART_FLAG).toBoolean
-      val sparkLoadWork = new SparkLoadWork(databaseName, tableName,
-        SparkLoadWork.CommandTypes.NEW_ENTRY, newCacheMode)
-      sparkLoadWork.unifyView = unifyView
-      sparkLoadWork.reloadOnRestart = reloadOnRestart
+      val sparkLoadWork = new SparkLoadWork(
+        databaseName,
+        tableName,
+        SparkLoadWork.CommandTypes.NEW_ENTRY,
+        newCacheMode)
       partSpecsOpt.foreach(partSpecs => sparkLoadWork.partSpecs = partSpecs)
       rootTasks.head.addDependentTask(TaskFactory.get(sparkLoadWork, conf))
     }
     if (CacheType.shouldCache(oldCacheMode) && !CacheType.shouldCache(newCacheMode)) {
-      val isUnifiedView = Option(oldTblProps.get(SharkTblProperties.UNIFY_VIEW_FLAG.varname)).
-        exists(_.toBoolean)
-      // Uncache the table.
-      if (isUnifiedView) {
-        SharkEnv.memoryMetadataManager.dropUnifiedView(db, databaseName, tableName)
+      if (oldCacheMode == CacheType.MEMORY) {
+        // Uncache the table.
+        SharkEnv.memoryMetadataManager.dropTableFromMemory(db, databaseName, tableName)
       } else {
         throw new SemanticException(
-          "Only unified views can be uncached. A memory-only table should be dropped.")
+          "A memory-only table should be dropped.")
       }
     }
 

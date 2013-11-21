@@ -32,13 +32,9 @@ import shark.memstore2.CacheType._
 class QueryBlock(outerID: String, alias: String, isSubQuery: Boolean)
   extends HiveQueryBlock(outerID, alias, isSubQuery) {
 
-  // The CacheType for the table that will be created from CREATE TABLE/CTAS.
-  var cacheModeForCreateTable = CacheType.NONE
-
-  var reloadOnRestart: Boolean = false
-
-  // Whether the created to be created or the table specified by CACHED should be backed by disk.
-  var unifyView = false
+  // The CacheType for the table that will be created from CREATE TABLE/CTAS, or updated for an
+  // INSERT.
+  var cacheMode = CacheType.NONE
 
   // Descriptor for the table being updated by an INSERT.
   var targetTableDesc: TableDesc = _

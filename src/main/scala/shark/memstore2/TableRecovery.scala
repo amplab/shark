@@ -32,26 +32,22 @@ object TableRecovery extends LogHelper {
   val db = Hive.get()
 
   /**
-   * Loads any tables with the `SharkTblProperties.RELOAD_ON_RESTART_FLAG` property set to true.
+   * Loads any cached tables with MEMORY as its `shark.cache` property.
    * @param cmdRunner The runner that is responsible for taking a cached table query and
    *        a) Creating the table metadata in Hive Meta Store
    *        b) Loading the table as an RDD in memory
    *        @see SharkServer for an example usage.
    */
-  def loadUnifiedViews(cmdRunner: String => Unit) {
+  def reloadRdds(cmdRunner: String => Unit) {
     // Filter for tables that should be reloaded into the cache.
     val currentDbName = db.getCurrentDatabase()
-    for (databaseName <- db.getAllDatabases()) {
-      for (tableName <- db.getAllTables(databaseName)) {
-        val tblProps = db.getTable(databaseName, tableName).getParameters
-        val shouldReload = Option(tblProps.get(SharkTblProperties.RELOAD_ON_RESTART_FLAG.varname)).
-          exists(_.toBoolean)
-        if (shouldReload) {
-          logInfo("Reloading %s.%s into memory.".format(databaseName, tableName))
-          // TODO(harvey): Executing SQL directly is a bit of a cop-out...
-          val cmd = QueryRewriteUtils.cacheToAlterTable("CACHE %s".format(tableName))
-          cmdRunner(cmd)
-        }
+    for (databaseName <- db.getAllDatabases(); tableName <- db.getAllTables(databaseName)) {
+      val tblProps = db.getTable(databaseName, tableName).getParameters
+      val cacheMode = CacheType.fromString(tblProps.get(SharkTblProperties.CACHE_FLAG.varname))
+      if (cacheMode == CacheType.MEMORY) {
+        logInfo("Reloading %s.%s into memory.".format(databaseName, tableName))
+        val cmd = QueryRewriteUtils.cacheToAlterTable("CACHE %s".format(tableName))
+        cmdRunner(cmd)
       }
     }
     db.setCurrentDatabase(currentDbName)

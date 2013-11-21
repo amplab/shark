@@ -17,7 +17,7 @@
 
 package shark.util
 
-import java.util.{ArrayList => JavaArrayList, Arrays => JavaArrays}
+import java.util.{Arrays => JavaArrays, ArrayList => JavaArrayList}
 import java.util.{HashSet => JHashSet}
 import java.util.Properties
 
@@ -27,10 +27,10 @@ import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_PARTITION_COLUMNS
 import org.apache.hadoop.hive.metastore.api.FieldSchema
 import org.apache.hadoop.hive.serde2.Deserializer
-import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
-import org.apache.hadoop.hive.serde2.objectinspector.UnionStructObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
+import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.UnionStructObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.hive.ql.exec.DDLTask
@@ -90,8 +90,6 @@ private[shark] object HiveUtils {
       tableName: String,
       columnNames: Seq[String],
       columnTypes: Seq[ClassManifest[_]],
-      unifyView: Boolean = false,
-      reloadOnRestart: Boolean = false,
       hiveConf: HiveConf = new HiveConf): Boolean = {
     val schema = columnNames.zip(columnTypes).map { case (colName, manifest) =>
       new FieldSchema(colName, DataTypes.fromManifest(manifest).hiveName, "")

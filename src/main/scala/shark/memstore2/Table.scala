@@ -21,12 +21,11 @@ package shark.memstore2
  * A container for table metadata managed by Shark and Spark. Subclasses are responsible for
  * how RDDs are set, stored, and accessed.
  *
+ * @param databaseName Namespace for this table.
  * @param tableName Name of this table.
  * @param cacheMode Type of memory storage used for the table (e.g., the Spark block manager).
  */
 private[shark] abstract class Table(
     var databaseName: String,
     var tableName: String,
-    var cacheMode: CacheType.CacheType,
-    var unifyView: Boolean,
-    var reloadOnRestart: Boolean)
+    var cacheMode: CacheType.CacheType)

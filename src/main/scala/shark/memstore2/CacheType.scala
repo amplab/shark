@@ -24,13 +24,15 @@ object CacheType extends Enumeration {
 
   /*
    * The CacheTypes:
-   * - NONE: On-disk storage (e.g. a Hive table that is stored in HDFS ).
-   * - HEAP: refers to Spark's block manager, which coordinates in-memory and on-disk RDD storage.
+   * - MEMORY: Stored in memory and on disk (i.e., cache is write-through). Persistent across Shark
+   *           sessions. By default, all such tables are reloaded into memory on restart.
+   * - MEMORY_ONLY: Stored only in memory and dropped at the end of each Shark session.
    * - TACHYON: A distributed storage system that manages an in-memory cache for sharing files and
-   *            RDDs across cluster frameworks.
+                RDDs across cluster frameworks.
+   * - NONE: Stored on disk (e.g., HDFS) and managed by Hive.
    */
   type CacheType = Value
-  val NONE, HEAP, TACHYON = Value
+  val MEMORY, MEMORY_ONLY, TACHYON, NONE = Value
 
   def shouldCache(c: CacheType): Boolean = (c != NONE)
 
@@ -39,7 +41,7 @@ object CacheType extends Enumeration {
     if (name == null || name == "" || name.toLowerCase == "false") {
       NONE
     } else if (name.toLowerCase == "true") {
-      HEAP
+      MEMORY
     } else {
       try {
         // Try to use Scala's Enumeration::withName() to interpret 'name'.

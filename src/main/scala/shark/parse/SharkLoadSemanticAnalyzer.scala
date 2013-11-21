@@ -18,13 +18,16 @@
 package shark.parse
 
 import scala.collection.JavaConversions._
+
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{CopyTask, MoveTask, TaskFactory}
 import org.apache.hadoop.hive.ql.metadata.{Partition, Table => HiveTable}
 import org.apache.hadoop.hive.ql.parse.{ASTNode, BaseSemanticAnalyzer, LoadSemanticAnalyzer}
 import org.apache.hadoop.hive.ql.plan._
-import shark.execution.SparkLoadWork
+
 import shark.{LogHelper, SharkEnv}
+import shark.execution.SparkLoadWork
+import shark.memstore2.CacheType
 
 class SharkLoadSemanticAnalyzer(conf: HiveConf) extends LoadSemanticAnalyzer(conf) {
   
@@ -41,7 +44,7 @@ class SharkLoadSemanticAnalyzer(conf: HiveConf) extends LoadSemanticAnalyzer(con
     val databaseName = db.getCurrentDatabase()
 
     val tableOpt = SharkEnv.memoryMetadataManager.getTable(databaseName, tableName)
-    if (tableOpt.exists(_.unifyView)) {
+    if (tableOpt.exists(table => table.cacheMode == CacheType.MEMORY)) {
       // Find the arguments needed to instantiate a SparkLoadWork.
       val tableSpec = new BaseSemanticAnalyzer.tableSpec(db, conf, tableASTNode)
       val hiveTable = tableSpec.tableHandle

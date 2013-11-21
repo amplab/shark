@@ -75,7 +75,15 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
     return 0
   }
 
-  /** Handles a CREATE TABLE or CTAS. */
+  /**
+   * Updates Shark metastore for a CREATE TABLE or CTAS command.
+   *
+   * @param hiveMetadataDb Namespace of the table to create.
+   * @param createTblDesc Hive metadata object that contains fields needed to create a Shark Table
+   *        entry.
+   * @param cacheMode How the created table should be stored and maintained (e.g, MEMORY means that
+   *        table data will be in memory and persistent across Shark sessions).
+   */
   def createTable(
       hiveMetadataDb: Hive,
       createTblDesc: CreateTableDesc,
@@ -83,18 +91,16 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
     val dbName = hiveMetadataDb.getCurrentDatabase
     val tableName = createTblDesc.getTableName
     val tblProps = createTblDesc.getTblProps
-    val unifyView = tblProps.get(SharkTblProperties.UNIFY_VIEW_FLAG.varname).toBoolean
-    val reloadOnRestart = tblProps.get(SharkTblProperties.RELOAD_ON_RESTART_FLAG.varname).toBoolean
 
     val isHivePartitioned = (createTblDesc.getPartCols.size > 0)
     if (isHivePartitioned) {
       // Add a new PartitionedMemoryTable entry in the Shark metastore.
       // An empty table has a PartitionedMemoryTable entry with no 'hivePartition -> RDD' mappings.
       SharkEnv.memoryMetadataManager.createPartitionedMemoryTable(
-        dbName, tableName, cacheMode, unifyView, reloadOnRestart, tblProps)
+        dbName, tableName, cacheMode, tblProps)
     } else {
       val memoryTable = SharkEnv.memoryMetadataManager.createMemoryTable(
-        dbName, tableName, cacheMode, unifyView, reloadOnRestart)
+        dbName, tableName, cacheMode)
       // An empty table has a MemoryTable table entry with 'tableRDD' referencing an EmptyRDD.
       memoryTable.tableRDD = new EmptyRDD(SharkEnv.sc)
     }
@@ -102,7 +108,12 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
     SharkEnv.memoryMetadataManager.putStats(dbName, tableName, Map[Int, TablePartitionStats]())
   }
 
-  /** Handles an ALTER TABLE ADD PARTITION. */
+  /**
+   * Updates Shark metastore for an ALTER TABLE ADD PARTITION command.
+   *
+   * @param hiveMetadataDb Namespace of the table to update.
+   * @param addPartitionDesc Hive metadata object that contains fields about the new partition.
+   */
   def addPartition(
       hiveMetadataDb: Hive,
       addPartitionDesc: AddPartitionDesc) {
@@ -120,8 +131,12 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
   }
 
   /**
-   * A DropTableDesc is used for both dropping entire tables (i.e., DROP TABLE) and for dropping
-   * individual partitions of a table (i.e., ALTER TABLE DROP PARTITION).
+   * Updates Shark metastore when dropping a table or partition.
+   *
+   * @param hiveMetadataDb Namespace of the table to drop, or the table that a partition belongs to.
+   * @param dropTableDesc Hive metadata object used for both dropping entire tables
+   *                      (i.e., DROP TABLE) and for dropping individual partitions of a table
+   *                      (i.e., ALTER TABLE DROP PARTITION).
    */
   def dropTableOrPartition(
       hiveMetadataDb: Hive,
@@ -148,7 +163,14 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
     }
   }
 
-  /** Handles miscellaneous ALTER TABLE 'tableName' commands. */
+  /**
+   * Updates Shark metastore for miscellaneous ALTER TABLE commands.
+   *
+   * @param hiveMetadataDb Namespace of the table to update.
+   * @param alterTableDesc Hive metadata object containing fields needed to handle various table
+   *        update commands, such as ALTER TABLE <table> RENAME TO.
+   *                   
+   */
   def alterTable(
       hiveMetadataDb: Hive,
       alterTableDesc: AlterTableDesc) {

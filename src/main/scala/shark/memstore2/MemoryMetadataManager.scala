@@ -73,17 +73,9 @@ class MemoryMetadataManager {
   def createMemoryTable(
       databaseName: String,
       tableName: String,
-      cacheMode: CacheType.CacheType,
-      unifyView: Boolean,
-      reloadOnRestart: Boolean
-    ): MemoryTable = {
+      cacheMode: CacheType.CacheType): MemoryTable = {
     val tableKey = makeTableKey(databaseName, tableName)
-    val newTable = new MemoryTable(
-      databaseName,
-      tableName,
-      cacheMode,
-      unifyView,
-      reloadOnRestart)
+    val newTable = new MemoryTable(databaseName, tableName, cacheMode)
     _tables.put(tableKey, newTable)
     newTable
   }
@@ -92,17 +84,10 @@ class MemoryMetadataManager {
       databaseName: String,
       tableName: String,
       cacheMode: CacheType.CacheType,
-      unifyView: Boolean,
-      reloadOnRestart: Boolean,
       tblProps: JavaMap[String, String]
     ): PartitionedMemoryTable = {
     val tableKey = makeTableKey(databaseName, tableName)
-    val newTable = new PartitionedMemoryTable(
-      databaseName,
-      tableName,
-      cacheMode,
-      unifyView,
-      reloadOnRestart)
+    val newTable = new PartitionedMemoryTable(databaseName, tableName, cacheMode)
     // Determine the cache policy to use and read any user-specified cache settings.
     val cachePolicyStr = tblProps.getOrElse(SharkTblProperties.CACHE_POLICY.varname,
       SharkTblProperties.CACHE_POLICY.defaultVal)
@@ -174,30 +159,32 @@ class MemoryMetadataManager {
   def shutdown() {
     val db = Hive.get()
     for (table <- _tables.values) {
-      if (table.unifyView) {
-        dropUnifiedView(db, table.databaseName, table.tableName, table.reloadOnRestart)
-      } else {
-        // XXXX: Why are we dropping Hive tables?
-        HiveUtils.dropTableInHive(table.tableName, db.getConf)
+      table.cacheMode match {
+        case CacheType.MEMORY => {
+          dropTableFromMemory(db, table.databaseName, table.tableName)
+        }
+        case CacheType.MEMORY_ONLY => HiveUtils.dropTableInHive(table.tableName, db.getConf)
+        case _ => {
+          // No need to handle Hive or Tachyon tables, which are persistent and managed by their
+          // respective systems.
+          Unit
+        }
       }
     }
   }
 
   /**
-   * Removes Shark table properties and drops a unified view from the Shark cache. However, if
-   * `preserveRecoveryProps` is true, then Shark properties needed for table recovery won't be
-   * removed.
+   * Drops a table from the Shark cache. However, Shark properties needed for table recovery
+   * (see TableRecovery#reloadRdds()) won't be removed.
    * After this method completes, the table can still be scanned from disk.
    */
-  def dropUnifiedView(
+  def dropTableFromMemory(
       db: Hive,
       databaseName: String,
-      tableName: String,
-      preserveRecoveryProps: Boolean = false) {
+      tableName: String) {
     getTable(databaseName, tableName).foreach { sharkTable =>
       db.setCurrentDatabase(databaseName)
       val hiveTable = db.getTable(databaseName, tableName)
-      SharkTblProperties.removeSharkProperties(hiveTable.getParameters, preserveRecoveryProps)
       // Refresh the Hive `db`.
       db.alterTable(tableName, hiveTable)
       // Unpersist the table's RDDs from memory.

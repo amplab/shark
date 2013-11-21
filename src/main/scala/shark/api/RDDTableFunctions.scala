@@ -30,11 +30,7 @@ import shark.util.HiveUtils
 
 class RDDTableFunctions(self: RDD[Product], manifests: Seq[ClassManifest[_]]) {
 
-  def saveAsTable(
-      tableName: String,
-      fields: Seq[String],
-      unifyView: Boolean = false,
-      reloadOnRestart: Boolean = false): Boolean = {
+  def saveAsTable(tableName: String, fields: Seq[String]): Boolean = {
     require(fields.size == this.manifests.size,
       "Number of column names != number of fields in the RDD.")
 
@@ -60,19 +56,14 @@ class RDDTableFunctions(self: RDD[Product], manifests: Seq[ClassManifest[_]]) {
       Iterator(builder.build())
     }.persist()
 
-    var isSucessfulCreateTable = HiveUtils.createTableInHive(
-      tableName,
-      fields,
-      manifests,
-      unifyView,
-      reloadOnRestart)
+    var isSucessfulCreateTable = HiveUtils.createTableInHive(tableName, fields, manifests)
 
     // Put the table in the metastore. Only proceed if the DDL statement is executed successfully.
     val databaseName = Hive.get(SharkContext.hiveconf).getCurrentDatabase()
     if (isSucessfulCreateTable) {
       // Create an entry in the MemoryMetadataManager.
       val newTable = SharkEnv.memoryMetadataManager.createMemoryTable(
-        databaseName, tableName, CacheType.HEAP, unifyView, reloadOnRestart)
+        databaseName, tableName, CacheType.MEMORY)
       newTable.tableRDD = rdd
       try {
         // Force evaluate to put the data in memory.

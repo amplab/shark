@@ -25,10 +25,8 @@ import org.apache.spark.rdd.RDD
 private[shark] class MemoryTable(
     databaseName: String,
     tableName: String,
-    cacheMode: CacheType.CacheType,
-    unifiedView: Boolean,
-    reloadOnRestart: Boolean)
-  extends Table(databaseName, tableName, cacheMode, unifiedView, reloadOnRestart) {
+    cacheMode: CacheType.CacheType)
+  extends Table(databaseName, tableName, cacheMode) {
 
   // RDD that contains the contents of this table.
   private var _tableRDD: RDD[TablePartition] = _
