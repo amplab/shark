@@ -28,7 +28,7 @@ import shark.memstore2.{CacheType, TablePartitionStats, TablePartition, TablePar
 import shark.util.HiveUtils
 
 
-class RDDTableFunctions(self: RDD[Product], manifests: Seq[ClassManifest[_]]) {
+class RDDTableFunctions(self: RDD[Seq[_]], manifests: Seq[ClassManifest[_]]) {
 
   def saveAsTable(tableName: String, fields: Seq[String]): Boolean = {
     require(fields.size == this.manifests.size,
@@ -47,7 +47,7 @@ class RDDTableFunctions(self: RDD[Product], manifests: Seq[ClassManifest[_]]) {
       for (p <- iter) {
         builder.incrementRowCount()
         // TODO: this is not the most efficient code to do the insertion ...
-        p.productIterator.zipWithIndex.foreach { case (v, i) =>
+        p.zipWithIndex.foreach { case (v, i) =>
           builder.append(i, v.asInstanceOf[Object], ois(i))
         }
       }

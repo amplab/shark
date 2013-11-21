@@ -58,10 +58,10 @@ for x in range(2,23):
 
     tableClass = Template(
 """
-  implicit def rddToTable2[$tmlist]
+  implicit def rddToTable$num[$tmlist]
   (rdd: RDD[($tlist)]): RDDTableFunctions = RDDTable(rdd)
 
-""").substitute(tmlist = createList(1, x, "T", ": M", ", ", indent=4), tlist = createList(1, x, "T", "", ", ", indent=4))
+""").substitute(num = x, tmlist = createList(1, x, "T", ": M", ", ", indent=4), tlist = createList(1, x, "T", "", ", ", indent=4))
     p.write(tableClass)
 
 prefix = """
@@ -81,7 +81,8 @@ for x in range(2,23):
 """
   def apply[$tmlist]
   (rdd: RDD[($tlist)]) = {
-    val rddSeq: RDD[Seq[_]] = rdd.map(_.productIterator.toList)
+    val cm = implicitly[Manifest[Seq[Any]]]
+    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(cm)
     new RDDTableFunctions(rddSeq, Seq($mtlist))
   }
 
