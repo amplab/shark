@@ -89,19 +89,26 @@ object SharkServer extends LogHelper {
     val hfactory = new ThriftHiveProcessorFactory(null, new HiveConf()) {
       override def getProcessor(t: TTransport) = {
         var remoteClient = "Unknown"
+
+        // Seed session ID by a random number
+        var sessionID = scala.Math.round(scala.Math.random * 10000000).toString
+        var jdbcSocket: java.net.Socket = null
         if (t.isInstanceOf[TSocket]) {
           remoteClient = t.asInstanceOf[TSocket].getSocket()
             .getRemoteSocketAddress().asInstanceOf[InetSocketAddress]
             .getAddress().toString()
+           
+          jdbcSocket = t.asInstanceOf[TSocket].getSocket()
+          jdbcSocket.setKeepAlive(true)
+          sessionID = remoteClient + "/" + jdbcSocket 
+            .getRemoteSocketAddress().asInstanceOf[InetSocketAddress].getPort().toString +
+            "/" + sessionID
+
         }
         logInfo("Audit Log: Connection Initiated with JDBC client - " + remoteClient)
         
-        val jdbcSocket = t.asInstanceOf[TSocket].getSocket()
-        jdbcSocket.setKeepAlive(true)
-        val sessionID = remoteClient + "/" + jdbcSocket
-          .getRemoteSocketAddress().asInstanceOf[InetSocketAddress].getPort().toString
-        
         // Add and enable watcher thread
+        // This handles both manual killing of session as well as connection drops
         val watcher = new JDBCWatcher(jdbcSocket, sessionID)
         SharkEnv.activeSessions.add(sessionID)
         watcher.start()
@@ -176,8 +183,9 @@ object SharkServer extends LogHelper {
     
     override def run() {
       try {
-        while (sock.isConnected && SharkEnv.activeSessions.contains(sessionID)) {	    
-          sock.getOutputStream().write((new Array[Byte](0)).toArray)
+        while ((sock == null || sock.isConnected) && SharkEnv.activeSessions.contains(sessionID)) {	    
+          if (sock != null)
+            sock.getOutputStream().write((new Array[Byte](0)).toArray)
           logDebug("Session Socket Alive - " + sessionID)
           Thread.sleep(2*1000)
         }
