@@ -190,4 +190,18 @@ object TGF {
 //
 //    sales.map{ case (year, state, product, sales) => (year, state, product, sales, model.predict(Array(sales))) }
 //  }
+//   // Alternatively, using RDDSchema return time you can dynamically decide the columns and their types
+//  def apply(sales: RDD[(Int, String, String, Double)], k: Int):
+//  RDDSchema = {
+//
+//    val dataset = sales.map{ case (year, state, product, sales) => Array[Double](sales) }
+//    val model = KMeans.train(dataset, k, 2, 2)
+//
+//    val rdd = sales.map{
+//      case (year, state, product, sales) => List(year, state, product, sales, model.predict(Array(sales)))
+//    }
+//
+//    RDDSchema(rdd.asInstanceOf[RDD[Seq[_]]],
+//      List(("year","int"), ("state", "string"), ("product", "string"), ("sales", "double"), ("cluster", "int")))
+//  }
 //}
