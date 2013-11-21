@@ -44,6 +44,7 @@ import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hadoop.hive.shims.ShimLoader
 import org.apache.hadoop.io.IOUtils
 
+import shark.memstore2.TableRecovery
 
 object SharkCliDriver {
 
@@ -251,7 +252,7 @@ class SharkCliDriver(loadRdds: Boolean = false) extends CliDriver with LogHelper
   }
 
   if (loadRdds) {
-    CachedTableRecovery.loadAsRdds(processCmd(_))
+    TableRecovery.loadUnifiedViews(processCmd(_))
   }
 
   def this() = this(false)

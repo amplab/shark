@@ -18,24 +18,28 @@
 package shark.memstore2
 
 import java.util.concurrent.ConcurrentHashMap
-import java.util.{Map => JavaMap}
+import java.util.{HashMap=> JavaHashMap, Map => JavaMap}
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ConcurrentMap
 
+import org.apache.hadoop.hive.ql.metadata.Hive
+
 import org.apache.spark.rdd.{RDD, UnionRDD}
-import org.apache.spark.storage.StorageLevel
 
 import shark.execution.RDDUtils
-import shark.SharkConfVars
+import shark.util.HiveUtils
 
 
 class MemoryMetadataManager {
 
-  private val _keyToTable: ConcurrentMap[String, Table] =
+  // Set of tables, from databaseName.tableName to Table object.
+  private val _tables: ConcurrentMap[String, Table] =
     new ConcurrentHashMap[String, Table]()
 
   // TODO(harvey): Support stats for Hive-partitioned tables.
+  // Set of stats, from databaseName.tableName to the stats. This is guaranteed to have the same
+  // structure / size as the _tables map.
   private val _keyToStats: ConcurrentMap[String, collection.Map[Int, TablePartitionStats]] =
     new ConcurrentHashMap[String, collection.Map[Int, TablePartitionStats]]
 
@@ -56,25 +60,31 @@ class MemoryMetadataManager {
 
   def isHivePartitioned(databaseName: String, tableName: String): Boolean = {
     val tableKey = makeTableKey(databaseName, tableName)
-    _keyToTable.get(tableKey) match {
+    _tables.get(tableKey) match {
       case Some(table) => table.isInstanceOf[PartitionedMemoryTable]
       case None => false
     }
   }
 
   def containsTable(databaseName: String, tableName: String): Boolean = {
-    _keyToTable.contains(makeTableKey(databaseName, tableName))
+    _tables.contains(makeTableKey(databaseName, tableName))
   }
 
   def createMemoryTable(
       databaseName: String,
       tableName: String,
       cacheMode: CacheType.CacheType,
-      preferredStorageLevel: StorageLevel
+      unifyView: Boolean,
+      reloadOnRestart: Boolean
     ): MemoryTable = {
     val tableKey = makeTableKey(databaseName, tableName)
-    val newTable = new MemoryTable(tableKey, cacheMode, preferredStorageLevel)
-    _keyToTable.put(tableKey, newTable)
+    val newTable = new MemoryTable(
+      databaseName,
+      tableName,
+      cacheMode,
+      unifyView,
+      reloadOnRestart)
+    _tables.put(tableKey, newTable)
     newTable
   }
 
@@ -82,29 +92,35 @@ class MemoryMetadataManager {
       databaseName: String,
       tableName: String,
       cacheMode: CacheType.CacheType,
-      preferredStorageLevel: StorageLevel,
+      unifyView: Boolean,
+      reloadOnRestart: Boolean,
       tblProps: JavaMap[String, String]
     ): PartitionedMemoryTable = {
     val tableKey = makeTableKey(databaseName, tableName)
-    val newTable = new PartitionedMemoryTable(tableKey, cacheMode, preferredStorageLevel)
+    val newTable = new PartitionedMemoryTable(
+      databaseName,
+      tableName,
+      cacheMode,
+      unifyView,
+      reloadOnRestart)
     // Determine the cache policy to use and read any user-specified cache settings.
-    val cachePolicyStr = tblProps.getOrElse(SharkConfVars.CACHE_POLICY.varname,
-      SharkConfVars.CACHE_POLICY.defaultVal)
-    val maxCacheSize = tblProps.getOrElse(SharkConfVars.MAX_PARTITION_CACHE_SIZE.varname,
-      SharkConfVars.MAX_PARTITION_CACHE_SIZE.defaultVal).toInt
+    val cachePolicyStr = tblProps.getOrElse(SharkTblProperties.CACHE_POLICY.varname,
+      SharkTblProperties.CACHE_POLICY.defaultVal)
+    val maxCacheSize = tblProps.getOrElse(SharkTblProperties.MAX_PARTITION_CACHE_SIZE.varname,
+      SharkTblProperties.MAX_PARTITION_CACHE_SIZE.defaultVal).toInt
     newTable.setPartitionCachePolicy(cachePolicyStr, maxCacheSize)
 
-    _keyToTable.put(tableKey, newTable)
+    _tables.put(tableKey, newTable)
     newTable
   }
 
   def getTable(databaseName: String, tableName: String): Option[Table] = {
-    _keyToTable.get(makeTableKey(databaseName, tableName))
+    _tables.get(makeTableKey(databaseName, tableName))
   }
 
   def getMemoryTable(databaseName: String, tableName: String): Option[MemoryTable] = {
     val tableKey = makeTableKey(databaseName, tableName)
-    val tableOpt = _keyToTable.get(tableKey)
+    val tableOpt = _tables.get(tableKey)
     if (tableOpt.isDefined) {
      assert(tableOpt.get.isInstanceOf[MemoryTable],
        "getMemoryTable() called for a partitioned table.")
@@ -116,7 +132,7 @@ class MemoryMetadataManager {
       databaseName: String,
       tableName: String): Option[PartitionedMemoryTable] = {
     val tableKey = makeTableKey(databaseName, tableName)
-    val tableOpt = _keyToTable.get(tableKey)
+    val tableOpt = _tables.get(tableKey)
     if (tableOpt.isDefined) {
       assert(tableOpt.get.isInstanceOf[PartitionedMemoryTable],
         "getPartitionedTable() called for a non-partitioned table.")
@@ -130,11 +146,11 @@ class MemoryMetadataManager {
       val newTableKey = makeTableKey(databaseName, newName)
 
       val statsValueEntry = _keyToStats.remove(oldTableKey).get
-      val tableValueEntry = _keyToTable.remove(oldTableKey).get
+      val tableValueEntry = _tables.remove(oldTableKey).get
       tableValueEntry.tableName = newTableKey
 
       _keyToStats.put(newTableKey, statsValueEntry)
-      _keyToTable.put(newTableKey, tableValueEntry)
+      _tables.put(newTableKey, tableValueEntry)
     }
   }
 
@@ -151,23 +167,48 @@ class MemoryMetadataManager {
 
     // Remove MemoryTable's entry from Shark metadata.
     _keyToStats.remove(tableKey)
-    val tableValue: Option[Table] = _keyToTable.remove(tableKey)
+    val tableValue: Option[Table] = _tables.remove(tableKey)
     tableValue.flatMap(MemoryMetadataManager.unpersistRDDsInTable(_))
   }
 
-  /**
-   * Find all keys that are strings. Used to drop tables after exiting.
-   *
-   * TODO(harvey): Won't be needed after unifed views are added.
-   */
-  def getAllKeyStrings(): Seq[String] = {
-    _keyToTable.keys.collect { case k: String => k } toSeq
+  def shutdown() {
+    val db = Hive.get()
+    for (table <- _tables.values) {
+      if (table.unifyView) {
+        dropUnifiedView(db, table.databaseName, table.tableName, table.reloadOnRestart)
+      } else {
+        // XXXX: Why are we dropping Hive tables?
+        HiveUtils.dropTableInHive(table.tableName, db.getConf)
+      }
+    }
   }
 
+  /**
+   * Removes Shark table properties and drops a unified view from the Shark cache. However, if
+   * `preserveRecoveryProps` is true, then Shark properties needed for table recovery won't be
+   * removed.
+   * After this method completes, the table can still be scanned from disk.
+   */
+  def dropUnifiedView(
+      db: Hive,
+      databaseName: String,
+      tableName: String,
+      preserveRecoveryProps: Boolean = false) {
+    getTable(databaseName, tableName).foreach { sharkTable =>
+      db.setCurrentDatabase(databaseName)
+      val hiveTable = db.getTable(databaseName, tableName)
+      SharkTblProperties.removeSharkProperties(hiveTable.getParameters, preserveRecoveryProps)
+      // Refresh the Hive `db`.
+      db.alterTable(tableName, hiveTable)
+      // Unpersist the table's RDDs from memory.
+      removeTable(databaseName, tableName)
+    }
+  }
+
+  // Returns the key "databaseName.tableName".
   private def makeTableKey(databaseName: String, tableName: String): String = {
     (databaseName + '.' + tableName).toLowerCase
   }
-
 }
 
 
@@ -200,25 +241,16 @@ object MemoryMetadataManager {
     partitionCols.map(col => "%s=%s".format(col, partColToValue(col))).mkString("/")
   }
 
-  /** Return a StorageLevel corresponding to its String name. */
-  def getStorageLevelFromString(s: String): StorageLevel = {
-    if (s == null || s == "") {
-      getStorageLevelFromString(SharkConfVars.STORAGE_LEVEL.defaultVal)
-    } else {
-      s.toUpperCase match {
-        case "NONE" => StorageLevel.NONE
-        case "DISK_ONLY" => StorageLevel.DISK_ONLY
-        case "DISK_ONLY_2" => StorageLevel.DISK_ONLY_2
-        case "MEMORY_ONLY" => StorageLevel.MEMORY_ONLY
-        case "MEMORY_ONLY_2" => StorageLevel.MEMORY_ONLY_2
-        case "MEMORY_ONLY_SER" => StorageLevel.MEMORY_ONLY_SER
-        case "MEMORY_ONLY_SER_2" => StorageLevel.MEMORY_ONLY_SER_2
-        case "MEMORY_AND_DISK" => StorageLevel.MEMORY_AND_DISK
-        case "MEMORY_AND_DISK_2" => StorageLevel.MEMORY_AND_DISK_2
-        case "MEMORY_AND_DISK_SER" => StorageLevel.MEMORY_AND_DISK_SER
-        case "MEMORY_AND_DISK_SER_2" => StorageLevel.MEMORY_AND_DISK_SER_2
-        case _ => throw new IllegalArgumentException("Unrecognized storage level: " + s)
-      }
+  /**
+   * Returns a (partition column name -> value) mapping by parsing a `keyStr` of the format
+   * 'col1=value1/col2=value2/.../colN=valueN', created by makeHivePartitionKeyStr() above.
+   */
+  def parseHivePartitionKeyStr(keyStr: String): JavaMap[String, String] = {
+    val partitionSpec = new JavaHashMap[String, String]()
+    for (pair <- keyStr.split("/")) {
+      val pairSplit = pair.split("=")
+      partitionSpec.put(pairSplit(0), pairSplit(1))
     }
+    partitionSpec
   }
 }

@@ -35,10 +35,11 @@ import org.apache.hadoop.util.StringUtils
 
 import shark.api.TableRDD
 import shark.api.QueryExecutionException
-import shark.execution.{SharkDDLTask, SharkDDLWork, SharkExplainTask, SharkExplainWork, SparkTask,
-  SparkWork}
+import shark.execution.{SharkDDLTask, SharkDDLWork, SharkExplainTask, SharkExplainWork,
+  SparkLoadWork, SparkLoadTask, SparkTask, SparkWork}
 import shark.memstore2.ColumnarSerDe
 import shark.parse.{QueryContext, SharkSemanticAnalyzerFactory}
+import shark.util.QueryRewriteUtils
 
 
 /**
@@ -64,6 +65,7 @@ private[shark] object SharkDriver extends LogHelper {
   // Task factory. Add Shark specific tasks.
   TaskFactory.taskvec.addAll(Seq(
     new TaskFactory.taskTuple(classOf[SharkDDLWork], classOf[SharkDDLTask]),
+    new TaskFactory.taskTuple(classOf[SparkLoadWork], classOf[SparkLoadTask]),
     new TaskFactory.taskTuple(classOf[SparkWork], classOf[SparkTask]),
     new TaskFactory.taskTuple(classOf[SharkExplainWork], classOf[SharkExplainTask])))
 
@@ -178,9 +180,19 @@ private[shark] class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHe
     saveSession(queryState)
 
     try {
-      val command = new VariableSubstitution().substitute(conf, cmd)
+      val command = {
+        val varSubbedCmd = new VariableSubstitution().substitute(conf, cmd)
+        val cmdInUpperCase = varSubbedCmd.toUpperCase
+        if (cmdInUpperCase.startsWith("CACHE")) {
+          QueryRewriteUtils.cacheToAlterTable(varSubbedCmd)
+        } else if (cmdInUpperCase.startsWith("UNCACHE")) {
+          QueryRewriteUtils.uncacheToAlterTable(varSubbedCmd)
+        } else {
+          varSubbedCmd
+        }
+      }
       context = new QueryContext(conf, useTableRddSink)
-      context.setCmd(cmd)
+      context.setCmd(command)
       context.setTryCount(getTryCount())
 
       val tree = ParseUtils.findRootNonNullToken((new ParseDriver()).parse(command, context))

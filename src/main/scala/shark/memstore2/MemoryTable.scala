@@ -18,18 +18,17 @@
 package shark.memstore2
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.storage.StorageLevel
-
 
 /**
  * A metadata container for a table in Shark that's backed by an RDD.
  */
-private[shark]
-class MemoryTable(
+private[shark] class MemoryTable(
+    databaseName: String,
     tableName: String,
     cacheMode: CacheType.CacheType,
-    preferredStorageLevel: StorageLevel)
-  extends Table(tableName, cacheMode, preferredStorageLevel) {
+    unifiedView: Boolean,
+    reloadOnRestart: Boolean)
+  extends Table(databaseName, tableName, cacheMode, unifiedView, reloadOnRestart) {
 
   // RDD that contains the contents of this table.
   private var _tableRDD: RDD[TablePartition] = _
@@ -37,5 +36,4 @@ class MemoryTable(
   def tableRDD: RDD[TablePartition] = _tableRDD
 
   def tableRDD_= (rdd: RDD[TablePartition]) = _tableRDD = rdd
-
 }

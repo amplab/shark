@@ -46,9 +46,6 @@ class MemoryStoreSinkOperator extends TerminalOperator {
   // If true, columnar storage will use compression.
   @BeanProperty var shouldCompress: Boolean = _
 
-  // Storage level to use for the RDD created and materialized by this sink operator.
-  @BeanProperty var storageLevel: StorageLevel = _
-
   // For CTAS, this is the name of the table that is created. For INSERTS, this is the name of
   // the table that is modified.
   @BeanProperty var tableName: String = _
@@ -113,13 +110,13 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         builder = serde.serialize(row.asInstanceOf[AnyRef], op.objectInspector)
       }
 
-      if (builder != null) {
-        statsAcc += Tuple2(part, builder.asInstanceOf[TablePartitionBuilder].stats)
-        Iterator(builder.asInstanceOf[TablePartitionBuilder].build())
-      } else {
+      if (builder == null) {
         // Empty partition.
         statsAcc += Tuple2(part, new TablePartitionStats(Array(), 0))
         Iterator(new TablePartition(0, Array()))
+      } else {
+        statsAcc += Tuple2(part, builder.asInstanceOf[TablePartitionBuilder].stats)
+        Iterator(builder.asInstanceOf[TablePartitionBuilder].build)
       }
     }
 
@@ -147,16 +144,10 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         outputRDD, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
     } else {
       // Put the table in Spark block manager.
-      op.logInfo("Putting %sRDD for %s.%s in Spark block manager, %s %s %s %s".format(
-        if (useUnionRDD) "Union" else "",
-        databaseName,
-        tableName,
-        if (storageLevel.deserialized) "deserialized" else "serialized",
-        if (storageLevel.useMemory) "in memory" else "",
-        if (storageLevel.useMemory && storageLevel.useDisk) "and" else "",
-        if (storageLevel.useDisk) "on disk" else ""))
+      op.logInfo("Putting %sRDD for %s.%s in Spark block manager".format(
+        if (useUnionRDD) "Union" else "", databaseName, tableName))
 
-      outputRDD.persist(storageLevel)
+      outputRDD.persist(StorageLevel.MEMORY_AND_DISK)
 
       val queryOutputRDD = outputRDD
       if (useUnionRDD) {
@@ -203,7 +194,11 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       // Create a new MemoryTable entry if one doesn't exist (i.e., this operator is for a CTAS).
       val memoryTable = SharkEnv.memoryMetadataManager.getMemoryTable(databaseName, tableName)
         .getOrElse(SharkEnv.memoryMetadataManager.createMemoryTable(
-          databaseName, tableName, cacheMode, storageLevel))
+          databaseName,
+          tableName,
+          cacheMode,
+          unifyView = false,
+          reloadOnRestart = false))
       memoryTable.tableRDD = outputRDD
     }
 

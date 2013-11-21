@@ -17,18 +17,28 @@
 
 package shark.util
 
-import java.util.{ArrayList => JavaArrayList, HashSet => JavaHashSet}
+import java.util.{ArrayList => JavaArrayList, Arrays => JavaArrays}
+import java.util.{HashSet => JHashSet}
+import java.util.Properties
+
 import scala.collection.JavaConversions._
 
+import org.apache.hadoop.hive.conf.HiveConf
+import org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_PARTITION_COLUMNS
+import org.apache.hadoop.hive.metastore.api.FieldSchema
+import org.apache.hadoop.hive.serde2.Deserializer
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.UnionStructObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
+import org.apache.hadoop.hive.ql.exec.DDLTask
 import org.apache.hadoop.hive.ql.hooks.{ReadEntity, WriteEntity}
 import org.apache.hadoop.hive.ql.plan.{CreateTableDesc, DDLWork, DropTableDesc}
-import org.apache.hadoop.hive.metastore.api.FieldSchema
 
 import shark.api.{DataType, DataTypes}
-import org.apache.hadoop.hive.ql.exec.DDLTask
-import org.apache.hadoop.hive.conf.HiveConf
+import shark.memstore2.SharkTblProperties
 
 
 private[shark] object HiveUtils {
@@ -50,36 +60,61 @@ private[shark] object HiveUtils {
   }
 
   /**
+   * Return a UnionStructObjectInspector that combines the StructObjectInspectors for the table
+   * schema and the partition columns, which are virtual in Hive.
+   */
+  def makeUnionOIForPartitionedTable(
+      partProps: Properties,
+      partSerDe: Deserializer): UnionStructObjectInspector = {
+    val partCols = partProps.getProperty(META_TABLE_PARTITION_COLUMNS)
+    val partColNames = new JavaArrayList[String]
+    val partColObjectInspectors = new JavaArrayList[ObjectInspector]
+    partCols.trim().split("/").foreach { colName =>
+      partColNames.add(colName)
+      partColObjectInspectors.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector)
+    }
+
+    val partColObjectInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
+      partColNames, partColObjectInspectors)
+    val oiList = JavaArrays.asList(
+      partSerDe.getObjectInspector.asInstanceOf[StructObjectInspector],
+      partColObjectInspector.asInstanceOf[StructObjectInspector])
+    // New oi is union of table + partition object inspectors
+    ObjectInspectorFactory.getUnionStructObjectInspector(oiList)
+  }
+
+  /**
    * Execute the create table DDL operation against Hive's metastore.
    */
   def createTableInHive(
       tableName: String,
       columnNames: Seq[String],
-      columnTypes: Seq[ClassManifest[_]]): Boolean = {
+      columnTypes: Seq[ClassManifest[_]],
+      unifyView: Boolean = false,
+      reloadOnRestart: Boolean = false,
+      hiveConf: HiveConf = new HiveConf): Boolean = {
     val schema = columnNames.zip(columnTypes).map { case (colName, manifest) =>
       new FieldSchema(colName, DataTypes.fromManifest(manifest).hiveName, "")
     }
 
     // Setup the create table descriptor with necessary information.
-    val createTbleDesc = new CreateTableDesc()
-    createTbleDesc.setTableName(tableName)
-    createTbleDesc.setCols(new JavaArrayList[FieldSchema](schema))
-    createTbleDesc.setTblProps(Map("shark.cache" -> "heap"))
-    createTbleDesc.setInputFormat("org.apache.hadoop.mapred.TextInputFormat")
-    createTbleDesc.setOutputFormat("org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat")
-    createTbleDesc.setSerName(classOf[shark.memstore2.ColumnarSerDe].getName)
-    createTbleDesc.setNumBuckets(-1)
+    val createTableDesc = new CreateTableDesc()
+    createTableDesc.setTableName(tableName)
+    createTableDesc.setCols(new JavaArrayList[FieldSchema](schema))
+    createTableDesc.setTblProps(
+      SharkTblProperties.initializeWithDefaults(createTableDesc.getTblProps))
+    createTableDesc.setInputFormat("org.apache.hadoop.mapred.TextInputFormat")
+    createTableDesc.setOutputFormat("org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat")
+    createTableDesc.setSerName(classOf[shark.memstore2.ColumnarSerDe].getName)
+    createTableDesc.setNumBuckets(-1)
 
-    // Execute the create table against the metastore.
-    val ddlWork = new DDLWork(new JavaHashSet[ReadEntity],
-                              new JavaHashSet[WriteEntity],
-                              createTbleDesc)
-    val taskExecutionStatus = executeDDLTaskDirectly(ddlWork)
+    // Execute the create table against the Hive metastore.
+    val work = new DDLWork(new JHashSet[ReadEntity], new JHashSet[WriteEntity], createTableDesc)
+    val taskExecutionStatus = executeDDLTaskDirectly(work, hiveConf)
     taskExecutionStatus == 0
   }
 
-  def dropTableInHive(
-      tableName: String): Boolean = {
+  def dropTableInHive(tableName: String, hiveConf: HiveConf = new HiveConf): Boolean = {
     // Setup the drop table descriptor with necessary information.
     val dropTblDesc = new DropTableDesc(
       tableName,
@@ -88,19 +123,21 @@ private[shark] object HiveUtils {
       false /* stringPartitionColumns */)
 
     // Execute the drop table against the metastore.
-    val ddlWork = new DDLWork(new JavaHashSet[ReadEntity],
-                              new JavaHashSet[WriteEntity],
-                              dropTblDesc)
-    val taskExecutionStatus = executeDDLTaskDirectly(ddlWork)
+    val work = new DDLWork(new JHashSet[ReadEntity], new JHashSet[WriteEntity], dropTblDesc)
+    val taskExecutionStatus = executeDDLTaskDirectly(work, hiveConf)
     taskExecutionStatus == 0
   }
 
-  def executeDDLTaskDirectly(ddlWork: DDLWork): Int = {
+  /**
+   * Creates a DDLTask from the DDLWork given, and directly calls DDLTask#execute(). Returns 0 if
+   * the create table command is executed successfully.
+   * This is safe to use for all DDL commands except for AlterTableTypes.ARCHIVE, which actually
+   * requires the DriverContext created in Hive Driver#execute().
+   */
+  def executeDDLTaskDirectly(ddlWork: DDLWork, hiveConf: HiveConf): Int = {
     val task = new DDLTask()
-    task.initialize(new HiveConf, null, null)
+    task.initialize(hiveConf, null /* queryPlan */, null /* ctx: DriverContext */)
     task.setWork(ddlWork)
-
-    // Hive returns 0 if the create table command is executed successfully.
-    task.execute(null)
+    task.execute(null /* driverContext */)
   }
 }

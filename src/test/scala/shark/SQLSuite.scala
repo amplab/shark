@@ -17,36 +17,38 @@
 
 package shark
 
+import java.util.{HashMap => JavaHashMap}
+
+import scala.collection.JavaConversions._
+
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.FunSuite
 
+import org.apache.hadoop.hive.metastore.MetaStoreUtils.DEFAULT_DATABASE_NAME
+import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.spark.rdd.UnionRDD
 import org.apache.spark.storage.StorageLevel
 
 import shark.api.QueryExecutionException
-import shark.memstore2.PartitionedMemoryTable
+import shark.memstore2.{MemoryMetadataManager, PartitionedMemoryTable}
+
 
 class SQLSuite extends FunSuite with BeforeAndAfterAll {
 
   val WAREHOUSE_PATH = TestUtils.getWarehousePath()
   val METASTORE_PATH = TestUtils.getMetastorePath()
   val MASTER = "local"
-  val DEFAULT_DB_NAME = "default"
+  val DEFAULT_DB_NAME = DEFAULT_DATABASE_NAME
+  val KV1_TXT_PATH = "${hiveconf:shark.test.data.path}/kv1.txt"
 
   var sc: SharkContext = _
+  var sharkMetastore: MemoryMetadataManager = _
 
-  override def beforeAll() {
-    sc = SharkEnv.initWithSharkContext("shark-sql-suite-testing", MASTER)
-
-    sc.runSql("set javax.jdo.option.ConnectionURL=jdbc:derby:;databaseName=" +
-        METASTORE_PATH + ";create=true")
-    sc.runSql("set hive.metastore.warehouse.dir=" + WAREHOUSE_PATH)
-
-    sc.runSql("set shark.test.data.path=" + TestUtils.dataFilePath)
-
-    // second db
-    sc.sql("create database if not exists seconddb")
-    
+  /**
+   * Tables accessible by any test in SQLSuite. Their properties should remain constant across
+   * tests.
+   */
+  def loadTables() {
     // test
     sc.runSql("drop table if exists test")
     sc.runSql("CREATE TABLE test (key INT, val STRING)")
@@ -87,6 +89,23 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.sql("LOAD DATA LOCAL INPATH '${hiveconf:shark.test.data.path}/test1.txt' INTO TABLE test1")
     sc.sql("drop table if exists test1_cached")
     sc.sql("CREATE TABLE test1_cached AS SELECT * FROM test1")
+  }
+
+  override def beforeAll() {
+    sc = SharkEnv.initWithSharkContext("shark-sql-suite-testing", MASTER)
+
+    sc.runSql("set javax.jdo.option.ConnectionURL=jdbc:derby:;databaseName=" +
+        METASTORE_PATH + ";create=true")
+    sc.runSql("set hive.metastore.warehouse.dir=" + WAREHOUSE_PATH)
+
+    sc.runSql("set shark.test.data.path=" + TestUtils.dataFilePath)
+
+    sharkMetastore = SharkEnv.memoryMetadataManager
+
+    // second db
+    sc.sql("create database if not exists seconddb")
+
+    loadTables()
   }
 
   override def afterAll() {
@@ -140,6 +159,34 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
 
   def isFlattenedUnionRDD(unionRDD: UnionRDD[_]) = {
     unionRDD.rdds.find(_.isInstanceOf[UnionRDD[_]]).isEmpty
+  }
+
+  // Takes a sum over the table's 'key' column, for both the cached contents and the copy on disk.
+  def expectUnifiedKVTable(
+      cachedTableName: String,
+      partSpecOpt: Option[Map[String, String]] = None) {
+    // Check that the table is in memory and is a unified view.
+    val sharkTableOpt = sharkMetastore.getTable(DEFAULT_DB_NAME, cachedTableName)
+    assert(sharkTableOpt.isDefined, "Table %s cannot be found in the Shark meatstore")
+    assert(sharkTableOpt.get.unifyView, "'unifyView' field for table %s is false")
+
+    // Load a non-cached copy of the table into memory.
+    val cacheSum = sc.sql("select sum(key) from %s".format(cachedTableName))(0)
+    val hiveTable = Hive.get().getTable(DEFAULT_DB_NAME, cachedTableName)
+    val location = partSpecOpt match {
+      case Some(partSpec) => {
+        val partition = Hive.get().getPartition(hiveTable, partSpec, false /* forceCreate */)
+        partition.getDataLocation.toString
+      }
+      case None => hiveTable.getDataLocation.toString
+    }
+    // Create a table with contents loaded from the table's data directory.
+    val diskTableName = "%s_disk_copy".format(cachedTableName)
+    sc.sql("drop table if exists %s".format(diskTableName))
+    sc.sql("create table %s (key int, value string)".format(diskTableName))
+    sc.sql("load data local inpath '%s' into table %s".format(location, diskTableName))
+    val diskSum = sc.sql("select sum(key) from %s".format(diskTableName))(0)
+    assert(diskSum == cacheSum, "Sum of keys from cached and disk contents differ")
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -859,5 +906,265 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   test("sql2rdd exception") {
     val e = intercept[QueryExecutionException] { sc.sql2rdd("asdfasdfasdfasdf") }
     e.getMessage.contains("semantic")
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Creating unified views
+  //////////////////////////////////////////////////////////////////////////////
+  test ("Cached table created by CREATE TABLE, with table properties, is unified view by default") {
+    sc.runSql("drop table if exists test_unify_creation")
+    sc.runSql("""create table test_unify_creation (key int, val string) 
+      tblproperties('shark.cache'='true')""")
+    val table = sharkMetastore.getTable(DEFAULT_DB_NAME, "test_unify_creation").get
+    assert(table.unifyView)
+    sc.runSql("drop table if exists test_unify_creation")
+  }
+
+  test ("Cached table created by CREATE TABLE, with '_cached', is unified view by default") {
+    sc.runSql("drop table if exists test_unify_creation_cached")
+    sc.runSql("create table test_unify_creation_cached(key int, val string)")
+    val table = sharkMetastore.getTable(DEFAULT_DB_NAME, "test_unify_creation_cached").get
+    assert(table.unifyView)
+    sc.runSql("drop table if exists test_unify_creation_cached")
+  }
+
+  test ("Cached table created by CTAS, with table properties, is unified view by default") {
+    sc.runSql("drop table if exists test_unify_ctas")
+    sc.runSql("""create table test_unify_ctas
+      tblproperties('shark.cache' = 'true') as select  * from test""")
+    val table = sharkMetastore.getTable(DEFAULT_DB_NAME, "test_unify_ctas").get
+    assert(table.unifyView)
+    expectSql("select count(*) from test_unify_ctas", "500")
+    sc.runSql("drop table if exists test_unify_ctas")
+  }
+
+  test ("Cached table created by CTAS, with '_cached', is unified view by default") {
+    sc.runSql("drop table if exists test_unify_ctas_cached")
+    sc.runSql("create table test_unify_ctas_cached as select  * from test")
+    val table = sharkMetastore.getTable(DEFAULT_DB_NAME, "test_unify_ctas_cached").get
+    assert(table.unifyView)
+    expectSql("select count(*) from test_unify_ctas_cached", "500")
+    sc.runSql("drop table if exists test_unify_ctas_cached")
+  }
+
+  test ("Don't maintain unified view for CREATE TABLE when 'shark.cache.unifyView' is false") {
+    sc.runSql("drop table if exists test_non_unify_creation")
+    sc.runSql("""create table test_non_unify_creation(key int, val string) 
+      tblproperties('shark.cache' = 'true', 'shark.cache.unifyView' = 'false')""")
+    val table = sharkMetastore.getTable(DEFAULT_DB_NAME, "test_non_unify_creation").get
+    assert(!table.unifyView)
+    sc.runSql("drop table if exists test_non_unify_creation")
+  }
+
+  test ("Don't maintiain unified view for CTAS when 'shark.cache.unifyView' is false") {
+    sc.runSql("drop table if exists test_non_unify_ctas")
+    sc.runSql("""create table test_non_unify_ctas tblproperties
+      ('shark.cache' = 'true', 'shark.cache.unifyView' = 'false') as select  * from test""")
+    val table = sharkMetastore.getTable(DEFAULT_DB_NAME, "test_non_unify_ctas").get
+    assert(!table.unifyView)
+    sc.runSql("drop table if exists test_non_unify_ctas")
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // LOAD for unified views
+  //////////////////////////////////////////////////////////////////////////////
+  test ("LOAD INTO unified view") {
+    sc.runSql("drop table if exists unified_view_cached")
+    sc.runSql("create table unified_view_cached (key int, value string)")
+    sc.runSql("load data local inpath '%s' into table unified_view_cached".format(KV1_TXT_PATH))
+    expectUnifiedKVTable("unified_view_cached")
+    expectSql("select count(*) from unified_view_cached", "500")
+    sc.runSql("drop table if exists unified_view_cached")
+  }
+
+  test ("LOAD OVERWRITE unified view") {
+    sc.runSql("drop table if exists unified_overwrite_cached")
+    sc.runSql("create table unified_overwrite_cached (key int, value string)")
+    sc.runSql("load data local inpath '%s' into table unified_overwrite_cached".
+      format("${hiveconf:shark.test.data.path}/kv3.txt"))
+    expectSql("select count(*) from unified_overwrite_cached", "25")
+    sc.runSql("load data local inpath '%s' overwrite into table unified_overwrite_cached".
+      format(KV1_TXT_PATH))
+    // Make sure the cached contents matches the disk contents.
+    expectUnifiedKVTable("unified_overwrite_cached")
+    expectSql("select count(*) from unified_overwrite_cached", "500")
+    sc.runSql("drop table if exists unified_overwrite_cached")
+  }
+
+  test ("LOAD INTO partitioned unified view") {
+    sc.runSql("drop table if exists unified_view_part_cached")
+    sc.runSql("""create table unified_view_part_cached (key int, value string)
+      partitioned by (keypart int)""")
+    sc.runSql("""load data local inpath '%s' into table unified_view_part_cached
+      partition(keypart = 1)""".format(KV1_TXT_PATH))
+    expectUnifiedKVTable("unified_view_part_cached", Some(Map("keypart" -> "1")))
+    expectSql("select count(*) from unified_view_part_cached", "500")
+    sc.runSql("drop table if exists unified_view_part_cached")
+  }
+
+  test ("LOAD OVERWRITE partitioned unified view") {
+    sc.runSql("drop table if exists unified_overwrite_part_cached")
+    sc.runSql("""create table unified_overwrite_part_cached (key int, value string)
+      partitioned by (keypart int)""")
+    sc.runSql("""load data local inpath '%s' overwrite into table unified_overwrite_part_cached
+      partition(keypart = 1)""".format(KV1_TXT_PATH))
+    expectUnifiedKVTable("unified_overwrite_part_cached", Some(Map("keypart" -> "1")))
+    expectSql("select count(*) from unified_overwrite_part_cached", "500")
+    sc.runSql("drop table if exists unified_overwrite_part_cached")
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // INSERTS for unified views
+  //////////////////////////////////////////////////////////////////////////////
+  test ("INSERT INTO unified view") {
+    sc.runSql("drop table if exists unified_view_cached")
+    sc.runSql("create table unified_view_cached as select * from test_cached")
+    sc.runSql("insert into table unified_view_cached select * from test_cached")
+    expectUnifiedKVTable("unified_view_cached")
+    expectSql("select count(*) from unified_view_cached", "1000")
+    sc.runSql("drop table if exists unified_view_cached")
+  }
+
+  test ("INSERT OVERWRITE unified view") {
+    sc.runSql("drop table if exists unified_overwrite_cached")
+    sc.runSql("create table unified_overwrite_cached as select * from test")
+    sc.runSql("insert overwrite table unified_overwrite_cached select * from test_cached")
+    expectUnifiedKVTable("unified_overwrite_cached")
+    expectSql("select count(*) from unified_overwrite_cached", "500")
+    sc.runSql("drop table if exists unified_overwrite_cached")
+  }
+
+  test ("INSERT INTO partitioned unified view") {
+    sc.runSql("drop table if exists unified_view_part_cached")
+    sc.runSql("""create table unified_view_part_cached (key int, value string) 
+      partitioned by (keypart int)""")
+    sc.runSql("""insert into table unified_view_part_cached partition (keypart = 1) 
+      select * from test_cached""")
+    expectUnifiedKVTable("unified_view_part_cached", Some(Map("keypart" -> "1")))
+    expectSql("select count(*) from unified_view_part_cached where keypart = 1", "500")
+    sc.runSql("drop table if exists unified_view_part_cached")
+  }
+
+  test ("INSERT OVERWRITE partitioned unified view") {
+    sc.runSql("drop table if exists unified_overwrite_part_cached")
+    sc.runSql("""create table unified_overwrite_part_cached (key int, value string) 
+      partitioned by (keypart int)""")
+    sc.runSql("""insert overwrite table unified_overwrite_part_cached partition (keypart = 1) 
+      select * from test_cached""")
+    expectUnifiedKVTable("unified_overwrite_part_cached", Some(Map("keypart" -> "1")))
+    expectSql("select count(*) from unified_overwrite_part_cached", "500")
+    sc.runSql("drop table if exists unified_overwrite_part_cached")
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // CACHE and ALTER TABLE commands
+  //////////////////////////////////////////////////////////////////////////////
+  test ("ALTER TABLE caches non-partitioned table if 'shark.cache' is set to true") {
+    sc.runSql("drop table if exists unified_load")
+    sc.runSql("create table unified_load as select * from test")
+    sc.runSql("""alter table unified_load set 
+      tblproperties('shark.cache' = 'true', 'shark.cache.unifyView' = 'true')""")
+    expectUnifiedKVTable("unified_load")
+    sc.runSql("drop table if exists unified_load")
+  }
+
+  test ("ALTER TABLE caches partitioned table if 'shark.cache' is set to true") {
+    sc.runSql("drop table if exists unified_part_load")
+    sc.runSql("create table unified_part_load (key int, value string) partitioned by (keypart int)")
+    sc.runSql("insert into table unified_part_load partition (keypart=1) select * from test_cached")
+    sc.runSql("""alter table unified_part_load set 
+      tblproperties('shark.cache' = 'true', 'shark.cache.unifyView' = 'true')""")
+    expectUnifiedKVTable("unified_part_load", Some(Map("keypart" -> "1")))
+    sc.runSql("drop table if exists unified_part_load")
+  }
+
+  test ("ALTER TABLE uncaches non-partitioned table if 'shark.cache' is set to false") {
+    sc.runSql("drop table if exists unified_load")
+    sc.runSql("create table unified_load as select * from test")
+    sc.runSql("""alter table unified_load set 
+      tblproperties('shark.cache' = 'false', 'shark.cache.unifyView' = 'false')""")
+    assert(!sharkMetastore.containsTable(DEFAULT_DB_NAME, "unified_load"))
+    expectSql("select count(*) from unified_load", "500")
+    sc.runSql("drop table if exists unified_load")
+  }
+
+  test ("ALTER TABLE uncaches partitioned table if 'shark.cache' is set to false") {
+    sc.runSql("drop table if exists unified_part_load")
+    sc.runSql("create table unified_part_load (key int, value string) partitioned by (keypart int)")
+    sc.runSql("insert into table unified_part_load partition (keypart=1) select * from test_cached")
+    sc.runSql("""alter table unified_part_load set 
+      tblproperties('shark.cache' = 'false')""")
+    assert(!sharkMetastore.containsTable(DEFAULT_DB_NAME, "unified_part_load"))
+    expectSql("select count(*) from unified_part_load", "500")
+    sc.runSql("drop table if exists unified_part_load")
+  }
+
+  test ("UNCACHE behaves like ALTER TABLE SET TBLPROPERTIES ...") {
+    sc.runSql("drop table if exists unified_load")
+    sc.runSql("create table unified_load as select * from test")
+    sc.runSql("cache unified_load")
+    // Double check the table properties.
+    val tableName = "unified_load"
+    val hiveTable = Hive.get().getTable(DEFAULT_DB_NAME, tableName)
+    assert(hiveTable.getProperty("shark.cache") == "HEAP")
+    assert(hiveTable.getProperty("shark.cache.unifyView") == "true")
+    // Check that the cache and disk contents are synchronized.
+    expectUnifiedKVTable(tableName)
+    sc.runSql("drop table if exists unified_load")
+  }
+
+  test ("CACHE behaves like ALTER TABLE SET TBLPROPERTIES ...") {
+    sc.runSql("drop table if exists unified_load")
+    sc.runSql("create table unified_load as select * from test")
+    sc.runSql("cache unified_load")
+    // Double check the table properties.
+    val tableName = "unified_load"
+    val hiveTable = Hive.get().getTable(DEFAULT_DB_NAME, tableName)
+    assert(hiveTable.getProperty("shark.cache") == "HEAP")
+    assert(hiveTable.getProperty("shark.cache.unifyView") == "true")
+    // Check that the cache and disk contents are synchronized.
+    expectUnifiedKVTable(tableName)
+    sc.runSql("drop table if exists unified_load")
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Unified view persistence
+  //////////////////////////////////////////////////////////////////////////////
+  test ("Unified views persist across Shark metastore shutdowns.") {
+    val globalCachedTableNames = Seq("test_cached", "test_null_cached", "clicks_cached",
+      "users_cached", "test1_cached")
+
+    // Number of rows for each cached table.
+    val cachedTableCounts = new Array[String](globalCachedTableNames.size)
+    for ((tableName, i) <- globalCachedTableNames.zipWithIndex) {
+      val hiveTable = Hive.get().getTable(DEFAULT_DB_NAME, tableName)
+      val cachedCount = sc.sql("select count(*) from %s".format(tableName))(0)
+      cachedTableCounts(i) = cachedCount
+    }
+    sharkMetastore.shutdown()
+    for ((tableName, i) <- globalCachedTableNames.zipWithIndex) {
+      val hiveTable = Hive.get().getTable(DEFAULT_DB_NAME, tableName)
+
+      // Check that the number of rows from the table on disk remains the same.
+      val onDiskCount = sc.sql("select count(*) from %s".format(tableName))(0)
+      val cachedCount = cachedTableCounts(i)
+      assert(onDiskCount == cachedCount, """Num rows for %s differ across Shark metastore restart. 
+        (rows cached = %s, rows on disk = %s)""".format(tableName, cachedCount, onDiskCount))
+
+      // Make sure that some Shark table properties are removed.
+      val tblProps = hiveTable.getParameters
+      assert(!tblProps.contains("shark.cache"),
+        "'shark.cache' table property should be removed.")
+      assert(!tblProps.contains("shark.cachy.unifyView"),
+        "'shark.unifyView' table property should be removed.")
+
+      // The tables should be recoverable.
+      assert(tblProps.contains("shark.cache.storageLevel"),
+        "'shark.cache.storageLevel' needed for table recovery is missing.")
+      assert(tblProps.contains("shark.cache.reloadOnRestart"),
+        "'shark.cache.reloadOnRestart' should be true, since this table is marked for recovery.")
+    }
+    // Finally, reload all tables.
+    loadTables()
   }
 }

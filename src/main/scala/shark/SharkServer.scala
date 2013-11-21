@@ -53,6 +53,8 @@ import org.apache.thrift.transport.TTransportFactory
 
 import org.apache.spark.SparkEnv
 
+import shark.memstore2.TableRecovery
+
 
 /**
  * A long-running server compatible with the Hive server.
@@ -136,8 +138,7 @@ object SharkServer extends LogHelper {
       while (!server.isServing()) {}
       try {
         val sshandler = new SharkServerHandler
-        CachedTableRecovery.loadAsRdds(sshandler.execute(_))
-        logInfo("Executed load " + CachedTableRecovery.getMeta)
+        TableRecovery.loadUnifiedViews(sshandler.execute(_))
       } catch {
         case (e: Exception) => logWarning("Unable to load RDDs upon startup", e)
       } finally {
