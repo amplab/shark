@@ -18,7 +18,7 @@
 package shark.tgf
 
 import java.sql.Timestamp
-import java.util.{Random, Date}
+import java.util.Date
 
 import scala.util.parsing.combinator._
 
@@ -26,9 +26,6 @@ import org.apache.spark.rdd.RDD
 
 import shark.api._
 import shark.SharkContext
-import scala.Tuple3
-import scala.Some
-import scala.Tuple2
 
 case class RDDSchema(rdd: RDD[Seq[_]], schema: Seq[Tuple2[String,String]])
 
@@ -58,7 +55,7 @@ private class TGFParser extends JavaTokenParsers {
     (("GENERATE".ci ~> methodName) ~ (("(" ~> repsep(param, ",")) <~ ")")) ~ (("SAVE".ci ~ "AS".ci) ~>
       ident) ^^ { case id1 ~ x ~ id2 => (id2, id1, x.asInstanceOf[List[String]]) }
   }
-  
+
   def schema: Parser[Seq[Tuple2[String,String]]] = repsep(nameType, ",")
 
   def nameType: Parser[Tuple2[String,String]] = ident ~ ident ^^ { case name~tpe => Tuple2(name, tpe) }
@@ -85,9 +82,9 @@ object TGF {
     if (methods.isEmpty) None else Some(methods(0))
   }
 
-//  private def isOfType(obj: AnyRef, typeString: String) = {
-//    obj.getClass.getTy
-//  }
+  //  private def isOfType(obj: AnyRef, typeString: String) = {
+  //    obj.getClass.getTy
+  //  }
 
   private def getSchema(tgfOutput: Object, tgfName: String): Tuple2[RDD[Seq[_]], Seq[Tuple2[String,String]]] = {
     if (tgfOutput.isInstanceOf[RDDSchema]) {
@@ -95,27 +92,41 @@ object TGF {
       (rddSchema.rdd, rddSchema.schema)
     } else if (tgfOutput.isInstanceOf[RDD[Product]]) {
       val applyMethod = getMethod(tgfName, "apply")
-      if (applyMethod == None) throw new QueryExecutionException("TGF lacking apply() method")
+      if (applyMethod == None) {
+        throw new QueryExecutionException("TGF lacking apply() method")
+      }
 
       val annotations = applyMethod.get.getAnnotation(classOf[Schema]).spec()
-      if (annotations == None) throw new QueryExecutionException("No schema annotation found for TGF")
+      if (annotations == None) {
+        throw new QueryExecutionException("No schema annotation found for TGF")
+      }
 
       val schema = parser.parseAll(parser.schema, annotations)
-      if (schema == None) throw new QueryExecutionException("Error parsing TGF schema annotation (@Schema(spec=...)")
+      if (schema == None) {
+        throw new QueryExecutionException("Error parsing TGF schema annotation (@Schema(spec=...)")
+      }
+
       (tgfOutput.asInstanceOf[RDD[Product]].map(_.productIterator.toList), schema.get)
-    } else throw new QueryExecutionException("TGF output needs to be of type RDD or RDDSchema")
+    } else {
+      throw new QueryExecutionException("TGF output needs to be of type RDD or RDDSchema")
+    }
   }
 
   private def reflectInvoke(tgfName: String, paramStrs: Seq[String], sc: SharkContext) = {
 
     val applyMethodOpt = getMethod(tgfName, "apply")
-    if (applyMethodOpt.isEmpty) throw new QueryExecutionException("TGF " + tgfName + " needs to implement apply()")
+    if (applyMethodOpt.isEmpty) {
+      throw new QueryExecutionException("TGF " + tgfName + " needs to implement apply()")
+    }
+
     val applyMethod = applyMethodOpt.get
 
     val typeNames: Seq[String] = applyMethod.getParameterTypes.toList.map(_.toString)
 
-    if (paramStrs.length != typeNames.length) throw new QueryExecutionException("Expecting " + typeNames.length +
-      " parameters to " + tgfName + ", got " + paramStrs.length)
+    if (paramStrs.length != typeNames.length) {
+      throw new QueryExecutionException("Expecting " + typeNames.length +
+        " parameters to " + tgfName + ", got " + paramStrs.length)
+    }
 
     val params = (paramStrs.toList zip typeNames.toList).map {
       case (param: String, tpe: String) if (tpe.startsWith("class org.apache.spark.rdd.RDD")) => sc.tableRdd(param)
@@ -145,14 +156,14 @@ object TGF {
 
     val (sharkSchema, resultArr) = tableNameOpt match {
       case Some(tableName) =>  // materialize results
-      val helper = new RDDTableFunctions(rdd, schema.map{ case (_, tpe) => toManifest(tpe)})
-      helper.saveAsTable(tableName, schema.map{ case (name, _) => name})
-      (Array[ColumnDesc](), Array[Array[Object]]())
+        val helper = new RDDTableFunctions(rdd, schema.map{ case (_, tpe) => toManifest(tpe)})
+        helper.saveAsTable(tableName, schema.map{ case (name, _) => name})
+        (Array[ColumnDesc](), Array[Array[Object]]())
 
       case None =>  // return results
-      val newSchema = schema.map{ case (name, tpe) => new ColumnDesc(name, DataTypes.fromManifest(toManifest(tpe)))}
-      val res = rdd.collect().map{p => p.map( _.asInstanceOf[Object] ).toArray}
-      (newSchema.toArray, res)
+        val newSchema = schema.map{ case (name, tpe) => new ColumnDesc(name, DataTypes.fromManifest(toManifest(tpe)))}
+        val res = rdd.collect().map{p => p.map( _.asInstanceOf[Object] ).toArray}
+        (newSchema.toArray, res)
     }
     new ResultSet(sharkSchema, resultArr)
   }
@@ -168,7 +179,9 @@ object TGF {
     else if (tpe == "string") classManifest[java.lang.String]
     else if (tpe == "timestamp") classManifest[Timestamp]
     else if (tpe == "date") classManifest[Date]
-    else throw new QueryExecutionException("Unknown column type specified in schema (" + tpe + ")")
+    else {
+      throw new QueryExecutionException("Unknown column type specified in schema (" + tpe + ")")
+    }
   }
 }
 
