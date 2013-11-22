@@ -43,13 +43,16 @@ import org.apache.hadoop.hive.ql.processors.{CommandProcessor, CommandProcessorF
 import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hadoop.hive.shims.ShimLoader
 import org.apache.hadoop.io.IOUtils
+import org.apache.thrift.transport.TSocket
+
 
 
 object SharkCliDriver {
 
   private var prompt  = "shark"
   private var prompt2 = "     " // when ';' is not yet seen.
-
+  private var transport:TSocket = _
+    
   installSignalHandler()
 
   /**
@@ -60,7 +63,15 @@ object SharkCliDriver {
   def installSignalHandler() {
     HiveInterruptUtils.add(new HiveInterruptCallback {
       override def interrupt() {
-        SharkEnv.sc.cancelAllJobs()
+        // Handle remote execution mode
+        if (SharkEnv.sc != null) {
+          SharkEnv.sc.cancelAllJobs()
+        } else {
+          if (transport != null) {
+            // Force closing of TCP connection upon session termination
+            transport.getSocket().close()
+          }
+        }
       }
     })
   }
@@ -198,6 +209,11 @@ object SharkCliDriver {
       "spacesForString", classOf[String])
     spacesForStringMethod.setAccessible(true)
 
+    val clientTransportTSocketField = classOf[CliSessionState].getDeclaredField("transport")
+    clientTransportTSocketField.setAccessible(true)
+
+    transport = clientTransportTSocketField.get(ss).asInstanceOf[TSocket]
+    
     var ret = 0
 
     var prefix = ""

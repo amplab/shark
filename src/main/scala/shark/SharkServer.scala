@@ -21,6 +21,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.io.PrintStream
 import java.io.UnsupportedEncodingException
+import java.net.InetSocketAddress 
 import java.util.ArrayList
 import java.util.{List => JavaList}
 import java.util.Properties
@@ -50,6 +51,7 @@ import org.apache.thrift.server.TThreadPoolServer
 import org.apache.thrift.transport.TServerSocket
 import org.apache.thrift.transport.TTransport
 import org.apache.thrift.transport.TTransportFactory
+import org.apache.thrift.transport.TSocket
 
 import org.apache.spark.SparkEnv
 
@@ -85,8 +87,35 @@ object SharkServer extends LogHelper {
     serverTransport = new TServerSocket(cli.port)
 
     val hfactory = new ThriftHiveProcessorFactory(null, new HiveConf()) {
-      override def getProcessor(t: TTransport) =
-        new ThriftHive.Processor(new GatedSharkServerHandler(latch))
+      override def getProcessor(t: TTransport) = {
+        var remoteClient = "Unknown"
+
+        // Seed session ID by a random number
+        var sessionID = scala.Math.round(scala.Math.random * 10000000).toString
+        var jdbcSocket: java.net.Socket = null
+        if (t.isInstanceOf[TSocket]) {
+          remoteClient = t.asInstanceOf[TSocket].getSocket()
+            .getRemoteSocketAddress().asInstanceOf[InetSocketAddress]
+            .getAddress().toString()
+           
+          jdbcSocket = t.asInstanceOf[TSocket].getSocket()
+          jdbcSocket.setKeepAlive(true)
+          sessionID = remoteClient + "/" + jdbcSocket 
+            .getRemoteSocketAddress().asInstanceOf[InetSocketAddress].getPort().toString +
+            "/" + sessionID
+
+        }
+        logInfo("Audit Log: Connection Initiated with JDBC client - " + remoteClient)
+        
+        // Add and enable watcher thread
+        // This handles both manual killing of session as well as connection drops
+        val watcher = new JDBCWatcher(jdbcSocket, sessionID)
+        SharkEnv.activeSessions.add(sessionID)
+        watcher.start()
+        
+        new ThriftHive.Processor(new GatedSharkServerHandler(latch, remoteClient, 
+            sessionID))
+      }
     }
     val ttServerArgs = new TThreadPoolServer.Args(serverTransport)
       .processorFactory(hfactory)
@@ -145,6 +174,32 @@ object SharkServer extends LogHelper {
       }
     }
   }
+  
+  // Detecting socket connection drops relies on TCP keep alives
+  // The approach is very platform specific on the duration and nature of detection
+  // Since java does not expose any mechanisms for tuning keepalive configurations,
+  //  the users should explore the server OS settings for the same.
+  class JDBCWatcher(sock:java.net.Socket, sessionID:String) extends Thread {
+    
+    override def run() {
+      try {
+        while ((sock == null || sock.isConnected) && SharkEnv.activeSessions.contains(sessionID)) {	    
+          if (sock != null)
+            sock.getOutputStream().write((new Array[Byte](0)).toArray)
+          logDebug("Session Socket Alive - " + sessionID)
+          Thread.sleep(2*1000)
+        }
+      } catch {
+        case ioe: IOException => Unit
+      }
+
+      // Session is terminated either manually or automatically
+      // clean up the jobs associated with the session ID
+      logInfo("Session Socket connection lost, cleaning up - " + sessionID)
+      SharkEnv.sc.cancelJobGroup(sessionID)
+    }
+
+  }
 
   // Used to parse command line arguments for the server.
   class SharkServerCliOptions extends HiveServerCli {
@@ -161,10 +216,24 @@ object SharkServer extends LogHelper {
 }
 
 
-class GatedSharkServerHandler(latch:CountDownLatch) extends SharkServerHandler {
+class GatedSharkServerHandler(latch:CountDownLatch, remoteClient:String,
+    sessionID:String) extends SharkServerHandler {
   override def execute(cmd: String): Unit = {
     latch.await
-    super.execute(cmd)
+    
+    logInfo("Audit Log: SessionID=" + sessionID + " client=" + remoteClient + "  cmd=" + cmd)
+    
+    // Handle cancel commands
+    if (cmd.startsWith("kill ")) {
+      logInfo("killing group - " + cmd)
+      val sessionIDToCancel = cmd.split("\\s+|\\s*;").apply(1)
+      SharkEnv.activeSessions.remove(sessionIDToCancel)
+    } else {
+      // Session ID is used as spark job group
+      // Job groups control cleanup/cancelling of unneeded jobs on connection terminations
+      SharkEnv.sc.setJobGroup(sessionID, "Session ID = " + sessionID)
+      super.execute(cmd)
+    }
   }
 }
 
