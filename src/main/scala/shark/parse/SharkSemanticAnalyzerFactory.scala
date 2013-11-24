@@ -19,7 +19,7 @@ package shark.parse
 
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.parse.{ASTNode, BaseSemanticAnalyzer, DDLSemanticAnalyzer, 
-  SemanticAnalyzerFactory, ExplainSemanticAnalyzer, SemanticAnalyzer}
+  ExplainSemanticAnalyzer, LoadSemanticAnalyzer, SemanticAnalyzerFactory, SemanticAnalyzer}
 
 import shark.SharkConfVars
 
@@ -39,6 +39,8 @@ object SharkSemanticAnalyzerFactory {
         new SharkExplainSemanticAnalyzer(conf)
       case _: DDLSemanticAnalyzer =>
         new SharkDDLSemanticAnalyzer(conf)
+      case _: LoadSemanticAnalyzer =>
+        new SharkLoadSemanticAnalyzer(conf)
       case sem: BaseSemanticAnalyzer =>
         sem
     }

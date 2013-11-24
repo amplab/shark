@@ -24,8 +24,8 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.scheduler.StatsReportListener
 
 import shark.api.JavaSharkContext
-import shark.memstore2.MemoryMetadataManager
 import shark.execution.serialization.ShuffleSerializer
+import shark.memstore2.MemoryMetadataManager
 import shark.tachyon.TachyonUtilImpl
 
 
@@ -129,12 +129,13 @@ object SharkEnv extends LogHelper {
         logWarning("Failed to remove table " + tableKey + " from Tachyon.");
       }
     }
-    return memoryMetadataManager.removeTable(databaseName, tableName)
+    memoryMetadataManager.removeTable(databaseName, tableName)
   }
 
   /** Cleans up and shuts down the Shark environments. */
   def stop() {
     logDebug("Shutting down Shark Environment")
+    memoryMetadataManager.shutdown()
     // Stop the SparkContext
     if (SharkEnv.sc != null) {
       sc.stop()

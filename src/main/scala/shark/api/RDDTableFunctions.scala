@@ -63,7 +63,7 @@ class RDDTableFunctions(self: RDD[Product], manifests: Seq[ClassManifest[_]]) {
     if (isSucessfulCreateTable) {
       // Create an entry in the MemoryMetadataManager.
       val newTable = SharkEnv.memoryMetadataManager.createMemoryTable(
-        databaseName, tableName, CacheType.HEAP, rdd.getStorageLevel)
+        databaseName, tableName, CacheType.MEMORY)
       newTable.tableRDD = rdd
       try {
         // Force evaluate to put the data in memory.
