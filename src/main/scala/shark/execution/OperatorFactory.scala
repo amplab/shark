@@ -23,8 +23,6 @@ import org.apache.hadoop.hive.ql.exec.{GroupByPostShuffleOperator, GroupByPreShu
 import org.apache.hadoop.hive.ql.exec.{Operator => HOperator}
 import org.apache.hadoop.hive.ql.metadata.HiveException
 
-import org.apache.spark.storage.StorageLevel
-
 import shark.LogHelper
 import shark.memstore2.CacheType._
 
@@ -48,7 +46,6 @@ object OperatorFactory extends LogHelper {
       hiveTerminalOp: HOperator[_<:HiveDesc],
       tableName: String,
       databaseName: String,
-      storageLevel: StorageLevel,
       numColumns: Int,
       hivePartitionKey: String,
       cacheMode: CacheType,
@@ -60,7 +57,6 @@ object OperatorFactory extends LogHelper {
     sinkOp.localHiveOp = hiveOp
     sinkOp.tableName = tableName
     sinkOp.databaseName = databaseName
-    sinkOp.storageLevel = storageLevel
     sinkOp.numColumns = numColumns
     sinkOp.cacheMode = cacheMode
     sinkOp.hivePartitionKey = hivePartitionKey

@@ -17,21 +17,15 @@
 
 package shark.memstore2
 
-import org.apache.spark.storage.StorageLevel
-
-
 /**
  * A container for table metadata managed by Shark and Spark. Subclasses are responsible for
  * how RDDs are set, stored, and accessed.
  *
+ * @param databaseName Namespace for this table.
  * @param tableName Name of this table.
  * @param cacheMode Type of memory storage used for the table (e.g., the Spark block manager).
- * @param preferredStorageLevel The user-specified storage level for the Shark table's RDD(s).
- *     This can be different from the actual RDD storage levels at any point in time, depending on
- *     the the Spark block manager's RDD eviction policy and, for partitioned tables, the
- *     Hive-partition RDD eviction policy.
  */
 private[shark] abstract class Table(
+    var databaseName: String,
     var tableName: String,
-    var cacheMode: CacheType.CacheType,
-    var preferredStorageLevel: StorageLevel)
+    var cacheMode: CacheType.CacheType)
