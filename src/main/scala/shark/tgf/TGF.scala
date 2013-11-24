@@ -27,7 +27,7 @@ import org.apache.spark.rdd.RDD
 import shark.api._
 import shark.SharkContext
 
-case class RDDSchema(rdd: RDD[Seq[_]], schema: Seq[Tuple2[String,String]])
+case class RDDSchema(rdd: RDD[Seq[_]], schema: String)
 
 private class TGFParser extends JavaTokenParsers {
 
@@ -89,7 +89,9 @@ object TGF {
   private def getSchema(tgfOutput: Object, tgfName: String): Tuple2[RDD[Seq[_]], Seq[Tuple2[String,String]]] = {
     if (tgfOutput.isInstanceOf[RDDSchema]) {
       val rddSchema = tgfOutput.asInstanceOf[RDDSchema]
-      (rddSchema.rdd, rddSchema.schema)
+      val schema = parser.parseAll(parser.schema, rddSchema.schema)
+
+      (rddSchema.rdd, schema.get)
     } else if (tgfOutput.isInstanceOf[RDD[Product]]) {
       val applyMethod = getMethod(tgfName, "apply")
       if (applyMethod == None) {
@@ -123,18 +125,26 @@ object TGF {
 
     val typeNames: Seq[String] = applyMethod.getParameterTypes.toList.map(_.toString)
 
-    if (paramStrs.length != typeNames.length) {
-      throw new QueryExecutionException("Expecting " + typeNames.length +
-        " parameters to " + tgfName + ", got " + paramStrs.length)
+    val augParams = if (!typeNames.isEmpty && typeNames.head.startsWith("class shark.SharkContext")) {
+      Seq("sc") ++ paramStrs
+    } else {
+      paramStrs
     }
 
-    val params = (paramStrs.toList zip typeNames.toList).map {
+    if (augParams.length != typeNames.length) {
+      throw new QueryExecutionException("Expecting " + typeNames.length +
+        " parameters to " + tgfName + ", got " + augParams.length)
+    }
+
+    val params = (augParams.toList zip typeNames.toList).map {
+      case (param: String, tpe: String) if (tpe.startsWith("class shark.SharkContext")) => sc
       case (param: String, tpe: String) if (tpe.startsWith("class org.apache.spark.rdd.RDD")) => sc.tableRdd(param)
       case (param: String, tpe: String) if (tpe.startsWith("long")) => param.toLong
       case (param: String, tpe: String) if (tpe.startsWith("int")) => param.toInt
       case (param: String, tpe: String) if (tpe.startsWith("double")) => param.toDouble
       case (param: String, tpe: String) if (tpe.startsWith("float")) => param.toFloat
-      case (param: String, tpe: String) if (tpe.startsWith("class String")) => param
+      case (param: String, tpe: String) if (tpe.startsWith("class java.lang.String") ||
+        tpe.startsWith("class String")) => param.stripPrefix("\"").stripSuffix("\"")
       case (param: String, tpe: String) => throw
         new QueryExecutionException("Expected TGF parameter type: " + tpe + " (" + param + ")")
     }
@@ -184,37 +194,3 @@ object TGF {
     }
   }
 }
-
-//object NameOfTGF {
-//  import org.apache.spark.mllib.clustering._
-//
-//  // TGFs need to implement an apply() method.
-//  // The TGF has to have an apply function that takes any arbitrary primitive types and any number of RDDs.
-//  // When a TGF is invoked from Shark, every type of RDD is produced by converting Hive tables to RDDs
-//  // TGFs need to have a return type that is either an RDD[Product] or RDDSchema
-//  // The former case requires that the apply method has an annotation of the schema (see below)
-//  // In the latter case the schema is embedded in the RDDSchema function
-//  @Schema(spec = "year int, state string, product string, sales double, cluster int")
-//  def apply(sales: RDD[(Int, String, String, Double)], k: Int):
-//  RDD[(Int, String, String, Double, Int)] = {
-//
-//    val dataset = sales.map{ case (year, state, product, sales) => Array[Double](sales) }
-//    val model = KMeans.train(dataset, k, 2, 2)
-//
-//    sales.map{ case (year, state, product, sales) => (year, state, product, sales, model.predict(Array(sales))) }
-//  }
-//   // Alternatively, using RDDSchema return time you can dynamically decide the columns and their types
-//  def apply(sales: RDD[(Int, String, String, Double)], k: Int):
-//  RDDSchema = {
-//
-//    val dataset = sales.map{ case (year, state, product, sales) => Array[Double](sales) }
-//    val model = KMeans.train(dataset, k, 2, 2)
-//
-//    val rdd = sales.map{
-//      case (year, state, product, sales) => List(year, state, product, sales, model.predict(Array(sales)))
-//    }
-//
-//    RDDSchema(rdd.asInstanceOf[RDD[Seq[_]]],
-//      List(("year","int"), ("state", "string"), ("product", "string"), ("sales", "double"), ("cluster", "int")))
-//  }
-//}
