@@ -17,20 +17,19 @@
 
 package shark.memstore2.column
 
-import java.io.ObjectInput
-import java.io.ObjectOutput
-import java.io.Externalizable
+import java.io.{ ObjectInput, ObjectOutput, Externalizable }
 import java.sql.Timestamp
 import org.apache.hadoop.io.Text
+
 import shark.util.BloomFilter
 
 
-/**
- * Column level statistics, including range (min, max).
- */
+/** Column level statistics, including range (min, max) for columns in cached tables.
+  * These will be get stored in the spark master's memory, per column, per RDD after serialization.
+  */
 sealed trait ColumnStats[@specialized(Boolean, Byte, Short, Int, Long, Float, Double) T]
   extends Serializable {
-
+  var _nullCount = 0
   def append(v: T)
 
   protected def _min: T
