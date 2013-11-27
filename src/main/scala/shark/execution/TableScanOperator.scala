@@ -35,6 +35,7 @@ import org.apache.hadoop.hive.ql.plan.PlanUtils
 import org.apache.hadoop.hive.ql.metadata.{Partition, Table}
 import org.apache.hadoop.hive.serde.serdeConstants
 import org.apache.hadoop.hive.serde2.Serializer
+import org.apache.hadoop.hive.serde2.ColumnProjectionUtils;
 import org.apache.hadoop.hive.serde2.`lazy`.LazyStruct
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorConverters
@@ -245,6 +246,14 @@ object TableScanOperator extends LogHelper {
    * since we would have to serialize the HiveTableScanOperator.
    */
   private def addFilterExprToConf(hiveConf: HiveConf, hiveTableScanOp: HiveTableScanOperator) {
+    // Push down projections for this TableScanOperator to Hadoop JobConf
+    if (hiveTableScanOp.getNeededColumnIDs() != null) {
+      ColumnProjectionUtils.appendReadColumnIDs(hiveConf, hiveTableScanOp.getNeededColumnIDs())
+    } else {
+      ColumnProjectionUtils.setFullyReadColumns(hiveConf)
+    }
+    ColumnProjectionUtils.appendReadColumnNames(hiveConf, hiveTableScanOp.getNeededColumns())
+
     val tableScanDesc = hiveTableScanOp.getConf()
     if (tableScanDesc == null) return
 
@@ -266,7 +275,6 @@ object TableScanOperator extends LogHelper {
       for (columnInfo <- rowSchema.getSignature()) {
         if (columnTypes.length > 0) {
           columnTypes.append(",")
-
         }
         columnTypes.append(columnInfo.getType().getTypeName())
       }
