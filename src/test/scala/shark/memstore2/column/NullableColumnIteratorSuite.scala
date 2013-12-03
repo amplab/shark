@@ -86,13 +86,16 @@ class NullableColumnIteratorSuite extends FunSuite {
   test("Iterate Ints") {
     def testList(l: Seq[AnyRef]) {
       val c = new IntColumnBuilder
-      c.initialize(4, "")
-      val oi = PrimitiveObjectInspectorFactory.writableIntObjectInspector
 
-      c.initialize(l.size)
+      c.initialize(l.size, "")
+      val oi = PrimitiveObjectInspectorFactory.javaIntObjectInspector
 
       l.foreach { item =>
-        c.append(item, oi)
+        if (item == null) {
+          c.append(null, oi)
+        } else {
+          c.append(item.asInstanceOf[Object], oi)
+        }
       }
 
       val b = c.build()

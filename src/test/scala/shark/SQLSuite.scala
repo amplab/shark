@@ -389,7 +389,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.sql("""insert into table checkbinary
       select key, cast(val as binary) as flag from test where key > "300" """)
     sc.sql("create table checkbinary_cached as select key, flag from checkbinary")
-    expectSql("select flag from checkbinary_cached order by flag asc limit 2",
+    expectSql("select cast(flag as string) as f from checkbinary_cached order by f asc limit 2",
       Array[String]("val_0", "val_0"))
       
     sc.sql("drop table if exists checkshort")
