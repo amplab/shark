@@ -9,6 +9,8 @@ v is build number
 
 Release Notes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Version 0.8.0.2.5
+	Count distict fix from databricks included
 Version 0.8.0.2.4
 	Update version for CI
 Version 0.8.0.2.3
