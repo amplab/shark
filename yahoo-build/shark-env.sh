@@ -54,7 +54,7 @@ export GC_OPTS="-verbose:gc -XX:-PrintGCDetails -XX:+PrintGCTimeStamps"
 export DEBUG_OPTS="-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=8787"
 
 SPARK_JAVA_OPTS="-XX:-UseSplitVerifier -XX:ReservedCodeCacheSize=256m -XX:MaxPermSize=1g "
-SPARK_JAVA_OPTS+=$(miners_shark__DEBUG_OPTS)
+SPARK_JAVA_OPTS+=" $(miners_shark__DEBUG_OPTS) "
 SPARK_JAVA_OPTS+=" -Dspark.akka.frameSize=$(miners_shark__AKKA_FRAME_SIZE)"
 SPARK_JAVA_OPTS+=" -Dspark.serializer=$(miners_shark__SERIALIZER)"
 SPARK_JAVA_OPTS+=" -Dspark.storage.blockManagerHeartBeatMs=$(miners_shark__BLOCKMANAGER_HEARTBEAT)"
@@ -63,7 +63,7 @@ SPARK_JAVA_OPTS+=" -Djava.library.path=$(miners_shark__LIBRARY_PATH)"
 SPARK_JAVA_OPTS+=" -Dspark.local.dir=$(miners_shark__LOCAL_DIR)"
 SPARK_JAVA_OPTS+=" -Dspark.kryoserializer.buffer.mb=$(miners_shark__KRYO_BUFFER_SIZE)"
 SPARK_JAVA_OPTS+=" "
-SPARK_JAVA_OPTS+=$(miners_shark__ADDITIONAL_JAVA_OPTS)
+SPARK_JAVA_OPTS+=" $(miners_shark__ADDITIONAL_JAVA_OPTS) "
 SPARK_JAVA_OPTS+=" "
-SPARK_JAVA_OPTS+=$(miners_shark__GC_OPTS)
+SPARK_JAVA_OPTS+=" $(miners_shark__GC_OPTS) "
 export SPARK_JAVA_OPTS
