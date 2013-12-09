@@ -134,7 +134,8 @@ object SharkBuild extends Build {
       "Sonatype Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/",
       "Sonatype Staging" at "https://oss.sonatype.org/service/local/staging/deploy/maven2/",
       "Sonatype Testing" at "https://oss.sonatype.org/content/repositories/eduberkeleycs-1016",
-      "Local Maven" at Path.userHome.asFile.toURI.toURL + ".m2/repository"
+      "Local Maven" at Path.userHome.asFile.toURI.toURL + ".m2/repository",
+      "Scalate Repository" at "http://repo.fusesource.com/nexus/content/repositories/public"
     ),
 
     publishTo <<= version { (v: String) =>
@@ -204,6 +205,8 @@ object SharkBuild extends Build {
       // See https://code.google.com/p/guava-libraries/issues/detail?id=1095
       "com.google.code.findbugs" % "jsr305" % "1.3.+",
 
+	    // ScalaTE jars
+      "org.fusesource.scalate" % "scalate-core_2.10" % "1.6.1",
       // Hive unit test requirements. These are used by Hadoop to run the tests, but not necessary
       // in usual Shark runs.
       "commons-io" % "commons-io" % "2.1",

@@ -1,0 +1,64 @@
+<% escapeMarkup = false %>
+#import(shark.execution.cg.row.CGOIUnion)
+#import(shark.execution.cg.row.CGOIStruct)
+<%@ import val obj: CGOIUnion %>
+  public static class ${clazz} implements UnionObjectInspector {
+    private static final List<ObjectInspector> list = Lists.newArrayList(new ObjectInspector[]{
+      ${fields.map(_.defCreateOI).reduce(_+","+_)}
+    });
+    
+    #for(i <- 0 until fields.length)
+    private ${fields(i).dataWritableClass} cache_${delegate.name}${i} = new ${fields(i).dataWritableClass}();
+    #end
+    
+    @Override
+    public String getTypeName() {
+      return ObjectInspectorUtils.getStandardUnionTypeName(this);
+    }
+
+    @Override
+    public Category getCategory() {
+      return Category.UNION;
+    }
+
+    @Override
+    public List<ObjectInspector> getObjectInspectors() {
+      return list;
+    }
+
+    @Override
+    public byte getTag(Object o) {
+      ${dataClassName} a = (${dataClassName})o;
+      if (a == null || a.tag < 0) {
+        return 0;
+      } else {
+        return (byte)(a.tag);
+      }
+    }
+    #{val transforms = Array.tabulate[String](fields.length){i=>fields(i).java2Writable("a." + delegate.name+"_"+i, "cache_%s%d".format(delegate.name, i))}}#
+    @Override
+    public Object getField(Object o) {
+      ${dataClassName} a = (${dataClassName})o;
+      if (a == null || a.tag < 0) {
+        return null;
+      } else {
+       switch (a.tag) {
+        #for(i <- 0 until fields.length)
+         case ${i}: {
+           ${transforms(i)}
+           return cache_${delegate.name}${i};
+         }
+        #end
+          default: return null;
+        }
+      }
+    }
+    // generate the tranform functions
+    #for(f <- fields)
+       ${f.defStructFieldTransform}
+    #end
+    
+#for(f <- fields)
+   ${f.defStaticBlocks}
+#end
+  }

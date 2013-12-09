@@ -1,0 +1,121 @@
+<% escapeMarkup = false %>
+
+#import(shark.execution.cg.row.CGField)
+#import(shark.execution.cg.row.CGOI)
+#import(shark.execution.cg.row.CGOIField)
+#import(shark.execution.cg.row.CGOIStruct)
+#import(shark.execution.cg.row.CGOIUnion)
+#import(shark.execution.cg.row.CGOIPrimitive)
+
+<%@ import val isOutter: Boolean = false %>
+<%@ import val struct: CGOIStruct %>
+
+#if (true==isOutter)
+package ${CGField.PACKAGE_NAME};
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils;
+import org.apache.hadoop.hive.serde2.objectinspector.StructField;
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.UnionObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.LongObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
+import org.apache.hadoop.io.Writable;
+
+import com.google.common.collect.Lists;
+
+import shark.execution.cg.row.helper.CGStructField;
+
+public class ${clazz} extends StructObjectInspector {
+#else
+public static class ${clazz} extends StructObjectInspector {
+#end
+// customed StructField
+// list of (field name, StructField class name, StructField class definition)
+
+#for(f <- fields)
+  ${f.defStructField}
+#end
+  
+  private static final HashMap<String, CGStructField> SF_MAP = new HashMap<String, CGStructField>(${fields.length * 5});
+  private static final ArrayList<CGStructField> SF_FIELDS = INITIAL_SF();
+
+  private static ArrayList<CGStructField> INITIAL_SF() {
+    ArrayList<CGStructField> fields = new ArrayList<CGStructField>(${fields.length});
+    
+    #for(i <- 0 until fields.length)
+    {
+      CGStructField sf = new ${fields(i).structFieldClassName}(${i});
+      SF_MAP.put("${fields(i).delegate.oiName}".toLowerCase(), sf);
+      fields.add(sf);
+    }
+    #end
+    return fields;
+  }
+
+#for(f<- fields)
+   ${f.defStaticBlocks}
+#end
+  
+  protected ArrayList<Object> writables = initial_writables();
+  
+  public ArrayList<Object> initial_writables() {
+    ArrayList<Object> list = new ArrayList<Object>(${fields.length});
+#for(i <- 0 until fields.length)
+    list.add(null);
+#end
+    return list;
+  }
+  
+
+  // the following is about the StructObjectInspector
+  @Override
+  public List<? extends CGStructField> getAllStructFieldRefs() {
+    return SF_FIELDS;
+  }
+
+  @Override
+  public StructField getStructFieldRef(String fieldName) {
+    return SF_MAP.get(fieldName.toLowerCase());
+  }
+
+  @Override
+  public Object getStructFieldData(Object data, StructField fieldRef) {
+    if (data == null) {
+      return null;
+    }
+    return ((CGStructField)fieldRef).get(data);
+  }
+
+  @Override
+  public List<Object> getStructFieldsDataAsList(Object data) {
+    if (data == null) {
+      return null;
+    }
+    
+    ${dataClassName} struct = (${dataClassName})data;
+    
+    for(int i = 0; i < SF_FIELDS.size(); ++i) {
+      writables.set(i, SF_FIELDS.get(i).get(struct));
+    }
+    
+    return writables;
+  }
+
+  @Override
+  public String getTypeName() {
+    return ObjectInspectorUtils.getStandardStructTypeName(this);
+  }
+
+  @Override
+  public Category getCategory() {
+    return Category.STRUCT;
+  }
+}
