@@ -1,0 +1,66 @@
+<% escapeMarkup = false %>
+#import(shark.execution.CGOperator)
+#import(shark.execution.cg.row.CGStruct)
+#import(shark.execution.CGObjectOperator)
+#import(shark.execution.SelectOperator)
+#import(org.apache.hadoop.hive.ql.exec.ExprNodeConstantEvaluator)
+#import(org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator)
+
+<%@ import val cgo: CGOperator %>
+<%@ import val op: SelectOperator %>
+
+#{
+  val structClassName = cgrow.fullClassName
+}#
+package ${packageName};
+
+import java.io.Serializable;
+import java.util.List;
+import java.util.HashMap;
+
+import shark.execution.cg.OperatorExecutor;
+import shark.execution.SelectOperator;
+import org.apache.hadoop.hive.serde2.objectinspector.StructField;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+
+import ${cgrow.fullClassName};
+
+public class ${className} implements OperatorExecutor, Serializable {
+  private transient static final long serialVersionUID = 1L;
+  private transient ${cgrow.fullClassName} data = new ${cgrow.fullClassName}();
+  
+#{
+  val evaluatorNames = Array.tabulate[String](evals.length){i => "__eval%s".format(i)}
+  val oiNames = Array.tabulate[String](evals.length){i => "__oi%s".format(i)}
+}#
+
+#for(idx <- 0 until cgrow.fields.length; if (!cgrow.fields(idx).constant))
+  private transient ${evals(idx).getClass().getCanonicalName()} ${evaluatorNames(idx)};
+  private transient ObjectInspector ${oiNames(idx)};
+#end
+  
+  public ${className}(Object obj) {
+      SelectOperator o = (SelectOperator) obj;
+      ObjectInspector[] ois = o.evalsOutputOIs();
+#for(idx <- 0 until cgrow.fields.length; if (!cgrow.fields(idx).constant))
+      this.${evaluatorNames(idx)} = (${evals(idx).getClass().getCanonicalName()})(o.evals()[${idx}]);
+      this.${oiNames(idx)} = ois[${idx}];
+#end
+  }
+
+  @Override
+  public Object evaluate(Object obj) throws Exception {
+      data.reset();
+#{
+  val tempNames = Array.tabulate[String](evals.length){i => "__obj%s".format(i)}
+}#
+#for(idx <- 0 until cgrow.fields.length; if (!cgrow.fields(idx).constant))
+      Object ${tempNames(idx)} = ${evaluatorNames(idx)}.evaluate(obj); 
+      if (${tempNames(idx)} != null) {
+          ${cgrow.fields(idx).defExtractValueViaOI("data." + cgrow.fields(idx).name , oiNames(idx), tempNames(idx))}
+          ${cgrow.setFieldValidity("data", idx, true)};
+      }
+#end
+      return data;
+  }
+}

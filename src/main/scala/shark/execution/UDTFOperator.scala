@@ -64,7 +64,7 @@ class UDTFOperator extends UnaryOperator[UDTFDesc] {
     outputObjInspector = conf.getGenericUDTF().initialize(udtfInputOIs)
   }
 
-  override def outputObjectInspector() = outputObjInspector
+  protected override def createOutputObjectInspector() = outputObjInspector
 
   override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
     iter.flatMap { row =>

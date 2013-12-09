@@ -84,7 +84,7 @@ class ReduceSinkOperator extends UnaryOperator[ReduceSinkDesc] {
     }
   }
 
-  override def outputObjectInspector() = {
+  protected override def createOutputObjectInspector() = {
     initializeOisAndSers(conf, objectInspector)
     
     val ois = new ArrayList[ObjectInspector]

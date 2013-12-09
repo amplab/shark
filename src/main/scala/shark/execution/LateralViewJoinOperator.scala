@@ -96,7 +96,7 @@ class LateralViewJoinOperator extends NaryOperator[LateralViewJoinDesc] {
     }
   }
 
-  override def outputObjectInspector() = {
+  protected override def createOutputObjectInspector() = {
     val SELECT_TAG = 0
     val UDTF_TAG = 1
   

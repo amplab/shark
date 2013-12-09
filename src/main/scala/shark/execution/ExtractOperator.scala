@@ -28,6 +28,8 @@ import org.apache.hadoop.io.BytesWritable
 
 import org.apache.spark.rdd.RDD
 
+import shark.SharkConfVars
+
 
 class ExtractOperator extends UnaryOperator[ExtractDesc] 
   with ReduceSinkTableDesc {
@@ -56,7 +58,7 @@ class ExtractOperator extends UnaryOperator[ExtractDesc]
     valueDeser.initialize(localHconf, valueTableDesc.getProperties())
   }
 
-  override def outputObjectInspector() = {
+  protected override def createOutputObjectInspector() = {
     var soi = objectInspectors(0).asInstanceOf[StructObjectInspector]
     // take the value part
     soi.getAllStructFieldRefs().get(1).getFieldObjectInspector()
