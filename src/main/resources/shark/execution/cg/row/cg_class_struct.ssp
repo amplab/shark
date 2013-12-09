@@ -1,0 +1,159 @@
+<% escapeMarkup = false %>
+
+#import(shark.execution.cg.row.CGRow)
+#import(shark.execution.cg.row.CGField)
+#import(shark.execution.cg.row.CGStruct)
+#import(shark.execution.cg.row.CGPrimitive)
+
+<%@ import val struct: CGStruct %>
+<%@ import val isOutter: Boolean = false %>
+
+#if (true==isOutter)
+package ${CGField.PACKAGE_NAME};
+
+import java.util.BitSet;
+
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.KryoSerializable;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+
+public class ${clazz} implements KryoSerializable {
+#else
+public static class ${clazz} implements KryoSerializable {
+#end
+<%-- MASK definitions  --%>
+#for (i <- 0 until fields.length)
+	public static final transient int ${fields(i).maskBitName} = ${i};
+#end
+<%-- default constructor --%>
+    public ${clazz}() {
+        #for(f<-fields)
+            #if(f.constant && !f.constantNull)
+        ${f.setFieldValidity(true)};
+            #else
+        ${f.setFieldValidity(false)};
+            #end
+        #end
+    }
+<%-- reset() --%>
+    public void reset() {
+#for (f <- fields; if (!f.constant))
+	${f.setFieldValidity(false)};
+#end    
+    }
+<%-- sub type definitions --%>
+#for(f <- fields)
+    #{val block = f.defStaticBlocks}# 
+    #if(block != null)
+        ${block}
+    #end
+#end
+   public BitSet ${CGField.STRUCT_MASK_VARIABLE_NAME} = new BitSet(<%=fields.length%>);
+<%-- field definitions  --%>
+#for(i <- 0 until fields.length)
+    ${fields(i).defField}
+#end
+	
+	@Override
+    public void read(Kryo kryo, Input input) {
+    // TODO need to figure out how to serialize the BitSet more efficiently
+    // in Sun jdk 1.7 is quite easy, but not in jdk 1.6
+      ${CGField.STRUCT_MASK_VARIABLE_NAME} = kryo.readObject(input, BitSet.class);
+#for(f <- fields; if (!f.constant))
+	   if (${f.fieldValidity}) { ${f.defRead} }
+#end
+    }
+
+    @Override
+    public void write(Kryo kryo, Output output) {
+    // TODO need to figure out how to serialize the BitSet more efficiently
+    // in Sun jdk 1.7 is quite easy, but not in jdk 1.6
+      kryo.writeObject(output, ${CGField.STRUCT_MASK_VARIABLE_NAME});
+#for(f <- fields; if (!f.constant))
+	   if (${f.fieldValidity}) { ${f.defWrite} }
+#end
+    }
+    
+    @Override
+    public int hashCode() {
+        int ____hash_code____ = 0;
+#for(f <- fields)
+        if (${f.fieldValidity}) { ____hash_code____ += ${f.defHashCode}; }
+#end    
+    
+        return ____hash_code____;
+    }
+    
+    @Override
+    public boolean equals(Object other) {
+        if (null == other) return false;
+        if (other instanceof ${clazz}) {
+            ${clazz} ____that____ = (${clazz})other;
+	#for(f <- fields; if (!f.constant))
+	        if (${f.fieldValidity} != ____that____.${f.fieldValidity}) {
+	            return false;
+	        } else if (${f.fieldValidity} && (!${f.defEquals("____that____")})) {
+	            return false;
+	        }
+	#end   
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+	public static ${clazz} BUILD(ObjectInspector _oi, Object o) {
+	  if (o == null) return null;
+	  ${clazz} me = new ${clazz}();
+	  StructObjectInspector oi = (StructObjectInspector)_oi;
+	  #for(f<-fields; if (!f.constant))
+	  {
+		  org.apache.hadoop.hive.serde2.objectinspector.StructField sf = oi.getStructFieldRef("${f.oiName}");
+		  Object obj = oi.getStructFieldData(o, sf);
+		  
+		  if(obj == null) {
+		    me.${f.setFieldValidity(false)};
+		  } else {
+		    me.${f.setFieldValidity(true)};
+	        ${f.defExtractValueViaOI("me." + f.name, "sf.getFieldObjectInspector()", "obj")}
+	      }
+	  }
+	  #end
+	  
+	  return me;
+	}
+	
+	/**
+	 * create ${clazz} from java object (array)
+	 */
+	public static ${clazz} INITIAL(Object o) {
+	    if (o == null) {
+	      return null;
+	    }
+	    // array => v1, v2, v3, ....
+	    Object[] objs = (Object[])o;
+	    
+	    ${clazz} f = new ${clazz}();
+	    
+	    #for (i <- 0 until fields.length; if(!fields(i).constant))
+	    {
+	        if (objs[${i}] != null) {
+	          f.${fields(i).setFieldValidity(true)};
+	          ${fields(i).defAssignValue("f." + fields(i).name, "objs[" + i + "]")}
+	        }
+	    }
+		#end
+	    return f;
+	}
+}
+
+#if(constant && !constantNull)
+private static ${clazz} INITIAL_${name}() {
+    byte[] content = ${constantBytesInString};
+    
+    return ${clazz}.INITIAL(shark.execution.cg.CGUtil.deserialize(content));
+}
+#end

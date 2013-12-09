@@ -1,0 +1,51 @@
+<% escapeMarkup = false %>
+#import(shark.execution.cg.row.CGList)
+<%@ import val obj: CGList %>
+public static java.util.ArrayList<${field.clazz}> BUILD_${name}(org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector oi, Object data) { 
+	java.util.List<?> list = ((org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector)oi).getList(data);
+	java.util.ArrayList<${field.clazz}> result = null;
+	
+	if (list != null) {
+	  result = new java.util.ArrayList<${field.clazz}>(list.size());
+	  org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector tmpoi = ((org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector)oi).getListElementObjectInspector();
+	  for(Object l : list) {
+	    ${field.clazz} tmp = null;
+	    if (l != null) {
+	        ${field.defExtractValueViaOI("tmp", "tmpoi", "l")}
+	    }
+	    
+	    result.add(tmp);
+	  }
+	}
+	
+	return result;
+}
+
+#if(obj.constant && !obj.constantNull)
+private static java.util.ArrayList<${field.clazz}> INITIAL_${name}() {
+    byte[] content = ${constantBytesInString};
+    
+    Object o = shark.execution.cg.CGUtil.deserialize(content);
+    return INITIAL_${name}(o);
+}
+#end
+
+private static java.util.ArrayList<${field.clazz}> INITIAL_${name}(Object o) {
+    if (o == null) {
+        return null;
+    }
+    
+    Object[] objs = (Object[])o;
+    java.util.ArrayList<${field.clazz}> list = new java.util.ArrayList<${field.clazz}>();
+    for(int i = 0; i < objs.length; ++i) {
+      ${field.clazz} k = null;
+      Object ok = objs[i];
+      ${field.defAssignValue("k", "ok")}
+       
+      list.add(k);
+    }
+    
+    return list;
+}
+
+${field.defStaticBlocks}

@@ -73,7 +73,8 @@ object SharkBuild extends Build {
     resolvers ++= Seq(
       "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
       "Cloudera Repository" at "https://repository.cloudera.com/artifactory/cloudera-repos/",
-      "Local Maven" at Path.userHome.asFile.toURI.toURL + ".m2/repository"
+      "Local Maven" at Path.userHome.asFile.toURI.toURL + ".m2/repository",
+      "Scalate Repository" at "http://repo.fusesource.com/nexus/content/repositories/public"
     ),
 
     fork := true,
@@ -116,7 +117,8 @@ object SharkBuild extends Build {
       "org.apache.hadoop" % "hadoop-client" % hadoopVersion excludeAll(excludeJackson, excludeNetty, excludeAsm) force(),
       // See https://code.google.com/p/guava-libraries/issues/detail?id=1095
       "com.google.code.findbugs" % "jsr305" % "1.3.+",
-
+	  // ScalaTE jars
+      "org.fusesource.scalate" % "scalate-core_2.9" % "1.6.1",
       // Hive unit test requirements. These are used by Hadoop to run the tests, but not necessary
       // in usual Shark runs.
       "commons-io" % "commons-io" % "2.1",

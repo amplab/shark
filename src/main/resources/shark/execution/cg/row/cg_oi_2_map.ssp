@@ -1,0 +1,56 @@
+<% escapeMarkup = false %>
+#import(shark.execution.cg.row.CGMap)
+<%@ import val obj: CGMap %>
+public static java.util.HashMap<${key.clazz}, ${value.clazz}> BUILD_${name}(org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector oi, Object data) { 
+	org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector koi = ((org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector)oi).getMapKeyObjectInspector();
+	org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector voi = ((org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector)oi).getMapValueObjectInspector();
+	
+	java.util.Map<?, ?> mobj = ((org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector)oi).getMap(data);
+	java.util.HashMap<${key.clazz}, ${value.clazz}> result = null;
+	
+	if (mobj != null) {
+	  result = new java.util.HashMap<${key.clazz}, ${value.clazz}>(mobj.size());
+	  for(Object key : mobj.keySet()) {
+	    if(key != null) {
+          ${key.clazz} ${key.defExtractValueViaOI("k_t", "koi", "key")}
+          ${value.clazz} ${value.defExtractValueViaOI("v_t", "voi", "(mobj.get(key))")}
+	      result.put(k_t, v_t);
+	    }
+	  }
+	}
+	
+	return result;
+}
+
+#if(obj.constant && !obj.constantNull)
+private static java.util.HashMap<${key.clazz}, ${value.clazz}> INITIAL_${name}() {
+    byte[] content = ${constantBytesInString};
+    
+    Object o = shark.execution.cg.CGUtil.deserialize(content);
+    return INITIAL_${name}(o);
+}
+#end
+
+private static java.util.HashMap<${key.clazz}, ${value.clazz}> INITIAL_${name}(Object o) {
+    if (null == o) {
+        return null;
+    }
+    Object[] objs = (Object[])o;
+    
+    java.util.HashMap<${key.clazz}, ${value.clazz}> map = new java.util.HashMap<${key.clazz}, ${value.clazz}>();
+    for(int i = 0; i < objs.length; i += 2) {
+      ${key.clazz} k = null;
+      ${value.clazz} v = null;
+      Object ok = objs[i];
+      Object ov = objs[i + 1];
+      ${key.defAssignValue("k", "ok")}
+      ${value.defAssignValue("v", "ov")}
+       
+      map.put(k, v);
+    }
+    
+    return map;
+}
+
+${key.defStaticBlocks}
+${value.defStaticBlocks}

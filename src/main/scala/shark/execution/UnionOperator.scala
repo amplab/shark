@@ -54,7 +54,7 @@ class UnionOperator extends NaryOperator[UnionDesc] {
 
     // whether we need to do transformation for each parent
     var parents = parentOperators.length
-    var outputOI = outputObjectInspector()
+    var outputOI = outputObjectInspector
     needsTransform = Array.tabulate[Boolean](objectInspectors.length) { i =>
       // ObjectInspectors created by the ObjectInspectorFactory, 
       // which take the same ref if equals
@@ -98,7 +98,7 @@ class UnionOperator extends NaryOperator[UnionDesc] {
     }
   }
 
-  override def outputObjectInspector() = outputObjInspector
+  protected override def createOutputObjectInspector() = outputObjInspector
 
   /**
    * Override execute. The only thing we need to call is combineMultipleRdds().

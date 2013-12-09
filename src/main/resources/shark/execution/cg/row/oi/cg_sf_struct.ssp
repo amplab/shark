@@ -1,0 +1,19 @@
+<% escapeMarkup = false %>
+#import(shark.execution.cg.row.CGOIStruct)
+#import(shark.execution.cg.row.CGField)
+<%@ import val obj: CGOIStruct %>
+  public static final class ${structFieldClassName} extends CGStructField<${dataContainerClassName}, ${dataWritableClass}> {
+    public CGStructField${delegate.name}(int idx) {
+      super("${delegate.name}", ${defCreateOI}, null, idx);
+    }
+    #{val transform = java2Writable("data." + delegate.name, null)}#
+    @Override
+    public ${dataWritableClass} get(${dataContainerClassName} data) {
+      if(data == null || data.${CGField.STRUCT_MASK_VARIABLE_NAME}.get(idx) == false) {
+        return null;
+      }
+      
+      return ${transform};
+    }
+    ${defStructFieldTransform}
+  }

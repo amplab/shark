@@ -1,0 +1,19 @@
+<% escapeMarkup = false %>
+#import(shark.execution.cg.row.CGOIMap)
+<%@ import val obj: CGOIMap %>
+#{
+   val transformKey = key.java2Writable("key", null)
+   val transformValue = value.java2Writable("value", null)
+}#
+public java.util.HashMap<${key.dataWritableClass}, ${value.dataWritableClass}> ${delegate.name}_transform(java.util.HashMap<${key.dataJavaClass}, ${value.dataJavaClass}> map) {
+  java.util.HashMap<${key.dataWritableClass}, ${value.dataWritableClass}> result = new java.util.HashMap<${key.dataWritableClass}, ${value.dataWritableClass}>();
+  for(java.util.Map.Entry<${key.dataJavaClass}, ${value.dataJavaClass}> entry : map.entrySet()) {
+    ${key.dataJavaClass} key = entry.getKey();
+    ${value.dataJavaClass} value = entry.getValue();
+    result.put(${transformKey}, ${transformValue});
+  }
+
+  return result;
+}
+${key.defStructFieldTransform}
+${value.defStructFieldTransform}

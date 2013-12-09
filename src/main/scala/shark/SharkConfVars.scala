@@ -51,6 +51,9 @@ object SharkConfVars {
 
   // If true, then query plans are compressed before being sent
   val COMPRESS_QUERY_PLAN = new ConfVar("shark.queryPlan.compress", true)
+  
+  // If true, then the query will use the code generation for query engine 
+  val QUERY_CG = new ConfVar("shark.query.cg", true)
 
   // Add Shark configuration variables and their default values to the given conf,
   // so default values show up in 'set'.
@@ -79,6 +82,9 @@ object SharkConfVars {
     }
     if (conf.get(MAP_PRUNING_PRINT_DEBUG.varname) == null) {
       conf.setBoolean(MAP_PRUNING_PRINT_DEBUG.varname, MAP_PRUNING_PRINT_DEBUG.defaultBoolVal)
+    }
+    if (conf.get(QUERY_CG.varname) == null) {
+      conf.setBoolean(QUERY_CG.varname, QUERY_CG.defaultBoolVal)
     }
   }
 

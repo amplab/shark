@@ -158,7 +158,8 @@ class ScriptOperator extends UnaryOperator[ScriptDesc] {
     initializeOnSlave()
   }
 
-  override def outputObjectInspector() = scriptOutputDeserializer.getObjectInspector()
+  protected override def createOutputObjectInspector() = 
+    scriptOutputDeserializer.getObjectInspector()
   
   override def initializeOnSlave() {
     scriptOutputDeserializer = conf.getScriptOutputInfo().getDeserializerClass().newInstance()
