@@ -46,6 +46,7 @@ import org.apache.hadoop.io.IOUtils
 import org.apache.thrift.transport.TSocket
 
 
+import shark.memstore2.TableRecovery
 
 object SharkCliDriver {
 
@@ -77,8 +78,8 @@ object SharkCliDriver {
   }
 
   def main(args: Array[String]) {
-    val hiveArgs = args.filterNot(_.equals("-loadRdds"))
-    val loadRdds = hiveArgs.length < args.length
+    val hiveArgs = args.filterNot(_.equals("-skipRddReload"))
+    val reloadRdds = hiveArgs.length == args.length
     val oproc = new OptionsProcessor()
     if (!oproc.process_stage1(hiveArgs)) {
       System.exit(1)
@@ -157,7 +158,7 @@ object SharkCliDriver {
       Thread.currentThread().setContextClassLoader(loader)
     }
 
-    val cli = new SharkCliDriver(loadRdds)
+    val cli = new SharkCliDriver(reloadRdds)
     cli.setHiveVariables(oproc.getHiveVariables())
 
     // Execute -i init files (always in silent mode)
@@ -248,7 +249,7 @@ object SharkCliDriver {
 }
 
 
-class SharkCliDriver(loadRdds: Boolean = false) extends CliDriver with LogHelper {
+class SharkCliDriver(reloadRdds: Boolean = true) extends CliDriver with LogHelper {
 
   private val ss = SessionState.get().asInstanceOf[CliSessionState]
 
@@ -266,8 +267,8 @@ class SharkCliDriver(loadRdds: Boolean = false) extends CliDriver with LogHelper
     SharkEnv.init()
   }
 
-  if (loadRdds) {
-    CachedTableRecovery.loadAsRdds(processCmd(_))
+  if (reloadRdds) {
+    TableRecovery.reloadRdds(processCmd(_))
   }
 
   def this() = this(false)

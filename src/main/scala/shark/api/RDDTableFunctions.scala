@@ -26,6 +26,7 @@ import shark.{SharkContext, SharkEnv}
 import shark.memstore2.{CacheType, TablePartitionStats, TablePartition, TablePartitionBuilder}
 import shark.util.HiveUtils
 
+
 class RDDTableFunctions(self: RDD[Seq[_]], manifests: Seq[ClassManifest[_]]) {
 
   def saveAsTable(tableName: String, fields: Seq[String]): Boolean = {
@@ -61,7 +62,7 @@ class RDDTableFunctions(self: RDD[Seq[_]], manifests: Seq[ClassManifest[_]]) {
     if (isSucessfulCreateTable) {
       // Create an entry in the MemoryMetadataManager.
       val newTable = SharkEnv.memoryMetadataManager.createMemoryTable(
-        databaseName, tableName, CacheType.HEAP, rdd.getStorageLevel)
+        databaseName, tableName, CacheType.MEMORY)
       newTable.tableRDD = rdd
       try {
         // Force evaluate to put the data in memory.
