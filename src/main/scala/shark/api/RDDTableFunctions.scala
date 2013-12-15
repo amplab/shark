@@ -20,6 +20,7 @@ package shark.api
 import scala.collection.mutable.ArrayBuffer
 
 import org.apache.hadoop.hive.ql.metadata.Hive
+
 import org.apache.spark.rdd.RDD
 
 import shark.{SharkContext, SharkEnv}
