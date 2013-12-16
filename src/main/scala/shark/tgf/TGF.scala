@@ -135,12 +135,12 @@ object TGF {
         throw new QueryExecutionException("TGF lacking apply() method")
       }
 
-      val annotations = applyMethod.get.getAnnotation(classOf[Schema]).spec()
-      if (annotations == None) {
+      val annotations = applyMethod.get.getAnnotation(classOf[Schema])
+      if (annotations == null || annotations.spec() == null) {
         throw new QueryExecutionException("No schema annotation found for TGF")
       }
 
-      val schema = parser.parseAll(parser.schema, annotations)
+      val schema = parser.parseAll(parser.schema, annotations.spec())
       if (schema == None) {
         throw new QueryExecutionException("Error parsing TGF schema annotation (@Schema(spec=...)")
       }
