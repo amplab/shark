@@ -18,7 +18,7 @@
 package shark.util
 
 import java.util.{Arrays => JArrays, ArrayList => JArrayList}
-import java.util.{HashSet => JHashSet}
+import java.util.{HashMap => JHashMap, HashSet => JHashSet}
 import java.util.Properties
 
 import scala.collection.JavaConversions._
@@ -100,7 +100,7 @@ private[shark] object HiveUtils {
     createTableDesc.setTableName(tableName)
     createTableDesc.setCols(new JArrayList[FieldSchema](schema))
     createTableDesc.setTblProps(
-      SharkTblProperties.initializeWithDefaults(createTableDesc.getTblProps))
+      SharkTblProperties.initializeWithDefaults(new JHashMap[String, String]()))
     createTableDesc.setInputFormat("org.apache.hadoop.mapred.TextInputFormat")
     createTableDesc.setOutputFormat("org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat")
     createTableDesc.setSerName(classOf[shark.memstore2.ColumnarSerDe].getName)
