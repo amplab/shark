@@ -31,18 +31,18 @@ import shark.SharkContext
  * This object is responsible for handling TGF (Table Generating Function) commands.
  *
  * -- TGF Commands --
- * generate tgfname(param1, param2, ... , param_n)
- * generate tgfname(param1, param2, ... , param_n) save as tablename
+ * GENERATE tgfname(param1, param2, ... , param_n)
+ * GENERATE tgfname(param1, param2, ... , param_n) AS tablename
  *
  * Parameters can either be of primitive types, e.g. int, or of type RDD[Product].
  * TGF.execute() will use reflection looking for an object of name "tgfname", invoking apply() with the primitive
  * values. If the type of a parameter to apply() is RDD[Product], it will assume the parameter is the name of a table,
  * which it will turn into an RDD before invoking apply().
  *
- * For example, "generate MyObj(25, emp)" will invoke MyObj.apply(25, sc.sql2rdd("select * from emp")), assuming
+ * For example, "GENERATE MyObj(25, emp)" will invoke MyObj.apply(25, sc.sql2rdd("select * from emp")), assuming
  * the TGF object (MyObj) has an apply function that takes an int and an RDD[Product].
  *
- * The "save as" version of the command saves the output in a new table named "tablename", whereas the other version
+ * The "as" version of the command saves the output in a new table named "tablename", whereas the other version
  * returns a ResultSet
  *
  * -- Defining TGF objects --
@@ -82,7 +82,7 @@ object TGF {
 
   /**
    * Executes a TGF command and gives back the ResultSet. Mainly to be used from SharkContext (e.g. runSql())
-   * @param sql TGF command, e.g. "generate name(params)"
+   * @param sql TGF command, e.g. "GENERATE name(params) AS tablename"
    * @param sc SharkContext
    * @return ResultSet containing the results of the command
    */
@@ -259,7 +259,7 @@ private class TGFParser extends JavaTokenParsers {
    * @return Tuple3 containing a table name, TGF method name and a List of parameters as strings
    */
   def saveTgf: Parser[Tuple3[String, String, List[String]]] = {
-    (("GENERATE".ci ~> methodName) ~ (("(" ~> repsep(param, ",")) <~ ")")) ~ (("SAVE".ci ~ "AS".ci) ~>
+    (("GENERATE".ci ~> methodName) ~ (("(" ~> repsep(param, ",")) <~ ")")) ~ (("AS".ci) ~>
       ident) ^^ { case id1 ~ x ~ id2 => (id2, id1, x.asInstanceOf[List[String]]) }
   }
 
