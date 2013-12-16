@@ -94,39 +94,6 @@ class SharkContext(
   }
 
   /**
-   * Takes a table name and generates an RDD of tuples of the right size for it, if more than 22 columns it uses Seqs
-   * @param tableName
-   * @return RDD of either Tuple or Seq (if the table contains more than 22 columns)
-   */
-  def tableRdd(tableName: String): RDD[_] = {
-    val rdd = sql2rdd("SELECT * FROM " + tableName)
-    rdd.schema.size match {
-      case 2 => new TableRDD2(rdd, Seq())
-      case 3 => new TableRDD3(rdd, Seq())
-      case 4 => new TableRDD4(rdd, Seq())
-      case 5 => new TableRDD5(rdd, Seq())
-      case 6 => new TableRDD6(rdd, Seq())
-      case 7 => new TableRDD7(rdd, Seq())
-      case 8 => new TableRDD8(rdd, Seq())
-      case 9 => new TableRDD9(rdd, Seq())
-      case 10 => new TableRDD10(rdd, Seq())
-      case 11 => new TableRDD11(rdd, Seq())
-      case 12 => new TableRDD12(rdd, Seq())
-      case 13 => new TableRDD13(rdd, Seq())
-      case 14 => new TableRDD14(rdd, Seq())
-      case 15 => new TableRDD15(rdd, Seq())
-      case 16 => new TableRDD16(rdd, Seq())
-      case 17 => new TableRDD17(rdd, Seq())
-      case 18 => new TableRDD18(rdd, Seq())
-      case 19 => new TableRDD19(rdd, Seq())
-      case 20 => new TableRDD20(rdd, Seq())
-      case 21 => new TableRDD21(rdd, Seq())
-      case 22 => new TableRDD22(rdd, Seq())
-      case _ => new TableSeqRDD(rdd)
-    }
-  }
-
-  /**
    * Execute a SQL command and return the results as a TableRDD. The SQL command must be
    * a SELECT statement.
    */

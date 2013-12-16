@@ -27,49 +27,90 @@ import org.apache.spark.rdd.RDD
 import shark.api._
 import shark.SharkContext
 
-case class RDDSchema(rdd: RDD[Seq[_]], schema: String)
-
-private class TGFParser extends JavaTokenParsers {
-
-  /* Code to enable case-insensitive modifiers to strings, e.g. "DataBricks".ci will match "databricks" */
-  class MyString(str: String) {
-    def ci: Parser[String] = ("(?i)" + str).r
-  }
-
-  implicit def stringToRichString(str: String): MyString = new MyString(str)
-
-  def tgf: Parser[Any] = saveTgf | basicTgf
-
-  /**
-   * @return Tuple2 containing a TGF method name and a List of parameters as strings
-   */
-  def basicTgf: Parser[Tuple2[String, List[String]]] = {
-    ("GENERATE".ci  ~> methodName) ~ (("(" ~> repsep(param, ",")) <~ ")") ^^
-      { case id1 ~ x => (id1, x.asInstanceOf[List[String]]) }
-  }
-
-  /**
-   * @return Tuple3 containing a table name, TGF method name and a List of parameters as strings
-   */
-  def saveTgf: Parser[Tuple3[String, String, List[String]]] = {
-    (("GENERATE".ci ~> methodName) ~ (("(" ~> repsep(param, ",")) <~ ")")) ~ (("SAVE".ci ~ "AS".ci) ~>
-      ident) ^^ { case id1 ~ x ~ id2 => (id2, id1, x.asInstanceOf[List[String]]) }
-  }
-
-  def schema: Parser[Seq[Tuple2[String,String]]] = repsep(nameType, ",")
-
-  def nameType: Parser[Tuple2[String,String]] = ident ~ ident ^^ { case name~tpe => Tuple2(name, tpe) }
-
-  def param: Parser[Any] = stringLiteral | floatingPointNumber | decimalNumber | ident |
-    failure("Expected a string, number, or identifier as parameters in TGF")
-
-  def methodName: Parser[String] =
-    """[a-zA-Z_][\w\.]*""".r
-}
+/**
+ * This object is responsible for handling TGF (Table Generating Function) commands.
+ *
+ * -- TGF Commands --
+ * generate tgfname(param1, param2, ... , param_n)
+ * generate tgfname(param1, param2, ... , param_n) save as tablename
+ *
+ * Parameters can either be of primitive types, e.g. int, or of type RDD[Product].
+ * TGF.execute() will use reflection looking for an object of name "tgfname", invoking apply() with the primitive
+ * values. If the type of a parameter to apply() is RDD[Product], it will assume the parameter is the name of a table,
+ * which it will turn into an RDD before invoking apply().
+ *
+ * For example, "generate MyObj(25, emp)" will invoke MyObj.apply(25, sc.sql2rdd("select * from emp")), assuming
+ * the TGF object (MyObj) has an apply function that takes an int and an RDD[Product].
+ *
+ * The "save as" version of the command saves the output in a new table named "tablename", whereas the other version
+ * returns a ResultSet
+ *
+ * -- Defining TGF objects --
+ * TGF objects need to have an apply() function and take an arbitrary number of either primitive or RDD[Product] typed
+ * parameters. The apply() function should either return an RDD[Product] or RDDSchema. When the former case is used,
+ * the returned table's schema and column names need to be defined through a Java annotation called @Schema. Here is
+ * a short example:
+ *
+ * object MyTGF1 {
+ *  \@Schema(spec = "name string, age int")
+ *   def apply(table1: RDD[(String, String, Int)]): RDD[Product] = {
+ *     // code that manipulates table1 and returns a new RDD of tuples
+ *   }
+ * }
+ *
+ * Sometimes, the TGF dynamically determines the number or types of columns returned. In this case, the TGF can
+ * use the RDDSchema return type instead of Java annotations. RDDSchema simply contains a schema string and an RDD
+ * of results. For example:
+ *
+ * object MyTGF2 {
+ *   \@Schema(spec = "name string, age int")
+ *   def apply(table1: RDD[(String, String, Int)]): RDD[Product] = {
+ *     // code that manipulates table1 and creates a result rdd
+ *     return RDDSchema(rdd.asInstanceOf[RDD[Seq[_]]], "name string, age int")
+ *   }
+ * }
+ *
+ * Sometimes the TGF needs to internally make SQL calls. For that, it needs access to a SharkContext object. Therefore,
+ *   def apply(sc: SharkContext, table1: RDD[(String, String, Int)]): RDD[Product] = {
+ *     // code that can use sc, for example by calling sc.sql2rdd()
+ *     // code that manipulates table1 and returns a new RDD of tuples
+ *   }
+ */
 
 object TGF {
-
   private val parser = new TGFParser
+
+  /**
+   * Executes a TGF command and gives back the ResultSet. Mainly to be used from SharkContext (e.g. runSql())
+   * @param sql TGF command, e.g. "generate name(params)"
+   * @param sc SharkContext
+   * @return ResultSet containing the results of the command
+   */
+  def execute(sql: String, sc: SharkContext): ResultSet = {
+    val ast = parser.parseAll(parser.tgf, sql).getOrElse{throw new QueryExecutionException("TGF parse error: "+ sql)}
+
+    val (tableNameOpt, tgfName, params) = ast match {
+      case Tuple2(tgfName, params) => (None, tgfName.asInstanceOf[String], params.asInstanceOf[List[String]])
+      case Tuple3(tableName, tgfName, params) => (Some(tableName.asInstanceOf[String]), tgfName.asInstanceOf[String],
+        params.asInstanceOf[List[String]])
+    }
+
+    val obj = reflectInvoke(tgfName, params, sc)
+    val (rdd, schema) = getSchema(obj, tgfName)
+
+    val (sharkSchema, resultArr) = tableNameOpt match {
+      case Some(tableName) =>  // materialize results
+        val helper = new RDDTableFunctions(rdd, schema.map{ case (_, tpe) => toManifest(tpe)})
+        helper.saveAsTable(tableName, schema.map{ case (name, _) => name})
+        (Array[ColumnDesc](), Array[Array[Object]]())
+
+      case None =>  // return results
+        val newSchema = schema.map{ case (name, tpe) => new ColumnDesc(name, DataTypes.fromManifest(toManifest(tpe)))}
+        val res = rdd.collect().map{p => p.map( _.asInstanceOf[Object] ).toArray}
+        (newSchema.toArray, res)
+    }
+    new ResultSet(sharkSchema, resultArr)
+  }
 
   private def getMethod(tgfName: String, methodName: String) = {
     val tgfClazz = try {
@@ -81,10 +122,6 @@ object TGF {
     val methods = tgfClazz.getDeclaredMethods.filter(_.getName == methodName)
     if (methods.isEmpty) None else Some(methods(0))
   }
-
-  //  private def isOfType(obj: AnyRef, typeString: String) = {
-  //    obj.getClass.getTy
-  //  }
 
   private def getSchema(tgfOutput: Object, tgfName: String): Tuple2[RDD[Seq[_]], Seq[Tuple2[String,String]]] = {
     if (tgfOutput.isInstanceOf[RDDSchema]) {
@@ -138,7 +175,7 @@ object TGF {
 
     val params = (augParams.toList zip typeNames.toList).map {
       case (param: String, tpe: String) if (tpe.startsWith("class shark.SharkContext")) => sc
-      case (param: String, tpe: String) if (tpe.startsWith("class org.apache.spark.rdd.RDD")) => sc.tableRdd(param)
+      case (param: String, tpe: String) if (tpe.startsWith("class org.apache.spark.rdd.RDD")) => tableRdd(sc, param)
       case (param: String, tpe: String) if (tpe.startsWith("long")) => param.toLong
       case (param: String, tpe: String) if (tpe.startsWith("int")) => param.toInt
       case (param: String, tpe: String) if (tpe.startsWith("double")) => param.toDouble
@@ -150,32 +187,6 @@ object TGF {
     }
 
     applyMethod.invoke(null, params.asInstanceOf[List[Object]]:_*)
-  }
-
-  def execute(sql: String, sc: SharkContext): ResultSet = {
-    val ast = parser.parseAll(parser.tgf, sql).getOrElse{throw new QueryExecutionException("TGF parse error: "+ sql)}
-
-    val (tableNameOpt, tgfName, params) = ast match {
-      case Tuple2(tgfName, params) => (None, tgfName.asInstanceOf[String], params.asInstanceOf[List[String]])
-      case Tuple3(tableName, tgfName, params) => (Some(tableName.asInstanceOf[String]), tgfName.asInstanceOf[String],
-        params.asInstanceOf[List[String]])
-    }
-
-    val obj = reflectInvoke(tgfName, params, sc)
-    val (rdd, schema) = getSchema(obj, tgfName)
-
-    val (sharkSchema, resultArr) = tableNameOpt match {
-      case Some(tableName) =>  // materialize results
-        val helper = new RDDTableFunctions(rdd, schema.map{ case (_, tpe) => toManifest(tpe)})
-        helper.saveAsTable(tableName, schema.map{ case (name, _) => name})
-        (Array[ColumnDesc](), Array[Array[Object]]())
-
-      case None =>  // return results
-        val newSchema = schema.map{ case (name, tpe) => new ColumnDesc(name, DataTypes.fromManifest(toManifest(tpe)))}
-        val res = rdd.collect().map{p => p.map( _.asInstanceOf[Object] ).toArray}
-        (newSchema.toArray, res)
-    }
-    new ResultSet(sharkSchema, resultArr)
   }
 
   private def toManifest(tpe: String): ClassManifest[_] = {
@@ -193,4 +204,72 @@ object TGF {
       throw new QueryExecutionException("Unknown column type specified in schema (" + tpe + ")")
     }
   }
+
+  def tableRdd(sc: SharkContext, tableName: String): RDD[_] = {
+    val rdd = sc.sql2rdd("SELECT * FROM " + tableName)
+    rdd.schema.size match {
+      case 2 => new TableRDD2(rdd, Seq())
+      case 3 => new TableRDD3(rdd, Seq())
+      case 4 => new TableRDD4(rdd, Seq())
+      case 5 => new TableRDD5(rdd, Seq())
+      case 6 => new TableRDD6(rdd, Seq())
+      case 7 => new TableRDD7(rdd, Seq())
+      case 8 => new TableRDD8(rdd, Seq())
+      case 9 => new TableRDD9(rdd, Seq())
+      case 10 => new TableRDD10(rdd, Seq())
+      case 11 => new TableRDD11(rdd, Seq())
+      case 12 => new TableRDD12(rdd, Seq())
+      case 13 => new TableRDD13(rdd, Seq())
+      case 14 => new TableRDD14(rdd, Seq())
+      case 15 => new TableRDD15(rdd, Seq())
+      case 16 => new TableRDD16(rdd, Seq())
+      case 17 => new TableRDD17(rdd, Seq())
+      case 18 => new TableRDD18(rdd, Seq())
+      case 19 => new TableRDD19(rdd, Seq())
+      case 20 => new TableRDD20(rdd, Seq())
+      case 21 => new TableRDD21(rdd, Seq())
+      case 22 => new TableRDD22(rdd, Seq())
+      case _ => new TableSeqRDD(rdd)
+    }
+  }
+}
+
+case class RDDSchema(rdd: RDD[Seq[_]], schema: String)
+
+private class TGFParser extends JavaTokenParsers {
+
+  /* Code to enable case-insensitive modifiers to strings, e.g. "DataBricks".ci will match "databricks" */
+  class MyString(str: String) {
+    def ci: Parser[String] = ("(?i)" + str).r
+  }
+
+  implicit def stringToRichString(str: String): MyString = new MyString(str)
+
+  def tgf: Parser[Any] = saveTgf | basicTgf
+
+  /**
+   * @return Tuple2 containing a TGF method name and a List of parameters as strings
+   */
+  def basicTgf: Parser[Tuple2[String, List[String]]] = {
+    ("GENERATE".ci  ~> methodName) ~ (("(" ~> repsep(param, ",")) <~ ")") ^^
+      { case id1 ~ x => (id1, x.asInstanceOf[List[String]]) }
+  }
+
+  /**
+   * @return Tuple3 containing a table name, TGF method name and a List of parameters as strings
+   */
+  def saveTgf: Parser[Tuple3[String, String, List[String]]] = {
+    (("GENERATE".ci ~> methodName) ~ (("(" ~> repsep(param, ",")) <~ ")")) ~ (("SAVE".ci ~ "AS".ci) ~>
+      ident) ^^ { case id1 ~ x ~ id2 => (id2, id1, x.asInstanceOf[List[String]]) }
+  }
+
+  def schema: Parser[Seq[Tuple2[String,String]]] = repsep(nameType, ",")
+
+  def nameType: Parser[Tuple2[String,String]] = ident ~ ident ^^ { case name~tpe => Tuple2(name, tpe) }
+
+  def param: Parser[Any] = stringLiteral | floatingPointNumber | decimalNumber | ident |
+    failure("Expected a string, number, or identifier as parameters in TGF")
+
+  def methodName: Parser[String] =
+    """[a-zA-Z_][\w\.]*""".r
 }
