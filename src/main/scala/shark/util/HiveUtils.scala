@@ -17,8 +17,8 @@
 
 package shark.util
 
-import java.util.{Arrays => JavaArrays, ArrayList => JavaArrayList}
-import java.util.{HashSet => JHashSet}
+import java.util.{Arrays => JArrays, ArrayList => JArrayList}
+import java.util.{HashMap => JHashMap, HashSet => JHashSet}
 import java.util.Properties
 
 import scala.collection.JavaConversions._
@@ -67,8 +67,8 @@ private[shark] object HiveUtils {
       partProps: Properties,
       partSerDe: Deserializer): UnionStructObjectInspector = {
     val partCols = partProps.getProperty(META_TABLE_PARTITION_COLUMNS)
-    val partColNames = new JavaArrayList[String]
-    val partColObjectInspectors = new JavaArrayList[ObjectInspector]
+    val partColNames = new JArrayList[String]
+    val partColObjectInspectors = new JArrayList[ObjectInspector]
     partCols.trim().split("/").foreach { colName =>
       partColNames.add(colName)
       partColObjectInspectors.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector)
@@ -76,7 +76,7 @@ private[shark] object HiveUtils {
 
     val partColObjectInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
       partColNames, partColObjectInspectors)
-    val oiList = JavaArrays.asList(
+    val oiList = JArrays.asList(
       partSerDe.getObjectInspector.asInstanceOf[StructObjectInspector],
       partColObjectInspector.asInstanceOf[StructObjectInspector])
     // New oi is union of table + partition object inspectors
@@ -98,9 +98,9 @@ private[shark] object HiveUtils {
     // Setup the create table descriptor with necessary information.
     val createTableDesc = new CreateTableDesc()
     createTableDesc.setTableName(tableName)
-    createTableDesc.setCols(new JavaArrayList[FieldSchema](schema))
+    createTableDesc.setCols(new JArrayList[FieldSchema](schema))
     createTableDesc.setTblProps(
-      SharkTblProperties.initializeWithDefaults(createTableDesc.getTblProps))
+      SharkTblProperties.initializeWithDefaults(new JHashMap[String, String]()))
     createTableDesc.setInputFormat("org.apache.hadoop.mapred.TextInputFormat")
     createTableDesc.setOutputFormat("org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat")
     createTableDesc.setSerName(classOf[shark.memstore2.ColumnarSerDe].getName)
