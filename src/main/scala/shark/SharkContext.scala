@@ -31,9 +31,10 @@ import org.apache.hadoop.hive.ql.processors.CommandProcessorResponse
 import org.apache.hadoop.hive.ql.session.SessionState
 
 import org.apache.spark.{SparkContext, SparkEnv}
+import org.apache.spark.rdd.RDD
 
 import shark.api._
-import org.apache.spark.rdd.RDD
+import shark.tgf.TGF
 
 
 class SharkContext(
@@ -284,6 +285,10 @@ class SharkContext(
    * @return A ResultSet object with both the schema and the query results.
    */
   def runSql(cmd: String, maxRows: Int = 1000): ResultSet = {
+    if (cmd.trim.toLowerCase().startsWith("generate")) {
+      return TGF.execute(cmd.trim, this)
+    }
+
     SparkEnv.set(sparkEnv)
 
     val cmd_trimmed: String = cmd.trim()
