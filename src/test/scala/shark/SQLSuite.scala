@@ -33,6 +33,7 @@ import org.apache.spark.storage.StorageLevel
 import shark.api.QueryExecutionException
 import shark.memstore2.{CacheType, MemoryMetadataManager, PartitionedMemoryTable}
 import shark.tgf.{RDDSchema, Schema}
+import scala.util.Try
 
 class SQLSuite extends FunSuite with BeforeAndAfterAll {
 
@@ -1155,13 +1156,26 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
   //////////////////////////////////////////////////////////////////////////////
 
   test("Simple TGFs") {
-    expectSql("generate shark.TestTGF1(test, 15)", Array(15,15,15,17,19).map(_.toString).toArray )
+    expectSql("generate shark.TestTGF1(test, 15)", Array(15,15,15,17,19).map(_.toString).toArray)
   }
 
-  test("Advanced TGFs with SharkContext and dynamic schemas") {
-    expectSql("generate shark.TestTGF2(test, 25)", Array(25,25,25,27,29).map(_.toString).toArray )
+  test("Saving simple TGFs") {
+    sc.sql("drop table if exists TGFTestTable")
+    sc.runSql("generate shark.TestTGF1(test, 15) as TGFTestTable")
+    expectSql("select * from TGFTestTable", Array(15,15,15,17,19).map(_.toString).toArray)
+    sc.sql("drop table if exists TGFTestTable")
   }
 
+  test("Advanced TGFs") {
+    expectSql("generate shark.TestTGF2(test, 25)", Array(25,25,25,27,29).map(_.toString).toArray)
+  }
+
+  test("Saving advanced TGFs") {
+    sc.sql("drop table if exists TGFTestTable2")
+    sc.runSql("generate shark.TestTGF2(test, 25) as TGFTestTable2")
+    expectSql("select * from TGFTestTable2", Array(25,25,25,27,29).map(_.toString).toArray)
+    sc.sql("drop table if exists TGFTestTable2")
+  }
 }
 
 object TestTGF1 {
