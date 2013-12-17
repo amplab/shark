@@ -18,6 +18,7 @@
 package shark.execution
 
 import scala.collection.JavaConversions
+import scala.reflect.ClassTag
 
 import com.google.common.collect.{Ordering => GOrdering}
 
@@ -37,7 +38,7 @@ object RDDUtils {
    * Returns a UnionRDD using both RDD arguments. Any UnionRDD argument is "flattened", in that
    * its parent sequence of RDDs is directly passed to the UnionRDD returned.
    */
-  def unionAndFlatten[T: ClassManifest](
+  def unionAndFlatten[T: ClassTag](
     rdd: RDD[T],
     otherRdd: RDD[T]): UnionRDD[T] = {
     val otherRdds: Seq[RDD[T]] = otherRdd match {
@@ -72,7 +73,7 @@ object RDDUtils {
    * Repartition an RDD using the given partitioner. This is similar to Spark's partitionBy,
    * except we use the Shark shuffle serializer.
    */
-  def repartition[K: ClassManifest, V: ClassManifest](rdd: RDD[(K, V)], part: Partitioner)
+  def repartition[K: ClassTag, V: ClassTag](rdd: RDD[(K, V)], part: Partitioner)
     : RDD[(K, V)] =
   {
     new ShuffledRDD[K, V, (K, V)](rdd, part).setSerializer(SharkEnv.shuffleSerializerName)
@@ -82,7 +83,7 @@ object RDDUtils {
    * Sort the RDD by key. This is similar to Spark's sortByKey, except that we use
    * the Shark shuffle serializer.
    */
-  def sortByKey[K <: Comparable[K]: ClassManifest, V: ClassManifest](rdd: RDD[(K, V)])
+  def sortByKey[K <: Comparable[K]: ClassTag, V: ClassTag](rdd: RDD[(K, V)])
     : RDD[(K, V)] =
   {
     val part = new RangePartitioner(rdd.partitions.length, rdd)
@@ -97,7 +98,7 @@ object RDDUtils {
   /**
    * Return an RDD containing the top K (K smallest key) from the given RDD.
    */
-  def topK[K <: Comparable[K]: ClassManifest, V: ClassManifest](rdd: RDD[(K, V)], k: Int)
+  def topK[K <: Comparable[K]: ClassTag, V: ClassTag](rdd: RDD[(K, V)], k: Int)
     : RDD[(K, V)] =
   {
     // First take top K on each partition.
@@ -109,7 +110,7 @@ object RDDUtils {
   /**
    * Take top K on each partition and return a new RDD.
    */
-  def partitionTopK[K <: Comparable[K]: ClassManifest, V: ClassManifest](
+  def partitionTopK[K <: Comparable[K]: ClassTag, V: ClassTag](
     rdd: RDD[(K, V)], k: Int): RDD[(K, V)] = {
     rdd.mapPartitions(iter => topK(iter, k))
   }
@@ -117,7 +118,7 @@ object RDDUtils {
   /**
    * Return top K elements out of an iterator.
    */
-  private def topK[K <: Comparable[K]: ClassManifest, V: ClassManifest](
+  private def topK[K <: Comparable[K]: ClassTag, V: ClassTag](
     it: Iterator[(K, V)], k: Int): Iterator[(K, V)]  = {
     val ordering = new GOrdering[(K,V)] {
       override def compare(l: (K, V), r: (K, V)) = {

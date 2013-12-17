@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
@@ -17,116 +18,119 @@
 
 package shark.api
 
-// *** This file is auto-generated from rddtable_generator.py ***
+// *** This file is auto-generated from RDDTable_generator.py ***
+
+import scala.language.implicitConversions
 
 import org.apache.spark.rdd.RDD
+import scala.reflect.ClassTag
 
 object RDDTableImplicits {
-  private type M[T] = ClassManifest[T]
+  private type C[T] = ClassTag[T]
 
 
-  implicit def rddToTable2[T1: M, T2: M]
+  implicit def rddToTable2[T1: C, T2: C]
   (rdd: RDD[(T1, T2)]): RDDTableFunctions = RDDTable(rdd)
 
 
-  implicit def rddToTable3[T1: M, T2: M, T3: M]
+  implicit def rddToTable3[T1: C, T2: C, T3: C]
   (rdd: RDD[(T1, T2, T3)]): RDDTableFunctions = RDDTable(rdd)
 
 
-  implicit def rddToTable4[T1: M, T2: M, T3: M, T4: M]
+  implicit def rddToTable4[T1: C, T2: C, T3: C, T4: C]
   (rdd: RDD[(T1, T2, T3, T4)]): RDDTableFunctions = RDDTable(rdd)
 
 
-  implicit def rddToTable5[T1: M, T2: M, T3: M, T4: M, T5: M]
+  implicit def rddToTable5[T1: C, T2: C, T3: C, T4: C, T5: C]
   (rdd: RDD[(T1, T2, T3, T4, T5)]): RDDTableFunctions = RDDTable(rdd)
 
 
-  implicit def rddToTable6[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M]
+  implicit def rddToTable6[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C]
   (rdd: RDD[(T1, T2, T3, T4, T5, T6)]): RDDTableFunctions = RDDTable(rdd)
 
 
-  implicit def rddToTable7[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M]
+  implicit def rddToTable7[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C]
   (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7)]): RDDTableFunctions = RDDTable(rdd)
 
 
-  implicit def rddToTable8[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M]
+  implicit def rddToTable8[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C]
   (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8)]): RDDTableFunctions = RDDTable(rdd)
 
 
-  implicit def rddToTable9[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M]
+  implicit def rddToTable9[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C]
   (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9)]): RDDTableFunctions = RDDTable(rdd)
 
 
-  implicit def rddToTable10[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M]
+  implicit def rddToTable10[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C, T10: C]
   (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)]): RDDTableFunctions = RDDTable(rdd)
 
 
-  implicit def rddToTable11[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M,
-  T11: M]
+  implicit def rddToTable11[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C, T10: C, 
+    T11: C]
   (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)]): RDDTableFunctions = RDDTable(rdd)
 
 
-  implicit def rddToTable12[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M,
-  T11: M, T12: M]
+  implicit def rddToTable12[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C, T10: C, 
+    T11: C, T12: C]
   (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12)]): RDDTableFunctions = RDDTable(rdd)
 
 
-  implicit def rddToTable13[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M,
-  T11: M, T12: M, T13: M]
+  implicit def rddToTable13[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C, T10: C, 
+    T11: C, T12: C, T13: C]
   (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13)]): RDDTableFunctions = RDDTable(rdd)
 
 
-  implicit def rddToTable14[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M,
-  T11: M, T12: M, T13: M, T14: M]
+  implicit def rddToTable14[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C, T10: C, 
+    T11: C, T12: C, T13: C, T14: C]
   (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14)]): RDDTableFunctions = RDDTable(rdd)
 
 
-  implicit def rddToTable15[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M,
-  T11: M, T12: M, T13: M, T14: M, T15: M]
+  implicit def rddToTable15[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C, T10: C, 
+    T11: C, T12: C, T13: C, T14: C, T15: C]
   (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15)]): RDDTableFunctions = RDDTable(rdd)
 
 
-  implicit def rddToTable16[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M,
-  T11: M, T12: M, T13: M, T14: M, T15: M, T16: M]
+  implicit def rddToTable16[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C, T10: C, 
+    T11: C, T12: C, T13: C, T14: C, T15: C, T16: C]
   (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16)]): RDDTableFunctions = RDDTable(rdd)
 
 
-  implicit def rddToTable17[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M,
-  T11: M, T12: M, T13: M, T14: M, T15: M, T16: M, T17: M]
-  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
+  implicit def rddToTable17[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C, T10: C, 
+    T11: C, T12: C, T13: C, T14: C, T15: C, T16: C, T17: C]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
     T17)]): RDDTableFunctions = RDDTable(rdd)
 
 
-  implicit def rddToTable18[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M,
-  T11: M, T12: M, T13: M, T14: M, T15: M, T16: M, T17: M, T18: M]
-  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
+  implicit def rddToTable18[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C, T10: C, 
+    T11: C, T12: C, T13: C, T14: C, T15: C, T16: C, T17: C, T18: C]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
     T17, T18)]): RDDTableFunctions = RDDTable(rdd)
 
 
-  implicit def rddToTable19[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M,
-  T11: M, T12: M, T13: M, T14: M, T15: M, T16: M, T17: M, T18: M, T19: M]
-  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
+  implicit def rddToTable19[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C, T10: C, 
+    T11: C, T12: C, T13: C, T14: C, T15: C, T16: C, T17: C, T18: C, T19: C]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
     T17, T18, T19)]): RDDTableFunctions = RDDTable(rdd)
 
 
-  implicit def rddToTable20[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M,
-  T11: M, T12: M, T13: M, T14: M, T15: M, T16: M, T17: M, T18: M, T19: M,
-  T20: M]
-  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
+  implicit def rddToTable20[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C, T10: C, 
+    T11: C, T12: C, T13: C, T14: C, T15: C, T16: C, T17: C, T18: C, T19: C, 
+    T20: C]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
     T17, T18, T19, T20)]): RDDTableFunctions = RDDTable(rdd)
 
 
-  implicit def rddToTable21[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M,
-  T11: M, T12: M, T13: M, T14: M, T15: M, T16: M, T17: M, T18: M, T19: M,
-  T20: M, T21: M]
-  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
+  implicit def rddToTable21[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C, T10: C, 
+    T11: C, T12: C, T13: C, T14: C, T15: C, T16: C, T17: C, T18: C, T19: C, 
+    T20: C, T21: C]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
     T17, T18, T19, T20, T21)]): RDDTableFunctions = RDDTable(rdd)
 
 
-  implicit def rddToTable22[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M,
-  T11: M, T12: M, T13: M, T14: M, T15: M, T16: M, T17: M, T18: M, T19: M,
-  T20: M, T21: M, T22: M]
-  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
+  implicit def rddToTable22[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C, T10: C, 
+    T11: C, T12: C, T13: C, T14: C, T15: C, T16: C, T17: C, T18: C, T19: C, 
+    T20: C, T21: C, T22: C]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
     T17, T18, T19, T20, T21, T22)]): RDDTableFunctions = RDDTable(rdd)
 
 
@@ -134,210 +138,213 @@ object RDDTableImplicits {
 
 object RDDTable {
 
-  private type M[T] = ClassManifest[T]
-  private def m[T](implicit m : ClassManifest[T]) = classManifest[T](m)
+  private type C[T] = ClassTag[T]
+  private def ct[T](implicit c : ClassTag[T]) = c
 
-  def apply[T1: M, T2: M]
+  def apply[T1: C, T2: C]
   (rdd: RDD[(T1, T2)]) = {
-    val cm = implicitly[Manifest[Seq[Any]]]
-    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(cm)
-    new RDDTableFunctions(rddSeq, Seq(m[T1], m[T2]))
+    val classTag = implicitly[ClassTag[Seq[Any]]]
+    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(classTag)
+    new RDDTableFunctions(rddSeq, Seq(ct[T1], ct[T2]))
   }
 
 
-  def apply[T1: M, T2: M, T3: M]
+  def apply[T1: C, T2: C, T3: C]
   (rdd: RDD[(T1, T2, T3)]) = {
-    val cm = implicitly[Manifest[Seq[Any]]]
-    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(cm)
-    new RDDTableFunctions(rddSeq, Seq(m[T1], m[T2], m[T3]))
+    val classTag = implicitly[ClassTag[Seq[Any]]]
+    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(classTag)
+    new RDDTableFunctions(rddSeq, Seq(ct[T1], ct[T2], ct[T3]))
   }
 
 
-  def apply[T1: M, T2: M, T3: M, T4: M]
+  def apply[T1: C, T2: C, T3: C, T4: C]
   (rdd: RDD[(T1, T2, T3, T4)]) = {
-    val cm = implicitly[Manifest[Seq[Any]]]
-    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(cm)
-    new RDDTableFunctions(rddSeq, Seq(m[T1], m[T2], m[T3], m[T4]))
+    val classTag = implicitly[ClassTag[Seq[Any]]]
+    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(classTag)
+    new RDDTableFunctions(rddSeq, Seq(ct[T1], ct[T2], ct[T3], ct[T4]))
   }
 
 
-  def apply[T1: M, T2: M, T3: M, T4: M, T5: M]
+  def apply[T1: C, T2: C, T3: C, T4: C, T5: C]
   (rdd: RDD[(T1, T2, T3, T4, T5)]) = {
-    val cm = implicitly[Manifest[Seq[Any]]]
-    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(cm)
-    new RDDTableFunctions(rddSeq, Seq(m[T1], m[T2], m[T3], m[T4], m[T5]))
+    val classTag = implicitly[ClassTag[Seq[Any]]]
+    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(classTag)
+    new RDDTableFunctions(rddSeq, Seq(ct[T1], ct[T2], ct[T3], ct[T4], ct[T5]))
   }
 
 
-  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M]
+  def apply[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C]
   (rdd: RDD[(T1, T2, T3, T4, T5, T6)]) = {
-    val cm = implicitly[Manifest[Seq[Any]]]
-    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(cm)
-    new RDDTableFunctions(rddSeq, Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6]))
+    val classTag = implicitly[ClassTag[Seq[Any]]]
+    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(classTag)
+    new RDDTableFunctions(rddSeq, Seq(ct[T1], ct[T2], ct[T3], ct[T4], ct[T5], ct[T6]))
   }
 
 
-  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M]
+  def apply[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C]
   (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7)]) = {
-    val cm = implicitly[Manifest[Seq[Any]]]
-    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(cm)
-    new RDDTableFunctions(rddSeq, Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7]))
+    val classTag = implicitly[ClassTag[Seq[Any]]]
+    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(classTag)
+    new RDDTableFunctions(rddSeq, Seq(ct[T1], ct[T2], ct[T3], ct[T4], ct[T5], ct[T6], ct[T7]))
   }
 
 
-  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M]
+  def apply[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C]
   (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8)]) = {
-    val cm = implicitly[Manifest[Seq[Any]]]
-    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(cm)
-    new RDDTableFunctions(rddSeq, Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8]))
+    val classTag = implicitly[ClassTag[Seq[Any]]]
+    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(classTag)
+    new RDDTableFunctions(rddSeq, Seq(ct[T1], ct[T2], ct[T3], ct[T4], ct[T5], ct[T6], ct[T7], ct[T8]))
   }
 
 
-  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M]
+  def apply[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C]
   (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9)]) = {
-    val cm = implicitly[Manifest[Seq[Any]]]
-    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(cm)
-    new RDDTableFunctions(rddSeq, Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9]))
+    val classTag = implicitly[ClassTag[Seq[Any]]]
+    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(classTag)
+    new RDDTableFunctions(rddSeq, Seq(ct[T1], ct[T2], ct[T3], ct[T4], ct[T5], ct[T6], ct[T7], ct[T8], ct[T9]))
   }
 
 
-  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M]
+  def apply[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C, T10: C]
   (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)]) = {
-    val cm = implicitly[Manifest[Seq[Any]]]
-    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(cm)
-    new RDDTableFunctions(rddSeq, Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10]))
+    val classTag = implicitly[ClassTag[Seq[Any]]]
+    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(classTag)
+    new RDDTableFunctions(rddSeq, Seq(ct[T1], ct[T2], ct[T3], ct[T4], ct[T5], ct[T6], ct[T7], ct[T8], ct[T9], 
+    ct[T10]))
   }
 
 
-  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M,
-  T11: M]
+  def apply[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C, T10: C, 
+    T11: C]
   (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)]) = {
-    val cm = implicitly[Manifest[Seq[Any]]]
-    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(cm)
-    new RDDTableFunctions(rddSeq, Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10],
-      m[T11]))
+    val classTag = implicitly[ClassTag[Seq[Any]]]
+    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(classTag)
+    new RDDTableFunctions(rddSeq, Seq(ct[T1], ct[T2], ct[T3], ct[T4], ct[T5], ct[T6], ct[T7], ct[T8], ct[T9], 
+    ct[T10], ct[T11]))
   }
 
 
-  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M,
-  T11: M, T12: M]
+  def apply[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C, T10: C, 
+    T11: C, T12: C]
   (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12)]) = {
-    val cm = implicitly[Manifest[Seq[Any]]]
-    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(cm)
-    new RDDTableFunctions(rddSeq, Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10],
-      m[T11], m[T12]))
+    val classTag = implicitly[ClassTag[Seq[Any]]]
+    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(classTag)
+    new RDDTableFunctions(rddSeq, Seq(ct[T1], ct[T2], ct[T3], ct[T4], ct[T5], ct[T6], ct[T7], ct[T8], ct[T9], 
+    ct[T10], ct[T11], ct[T12]))
   }
 
 
-  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M,
-  T11: M, T12: M, T13: M]
+  def apply[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C, T10: C, 
+    T11: C, T12: C, T13: C]
   (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13)]) = {
-    val cm = implicitly[Manifest[Seq[Any]]]
-    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(cm)
-    new RDDTableFunctions(rddSeq, Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10],
-      m[T11], m[T12], m[T13]))
+    val classTag = implicitly[ClassTag[Seq[Any]]]
+    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(classTag)
+    new RDDTableFunctions(rddSeq, Seq(ct[T1], ct[T2], ct[T3], ct[T4], ct[T5], ct[T6], ct[T7], ct[T8], ct[T9], 
+    ct[T10], ct[T11], ct[T12], ct[T13]))
   }
 
 
-  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M,
-  T11: M, T12: M, T13: M, T14: M]
+  def apply[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C, T10: C, 
+    T11: C, T12: C, T13: C, T14: C]
   (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14)]) = {
-    val cm = implicitly[Manifest[Seq[Any]]]
-    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(cm)
-    new RDDTableFunctions(rddSeq, Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10],
-      m[T11], m[T12], m[T13], m[T14]))
+    val classTag = implicitly[ClassTag[Seq[Any]]]
+    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(classTag)
+    new RDDTableFunctions(rddSeq, Seq(ct[T1], ct[T2], ct[T3], ct[T4], ct[T5], ct[T6], ct[T7], ct[T8], ct[T9], 
+    ct[T10], ct[T11], ct[T12], ct[T13], ct[T14]))
   }
 
 
-  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M,
-  T11: M, T12: M, T13: M, T14: M, T15: M]
+  def apply[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C, T10: C, 
+    T11: C, T12: C, T13: C, T14: C, T15: C]
   (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15)]) = {
-    val cm = implicitly[Manifest[Seq[Any]]]
-    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(cm)
-    new RDDTableFunctions(rddSeq, Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10],
-      m[T11], m[T12], m[T13], m[T14], m[T15]))
+    val classTag = implicitly[ClassTag[Seq[Any]]]
+    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(classTag)
+    new RDDTableFunctions(rddSeq, Seq(ct[T1], ct[T2], ct[T3], ct[T4], ct[T5], ct[T6], ct[T7], ct[T8], ct[T9], 
+    ct[T10], ct[T11], ct[T12], ct[T13], ct[T14], ct[T15]))
   }
 
 
-  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M,
-  T11: M, T12: M, T13: M, T14: M, T15: M, T16: M]
+  def apply[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C, T10: C, 
+    T11: C, T12: C, T13: C, T14: C, T15: C, T16: C]
   (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16)]) = {
-    val cm = implicitly[Manifest[Seq[Any]]]
-    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(cm)
-    new RDDTableFunctions(rddSeq, Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10],
-      m[T11], m[T12], m[T13], m[T14], m[T15], m[T16]))
+    val classTag = implicitly[ClassTag[Seq[Any]]]
+    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(classTag)
+    new RDDTableFunctions(rddSeq, Seq(ct[T1], ct[T2], ct[T3], ct[T4], ct[T5], ct[T6], ct[T7], ct[T8], ct[T9], 
+    ct[T10], ct[T11], ct[T12], ct[T13], ct[T14], ct[T15], ct[T16]))
   }
 
 
-  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M,
-  T11: M, T12: M, T13: M, T14: M, T15: M, T16: M, T17: M]
-  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
+  def apply[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C, T10: C, 
+    T11: C, T12: C, T13: C, T14: C, T15: C, T16: C, T17: C]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
     T17)]) = {
-    val cm = implicitly[Manifest[Seq[Any]]]
-    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(cm)
-    new RDDTableFunctions(rddSeq, Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10],
-      m[T11], m[T12], m[T13], m[T14], m[T15], m[T16], m[T17]))
+    val classTag = implicitly[ClassTag[Seq[Any]]]
+    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(classTag)
+    new RDDTableFunctions(rddSeq, Seq(ct[T1], ct[T2], ct[T3], ct[T4], ct[T5], ct[T6], ct[T7], ct[T8], ct[T9], 
+    ct[T10], ct[T11], ct[T12], ct[T13], ct[T14], ct[T15], ct[T16], ct[T17]))
   }
 
 
-  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M,
-  T11: M, T12: M, T13: M, T14: M, T15: M, T16: M, T17: M, T18: M]
-  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
+  def apply[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C, T10: C, 
+    T11: C, T12: C, T13: C, T14: C, T15: C, T16: C, T17: C, T18: C]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
     T17, T18)]) = {
-    val cm = implicitly[Manifest[Seq[Any]]]
-    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(cm)
-    new RDDTableFunctions(rddSeq, Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10],
-      m[T11], m[T12], m[T13], m[T14], m[T15], m[T16], m[T17], m[T18]))
+    val classTag = implicitly[ClassTag[Seq[Any]]]
+    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(classTag)
+    new RDDTableFunctions(rddSeq, Seq(ct[T1], ct[T2], ct[T3], ct[T4], ct[T5], ct[T6], ct[T7], ct[T8], ct[T9], 
+    ct[T10], ct[T11], ct[T12], ct[T13], ct[T14], ct[T15], ct[T16], ct[T17], 
+    ct[T18]))
   }
 
 
-  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M,
-  T11: M, T12: M, T13: M, T14: M, T15: M, T16: M, T17: M, T18: M, T19: M]
-  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
+  def apply[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C, T10: C, 
+    T11: C, T12: C, T13: C, T14: C, T15: C, T16: C, T17: C, T18: C, T19: C]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
     T17, T18, T19)]) = {
-    val cm = implicitly[Manifest[Seq[Any]]]
-    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(cm)
-    new RDDTableFunctions(rddSeq, Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10],
-      m[T11], m[T12], m[T13], m[T14], m[T15], m[T16], m[T17], m[T18], m[T19]))
+    val classTag = implicitly[ClassTag[Seq[Any]]]
+    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(classTag)
+    new RDDTableFunctions(rddSeq, Seq(ct[T1], ct[T2], ct[T3], ct[T4], ct[T5], ct[T6], ct[T7], ct[T8], ct[T9], 
+    ct[T10], ct[T11], ct[T12], ct[T13], ct[T14], ct[T15], ct[T16], ct[T17], 
+    ct[T18], ct[T19]))
   }
 
 
-  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M,
-  T11: M, T12: M, T13: M, T14: M, T15: M, T16: M, T17: M, T18: M, T19: M,
-  T20: M]
-  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
+  def apply[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C, T10: C, 
+    T11: C, T12: C, T13: C, T14: C, T15: C, T16: C, T17: C, T18: C, T19: C, 
+    T20: C]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
     T17, T18, T19, T20)]) = {
-    val cm = implicitly[Manifest[Seq[Any]]]
-    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(cm)
-    new RDDTableFunctions(rddSeq, Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10],
-      m[T11], m[T12], m[T13], m[T14], m[T15], m[T16], m[T17], m[T18], m[T19],
-      m[T20]))
+    val classTag = implicitly[ClassTag[Seq[Any]]]
+    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(classTag)
+    new RDDTableFunctions(rddSeq, Seq(ct[T1], ct[T2], ct[T3], ct[T4], ct[T5], ct[T6], ct[T7], ct[T8], ct[T9], 
+    ct[T10], ct[T11], ct[T12], ct[T13], ct[T14], ct[T15], ct[T16], ct[T17], 
+    ct[T18], ct[T19], ct[T20]))
   }
 
 
-  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M,
-  T11: M, T12: M, T13: M, T14: M, T15: M, T16: M, T17: M, T18: M, T19: M,
-  T20: M, T21: M]
-  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
+  def apply[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C, T10: C, 
+    T11: C, T12: C, T13: C, T14: C, T15: C, T16: C, T17: C, T18: C, T19: C, 
+    T20: C, T21: C]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
     T17, T18, T19, T20, T21)]) = {
-    val cm = implicitly[Manifest[Seq[Any]]]
-    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(cm)
-    new RDDTableFunctions(rddSeq, Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10],
-      m[T11], m[T12], m[T13], m[T14], m[T15], m[T16], m[T17], m[T18], m[T19],
-      m[T20], m[T21]))
+    val classTag = implicitly[ClassTag[Seq[Any]]]
+    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(classTag)
+    new RDDTableFunctions(rddSeq, Seq(ct[T1], ct[T2], ct[T3], ct[T4], ct[T5], ct[T6], ct[T7], ct[T8], ct[T9], 
+    ct[T10], ct[T11], ct[T12], ct[T13], ct[T14], ct[T15], ct[T16], ct[T17], 
+    ct[T18], ct[T19], ct[T20], ct[T21]))
   }
 
 
-  def apply[T1: M, T2: M, T3: M, T4: M, T5: M, T6: M, T7: M, T8: M, T9: M, T10: M,
-  T11: M, T12: M, T13: M, T14: M, T15: M, T16: M, T17: M, T18: M, T19: M,
-  T20: M, T21: M, T22: M]
-  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
+  def apply[T1: C, T2: C, T3: C, T4: C, T5: C, T6: C, T7: C, T8: C, T9: C, T10: C, 
+    T11: C, T12: C, T13: C, T14: C, T15: C, T16: C, T17: C, T18: C, T19: C, 
+    T20: C, T21: C, T22: C]
+  (rdd: RDD[(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
     T17, T18, T19, T20, T21, T22)]) = {
-    val cm = implicitly[Manifest[Seq[Any]]]
-    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(cm)
-    new RDDTableFunctions(rddSeq, Seq(m[T1], m[T2], m[T3], m[T4], m[T5], m[T6], m[T7], m[T8], m[T9], m[T10],
-      m[T11], m[T12], m[T13], m[T14], m[T15], m[T16], m[T17], m[T18], m[T19],
-      m[T20], m[T21], m[T22]))
+    val classTag = implicitly[ClassTag[Seq[Any]]]
+    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(classTag)
+    new RDDTableFunctions(rddSeq, Seq(ct[T1], ct[T2], ct[T3], ct[T4], ct[T5], ct[T6], ct[T7], ct[T8], ct[T9], 
+    ct[T10], ct[T11], ct[T12], ct[T13], ct[T14], ct[T15], ct[T16], ct[T17], 
+    ct[T18], ct[T19], ct[T20], ct[T21], ct[T22]))
   }
 
 }

@@ -18,6 +18,7 @@
 package shark.api
 
 import scala.collection.mutable.ArrayBuffer
+import scala.reflect.ClassTag
 
 import org.apache.hadoop.hive.ql.metadata.Hive
 
@@ -28,20 +29,20 @@ import shark.memstore2.{CacheType, TablePartitionStats, TablePartition, TablePar
 import shark.util.HiveUtils
 
 
-class RDDTableFunctions(self: RDD[Seq[_]], manifests: Seq[ClassManifest[_]]) {
+class RDDTableFunctions(self: RDD[Seq[_]], classTags: Seq[ClassTag[_]]) {
 
   def saveAsTable(tableName: String, fields: Seq[String]): Boolean = {
-    require(fields.size == this.manifests.size,
+    require(fields.size == this.classTags.size,
       "Number of column names != number of fields in the RDD.")
 
-    // Get a local copy of the manifests so we don't need to serialize this object.
-    val manifests = this.manifests
+    // Get a local copy of the classTags so we don't need to serialize this object.
+    val classTags = this.classTags
 
     val statsAcc = SharkEnv.sc.accumulableCollection(ArrayBuffer[(Int, TablePartitionStats)]())
 
     // Create the RDD object.
     val rdd = self.mapPartitionsWithIndex { case(partitionIndex, iter) =>
-      val ois = manifests.map(HiveUtils.getJavaPrimitiveObjectInspector)
+      val ois = classTags.map(HiveUtils.getJavaPrimitiveObjectInspector)
       val builder = new TablePartitionBuilder(ois, 1000000, shouldCompress = false)
 
       for (p <- iter) {
@@ -56,7 +57,7 @@ class RDDTableFunctions(self: RDD[Seq[_]], manifests: Seq[ClassManifest[_]]) {
       Iterator(builder.build())
     }.persist()
 
-    var isSucessfulCreateTable = HiveUtils.createTableInHive(tableName, fields, manifests)
+    var isSucessfulCreateTable = HiveUtils.createTableInHive(tableName, fields, classTags)
 
     // Put the table in the metastore. Only proceed if the DDL statement is executed successfully.
     val databaseName = Hive.get(SharkContext.hiveconf).getCurrentDatabase()
@@ -69,7 +70,7 @@ class RDDTableFunctions(self: RDD[Seq[_]], manifests: Seq[ClassManifest[_]]) {
         // Force evaluate to put the data in memory.
         rdd.context.runJob(rdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
       } catch {
-        case _ => {
+        case _: Exception => {
           // Intercept the exception thrown by SparkContext#runJob() and handle it silently. The
           // exception message should already be printed to the console by DDLTask#execute().
           HiveUtils.dropTableInHive(tableName)

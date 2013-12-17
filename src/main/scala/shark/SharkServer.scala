@@ -28,7 +28,8 @@ import java.util.Properties
 import java.util.concurrent.CountDownLatch
 
 import scala.annotation.tailrec
-import scala.concurrent.ops.spawn
+import scala.concurrent._
+import scala.concurrent.ExecutionContext.Implicits.global
 
 import org.apache.commons.logging.LogFactory
 import org.apache.commons.cli.OptionBuilder
@@ -93,7 +94,7 @@ object SharkServer extends LogHelper {
         var remoteClient = "Unknown"
 
         // Seed session ID by a random number
-        var sessionID = scala.Math.round(scala.Math.random * 10000000).toString
+        var sessionID = scala.math.round(scala.math.random * 10000000).toString
         var jdbcSocket: java.net.Socket = null
         if (t.isInstanceOf[TSocket]) {
           remoteClient = t.asInstanceOf[TSocket].getSocket()
@@ -164,7 +165,7 @@ object SharkServer extends LogHelper {
   private def execLoadRdds(loadFlag: Boolean, latch:CountDownLatch) {
     if (!loadFlag) {
       latch.countDown
-    } else spawn {
+    } else future {
       while (!server.isServing()) {}
       try {
         val sshandler = new SharkServerHandler

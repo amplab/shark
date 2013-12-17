@@ -153,8 +153,9 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
     val databaseName = work.databaseName
     val tableName = work.tableName
     // Set Spark's job description to be this query.
-    SharkEnv.sc.setJobDescription("Updating table %s.%s for a(n) %s"
-      .format(databaseName, tableName, work.commandType))
+    SharkEnv.sc.setJobGroup(
+      "shark.job",
+      s"Updating table $databaseName.$tableName for a(n) ${work.commandType}")
     val hiveTable = Hive.get(conf).getTable(databaseName, tableName)
     // Use HadoopTableReader to help with table scans. The `conf` passed is reused across HadoopRDD
     // instantiations. 

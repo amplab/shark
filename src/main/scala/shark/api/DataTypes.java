@@ -22,8 +22,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.sql.Timestamp;
 
-import scala.reflect.ClassManifest;
-import scala.reflect.ClassManifest$;
+import scala.reflect.ClassTag;
+import scala.reflect.ClassTag$;
 
 import org.apache.hadoop.hive.serde.Constants;
 
@@ -107,34 +107,30 @@ public class DataTypes {
     }
   }
 
-  public static DataType fromManifest(ClassManifest<?> m) throws UnknownDataTypeException {
-    if (m.equals(m(Boolean.class)) || m.equals(ClassManifest$.MODULE$.Boolean())) {
-      return INT;
-    } else if (m.equals(m(Byte.class)) || m.equals(ClassManifest$.MODULE$.Byte())) {
-      return TINYINT;
-    } else if (m.equals(m(Short.class)) || m.equals(ClassManifest$.MODULE$.Short())) {
-      return SMALLINT;
-    } else if (m.equals(m(Integer.class)) || m.equals(ClassManifest$.MODULE$.Int())) {
-      return INT;
-    } else if (m.equals(m(Long.class)) || m.equals(ClassManifest$.MODULE$.Long())) {
-      return BIGINT;
-    } else if (m.equals(m(Float.class)) || m.equals(ClassManifest$.MODULE$.Float())) {
-      return FLOAT;
-    } else if (m.equals(m(Double.class)) || m.equals(ClassManifest$.MODULE$.Double())) {
-      return DOUBLE;
-    } else if (m.equals(m(String.class))) {
-      return STRING;
-    } else if (m.equals(m(Timestamp.class))) {
-      return TIMESTAMP;
-    } else if (m.equals(m(Date.class))) {
-      return DATE;
+  public static DataType fromClassTag(ClassTag<?> m) throws UnknownDataTypeException {
+    if (m.equals(ClassTag$.MODULE$.Boolean())) {
+        return INT;
+    } else if (m.equals(ClassTag$.MODULE$.Byte())){
+        return TINYINT;
+    } else if (m.equals(ClassTag$.MODULE$.Short())) {
+        return SMALLINT;
+    } else if (m.equals(ClassTag$.MODULE$.Int())) {
+        return INT;
+    } else if (m.equals(ClassTag$.MODULE$.Long())) {
+        return BIGINT;
+    } else if (m.equals(ClassTag$.MODULE$.Float())) {
+        return FLOAT;
+    } else if (m.equals(ClassTag$.MODULE$.Double())) {
+        return DOUBLE;
+    } else if (m.equals(ClassTag$.MODULE$.apply(String.class))) {
+        return STRING;
+    } else if (m.equals(ClassTag$.MODULE$.apply(Timestamp.class))) {
+        return TIMESTAMP;
+    } else if (m.equals(ClassTag$.MODULE$.apply(Date.class))) {
+        return DATE;
     } else {
-      throw new UnknownDataTypeException(m.toString());
+        throw new UnknownDataTypeException(m.toString());
     }
     // TODO: binary data type.
-  }
-
-  private static <T> ClassManifest<T> m(Class<T> cls) {
-    return ClassManifest$.MODULE$.fromClass(cls);
   }
 }

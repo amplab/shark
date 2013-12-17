@@ -17,9 +17,10 @@
 
 package shark
 
+import scala.language.implicitConversions
+
 import shark.execution.serialization.KryoSerializationWrapper
 import shark.execution.serialization.OperatorSerializationWrapper
-
 
 package object execution {
 

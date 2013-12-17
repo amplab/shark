@@ -17,8 +17,9 @@
 
 package shark.memstore2.column
 
-import java.nio.{ByteBuffer, ByteOrder}
+import scala.language.implicitConversions
 
+import java.nio.{ByteBuffer, ByteOrder}
 
 trait ColumnIterator {
 

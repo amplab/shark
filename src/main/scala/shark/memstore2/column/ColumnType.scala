@@ -20,6 +20,8 @@ package shark.memstore2.column
 import java.nio.ByteBuffer
 import java.sql.Timestamp
 
+import scala.reflect.ClassTag
+
 import org.apache.hadoop.hive.serde2.ByteStream
 import org.apache.hadoop.hive.serde2.`lazy`.{ByteArrayRef, LazyBinary}
 import org.apache.hadoop.hive.serde2.io.ByteWritable
@@ -37,19 +39,18 @@ import org.apache.hadoop.io._
  * @tparam T Scala data type for the column.
  * @tparam V Writable data type for the column.
  */
-sealed abstract class ColumnType[T : ClassManifest, V : ClassManifest](
+sealed abstract class ColumnType[T : ClassTag, V : ClassTag](
     val typeID: Int, val defaultSize: Int) {
 
   /**
-   * Scala class manifest. Can be used to create primitive arrays and hash tables.
+   * Scala ClassTag. Can be used to create primitive arrays and hash tables.
    */
-  def scalaManifest: ClassManifest[T] = classManifest[T]
+  def scalaTag = implicitly[ClassTag[T]]
 
   /**
-   * Scala class manifest for the writable type. Can be used to create primitive arrays and
-   * hash tables.
+   * Scala ClassTag. Can be used to create primitive arrays and hash tables.
    */
-  def writableManifest: ClassManifest[V] = classManifest[V]
+  def writableScalaTag = implicitly[ClassTag[V]]
 
   /**
    * Extract a value out of the buffer at the buffer's current position.
