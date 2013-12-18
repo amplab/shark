@@ -108,7 +108,7 @@ class DictDecoder[V](buffer: ByteBuffer, columnType: ColumnType[_, V]) extends I
   // decompressed value.
   private val _dictionary: Array[V] =  {
     val size = buffer.getInt()
-    val arr = columnType.writableManifest.newArray(size)
+    val arr = columnType.writableScalaTag.newArray(size)
     var count = 0
     while (count < size) {
       val writable = columnType.newWritable()

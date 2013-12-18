@@ -21,6 +21,7 @@ import java.util.{Arrays => JArrays, ArrayList => JArrayList}
 import java.util.{HashMap => JHashMap, HashSet => JHashSet}
 import java.util.Properties
 
+import scala.reflect.ClassTag
 import scala.collection.JavaConversions._
 
 import org.apache.hadoop.hive.conf.HiveConf
@@ -43,8 +44,8 @@ import shark.memstore2.SharkTblProperties
 
 private[shark] object HiveUtils {
 
-  def getJavaPrimitiveObjectInspector(m: ClassManifest[_]): PrimitiveObjectInspector = {
-    getJavaPrimitiveObjectInspector(DataTypes.fromManifest(m))
+  def getJavaPrimitiveObjectInspector(c: ClassTag[_]): PrimitiveObjectInspector = {
+    getJavaPrimitiveObjectInspector(DataTypes.fromClassTag(c))
   }
 
   def getJavaPrimitiveObjectInspector(t: DataType): PrimitiveObjectInspector = t match {
@@ -89,10 +90,10 @@ private[shark] object HiveUtils {
   def createTableInHive(
       tableName: String,
       columnNames: Seq[String],
-      columnTypes: Seq[ClassManifest[_]],
+      columnTypes: Seq[ClassTag[_]],
       hiveConf: HiveConf = new HiveConf): Boolean = {
-    val schema = columnNames.zip(columnTypes).map { case (colName, manifest) =>
-      new FieldSchema(colName, DataTypes.fromManifest(manifest).hiveName, "")
+    val schema = columnNames.zip(columnTypes).map { case (colName, classTag) =>
+      new FieldSchema(colName, DataTypes.fromClassTag(classTag).hiveName, "")
     }
 
     // Setup the create table descriptor with necessary information.

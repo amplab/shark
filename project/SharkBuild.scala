@@ -30,7 +30,7 @@ object SharkBuild extends Build {
 
   val SPARK_VERSION = "0.9.0-incubating-SNAPSHOT"
 
-  val SCALA_VERSION = "2.9.3"
+  val SCALA_VERSION = "2.10.3"
 
   // Hadoop version to build against. For example, "0.20.2", "0.20.205.0", or
   // "1.0.1" for Apache releases, or "0.20.2-cdh3u3" for Cloudera Hadoop.
@@ -65,7 +65,7 @@ object SharkBuild extends Build {
     organization := "edu.berkeley.cs.amplab",
     version := SHARK_VERSION,
     scalaVersion := SCALA_VERSION,
-    scalacOptions := Seq("-deprecation", "-unchecked", "-optimize"),
+    scalacOptions := Seq("-deprecation", "-unchecked", "-optimize", "-feature", "-Yinline-warnings"),
     parallelExecution in Test := false,
 
     // Download managed jars into lib_managed.
@@ -79,6 +79,7 @@ object SharkBuild extends Build {
     fork := true,
     javaOptions += "-XX:MaxPermSize=512m",
     javaOptions += "-Xmx2g",
+    javaOptions += "-Dsun.io.serialization.extendedDebugInfo=true",
 
     testOptions in Test += Tests.Argument("-oF"), // Full stack trace on test failures
 

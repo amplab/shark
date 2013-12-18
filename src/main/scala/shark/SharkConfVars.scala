@@ -17,6 +17,8 @@
 
 package shark
 
+import scala.language.existentials
+
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hive.conf.HiveConf
 

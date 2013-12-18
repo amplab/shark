@@ -17,6 +17,8 @@
 
 package shark.api
 
+import scala.reflect.ClassTag
+
 import org.apache.spark.api.java.function.{Function => JFunction}
 import org.apache.spark.api.java.JavaRDDLike
 import org.apache.spark.rdd.RDD
@@ -29,7 +31,7 @@ class JavaTableRDD(val rdd: RDD[Row], val schema: Array[ColumnDesc])
   override def wrapRDD(rdd: RDD[Row]): JavaTableRDD = new JavaTableRDD(rdd, schema)
 
   // Common RDD functions
-  override val classManifest: ClassManifest[Row] = implicitly[ClassManifest[Row]]
+  override val classTag: ClassTag[Row] = implicitly[ClassTag[Row]]
 
   // This shouldn't be necessary, but we seem to need this to get first() to return Row
   // instead of Object; possibly a compiler bug?

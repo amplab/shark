@@ -17,6 +17,8 @@
 
 package org.apache.spark
 
+import scala.language.existentials
+
 import java.io.{ObjectOutputStream, IOException}
 import java.util.{HashMap => JHashMap}
 

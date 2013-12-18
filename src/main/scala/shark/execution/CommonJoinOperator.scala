@@ -19,7 +19,8 @@ package shark.execution
 
 import java.util.{HashMap => JavaHashMap, List => JavaList, ArrayList =>JavaArrayList}
 
-import scala.reflect.BeanProperty
+import scala.beans.BeanProperty
+import scala.reflect.ClassTag
 
 import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator
 import org.apache.hadoop.hive.ql.exec.{JoinUtil => HiveJoinUtil}
@@ -102,7 +103,7 @@ abstract class CommonJoinOperator[T <: JoinDesc] extends NaryOperator[T] {
 }
 
 
-class CartesianProduct[T >: Null : ClassManifest](val numTables: Int) {
+class CartesianProduct[T >: Null : ClassTag](val numTables: Int) {
 
   val SINGLE_NULL_LIST = Seq[T](null)
   val EMPTY_LIST = Seq[T]()

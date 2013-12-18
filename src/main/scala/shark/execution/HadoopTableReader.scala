@@ -149,6 +149,7 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
       // Create local references so that the outer object isn't serialized.
       val tableDesc = _tableDesc
       val broadcastedHiveConf = _broadcastedHiveConf
+      val localDeserializer = partDeserializer
 
       val hivePartitionRDD = createHadoopRdd(tableDesc, inputPathStr, ifc)
       hivePartitionRDD.mapPartitions { iter =>
@@ -156,7 +157,7 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
         val rowWithPartArr = new Array[Object](2)
         // Map each tuple to a row object
         iter.map { value =>
-          val deserializer = partDeserializer.newInstance()
+          val deserializer = localDeserializer.newInstance()
           deserializer.initialize(hconf, partProps)
           val deserializedRow = deserializer.deserialize(value) // LazyStruct
           rowWithPartArr.update(0, deserializedRow)

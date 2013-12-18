@@ -10,7 +10,8 @@ import scala.collection.JavaConversions._
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 import org.scalatest.matchers.ShouldMatchers
 
-import scala.concurrent.ops._
+import scala.concurrent._
+import ExecutionContext.Implicits.global
 
 /**
  * Test for the Shark server.
@@ -57,7 +58,7 @@ class SharkServerSuite extends FunSuite with BeforeAndAfterAll with ShouldMatche
     // Spawn a thread to read the output from the forked process.
     // Note that this is necessary since in some configurations, log4j could be blocked
     // if its output to stderr are not read, and eventually blocking the entire test suite.
-    spawn {
+    future {
       while (true) {
         val stdout = readFrom(inputReader)
         val stderr = readFrom(errorReader)
@@ -78,6 +79,7 @@ class SharkServerSuite extends FunSuite with BeforeAndAfterAll with ShouldMatche
   }
 
   test("test query execution against a shark server") {
+    Thread.sleep(5*1000) // I know... Gross.  However, without this the tests fail non-deterministically.
 
     val dataFilePath = TestUtils.dataFilePath + "/kv1.txt"
     val stmt = createStatement()

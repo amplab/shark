@@ -46,10 +46,13 @@ package shark.api
 
 // *** This file is auto-generated from RDDTable_generator.py ***
 
+import scala.language.implicitConversions
+
 import org.apache.spark.rdd.RDD
+import scala.reflect.ClassTag
 
 object RDDTableImplicits {
-  private type M[T] = ClassManifest[T]
+  private type C[T] = ClassTag[T]
 
 """
 
@@ -62,7 +65,7 @@ for x in range(2,23):
   implicit def rddToTable$num[$tmlist]
   (rdd: RDD[($tlist)]): RDDTableFunctions = RDDTable(rdd)
 
-""").substitute(num = x, tmlist = createList(1, x, "T", ": M", ", ", indent=4), tlist = createList(1, x, "T", "", ", ", indent=4))
+""").substitute(num = x, tmlist = createList(1, x, "T", ": C", ", ", indent=4), tlist = createList(1, x, "T", "", ", ", indent=4))
     p.write(tableClass)
 
 prefix = """
@@ -70,8 +73,8 @@ prefix = """
 
 object RDDTable {
 
-  private type M[T] = ClassManifest[T]
-  private def m[T](implicit m : ClassManifest[T]) = classManifest[T](m)
+  private type C[T] = ClassTag[T]
+  private def ct[T](implicit c : ClassTag[T]) = c
 """
 
 p.write(prefix)
@@ -82,13 +85,13 @@ for x in range(2,23):
 """
   def apply[$tmlist]
   (rdd: RDD[($tlist)]) = {
-    val cm = implicitly[Manifest[Seq[Any]]]
-    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(cm)
+    val classTag = implicitly[ClassTag[Seq[Any]]]
+    val rddSeq: RDD[Seq[_]] = rdd.map(t => t.productIterator.toList.asInstanceOf[Seq[Any]])(classTag)
     new RDDTableFunctions(rddSeq, Seq($mtlist))
   }
 
-""").substitute(tmlist = createList(1, x, "T", ": M", ", ", indent=4), tlist = createList(1, x, "T", "", ", ", indent=4),
-                mtlist = createList(1, x, "m[T", "]", ", ", indent=4))
+""").substitute(tmlist = createList(1, x, "T", ": C", ", ", indent=4), tlist = createList(1, x, "T", "", ", ", indent=4),
+                mtlist = createList(1, x, "ct[T", "]", ", ", indent=4))
     p.write(tableClass)
 
 

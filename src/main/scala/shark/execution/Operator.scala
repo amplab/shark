@@ -17,6 +17,8 @@
 
 package shark.execution
 
+import scala.language.existentials
+
 import java.util.{List => JavaList}
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._

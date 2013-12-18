@@ -21,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.{HashMap=> JavaHashMap, Map => JavaMap}
 
 import scala.collection.JavaConversions._
-import scala.collection.mutable.ConcurrentMap
+import scala.collection.concurrent
 
 import org.apache.hadoop.hive.ql.metadata.Hive
 
@@ -34,13 +34,13 @@ import shark.util.HiveUtils
 class MemoryMetadataManager {
 
   // Set of tables, from databaseName.tableName to Table object.
-  private val _tables: ConcurrentMap[String, Table] =
+  private val _tables: concurrent.Map[String, Table] =
     new ConcurrentHashMap[String, Table]()
 
   // TODO(harvey): Support stats for Hive-partitioned tables.
   // Set of stats, from databaseName.tableName to the stats. This is guaranteed to have the same
   // structure / size as the _tables map.
-  private val _keyToStats: ConcurrentMap[String, collection.Map[Int, TablePartitionStats]] =
+  private val _keyToStats: concurrent.Map[String, collection.Map[Int, TablePartitionStats]] =
     new ConcurrentHashMap[String, collection.Map[Int, TablePartitionStats]]
 
   def putStats(
