@@ -78,6 +78,7 @@ class SharkServerSuite extends FunSuite with BeforeAndAfterAll with ShouldMatche
   }
 
   test("test query execution against a shark server") {
+    Thread.sleep(5*1000) // I know... Gross.  However, without this the tests fail non-deterministically.
 
     val dataFilePath = TestUtils.dataFilePath + "/kv1.txt"
     val stmt = createStatement()
