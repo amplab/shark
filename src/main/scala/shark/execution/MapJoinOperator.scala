@@ -22,6 +22,10 @@ import java.util.{ArrayList, HashMap => JHashMap, List => JList}
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
+import org.apache.hadoop.io.Writable
+import org.apache.hadoop.io.BooleanWritable
+import org.apache.hadoop.io.NullWritable
+
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, JoinUtil => HiveJoinUtil}
 import org.apache.hadoop.hive.ql.plan.MapJoinDesc
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
@@ -53,6 +57,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc] {
 
   @transient val metadataKeyTag = -1
   @transient var joinValues: Array[JList[ExprNodeEvaluator]] = _
+//  @transient val tupleIterator = new this.TupleIterator[Array[Object]]()
 
   override def initializeOnMaster() {
     super.initializeOnMaster()
@@ -64,6 +69,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc] {
     // be initialized so we can use them in combineMultipleRdds(). This also puts
     // serialization info for keys in MapJoinMetaData.
     initializeOnSlave()
+    initializeJoinFilterOnMaster()
   }
 
   override def initializeOnSlave() {
@@ -237,7 +243,8 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc] {
         (filterMap == null))
 
       val value = new Array[AnyRef](v.size)
-      Range(0,v.size).foreach(i => value(i) = v(i).asInstanceOf[SerializableWritable[_]].value)
+      Range(0, v.size).foreach(i => 
+        value(i) = v(i).asInstanceOf[SerializableWritable[_<:Writable]].value)
 
       if (nullCheck && JoinUtil.joinKeyHasAnyNulls(key, nullSafes)) {
         val bufsNull = Array.fill[Seq[Array[Object]]](numTables)(Seq())
@@ -265,34 +272,8 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc] {
         cp.product(bufs, joinConditions)
       }
     }
-    val rowSize = joinVals.map(_.size).sum
-    val rowToReturn = new Array[Object](rowSize)
-    // For each row, combine the tuples from multiple tables into a single tuple.
-    jointRows.map { row: Array[Array[Object]] =>
-      var tupleIndex = 0
-      var fieldIndex = 0
-      row.foreach { tuple =>
-        val stop = fieldIndex + joinVals(tupleIndex.toByte).size
-        var fieldInTuple = 0
-        if (tuple == null) {
-          // For outer joins, it is possible to see nulls.
-          while (fieldIndex < stop) {
-            rowToReturn(fieldIndex) = null
-            fieldInTuple += 1
-            fieldIndex += 1
-          }
-        } else {
-          while (fieldIndex < stop) {
-            rowToReturn(fieldIndex) = tuple.asInstanceOf[Array[Object]](fieldInTuple)
-            fieldInTuple += 1
-            fieldIndex += 1
-          }
-        }
-        tupleIndex += 1
-      }
-
-      rowToReturn
-    }
+    generateTuples(jointRows)
+//    tupleIterator.rebuilt(jointRows)
   }
 
   override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {

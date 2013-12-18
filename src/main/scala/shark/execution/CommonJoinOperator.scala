@@ -31,7 +31,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
 import shark.SharkConfVars
 
 
-abstract class CommonJoinOperator[T <: JoinDesc] extends NaryOperator[T] {
+abstract class CommonJoinOperator[T <: JoinDesc] extends NaryOperator[T] with JoinFilter[T] {
 
   @BeanProperty var conf: T = _
   // Order in which the results should be output.
@@ -60,7 +60,6 @@ abstract class CommonJoinOperator[T <: JoinDesc] extends NaryOperator[T] {
   override def initializeOnMaster() {
     super.initializeOnMaster()
     conf = desc
-    //conf.getFilters()
     
     order = conf.getTagOrder()
     joinConditions = conf.getConds()
