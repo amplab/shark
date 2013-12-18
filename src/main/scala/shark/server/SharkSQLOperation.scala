@@ -1,19 +1,21 @@
 package shark.server
 
-import org.apache.hive.service.cli.operation.SQLOperation
-import org.apache.hive.service.cli._
-import org.apache.hive.service.cli.session.HiveSession
 import java.util.{Map => JMap}
 import org.apache.hadoop.hive.ql.parse.VariableSubstitution
 import org.apache.hadoop.hive.ql.processors.CommandProcessorResponse
-import scala.Some
-import shark.{Utils, SharkDriver}
+import org.apache.hive.service.cli.{HiveSQLException, OperationState, TableSchema}
+import org.apache.hive.service.cli.operation.SQLOperation
+import org.apache.hive.service.cli.session.HiveSession
+import shark.{SharkDriver, Utils}
 
-
-class SharkSQLOperation(parentSession: HiveSession, statement: String, confOverlay: JMap[String, String] ) extends SQLOperation (parentSession, statement, confOverlay) {
+class SharkSQLOperation(
+    parentSession: HiveSession,
+    statement: String,
+    confOverlay: JMap[String, String])
+  extends SQLOperation(parentSession, statement, confOverlay) {
 
   private val sdriver = {
-    val d = new SharkDriver(getParentSession().getHiveConf())
+    val d = new SharkDriver(getParentSession.getHiveConf)
     d.init()
     d
   }
@@ -25,9 +27,8 @@ class SharkSQLOperation(parentSession: HiveSession, statement: String, confOverl
     sdriver.setTryCount(Integer.MAX_VALUE) //maybe useless?
     var subStatement = ""
     try {
-      //duplicate: this is also done when Driver compiles command?
-      subStatement = new VariableSubstitution().substitute(getParentSession().getHiveConf(), statement)
-
+      //duplicate: this is also done when Driver compiles command
+      subStatement = new VariableSubstitution().substitute(getParentSession.getHiveConf, statement)
     } catch {
       case e: IllegalStateException => {
         setState(OperationState.ERROR)
@@ -42,7 +43,7 @@ class SharkSQLOperation(parentSession: HiveSession, statement: String, confOverl
         if (code != 0) {
           setState(OperationState.ERROR)
           throw new HiveSQLException("Error while processing statement: "
-            + resp.getErrorMessage(), resp.getSQLState(), code)
+            + resp.getErrorMessage, resp.getSQLState, code)
         }
       }
       case None => {
@@ -51,9 +52,9 @@ class SharkSQLOperation(parentSession: HiveSession, statement: String, confOverl
       }
     }
 
-    val mResultSchema = sdriver.getSchema()
+    val mResultSchema = sdriver.getSchema
     Utils.setSuperField("mResultSchema", mResultSchema, this)
-    if (mResultSchema != null && mResultSchema.isSetFieldSchemas()) {
+    if (mResultSchema != null && mResultSchema.isSetFieldSchemas) {
       val resultSchema = new TableSchema(mResultSchema)
       Utils.setSuperField("resultSchema", resultSchema, this)
       setHasResultSet(true)

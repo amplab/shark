@@ -1,7 +1,7 @@
 package shark.server
 
-import org.apache.hive.service.cli.session.SessionManager
 import org.apache.hadoop.hive.conf.HiveConf
+import org.apache.hive.service.cli.session.SessionManager
 import shark.Utils
 
 class SharkSessionManager extends SessionManager {
@@ -12,6 +12,5 @@ class SharkSessionManager extends SessionManager {
       addService(sharkOpManager)
       sharkInit(hiveConf)
     }
-
   }
 }

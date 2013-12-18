@@ -13,6 +13,6 @@ sharkserver2() {
 }
 
 sharkserver2_help() {
- echo "usage SHARK_PORT=xxxx ./shark --service sharkserver2"
- echo "SHARK_PORT : Specify the server port"
+ echo "usage HIVE_SERVER2_THRIFT_PORT=xxxx ./shark --service sharkserver2"
+ echo "HIVE_SERVER2_THRIFT_PORT : Specify the server port"
 }

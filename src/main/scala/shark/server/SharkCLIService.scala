@@ -11,7 +11,6 @@ import org.apache.spark.SparkEnv
 import shark.{SharkServer, Utils}
 
 class SharkCLIService extends CLIService {
-
   override def init(hiveConf: HiveConf) {
     this.synchronized {
       Utils.setSuperField("hiveConf", hiveConf, this)
@@ -20,15 +19,18 @@ class SharkCLIService extends CLIService {
       addService(sharkSM)
       try {
         HiveAuthFactory.loginFromKeytab(hiveConf)
-        val serverUserName = ShimLoader.getHadoopShims().
-          getShortUserName(ShimLoader.getHadoopShims().getUGIForConf(hiveConf))
+        val serverUserName = ShimLoader.getHadoopShims
+          .getShortUserName(ShimLoader.getHadoopShims.getUGIForConf(hiveConf))
         Utils.setSuperField("serverUserName", serverUserName, this)
       } catch {
-        case e: IOException => throw new ServiceException("Unable to login to kerberos with given principal/keytab", e)
-        case e: LoginException => throw new ServiceException("Unable to login to kerberos with given principal/keytab", e)
+        case e: IOException => {
+          throw new ServiceException("Unable to login to kerberos with given principal/keytab", e)
+        }
+        case e: LoginException => {
+          throw new ServiceException("Unable to login to kerberos with given principal/keytab", e)
+        }
       }
-
-      // Make sure the ThreadLocal SparkEnv reference is the same for all threads. Correct place?
+      // Make sure the ThreadLocal SparkEnv reference is the same for all threads.
       SparkEnv.set(SharkServer.sparkEnv)
       sharkInit(hiveConf)
     }

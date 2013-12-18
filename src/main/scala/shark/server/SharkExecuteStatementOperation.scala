@@ -1,17 +1,16 @@
 package shark.server
 
-import java.util.{Map => JMap}
-import org.apache.hive.service.cli.operation.ExecuteStatementOperation
-import org.apache.hive.service.cli.session.HiveSession
 import java.lang.reflect.Constructor
-
+import java.util.{Map => JMap}
+import org.apache.hive.service.cli.session.HiveSession
 
 object SharkExecuteStatementOperation {
-  //static method from ExecuteStatementOperation
-  def newExecuteStatementOperation (parentSession: HiveSession, statement: String, confOverlay: JMap[String, String]) : Any = {
+  def newExecuteStatementOperation(parentSession: HiveSession,
+                                   statement: String,
+                                   confOverlay: JMap[String, String])
+                                   : Any = {
     val tokens = statement.trim().split("\\s+")
-    val command = tokens{0}.toLowerCase()
-    //probably can reuse code in case
+    val command = tokens{0}.toLowerCase
     command match {
       case "set" => {
         val ctor = accessCtor("org.apache.hive.service.cli.operation.SetOperation")
@@ -37,14 +36,12 @@ object SharkExecuteStatementOperation {
 
   def accessCtor(className : String) : Constructor[_] =  {
     val setClass =  Class.forName(className)
-    val setConst = setClass.getDeclaredConstructor(classOf[HiveSession], classOf[String], classOf[JMap[String, String]])
+    val setConst =
+      setClass.getDeclaredConstructor(
+        classOf[HiveSession],
+        classOf[String],
+        classOf[JMap[String, String]])
     setConst.setAccessible(true)
     setConst
   }
 }
-
-abstract class SharkExecuteStatementOperation(parentSession: HiveSession, statement: String, confOverlay: JMap[String, String]) extends ExecuteStatementOperation(parentSession, statement, confOverlay)
-{
-
-}
-

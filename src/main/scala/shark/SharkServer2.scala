@@ -1,14 +1,13 @@
 package shark
 
-import org.apache.hive.service.server.{ServerOptionsProcessor, HiveServer2}
-import org.apache.spark.SparkEnv
-import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.hive.service.cli.thrift.ThriftCLIService
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.hive.common.LogUtils
 import org.apache.hadoop.hive.common.LogUtils.LogInitializationException
+import org.apache.hadoop.hive.conf.HiveConf
+import org.apache.hive.service.cli.thrift.ThriftCLIService
+import org.apache.hive.service.server.{HiveServer2, ServerOptionsProcessor}
+import org.apache.spark.SparkEnv
 import shark.server.SharkCLIService
-
 
 object SharkServer2 extends LogHelper {
   SharkEnv.init()
@@ -19,7 +18,9 @@ object SharkServer2 extends LogHelper {
     try {
       LogUtils.initHiveLog4j()
     } catch {
-      case e: LogInitializationException => LOG.warn(e.getMessage)
+      case e: LogInitializationException => {
+        LOG.warn(e.getMessage)
+      }
     }
     val optproc = new ServerOptionsProcessor("sharkserver2") //TODO: include load RDDs
 
@@ -28,7 +29,7 @@ object SharkServer2 extends LogHelper {
       System.exit(-1)
     }
 
-    Runtime.getRuntime().addShutdownHook(
+    Runtime.getRuntime.addShutdownHook(
       new Thread() {
         override def run() {
           SharkEnv.stop()
@@ -38,7 +39,7 @@ object SharkServer2 extends LogHelper {
   }
 
   try {
-    val hiveConf = new HiveConf //in SharkServer, its new Configuration() instead?
+    val hiveConf = new HiveConf
     SharkConfVars.initializeWithDefaults(hiveConf)
     val server = new SharkServer2
     server.init(hiveConf)
@@ -53,7 +54,6 @@ object SharkServer2 extends LogHelper {
 }
 
 class SharkServer2 extends HiveServer2 {
-
   override def init(hiveConf: HiveConf) {
     this.synchronized {
       val sharkCLIService = new SharkCLIService
