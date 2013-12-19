@@ -53,7 +53,7 @@ object SharkCliDriver {
   private var prompt  = "shark"
   private var prompt2 = "     " // when ';' is not yet seen.
   private var transport:TSocket = _
-    
+
   installSignalHandler()
 
   /**
@@ -214,7 +214,7 @@ object SharkCliDriver {
     clientTransportTSocketField.setAccessible(true)
 
     transport = clientTransportTSocketField.get(ss).asInstanceOf[TSocket]
-    
+
     var ret = 0
 
     var prefix = ""
@@ -265,10 +265,9 @@ class SharkCliDriver(reloadRdds: Boolean = true) extends CliDriver with LogHelpe
   // because the Hive unit tests do not go through the main() code path.
   if (!ss.isRemoteMode()) {
     SharkEnv.init()
-  }
-
-  if (reloadRdds) {
-    TableRecovery.reloadRdds(processCmd(_))
+    if (reloadRdds) {
+      TableRecovery.reloadRdds(processCmd(_))
+    }
   }
 
   def this() = this(false)
