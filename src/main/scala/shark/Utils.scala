@@ -94,4 +94,10 @@ object Utils {
     new BufferedReader(new InputStreamReader(s3obj.getDataInputStream()))
   }
 
+  def setSuperField(fieldName: String, fieldValue: Object, clazz : Object) {
+    val field = clazz.getClass.getSuperclass.getDeclaredField(fieldName)
+    field.setAccessible(true)
+    field.set(clazz, fieldValue)
+  }
+
 }
