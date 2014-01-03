@@ -29,6 +29,7 @@ import org.apache.hadoop.hive.ql.plan.{LateralViewJoinDesc, SelectDesc}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, StructObjectInspector}
 
+import org.apache.spark.SparkEnv
 import org.apache.spark.rdd.RDD
 import org.apache.spark.serializer.{KryoSerializer => SparkKryoSerializer}
 
@@ -151,7 +152,7 @@ class LateralViewJoinOperator extends NaryOperator[LateralViewJoinDesc] {
  */
 object KryoSerializerToString {
 
-  @transient val kryoSer = new SparkKryoSerializer
+  @transient val kryoSer = new SparkKryoSerializer(SparkEnv.get.conf)
 
   def serialize[T](o: T): String = {
     val bytes = kryoSer.newInstance().serialize(o).array()
