@@ -226,7 +226,7 @@ fi
 # Download Scala if SCALA_HOME is not specified.
 ####################################################################
 if [ "x$SCALA_HOME" == "x" ] ; then
-  wget $SCALA_DOWNLOAD_PATH
+  wget -nc $SCALA_DOWNLOAD_PATH
   tar xvfz scala*tgz
   export SCALA_HOME="$WORKSPACE/scala-$SCALA_VERSION"
 fi
