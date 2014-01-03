@@ -52,7 +52,7 @@ class SerializationSuite extends FunSuite {
     val ois = KryoSerializationWrapper(new ArrayBuffer[ObjectInspector])
     ois.value += oi
 
-    val ser = new SparkJavaSerializer()
+    val ser = new SparkJavaSerializer(new SparkConf(false))
     val bytes = ser.newInstance().serialize(ois)
     val desered = ser.newInstance()
       .deserialize[KryoSerializationWrapper[ArrayBuffer[ObjectInspector]]](bytes)
