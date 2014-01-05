@@ -21,6 +21,7 @@ import java.nio.ByteBuffer
 
 import org.scalatest.FunSuite
 
+import org.apache.spark.SparkConf
 import org.apache.spark.serializer.{JavaSerializer, KryoSerializer}
 
 
@@ -31,7 +32,7 @@ class TablePartitionSuite extends FunSuite {
     val col2 = Array[Byte](1, 2, 3)
     val tp = new TablePartition(3, Array(ByteBuffer.wrap(col1), ByteBuffer.wrap(col2)))
 
-    val ser = new JavaSerializer
+    val ser = new JavaSerializer(new SparkConf(false))
     val bytes = ser.newInstance().serialize(tp)
     val tp1 = ser.newInstance().deserialize[TablePartition](bytes)
     assert(tp1.numRows === 3)
@@ -58,7 +59,7 @@ class TablePartitionSuite extends FunSuite {
     col2.rewind()
     val tp = new TablePartition(3, Array(col1, col2))
 
-    val ser = new JavaSerializer
+    val ser = new JavaSerializer(new SparkConf(false))
     val bytes = ser.newInstance().serialize(tp)
     val tp1 = ser.newInstance().deserialize[TablePartition](bytes)
     assert(tp1.numRows === 3)
@@ -77,7 +78,7 @@ class TablePartitionSuite extends FunSuite {
     val col2 = Array[Byte](1, 2, 3)
     val tp = new TablePartition(3, Array(ByteBuffer.wrap(col1), ByteBuffer.wrap(col2)))
 
-    val ser = new KryoSerializer
+    val ser = new KryoSerializer(new SparkConf(false))
     val bytes = ser.newInstance().serialize(tp)
     val tp1 = ser.newInstance().deserialize[TablePartition](bytes)
     assert(tp1.numRows === 3)
@@ -104,7 +105,7 @@ class TablePartitionSuite extends FunSuite {
     col2.rewind()
     val tp = new TablePartition(3, Array(col1, col2))
 
-    val ser = new KryoSerializer
+    val ser = new KryoSerializer(new SparkConf(false))
     val bytes = ser.newInstance().serialize(tp)
     val tp1 = ser.newInstance().deserialize[TablePartition](bytes)
     assert(tp1.numRows === 3)
