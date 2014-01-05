@@ -50,6 +50,10 @@ import shark.execution.{ReduceKey, ReduceKeyReduceSide}
  * would increase the size of the hash table by another 16 bytes per key-value pair.
  */
 class ShuffleSerializer(conf: SparkConf) extends Serializer {
+
+  // A no-arg constructor since conf is not needed in this serializer.
+  def this() = this(null)
+
   override def newInstance(): SerializerInstance = new ShuffleSerializerInstance
 }
 
