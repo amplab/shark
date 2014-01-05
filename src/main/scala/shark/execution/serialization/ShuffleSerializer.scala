@@ -22,6 +22,7 @@ import java.nio.ByteBuffer
 
 import org.apache.hadoop.io.BytesWritable
 
+import org.apache.spark.SparkConf
 import org.apache.spark.serializer.DeserializationStream
 import org.apache.spark.serializer.{SerializationStream, Serializer, SerializerInstance}
 
@@ -48,7 +49,7 @@ import shark.execution.{ReduceKey, ReduceKeyReduceSide}
  * into a hash table. We want to reduce the size of the hash table. Having the BytesWritable wrapper
  * would increase the size of the hash table by another 16 bytes per key-value pair.
  */
-class ShuffleSerializer extends Serializer {
+class ShuffleSerializer(conf: SparkConf) extends Serializer {
   override def newInstance(): SerializerInstance = new ShuffleSerializerInstance
 }
 
