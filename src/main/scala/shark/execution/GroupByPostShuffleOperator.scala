@@ -437,7 +437,25 @@ class GroupByPostShuffleOperator extends GroupByPreShuffleOperator with HiveTopO
     if (!newIter.hasNext && keyFields.length == 0) {
       Iterator(createEmptyRow()) // We return null if there are no rows
     } else {
-      newIter
+      if (groupingSetsPresent) {
+        // An additional MR job is introduced since the cardinality of grouping sets
+        // is more than hive.new.job.grouping.set.cardinality. In this case, there are
+        // no distinct keys. That's why we are here.
+        val outputBuffer = new Array[Array[Object]](groupingSets.size())
+        newIter.flatMap { row: Array[Object] =>
+          val newKeysIter = getNewKeysIterator(row)
+
+          var i = 0
+          while (newKeysIter.hasNext) {
+            newKeysIter.next
+            outputBuffer(i) = row.clone()
+            i += 1
+          }
+          outputBuffer
+        }
+      } else {
+        newIter
+      }
     }
   }
 
