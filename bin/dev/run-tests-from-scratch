@@ -12,6 +12,7 @@
 # Set up config vars using env vars or defaults; parse cmd line flags.
 #####################################################################
 SHARK_PROJ_DIR_DEFAULT="$(cd `dirname $0`/../../; pwd)"
+SBT_OPTS_DEFAULT="-Xms512M -Xmx2048M -Xss1M -XX:+CMSClassUnloadingEnabled -XX:MaxPermSize=512m -XX:ReservedCodeCacheSize=256m -XX:+UseCodeCacheFlushing"
 SPARK_MEM_DEFAULT=4g
 SHARK_MASTER_MEM_DEFAULT=4g
 SPARK_KV_JAVA_OPTS_DEFAULT=("-Dspark.local.dir=/tmp " "-Dspark.kryoserializer.buffer.mb=10 ")
@@ -47,6 +48,10 @@ else
     echo "ERROR: your current value of JAVA_HOME (${JAVA_HOME}) is not valid."
     exit -1
   fi
+fi
+
+if [ "x$SBT_OPTS" == "x" ] ; then
+  SBT_OPTS=$SBT_OPTS_DEFAULT
 fi
 
 if [ "x$SPARK_MEM" == "x" ] ; then
@@ -117,6 +122,7 @@ Required Options:
 Optional configuration environment variables:
   SHARK_PROJ_DIR (default: "$SHARK_PROJ_DIR_DEFAULT")
   SCALA_HOME (default: Scala version ${SCALA_VERSION} will be downloaded and used)
+  SBT_OPTS (default: "$SBT_OPTS_DEFAULT")
   SPARK_MEM (default: $SPARK_MEM_DEFAULT)
   SHARK_MASTER_MEM (default: $SHARK_MASTER_MEM_DEFAULT)
   SPARK_JAVA_OPTS (default: "${SPARK_KV_JAVA_OPTS_DEFAULT[@]}")
@@ -252,7 +258,8 @@ else
   export SPARK_HADOOP_VERSION=$SPARK_HADOOP_VERSION
   export SPARK_WITH_YARN=$SPARK_WITH_YARN
   # Build spark and push the jars to local Ivy/Maven caches.
-  sbt/sbt clean publish-local
+  wget -nc http://typesafe.artifactoryonline.com/typesafe/ivy-releases/org.scala-sbt/sbt-launch/0.13.0/sbt-launch.jar
+  java $SBT_OPTS -jar sbt-launch.jar clean publish-local
   popd
 fi
 export SPARK_HOME="$WORKSPACE/spark"
