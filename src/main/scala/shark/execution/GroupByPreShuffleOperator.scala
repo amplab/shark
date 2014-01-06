@@ -149,12 +149,12 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
       // Update newKeys according to the current grouping set.
       override def next(): Unit = {
         for (i <- 0 until groupingSetsPosition) {
-	      newKeysArray(i) = null
-	    }
-	    groupingSetsBitSet(groupingSetIndex).foreach {keyIndex =>
-	      newKeysArray(keyIndex) = cloneNewKeysArray(keyIndex)
-	    }
-	    newKeysArray(groupingSetsPosition) = newKeysGroupingSets(groupingSetIndex)
+          newKeysArray(i) = null
+        }
+        groupingSetsBitSet(groupingSetIndex).foreach {keyIndex =>
+          newKeysArray(keyIndex) = cloneNewKeysArray(keyIndex)
+        }
+        newKeysArray(groupingSetsPosition) = newKeysGroupingSets(groupingSetIndex)
         groupingSetIndex += 1
       }
     }
