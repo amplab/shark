@@ -251,8 +251,13 @@ else
   pushd spark
   export SPARK_HADOOP_VERSION=$SPARK_HADOOP_VERSION
   export SPARK_WITH_YARN=$SPARK_WITH_YARN
+
+  # Download SBT
+  wget -nc http://typesafe.artifactoryonline.com/typesafe/ivy-releases/org.scala-sbt/sbt-launch/0.13.0/sbt-launch.jar
+
   # Build spark and push the jars to local Ivy/Maven caches.
-  sbt/sbt clean publish-local
+  #sbt/sbt clean publish-local
+  java -Xmx2048M -XX:MaxPermSize=512m -XX:ReservedCodeCacheSize=256m -XX:+UseCodeCacheFlushing $EXTRA_ARGS -jar sbt-launch.jar clean publish-local
   popd
 fi
 export SPARK_HOME="$WORKSPACE/spark"
