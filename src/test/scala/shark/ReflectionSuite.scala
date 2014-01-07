@@ -75,6 +75,12 @@ class ReflectionSuite extends FunSuite {
   test("SemanticAnalyzer") {
     val c = classOf[org.apache.hadoop.hive.ql.parse.SemanticAnalyzer]
     var m = c.getDeclaredMethod(
+      "validateCreateView",
+      classOf[org.apache.hadoop.hive.ql.plan.CreateViewDesc])
+    m.setAccessible(true)
+    assert(m.getReturnType === Void.TYPE)
+
+    m = c.getDeclaredMethod(
       "convertRowSchemaToViewSchema",
       classOf[org.apache.hadoop.hive.ql.parse.RowResolver])
     m.setAccessible(true)
