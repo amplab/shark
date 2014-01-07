@@ -438,10 +438,12 @@ class GroupByPostShuffleOperator extends GroupByPreShuffleOperator with HiveTopO
       Iterator(createEmptyRow()) // We return null if there are no rows
     } else {
       if (groupingSetsPresent) {
-        // An additional MR job is introduced since the cardinality of grouping sets
-        // is more than hive.new.job.grouping.set.cardinality. In this case, there are
-        // no distinct keys. That's why we are here.
-        val outputBuffer = new Array[Array[Object]](groupingSets.size())
+        // When the cardinality of grouping sets is more than
+        // hive.new.job.grouping.set.cardinality, HIVE will generate a 2-stage MR plan
+        // for the GroupBy clause and grouping sets are handled in the reduce-side GroupBy
+        // operator of the first stage. In this case, no distinct keys are allowed. We handle
+        // this case here.
+        val outputBuffer = new Array[Array[Object]](groupingSets.size)
         newIter.flatMap { row: Array[Object] =>
           val newKeysIter = getNewKeysIterator(row)
 

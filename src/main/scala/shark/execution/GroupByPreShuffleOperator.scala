@@ -67,8 +67,8 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
   @transient var groupingSetsPresent: Boolean = _
   @transient var groupingSets: java.util.List[java.lang.Integer] = _
   @transient var groupingSetsPosition: Int = _
-  @transient var newKeysGroupingSets: ArrayBuffer[Object] = _
-  @transient var groupingSetsBitSet: ArrayBuffer[BitSet1] = _
+  @transient var newKeysGroupingSets: Array[Object] = _
+  @transient var groupingSetsBitSet: Array[BitSet1] = _
   @transient var cloneNewKeysArray: Array[Object] = _
 
   override def initializeOnMaster() {
@@ -120,31 +120,33 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
     if (groupingSetsPresent) {
       groupingSets = conf.getListGroupingSets()
       groupingSetsPosition = conf.getGroupingSetPosition()
-      newKeysGroupingSets = new ArrayBuffer[Object]()
-      groupingSetsBitSet = new ArrayBuffer[BitSet1]()
-      cloneNewKeysArray = new Array[Object](groupingSets.size())
+      newKeysGroupingSets = new Array[Object](groupingSets.size)
+      groupingSetsBitSet = new Array[BitSet1](groupingSets.size)
+      cloneNewKeysArray = new Array[Object](groupingSets.size)
 
-      groupingSets.foreach { groupingSet =>
+      groupingSets.zipWithIndex.foreach { case(groupingSet, i) =>
         val groupingSetValueEvaluator: ExprNodeEvaluator =
           ExprNodeEvaluatorFactory.get(new ExprNodeConstantDesc(String.valueOf(groupingSet)));
 
-        newKeysGroupingSets += groupingSetValueEvaluator.evaluate(null)
-        groupingSetsBitSet += new BitSet1(groupingSet.longValue())
+        newKeysGroupingSets(i) = groupingSetValueEvaluator.evaluate(null)
+        groupingSetsBitSet(i) = new BitSet1(groupingSet.longValue())
       }
     }
   }
 
-  // Return an iterator which iterates newKeys corresponding to the grouping sets.
   protected final
   def getNewKeysIterator (newKeysArray: Array[Object]): Iterator[Unit] = {
+    // This iterator abstracts the operation that gets an array of groupby keys for the next
+    // grouping set of the grouping sets and makes such logic re-usable in several places.
+    //
+    // Initially, newKeysArray is an array containing all groupby keys for the superset of
+    // grouping sets. next() method updates newKeysArray to be an array of groupby keys for
+    // the next grouping set.
     new Iterator[Unit]() {
-      for (i <- 0 until groupingSetsPosition) {
-        cloneNewKeysArray(i) = newKeysArray(i)     
-      }
-      private var groupingSetIndex = 0
+      Array.copy(newKeysArray, 0, cloneNewKeysArray, 0, groupingSetsPosition)
+      var groupingSetIndex = 0
 
-      override def hasNext: Boolean =
-        if (groupingSetIndex < groupingSets.size()) true else false
+      override def hasNext: Boolean = groupingSetIndex < groupingSets.size
 
       // Update newKeys according to the current grouping set.
       override def next(): Unit = {
@@ -180,7 +182,9 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
         if (groupingSetsPresent) getNewKeysIterator(newKeys.getKeyArray) else null
 
       do {
-        if (groupingSetsPresent) newKeysIter.next
+        if (groupingSetsPresent) {
+          newKeysIter.next
+        }
         newKeys.setHashKey()
 
         var aggs = hashAggregations.get(newKeys)
@@ -250,7 +254,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[HiveGroupByOperator] {
         outputCache
       }
       if (groupingSetsPresent) {
-        val outputBuffer = new Array[Array[Object]](groupingSets.size())
+        val outputBuffer = new Array[Array[Object]](groupingSets.size)
         newIter.flatMap { row: Array[Object] =>
           val newKeysIter = getNewKeysIterator(row)
 
