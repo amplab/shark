@@ -17,19 +17,19 @@
 
 package org.apache.hadoop.hive.ql.exec
 
-import java.util
+import java.util.ArrayList
 
-import scala.reflect.BeanProperty
 import scala.collection.JavaConversions._
 import scala.collection.mutable
+import scala.reflect.BeanProperty
 
+import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{PTFOperator => HivePTFOperator}
 import org.apache.hadoop.hive.ql.plan.{PTFDeserializer, PTFDesc}
-import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspectorUtils, ObjectInspector, StructObjectInspector}
-import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.plan.PTFDesc._
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption
 import org.apache.hadoop.hive.ql.udf.ptf.TableFunctionEvaluator
+import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspectorUtils, ObjectInspector, StructObjectInspector}
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption
 import org.apache.hadoop.hive.serde2.SerDe
 
 import shark.execution.UnaryOperator
@@ -54,7 +54,7 @@ class PartitionTableFunctionOperator extends UnaryOperator[HivePTFOperator] {
    * 4. Create input partition to store rows coming from previous operator
    */
   override def initializeOnSlave() {
-    /**
+    /*
      * Initialize the visitor to use the QueryDefDeserializer Use the order
      * defined in QueryDefWalker to visit the QueryDef
      */
@@ -157,7 +157,7 @@ class PartitionTableFunctionOperator extends UnaryOperator[HivePTFOperator] {
 
   def setupKeysWrapper(inputOI: ObjectInspector) {
     val pDef: PartitionDef = conf.getStartOfChain().getPartition
-    val exprs: util.ArrayList[PTFExpressionDef] = pDef.getExpressions
+    val exprs: ArrayList[PTFExpressionDef] = pDef.getExpressions
     val numExprs = exprs.size
     val keyFields = new Array[ExprNodeEvaluator](numExprs)
     val keyOIs = new Array[ObjectInspector](numExprs)
