@@ -24,28 +24,27 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.scheduler.StatsReportListener
 
 import shark.api.JavaSharkContext
-import shark.execution.serialization.ShuffleSerializer
-import shark.memstore2.MemoryMetadataManager
+import shark.execution.serialization.{KryoSerializer, ShuffleSerializer}
+import shark.memstore2.{MemoryMetadataManager, Table}
 import shark.tachyon.TachyonUtilImpl
 
 
 /** A singleton object for the master program. The slaves should not access this. */
 object SharkEnv extends LogHelper {
 
-  def init(): SparkContext = {
+  def init(): SharkContext = {
     if (sc == null) {
-      sc = new SparkContext(
-        if (System.getenv("MASTER") == null) "local" else System.getenv("MASTER"),
-        "Shark::" + java.net.InetAddress.getLocalHost.getHostName,
-        System.getenv("SPARK_HOME"),
-        Nil,
-        executorEnvVars)
-      sc.addSparkListener(new StatsReportListener())
+      val jobName = "Shark::" + java.net.InetAddress.getLocalHost.getHostName
+      val master = System.getenv("MASTER")
+      initWithSharkContext(jobName, master)
     }
+    KryoSerializer.initWithSharkContext(sc)
     sc
   }
 
-  def initWithSharkContext(jobName: String, master: String = System.getenv("MASTER"))
+  def initWithSharkContext(
+      jobName: String = "Shark::" + java.net.InetAddress.getLocalHost.getHostName,
+      master: String = System.getenv("MASTER"))
     : SharkContext = {
     if (sc != null) {
       sc.stop()
@@ -58,16 +57,16 @@ object SharkEnv extends LogHelper {
       Nil,
       executorEnvVars)
     sc.addSparkListener(new StatsReportListener())
-    sc.asInstanceOf[SharkContext]
+    KryoSerializer.initWithSharkContext(sc)
+    sc
   }
 
   def initWithSharkContext(newSc: SharkContext): SharkContext = {
     if (sc != null) {
       sc.stop()
     }
-
     sc = newSc
-    sc.asInstanceOf[SharkContext]
+    sc
   }
 
   def initWithJavaSharkContext(jobName: String): JavaSharkContext = {
@@ -96,7 +95,7 @@ object SharkEnv extends LogHelper {
 
   val activeSessions = new HashSet[String]
   
-  var sc: SparkContext = _
+  var sc: SharkContext = _
 
   val shuffleSerializerName = classOf[ShuffleSerializer].getName
 

@@ -19,9 +19,10 @@ package shark.execution.serialization
 
 import java.nio.ByteBuffer
 
-import org.apache.spark.SparkEnv
+import org.apache.spark.SparkConf
 import org.apache.spark.serializer.{KryoSerializer => SparkKryoSerializer}
 
+import shark.SharkContext
 
 /**
  * Java object serialization using Kryo. This is much more efficient, but Kryo
@@ -30,7 +31,15 @@ import org.apache.spark.serializer.{KryoSerializer => SparkKryoSerializer}
  */
 object KryoSerializer {
 
-  @transient val ser = new SparkKryoSerializer(SparkEnv.get.conf)
+  @transient var ser: SparkKryoSerializer = _
+
+  def initWithSharkContext(sc: SharkContext) {
+  	ser = new SparkKryoSerializer(sc.sparkEnv.conf)
+  }
+
+  def initWithSparkConf(sparkConf: SparkConf) {
+  	ser = new SparkKryoSerializer(sparkConf)
+  }
 
   def serialize[T](o: T): Array[Byte] = {
     ser.newInstance().serialize(o).array()
