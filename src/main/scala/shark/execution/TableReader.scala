@@ -17,6 +17,8 @@
 
 package shark.execution
 
+import scala.collection.mutable.{ArrayBuffer, HashMap}
+
 import org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_PARTITION_COLUMNS
 import org.apache.hadoop.hive.ql.exec.Utilities
 import org.apache.hadoop.hive.ql.metadata.{Partition => HivePartition, Table => HiveTable}
@@ -27,7 +29,7 @@ import org.apache.spark.rdd.{EmptyRDD, RDD, UnionRDD}
 import shark.{LogHelper, SharkEnv}
 import shark.api.QueryExecutionException
 import shark.execution.serialization.JavaSerializer
-import shark.memstore2.{MemoryMetadataManager, TablePartition, TablePartitionStats}
+import shark.memstore2.{MemoryMetadataManager, Table, TablePartition, TablePartitionStats}
 import shark.tachyon.TachyonException
 
 
@@ -36,7 +38,7 @@ import shark.tachyon.TachyonException
  * type of table storage: HeapTableReader for Shark tables in Spark's block manager,
  * TachyonTableReader for tables in Tachyon, and HadoopTableReader for Hive tables in a filesystem.
  */
-trait TableReader extends LogHelper{
+trait TableReader extends LogHelper {
 
   def makeRDDForTable(hiveTable: HiveTable): RDD[_]
 
@@ -44,8 +46,20 @@ trait TableReader extends LogHelper{
 
 }
 
+trait MemoryTableReader extends TableReader {
+
+  def makeRDDForTableWithStats(
+      hiveTable: HiveTable
+    ): (RDD[_], collection.Map[Int, TablePartitionStats])
+
+  def makeRDDForPartitionedTableWithStats(
+      partitions: Seq[HivePartition]
+    ): (RDD[_], collection.Map[Int, TablePartitionStats])
+
+}
+
 /** Helper class for scanning tables stored in Tachyon. */
-class TachyonTableReader(@transient _tableDesc: TableDesc) extends TableReader {
+class TachyonTableReader(@transient _tableDesc: TableDesc) extends MemoryTableReader {
 
   // Split from 'databaseName.tableName'
   private val _tableNameSplit = _tableDesc.getTableName.split('.')
@@ -53,35 +67,38 @@ class TachyonTableReader(@transient _tableDesc: TableDesc) extends TableReader {
   private val _tableName = _tableNameSplit(1)
 
   override def makeRDDForTable(hiveTable: HiveTable): RDD[_] = {
+    makeRDDForTableWithStats(hiveTable)._1
+  }
+
+  override def makeRDDForTableWithStats(
+      hiveTable: HiveTable
+    ): (RDD[_], collection.Map[Int, TablePartitionStats]) = {
     // Table is in Tachyon.
     val tableKey = SharkEnv.makeTachyonTableKey(_databaseName, _tableName)
     if (!SharkEnv.tachyonUtil.tableExists(tableKey)) {
       throw new TachyonException("Table " + tableKey + " does not exist in Tachyon")
     }
-    logInfo("Loading table " + tableKey + " from Tachyon.")
-
-    // True if stats for the target table is missing from the Shark metastore, and should be fetched
-    // and deserialized from Tachyon's metastore. This can happen if that table was created in a
-    // previous Shark session, since Shark's metastore is not persistent.
-    val shouldFetchStatsFromTachyon = SharkEnv.memoryMetadataManager.getStats(
-      _databaseName, _tableName).isEmpty
-    if (shouldFetchStatsFromTachyon) {
-      val statsByteBuffer = SharkEnv.tachyonUtil.getTableMetadata(tableKey)
-      val indexToStats = JavaSerializer.deserialize[collection.Map[Int, TablePartitionStats]](
-        statsByteBuffer.array())
-      logInfo("Loading table " + tableKey + " stats from Tachyon.")
-      SharkEnv.memoryMetadataManager.putStats(_databaseName, _tableName, indexToStats)
-    }
-    SharkEnv.tachyonUtil.createRDD(tableKey)
+    val statsByteBuffer = SharkEnv.tachyonUtil.getTableMetadata(tableKey)
+    val indexToStats = JavaSerializer.deserialize[collection.Map[Int, TablePartitionStats]](
+      statsByteBuffer.array())
+    logInfo("Fetching table " + tableKey + " stats from Tachyon.")
+    (SharkEnv.tachyonUtil.createRDD(tableKey), indexToStats)
   }
 
   override def makeRDDForPartitionedTable(partitions: Seq[HivePartition]): RDD[_] = {
     throw new UnsupportedOperationException("Partitioned tables are not yet supported for Tachyon.")
   }
+
+  override def makeRDDForPartitionedTableWithStats(
+      partitions: Seq[HivePartition]
+    ): (RDD[_], collection.Map[Int, TablePartitionStats]) = {
+    throw new UnsupportedOperationException("Partitioned tables are not yet supported for Tachyon.")
+  }
+
 }
 
 /** Helper class for scanning tables stored in Spark's block manager */
-class HeapTableReader(@transient _tableDesc: TableDesc) extends TableReader {
+class HeapTableReader(@transient _tableDesc: TableDesc) extends MemoryTableReader {
 
   // Split from 'databaseName.tableName'
   private val _tableNameSplit = _tableDesc.getTableName.split('.')
@@ -89,7 +106,9 @@ class HeapTableReader(@transient _tableDesc: TableDesc) extends TableReader {
   private val _tableName = _tableNameSplit(1)
 
   /** Fetches the RDD for `_tableName` from the Shark metastore. */
-  override def makeRDDForTable(hiveTable: HiveTable): RDD[_] = {
+  override def makeRDDForTableWithStats(
+      hiveTable: HiveTable
+    ): (RDD[_], collection.Map[Int, TablePartitionStats]) = {
     logInfo("Loading table %s.%s from Spark block manager".format(_databaseName, _tableName))
     val tableOpt = SharkEnv.memoryMetadataManager.getMemoryTable(_databaseName, _tableName)
     if (tableOpt.isEmpty) {
@@ -97,7 +116,11 @@ class HeapTableReader(@transient _tableDesc: TableDesc) extends TableReader {
     }
 
     val table = tableOpt.get
-    table.tableRDD
+    (table.getRDD.get, table.getStats.get)
+  }
+
+  override def makeRDDForTable(hiveTable: HiveTable): RDD[_] = {
+    makeRDDForTableWithStats(hiveTable)._1
   }
 
   /**
@@ -107,7 +130,10 @@ class HeapTableReader(@transient _tableDesc: TableDesc) extends TableReader {
    * @param partitions A collection of Hive-partition metadata, such as partition columns and
    *     partition key specifications.
    */
-  override def makeRDDForPartitionedTable(partitions: Seq[HivePartition]): RDD[_] = {
+  override def makeRDDForPartitionedTableWithStats(
+      partitions: Seq[HivePartition]
+    ): (RDD[_], collection.Map[Int, TablePartitionStats]) = {
+    val unionedStats = new ArrayBuffer[(Int, TablePartitionStats)]
     val hivePartitionRDDs = partitions.map { partition =>
       val partDesc = Utilities.getPartitionDesc(partition)
       // Get partition field info
@@ -132,10 +158,11 @@ class HeapTableReader(@transient _tableDesc: TableDesc) extends TableReader {
       }
       val hivePartitionedTable = hivePartitionedTableOpt.get
 
-      val hivePartitionRDDOpt = hivePartitionedTable.getPartition(partitionKeyStr)
-      if (hivePartitionRDDOpt.isEmpty) throwMissingPartitionException(partitionKeyStr)
-      val hivePartitionRDD = hivePartitionRDDOpt.get
-
+      val rddAndStatsOpt = hivePartitionedTable.getPartitionAndStats(partitionKeyStr)
+      if (rddAndStatsOpt.isEmpty) throwMissingPartitionException(partitionKeyStr)
+      val (hivePartitionRDD, hivePartitionStats) = (rddAndStatsOpt.get._1, rddAndStatsOpt.get._2)
+      // Union any stats previously collected.
+      Table.mergeStats(unionedStats, hivePartitionStats)
       hivePartitionRDD.mapPartitions { iter =>
         if (iter.hasNext) {
           // Map each tuple to a row object
@@ -152,10 +179,14 @@ class HeapTableReader(@transient _tableDesc: TableDesc) extends TableReader {
       }
     }
     if (hivePartitionRDDs.size > 0) {
-      new UnionRDD(hivePartitionRDDs.head.context, hivePartitionRDDs)
+      (new UnionRDD(hivePartitionRDDs.head.context, hivePartitionRDDs), unionedStats.toMap)
     } else {
-      new EmptyRDD[Object](SharkEnv.sc)
+      (new EmptyRDD[Object](SharkEnv.sc), new HashMap[Int, TablePartitionStats])
     }
+  }
+
+  override def makeRDDForPartitionedTable(partitions: Seq[HivePartition]): RDD[_] = {
+    makeRDDForPartitionedTableWithStats(partitions)._1
   }
 
   /**

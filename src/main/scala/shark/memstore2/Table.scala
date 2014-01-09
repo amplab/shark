@@ -17,6 +17,13 @@
 
 package shark.memstore2
 
+import scala.collection.mutable.ArrayBuffer
+
+import org.apache.spark.rdd.RDD
+
+import scala.collection.mutable.Buffer
+
+
 /**
  * A container for table metadata managed by Shark and Spark. Subclasses are responsible for
  * how RDDs are set, stored, and accessed.
@@ -28,4 +35,32 @@ package shark.memstore2
 private[shark] abstract class Table(
     var databaseName: String,
     var tableName: String,
-    var cacheMode: CacheType.CacheType)
+    var cacheMode: CacheType.CacheType) {
+
+  /**
+   * A mutable wrapper for an RDD and stats for its partitions.
+   */
+  class RDDValue(
+  	  var rdd: RDD[TablePartition],
+  	  var stats: collection.Map[Int, TablePartitionStats]) {
+
+  	def toTuple = (rdd, stats)
+  }
+}
+
+object Table {
+
+  /**
+   * Merges contents of `otherStatsMaps` into `targetStatsMap`.
+   */
+  def mergeStats(
+      targetStatsMap: Buffer[(Int, TablePartitionStats)],
+      otherStatsMap: Iterable[(Int, TablePartitionStats)]
+    ): Buffer[(Int, TablePartitionStats)] = {
+    val targetStatsMapSize = targetStatsMap.size
+    for ((otherIndex, tableStats) <- otherStatsMap) {
+      targetStatsMap.append((otherIndex + targetStatsMapSize, tableStats))
+    }
+    targetStatsMap
+  }
+}

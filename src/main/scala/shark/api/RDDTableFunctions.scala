@@ -65,7 +65,6 @@ class RDDTableFunctions(self: RDD[Seq[_]], classTags: Seq[ClassTag[_]]) {
       // Create an entry in the MemoryMetadataManager.
       val newTable = SharkEnv.memoryMetadataManager.createMemoryTable(
         databaseName, tableName, CacheType.MEMORY)
-      newTable.tableRDD = rdd
       try {
         // Force evaluate to put the data in memory.
         rdd.context.runJob(rdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
@@ -79,9 +78,7 @@ class RDDTableFunctions(self: RDD[Seq[_]], classTags: Seq[ClassTag[_]]) {
           isSucessfulCreateTable = false
         }
       }
-
-      // Gather the partition statistics.
-      SharkEnv.memoryMetadataManager.putStats(databaseName, tableName, statsAcc.value.toMap)
+      newTable.put(rdd, statsAcc.value.toMap)
     }
     return isSucessfulCreateTable
   }

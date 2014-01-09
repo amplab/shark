@@ -37,27 +37,6 @@ class MemoryMetadataManager {
   private val _tables: concurrent.Map[String, Table] =
     new ConcurrentHashMap[String, Table]()
 
-  // TODO(harvey): Support stats for Hive-partitioned tables.
-  // Set of stats, from databaseName.tableName to the stats. This is guaranteed to have the same
-  // structure / size as the _tables map.
-  private val _keyToStats: concurrent.Map[String, collection.Map[Int, TablePartitionStats]] =
-    new ConcurrentHashMap[String, collection.Map[Int, TablePartitionStats]]
-
-  def putStats(
-      databaseName: String,
-      tableName: String,
-      stats: collection.Map[Int, TablePartitionStats]) {
-    val tableKey = makeTableKey(databaseName, tableName)
-    _keyToStats.put(tableKey, stats)
-  }
-
-  def getStats(
-      databaseName: String,
-      tableName: String): Option[collection.Map[Int, TablePartitionStats]] = {
-    val tableKey = makeTableKey(databaseName, tableName)
-    _keyToStats.get(tableKey)
-  }
-
   def isHivePartitioned(databaseName: String, tableName: String): Boolean = {
     val tableKey = makeTableKey(databaseName, tableName)
     _tables.get(tableKey) match {
@@ -130,18 +109,16 @@ class MemoryMetadataManager {
       val oldTableKey = makeTableKey(databaseName, oldName)
       val newTableKey = makeTableKey(databaseName, newName)
 
-      val statsValueEntry = _keyToStats.remove(oldTableKey).get
       val tableValueEntry = _tables.remove(oldTableKey).get
       tableValueEntry.tableName = newTableKey
 
-      _keyToStats.put(newTableKey, statsValueEntry)
       _tables.put(newTableKey, tableValueEntry)
     }
   }
 
   /**
    * Used to drop a table from the Spark in-memory cache and/or disk. All metadata tracked by Shark
-   * (e.g. entry in '_keyToStats' if the table isn't Hive-partitioned) is deleted as well.
+   * is deleted as well.
    *
    * @return Option::isEmpty() is true of there is no MemoryTable (and RDD) corresponding to 'key'
    *     in _keyToMemoryTable. For MemoryTables that are Hive-partitioned, the RDD returned will
@@ -151,7 +128,6 @@ class MemoryMetadataManager {
     val tableKey = makeTableKey(databaseName, tableName)
 
     // Remove MemoryTable's entry from Shark metadata.
-    _keyToStats.remove(tableKey)
     val tableValue: Option[Table] = _tables.remove(tableKey)
     tableValue.flatMap(MemoryMetadataManager.unpersistRDDsInTable(_))
   }
@@ -213,7 +189,7 @@ object MemoryMetadataManager {
         unpersistedRDD = Some(unionedRDD)
       }
     } else {
-      unpersistedRDD = Some(RDDUtils.unpersistRDD(table.asInstanceOf[MemoryTable].tableRDD))
+      unpersistedRDD = Some(RDDUtils.unpersistRDD(table.asInstanceOf[MemoryTable].getRDD.get))
     }
     unpersistedRDD
   }
