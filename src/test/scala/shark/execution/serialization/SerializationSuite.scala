@@ -46,13 +46,16 @@ object SerializationSuite {
 
 class SerializationSuite extends FunSuite {
 
+  // Initialize the Shark KryoSerializer singleton.
+  KryoSerializer.initWithSparkConf(new SparkConf(loadDefaults = false))
+
   test("Java serializing object inspectors") {
 
     val oi = PrimitiveObjectInspectorFactory.javaStringObjectInspector
     val ois = KryoSerializationWrapper(new ArrayBuffer[ObjectInspector])
     ois.value += oi
 
-    val ser = new SparkJavaSerializer(new SparkConf(false))
+    val ser = new SparkJavaSerializer(new SparkConf(loadDefaults = false))
     val bytes = ser.newInstance().serialize(ois)
     val desered = ser.newInstance()
       .deserialize[KryoSerializationWrapper[ArrayBuffer[ObjectInspector]]](bytes)
@@ -68,7 +71,7 @@ class SerializationSuite extends FunSuite {
     operator.localHiveOp = new org.apache.hadoop.hive.ql.exec.FileSinkOperator
     val opWrapped = OperatorSerializationWrapper(operator)
 
-    val ser = new SparkJavaSerializer(new SparkConf(false))
+    val ser = new SparkJavaSerializer(new SparkConf(loadDefaults = false))
     val bytes = ser.newInstance().serialize(opWrapped)
     val desered = ser.newInstance()
       .deserialize[OperatorSerializationWrapper[SharkFileSinkOperator]](bytes)
