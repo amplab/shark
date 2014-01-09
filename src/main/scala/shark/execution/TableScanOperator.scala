@@ -124,16 +124,16 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
       if (table.isPartitioned) {
         return tableReader.makeRDDForPartitionedTable(parts)
       } else {
-        val tableRdd = tableReader.makeRDDForTable(table)
-        return createPrunedRdd(databaseName, tableName, tableRdd)
+        val (tableRdd, stats) = tableReader.makeRDDForTableWithStats(table)
+        return createPrunedRdd(databaseName, tableName, tableRdd, stats)
       }
     } else if (cacheMode == CacheType.TACHYON) {
       val tableReader = new TachyonTableReader(tableDesc)
       if (table.isPartitioned) {
         return tableReader.makeRDDForPartitionedTable(parts)
       } else {
-        val tableRdd = tableReader.makeRDDForTable(table)
-        return createPrunedRdd(databaseName, tableName, tableRdd)
+        val (tableRdd, stats) = tableReader.makeRDDForTableWithStats(table)
+        return createPrunedRdd(databaseName, tableName, tableRdd, stats)
       }
     } else {
       // Table is a Hive table on HDFS (or other Hadoop storage).
@@ -141,13 +141,11 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
     }
   }
 
-  private def createPrunedRdd(databaseName: String, tableName: String, rdd: RDD[_]): RDD[_] = {
-    // Stats used for map pruning.
-    val indexToStatsOpt: Option[collection.Map[Int, TablePartitionStats]] =
-      SharkEnv.memoryMetadataManager.getStats(databaseName, tableName)
-    assert(indexToStatsOpt.isDefined, "Stats not found for table " + tableName)
-    val indexToStats = indexToStatsOpt.get
-
+  private def createPrunedRdd(
+      databaseName: String,
+      tableName: String,
+      rdd: RDD[_],
+      indexToStats: collection.Map[Int, TablePartitionStats]): RDD[_] = {
     // Run map pruning if the flag is set, there exists a filter predicate on
     // the input table and we have statistics on the table.
     val columnsUsed = new ColumnPruner(this, table).columnsUsed

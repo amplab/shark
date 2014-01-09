@@ -728,13 +728,13 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.sql("insert into table flat_cached select * from test")
     val tableName = "flat_cached"
     var memoryTable = SharkEnv.memoryMetadataManager.getMemoryTable(DEFAULT_DB_NAME, tableName).get
-    var unionRDD = memoryTable.tableRDD.asInstanceOf[UnionRDD[_]]
+    var unionRDD = memoryTable.getRDD.get.asInstanceOf[UnionRDD[_]]
     val numParentRDDs = unionRDD.rdds.size
     assert(isFlattenedUnionRDD(unionRDD))
 
     // Insert another set of query results. The flattening should kick in here.
     sc.sql("insert into table flat_cached select * from test")
-    unionRDD = memoryTable.tableRDD.asInstanceOf[UnionRDD[_]]
+    unionRDD = memoryTable.getRDD.get.asInstanceOf[UnionRDD[_]]
     assert(isFlattenedUnionRDD(unionRDD))
     assert(unionRDD.rdds.size == numParentRDDs + 1)
   }

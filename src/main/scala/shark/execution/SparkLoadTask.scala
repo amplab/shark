@@ -266,20 +266,13 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
       tableSchema,
       hadoopReader.broadcastedHiveConf,
       serDe.getObjectInspector.asInstanceOf[StructObjectInspector])
-    memoryTable.tableRDD = work.commandType match {
+    work.commandType match {
       case (SparkLoadWork.CommandTypes.OVERWRITE | SparkLoadWork.CommandTypes.NEW_ENTRY) =>
-        tablePartitionRDD
+        memoryTable.put(tablePartitionRDD, tableStats.toMap)
       case SparkLoadWork.CommandTypes.INSERT => {
-        // Union the previous and new RDDs, and their respective table stats.
-        val unionedRDD = RDDUtils.unionAndFlatten(tablePartitionRDD, memoryTable.tableRDD)
-        SharkEnv.memoryMetadataManager.getStats(databaseName, tableName ) match {
-          case Some(previousStatsMap) => SparkLoadTask.unionStatsMaps(tableStats, previousStatsMap)
-          case None => Unit
-        }
-        unionedRDD
+        memoryTable.update(tablePartitionRDD, tableStats)
       }
     }
-    SharkEnv.memoryMetadataManager.putStats(databaseName, tableName, tableStats.toMap)
   }
 
   /**
@@ -360,21 +353,12 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
         hadoopReader.broadcastedHiveConf,
         unionOI)
       // Determine how to cache the table RDD created.
-      val tableOpt = partitionedTable.getPartition(partitionKey)
-      if (tableOpt.isDefined && (work.commandType == SparkLoadWork.CommandTypes.INSERT)) {
-        val previousRDD = tableOpt.get
-        partitionedTable.updatePartition(partitionKey,
-          RDDUtils.unionAndFlatten(tablePartitionRDD, previousRDD))
-        // Union stats for the previous RDD with the new RDD loaded.
-        val previousStatsMapOpt = SharkEnv.memoryMetadataManager.getStats(databaseName, tableName)
-        assert(SharkEnv.memoryMetadataManager.getStats(databaseName, tableName).isDefined,
-          "Stats for %s.%s should be defined for an INSERT operation, but are missing.".
-            format(databaseName, tableName))
-        SparkLoadTask.unionStatsMaps(tableStats, previousStatsMapOpt.get)
+      if (partitionedTable.containsPartition(partitionKey) &&
+          (work.commandType == SparkLoadWork.CommandTypes.INSERT)) {
+        partitionedTable.updatePartition(partitionKey, tablePartitionRDD, tableStats)
       } else {
-        partitionedTable.putPartition(partitionKey, tablePartitionRDD)
+        partitionedTable.putPartition(partitionKey, tablePartitionRDD, tableStats.toMap)
       }
-      SharkEnv.memoryMetadataManager.putStats(databaseName, tableName, tableStats.toMap)
     }
   }
 
@@ -417,16 +401,5 @@ object SparkLoadTask {
         columnTypeProperties + (":" + Constants.STRING_TYPE_NAME * partCols.size))
     }
     serDeProps
-  }
-
-  private def unionStatsMaps(
-      targetStatsMap: ArrayBuffer[(Int, TablePartitionStats)],
-      otherStatsMap: Iterable[(Int, TablePartitionStats)]
-    ): ArrayBuffer[(Int, TablePartitionStats)] = {
-    val targetStatsMapSize = targetStatsMap.size
-    for ((otherIndex, tableStats) <- otherStatsMap) {
-      targetStatsMap.append((otherIndex + targetStatsMapSize, tableStats))
-    }
-    targetStatsMap
   }
 }
