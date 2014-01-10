@@ -17,6 +17,8 @@
 
 package org.apache.hadoop.hive.ql.exec
 
+import org.apache.hadoop.hive.serde2.objectinspector.{MapSplitPruningHelper, StructField}
+import org.apache.hadoop.hive.serde2.objectinspector.UnionStructObjectInspector.MyField
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFBaseCompare
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFBetween
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFIn
@@ -85,7 +87,7 @@ object MapSplitPruning {
     columnEval: ExprNodeColumnEvaluator,
     expEvals: Array[ExprNodeEvaluator]): Boolean = {
 
-    val field = columnEval.field.asInstanceOf[IDStructField]
+    val field = getIDStructField(columnEval.field)
     val columnStats = s.stats(field.fieldID)
 
     if (columnStats != null) {
@@ -107,7 +109,7 @@ object MapSplitPruning {
     leftEval: ExprNodeConstantEvaluator,
     rightEval: ExprNodeConstantEvaluator): Boolean = {
 
-    val field = columnEval.field.asInstanceOf[IDStructField]
+    val field = getIDStructField(columnEval.field)
     val columnStats = s.stats(field.fieldID)
     val leftValue: Object = leftEval.expr.getValue
     val rightValue: Object = rightEval.expr.getValue
@@ -156,7 +158,7 @@ object MapSplitPruning {
     if (columnEval != null && constEval != null) {
       // We can prune the partition only if it is a predicate of form
       //  column op const, where op is <, >, =, <=, >=, !=.
-      val field = columnEval.field.asInstanceOf[IDStructField]
+      val field = getIDStructField(columnEval.field)
       val value: Object = constEval.expr.getValue
       val columnStats = s.stats(field.fieldID)
 
@@ -176,6 +178,19 @@ object MapSplitPruning {
     } else {
       // If the predicate is not of type column op value, don't prune.
       true
+    }
+  }
+
+  private def getIDStructField(field: StructField): IDStructField = {
+    field match {
+      case myField: MyField => {
+        MapSplitPruningHelper.getStructFieldFromUnionOIField(myField)
+          .asInstanceOf[IDStructField]
+      }
+      case idStructField: IDStructField => idStructField
+      case otherFieldType: Any => {
+        throw new Exception("Unrecognized StructField: " + otherFieldType)
+      }
     }
   }
 }
