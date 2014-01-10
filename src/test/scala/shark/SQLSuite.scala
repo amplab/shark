@@ -40,12 +40,6 @@ class SQLSuite extends FunSuite {
   var sc: SharkContext = SharkRunner.init()
   var sharkMetastore: MemoryMetadataManager = SharkEnv.memoryMetadataManager
 
-  // Shortcut methods to cut down on line length
-  def expectSql(sql: String, expectedResults: Array[String], sort: Boolean = true) =
-    SharkRunner.expectSql(sql, expectedResults, sort)
-
-  def expectSql(sql: String, expectedResults: String) = SharkRunner.expectSql(sql, expectedResults)
-
   private def createCachedPartitionedTable(
       tableName: String,
       numPartitionsToCreate: Int,
@@ -107,6 +101,9 @@ class SQLSuite extends FunSuite {
     val diskSum = sc.sql("select sum(key) from %s".format(diskTableName))(0)
     assert(diskSum == cacheSum, "Sum of keys from cached and disk contents differ")
   }
+
+  // import expectSql() shortcut methods
+  import shark.SharkRunner._
 
   //////////////////////////////////////////////////////////////////////////////
   // basic SQL
@@ -172,26 +169,6 @@ class SQLSuite extends FunSuite {
     expectSql("select * from users order by name, id limit 2", Array("1\tA", "3\tA"), sort = false)
     expectSql("select * from users order by name desc, id desc limit 2", Array("2\tB", "3\tA"),
       sort = false)
-  }
-
-  //////////////////////////////////////////////////////////////////////////////
-  // column pruning
-  //////////////////////////////////////////////////////////////////////////////
-  test("column pruning filters") {
-    expectSql("select count(*) from test_cached where key > -1", "500")
-  }
-
-  test("column pruning group by") {
-    expectSql("select key, count(*) from test_cached group by key order by key limit 1", "0\t3")
-  }
-
-  test("column pruning group by with single filter") {
-    expectSql("select key, count(*) from test_cached where val='val_484' group by key", "484\t1")
-  }
-
-  test("column pruning aggregate function") {
-    expectSql("select val, sum(key) from test_cached group by val order by val desc limit 1",
-      "val_98\t196")
   }
 
   //////////////////////////////////////////////////////////////////////////////
