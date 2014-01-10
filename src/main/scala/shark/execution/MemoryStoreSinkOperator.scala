@@ -147,7 +147,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       // store. The statistics will also be collected by 'statsAcc' during job execution.
       if (cacheMode == CacheType.MEMORY) {
         outputRDD.persist(StorageLevel.MEMORY_AND_DISK)
-      } else if (cacheMode == CacheType.MEMORY_ONLY {
+      } else if (cacheMode == CacheType.MEMORY_ONLY) {
         outputRDD.persist(StorageLevel.MEMORY_ONLY)
       }
       outputRDD.context.runJob(
