@@ -117,33 +117,28 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
       tableDesc.getProperties().get("shark.cache").asInstanceOf[String])
     // TODO(harvey): Pruning Hive-partitioned, cached tables isn't supported yet.
     if (isInMemoryTableScan) {
-      assert (cacheMode == CacheType.MEMORY || cacheMode == CacheType.MEMORY_ONLY,
+      assert (
+        cacheMode == CacheType.MEMORY || cacheMode == CacheType.MEMORY_ONLY ||
+          cacheMode == CacheType.TACHYON,
         "Table %s.%s is in Shark metastore, but its cacheMode (%s) indicates otherwise".
           format(databaseName, tableName, cacheMode))
-      val tableReader = new HeapTableReader(tableDesc)
-      if (table.isPartitioned) {
-        return tableReader.makeRDDForPartitionedTable(parts)
+      val tableReader = if (cacheMode == CacheType.TACHYON) {
+        new TachyonTableReader(tableDesc)
       } else {
-        val (tableRdd, stats) = tableReader.makeRDDForTableWithStats(table)
-        return createPrunedRdd(databaseName, tableName, tableRdd, stats)
+        new HeapTableReader(tableDesc)
       }
-    } else if (cacheMode == CacheType.TACHYON) {
-      val tableReader = new TachyonTableReader(tableDesc)
       if (table.isPartitioned) {
-        return tableReader.makeRDDForPartitionedTable(parts)
+        tableReader.makeRDDForPartitionedTable(parts, Some(createPrunedRdd _))
       } else {
-        val (tableRdd, stats) = tableReader.makeRDDForTableWithStats(table)
-        return createPrunedRdd(databaseName, tableName, tableRdd, stats)
+        tableReader.makeRDDForTable(table, Some(createPrunedRdd _))
       }
     } else {
       // Table is a Hive table on HDFS (or other Hadoop storage).
-      return makeRDDFromHadoop()
+      makeRDDFromHadoop()
     }
   }
 
   private def createPrunedRdd(
-      databaseName: String,
-      tableName: String,
       rdd: RDD[_],
       indexToStats: collection.Map[Int, TablePartitionStats]): RDD[_] = {
     // Run map pruning if the flag is set, there exists a filter predicate on
@@ -182,7 +177,7 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
       val prunedRdd = PartitionPruningRDD.create(rdd, prunePartitionFunc)
       val timeTaken = System.currentTimeMillis - startTime
       logInfo("Map pruning %d partitions into %s partitions took %d ms".format(
-          rdd.partitions.size, prunedRdd.partitions.size, timeTaken))
+        rdd.partitions.size, prunedRdd.partitions.size, timeTaken))
       prunedRdd
     } else {
       rdd
@@ -190,7 +185,8 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
 
     return prunedRdd.mapPartitions { iter =>
       if (iter.hasNext) {
-        val tablePartition = iter.next().asInstanceOf[TablePartition]
+        val tablePartition1 = iter.next()
+        val tablePartition = tablePartition1.asInstanceOf[TablePartition]
         tablePartition.prunedIterator(columnsUsed)
       } else {
         Iterator.empty

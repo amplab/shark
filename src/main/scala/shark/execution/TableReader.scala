@@ -48,14 +48,17 @@ trait TableReader extends LogHelper {
 
 trait MemoryTableReader extends TableReader {
 
-  def makeRDDForTableWithStats(
-      hiveTable: HiveTable
-    ): (RDD[_], collection.Map[Int, TablePartitionStats])
+  type PruningFunctionType = (RDD[_], collection.Map[Int, TablePartitionStats]) => RDD[_]
 
-  def makeRDDForPartitionedTableWithStats(
-      partitions: Seq[HivePartition]
-    ): (RDD[_], collection.Map[Int, TablePartitionStats])
+  def makeRDDForTable(
+      hiveTable: HiveTable,
+      pruningFnOpt: Option[PruningFunctionType]
+    ): RDD[_]
 
+  def makeRDDForPartitionedTable(
+      partitions: Seq[HivePartition],
+      pruningFnOpt: Option[PruningFunctionType]
+    ): RDD[_]
 }
 
 /** Helper class for scanning tables stored in Tachyon. */
@@ -67,12 +70,13 @@ class TachyonTableReader(@transient _tableDesc: TableDesc) extends MemoryTableRe
   private val _tableName = _tableNameSplit(1)
 
   override def makeRDDForTable(hiveTable: HiveTable): RDD[_] = {
-    makeRDDForTableWithStats(hiveTable)._1
+    makeRDDForTable(hiveTable, pruningFnOpt = None)
   }
 
-  override def makeRDDForTableWithStats(
-      hiveTable: HiveTable
-    ): (RDD[_], collection.Map[Int, TablePartitionStats]) = {
+  override def makeRDDForTable(
+      hiveTable: HiveTable,
+      pruningFnOpt: Option[PruningFunctionType]
+    ): RDD[_] = {
     // Table is in Tachyon.
     val tableKey = SharkEnv.makeTachyonTableKey(_databaseName, _tableName)
     if (!SharkEnv.tachyonUtil.tableExists(tableKey)) {
@@ -82,16 +86,23 @@ class TachyonTableReader(@transient _tableDesc: TableDesc) extends MemoryTableRe
     val indexToStats = JavaSerializer.deserialize[collection.Map[Int, TablePartitionStats]](
       statsByteBuffer.array())
     logInfo("Fetching table " + tableKey + " stats from Tachyon.")
-    (SharkEnv.tachyonUtil.createRDD(tableKey), indexToStats)
+    val (tableRdd, tableStats) = (SharkEnv.tachyonUtil.createRDD(tableKey), indexToStats)
+    if (pruningFnOpt.isDefined) {
+      val pruningFn = pruningFnOpt.get
+      pruningFn(tableRdd, tableStats)
+    } else {
+      tableRdd
+    }    
   }
 
   override def makeRDDForPartitionedTable(partitions: Seq[HivePartition]): RDD[_] = {
     throw new UnsupportedOperationException("Partitioned tables are not yet supported for Tachyon.")
   }
 
-  override def makeRDDForPartitionedTableWithStats(
-      partitions: Seq[HivePartition]
-    ): (RDD[_], collection.Map[Int, TablePartitionStats]) = {
+  override def makeRDDForPartitionedTable(
+      partitions: Seq[HivePartition],
+      pruningFnOpt: Option[PruningFunctionType]
+    ): RDD[_] = {
     throw new UnsupportedOperationException("Partitioned tables are not yet supported for Tachyon.")
   }
 
@@ -105,10 +116,11 @@ class HeapTableReader(@transient _tableDesc: TableDesc) extends MemoryTableReade
   private val _databaseName = _tableNameSplit(0)
   private val _tableName = _tableNameSplit(1)
 
-  /** Fetches the RDD for `_tableName` from the Shark metastore. */
-  override def makeRDDForTableWithStats(
-      hiveTable: HiveTable
-    ): (RDD[_], collection.Map[Int, TablePartitionStats]) = {
+  /** Fetches and optionally prunes the RDD for `_tableName` from the Shark metastore. */
+  override def makeRDDForTable(
+      hiveTable: HiveTable,
+      pruningFnOpt: Option[PruningFunctionType]
+    ): RDD[_] = {
     logInfo("Loading table %s.%s from Spark block manager".format(_databaseName, _tableName))
     val tableOpt = SharkEnv.memoryMetadataManager.getMemoryTable(_databaseName, _tableName)
     if (tableOpt.isEmpty) {
@@ -116,24 +128,31 @@ class HeapTableReader(@transient _tableDesc: TableDesc) extends MemoryTableReade
     }
 
     val table = tableOpt.get
-    (table.getRDD.get, table.getStats.get)
+    val (tableRdd, tableStats) = (table.getRDD.get, table.getStats.get)
+    // Prune if an applicable function is given.
+    if (pruningFnOpt.isDefined) {
+      val pruningFn = pruningFnOpt.get
+      pruningFn(tableRdd, tableStats)
+    } else {
+      tableRdd
+    }
   }
 
   override def makeRDDForTable(hiveTable: HiveTable): RDD[_] = {
-    makeRDDForTableWithStats(hiveTable)._1
+    makeRDDForTable(hiveTable, pruningFnOpt = None)
   }
 
   /**
-   * Fetch an RDD from the Shark metastore using each partition key given, and return a union of all
-   * the fetched RDDs.
+   * Fetch and optinally prune an RDD from the Shark metastore using each partition key given, and
+   * return a union of all the fetched (and possibly pruned) RDDs.
    *
    * @param partitions A collection of Hive-partition metadata, such as partition columns and
    *     partition key specifications.
    */
-  override def makeRDDForPartitionedTableWithStats(
-      partitions: Seq[HivePartition]
-    ): (RDD[_], collection.Map[Int, TablePartitionStats]) = {
-    val unionedStats = new ArrayBuffer[(Int, TablePartitionStats)]
+  override def makeRDDForPartitionedTable(
+      partitions: Seq[HivePartition],
+      pruningFnOpt: Option[PruningFunctionType]
+    ): RDD[_] = {
     val hivePartitionRDDs = partitions.map { partition =>
       val partDesc = Utilities.getPartitionDesc(partition)
       // Get partition field info
@@ -161,14 +180,27 @@ class HeapTableReader(@transient _tableDesc: TableDesc) extends MemoryTableReade
       val rddAndStatsOpt = hivePartitionedTable.getPartitionAndStats(partitionKeyStr)
       if (rddAndStatsOpt.isEmpty) throwMissingPartitionException(partitionKeyStr)
       val (hivePartitionRDD, hivePartitionStats) = (rddAndStatsOpt.get._1, rddAndStatsOpt.get._2)
-      // Union any stats previously collected.
-      Table.mergeStats(unionedStats, hivePartitionStats)
+      val prunedPartitionRDD = if (pruningFnOpt.isDefined) {
+        val pruningFn = pruningFnOpt.get
+        pruningFn(hivePartitionRDD, hivePartitionStats)
+      } else {
+        hivePartitionRDD
+      }
       hivePartitionRDD.mapPartitions { iter =>
         if (iter.hasNext) {
+          val nextElem = iter.next()
+          // `pruningFn` may or may not unravel the TablePartition.
+          val rowIter = nextElem match {
+            case tablePartition: TablePartition => {
+              tablePartition.iterator
+            }
+            case _ => {
+              iter
+            }
+          }
           // Map each tuple to a row object
           val rowWithPartArr = new Array[Object](2)
-          val tablePartition: TablePartition = iter.next()
-          tablePartition.iterator.map { value =>
+          rowIter.map { value =>
             rowWithPartArr.update(0, value.asInstanceOf[Object])
             rowWithPartArr.update(1, partValues)
             rowWithPartArr.asInstanceOf[Object]
@@ -179,14 +211,14 @@ class HeapTableReader(@transient _tableDesc: TableDesc) extends MemoryTableReade
       }
     }
     if (hivePartitionRDDs.size > 0) {
-      (new UnionRDD(hivePartitionRDDs.head.context, hivePartitionRDDs), unionedStats.toMap)
+      new UnionRDD(hivePartitionRDDs.head.context, hivePartitionRDDs)
     } else {
-      (new EmptyRDD[Object](SharkEnv.sc), new HashMap[Int, TablePartitionStats])
+      new EmptyRDD[Object](SharkEnv.sc)
     }
   }
 
   override def makeRDDForPartitionedTable(partitions: Seq[HivePartition]): RDD[_] = {
-    makeRDDForPartitionedTableWithStats(partitions)._1
+    makeRDDForPartitionedTable(partitions, pruningFnOpt = None)
   }
 
   /**
