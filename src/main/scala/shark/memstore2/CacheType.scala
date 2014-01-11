@@ -17,10 +17,13 @@
 
 package shark.memstore2
 
+import shark.LogHelper
+
+
 /*
  * Enumerations and static helper functions for caches supported by Shark.
  */
-object CacheType extends Enumeration {
+object CacheType extends Enumeration with LogHelper {
 
   /*
    * The CacheTypes:
@@ -44,8 +47,14 @@ object CacheType extends Enumeration {
       MEMORY
     } else {
       try {
-        // Try to use Scala's Enumeration::withName() to interpret 'name'.
-        withName(name.toUpperCase)
+        if (name.toUpperCase == "HEAP") {
+          // Interpret 'HEAP' as 'MEMORY' to ensure backwards compatibility with Shark 0.8.0.
+          logWarning("The 'HEAP' cache type name is deprecated. Use 'MEMORY' instead.")
+          MEMORY
+        } else {
+          // Try to use Scala's Enumeration::withName() to interpret 'name'.
+          withName(name.toUpperCase)
+        }
       } catch {
         case e: java.util.NoSuchElementException => throw new InvalidCacheTypeException(name)
       }
@@ -53,5 +62,5 @@ object CacheType extends Enumeration {
   }
 
   class InvalidCacheTypeException(name: String)
-    extends Exception("Invalid string representation of cache type " + name)
+    extends Exception("Invalid string representation of cache type: '%s'".format(name))
 }
