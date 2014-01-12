@@ -28,7 +28,8 @@ import org.apache.hadoop.hive.ql.exec.{PTFOperator => HivePTFOperator}
 import org.apache.hadoop.hive.ql.plan.{PTFDeserializer, PTFDesc}
 import org.apache.hadoop.hive.ql.plan.PTFDesc._
 import org.apache.hadoop.hive.ql.udf.ptf.TableFunctionEvaluator
-import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspectorUtils, ObjectInspector, StructObjectInspector}
+import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspectorUtils, ObjectInspector,
+  StructObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption
 import org.apache.hadoop.hive.serde2.SerDe
 
@@ -39,28 +40,28 @@ class PartitionTableFunctionOperator extends UnaryOperator[HivePTFOperator] {
   @BeanProperty var conf: PTFDesc = _
   @BeanProperty var inputPart: PTFPartition = _
   @BeanProperty var outputObjInspector: ObjectInspector = _
+  @BeanProperty var localHconf: HiveConf = _
   @transient var currentKeys: KeyWrapper = _
   @transient var newKeys: KeyWrapper = _
   @transient var keyWrapperFactory: KeyWrapperFactory = _
 
   override def initializeOnMaster() {
     conf = hiveOp.getConf
+    localHconf = super.hconf
   }
 
   /**
    * 1. Find out if the operator is invoked at Map-Side or Reduce-side
-   * 2. Get the deserialized QueryDef
-   * 3. Reconstruct the transient variables in QueryDef
+   * 2. Get the deserialized PartitionedTableFunctionDef
+   * 3. Reconstruct the transient variables in PartitionedTableFunctionDef
    * 4. Create input partition to store rows coming from previous operator
    */
   override def initializeOnSlave() {
-    /*
-     * Initialize the visitor to use the QueryDefDeserializer Use the order
-     * defined in QueryDefWalker to visit the QueryDef
-     */
-    val dS = new PTFDeserializer(conf, objectInspectors.head.asInstanceOf[StructObjectInspector], new HiveConf)
+    val dS = new PTFDeserializer(conf, objectInspectors.head.asInstanceOf[StructObjectInspector],
+      localHconf)
+    //Walk through the PTFInputDef chain to initialize ShapeDetails, OI etc.
     dS.initializePTFChain(conf.getFuncDef)
-    inputPart = createFirstPartitionForChain(objectInspector, new HiveConf, conf.isMapSide)
+    inputPart = createFirstPartitionForChain(objectInspector, conf.isMapSide)
     if (conf.isMapSide) {
       val tDef = conf.getStartOfChain
       outputObjInspector = tDef.getRawInputShape.getOI
@@ -86,9 +87,9 @@ class PartitionTableFunctionOperator extends UnaryOperator[HivePTFOperator] {
   }
 
   /**
-   * For all the table functions to be applied to the input hive table or query, push them on a stack.
-   * For each table function popped out of the stack, execute the function on the input partition
-   * and return an output partition.
+   * For all the table functions to be applied to the input hive table or query,
+   * push them on a stack. For each table function popped out of the stack,
+   * execute the function on the input partition and return an output partition.
    * @param part
    * @return
    */
@@ -125,30 +126,26 @@ class PartitionTableFunctionOperator extends UnaryOperator[HivePTFOperator] {
     }
 
     val pItr = oPart.iterator
-    val newPartition = createFirstPartitionForChain(objectInspector, new HiveConf, conf.isMapSide)
+    val newPartition = createFirstPartitionForChain(objectInspector, conf.isMapSide)
     PTFOperator.connectLeadLagFunctionsToPartition(conf, pItr)
-    pItr.foreach(
-      oRow => {
-        var colCnt = 0
+    pItr.foreach{ oRow =>
+      var colCnt = 0
 
-        if (wdwExprs != null) {
-          wdwExprs.foreach {
-            e =>
-              output(colCnt) = e.getExprEvaluator.evaluate(oRow)
-              colCnt = colCnt + 1
-          }
+      if (wdwExprs != null) {
+        wdwExprs.foreach { e =>
+          output(colCnt) = e.getExprEvaluator.evaluate(oRow)
+          colCnt = colCnt + 1
         }
-
-        for (colCnt <- 0 to numCols) {
-          val field = inputOI.getAllStructFieldRefs().get(colCnt - numWdwExprs)
-          output(colCnt) =
-            ObjectInspectorUtils.copyToStandardObject(inputOI.getStructFieldData(oRow, field),
-              field.getFieldObjectInspector())
-        }
-        newPartition.append(output)
       }
-    )
-    return newPartition
+
+      for (colCnt <- 0 to numCols) {
+        val field = inputOI.getAllStructFieldRefs().get(colCnt - numWdwExprs)
+        output(colCnt) = ObjectInspectorUtils.copyToStandardObject(
+          inputOI.getStructFieldData(oRow, field), field.getFieldObjectInspector())
+      }
+      newPartition.append(output)
+    }
+    newPartition
   }
 
   def processMapFunction(): PTFPartition = {
@@ -181,22 +178,25 @@ class PartitionTableFunctionOperator extends UnaryOperator[HivePTFOperator] {
     newKeys = keyWrapperFactory.getKeyWrapper
   }
 
-  def createFirstPartitionForChain(oi: ObjectInspector, hiveConf: HiveConf, isMapSide: Boolean): PTFPartition = {
+  def createFirstPartitionForChain(oi: ObjectInspector, isMapSide: Boolean): PTFPartition = {
     val tabDef: PartitionedTableFunctionDef = conf.getStartOfChain
     val tEval: TableFunctionEvaluator = tabDef.getTFunction
     val partClassName: String = tEval.getPartitionClass
     val partMemSize = tEval.getPartitionMemSize
 
-    val serde: SerDe = if (isMapSide) tabDef.getInput().getOutputShape().getSerde()
-    else
+    val serde: SerDe = if (isMapSide) {
+      tabDef.getInput().getOutputShape().getSerde()
+    } else {
       tabDef.getRawInputShape().getSerde
+    }
     val part: PTFPartition = new PTFPartition(partClassName, partMemSize, serde,
       oi.asInstanceOf[StructObjectInspector])
     part
   }
 
   /**
-   * as the class name shows, it's very lazy, compute for new PTFPartition while previous one has been consumed.
+   * as the class name shows, it's very lazy, compute for new PTFPartition
+   * after the previous one has been consumed.
    * @param iter
    */
   class LazyPTFIterator(iter: Iterator[_]) extends Iterator[Any] {
@@ -221,20 +221,20 @@ class PartitionTableFunctionOperator extends UnaryOperator[HivePTFOperator] {
     }
 
     /**
-     * rows from input iterator would be splited into different PTFParitions by partition keys, you can get each
-     * PTFPartition one by one. This method invocation would reset previous PTFPartition, so make sure you do this
-     * after you have consumed the previous PTFPartition.
+     * rows from input iterator would be splited into different PTFParitions by partition keys,
+     * you can get each PTFPartition one by one. This method invocation would reset previous
+     * PTFPartition, so make sure you do this after you have consumed the previous PTFPartition.
      * @return next PTFPartition
      */
-    def getNextPTFPartition: PTFPartition = {
+    def getNextPTFPartition(): PTFPartition = {
       if (!iter.hasNext) {
         return null
       }
 
       if (curRow != null) {
         /*
-         * if curRow is not null, means this method has been invoked before. So reset inputPart and append curRow which
-         * is saved before.
+         * if curRow is not null, means this method has been invoked before. So reset inputPart
+         * and append curRow which is saved before.
          */
         inputPart.reset()
         inputPart.append(curRow)
@@ -245,10 +245,15 @@ class PartitionTableFunctionOperator extends UnaryOperator[HivePTFOperator] {
         val row = iter.next().asInstanceOf[Any]
         if (!conf.isMapSide) {
           newKeys.getNewKey(row, inputPart.getOI)
-          val keysAreEqual = if (currentKeys != null && newKeys != null) newKeys.equals(currentKeys) else false
+          val keysAreEqual = if (currentKeys != null && newKeys != null) {
+            newKeys.equals(currentKeys)
+          } else {
+            false
+          }
 
           if (currentKeys != null && !keysAreEqual) {
-            // now we know all row of current PTFPartition has been appended to inputPart. and we save current row for next PTFPartition.
+            // now we know all row of current PTFPartition has been appended to inputPart.
+            // and we save current row for next PTFPartition.
             curRow = row
             partition = processInputPartition()
           }
@@ -274,5 +279,4 @@ class PartitionTableFunctionOperator extends UnaryOperator[HivePTFOperator] {
       if (conf.isMapSide) processMapFunction() else processInputPartition()
     }
   }
-
 }
