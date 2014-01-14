@@ -143,8 +143,8 @@ class HeapTableReader(@transient _tableDesc: TableDesc) extends MemoryTableReade
   }
 
   /**
-   * Fetch and optinally prune an RDD from the Shark metastore using each partition key given, and
-   * return a union of all the fetched (and possibly pruned) RDDs.
+   * Fetches an RDD from the Shark metastore for each partition key given. Returns a single, unioned
+   * RDD representing all of the specified partition keys.
    *
    * @param partitions A collection of Hive-partition metadata, such as partition columns and
    *     partition key specifications.
@@ -178,7 +178,9 @@ class HeapTableReader(@transient _tableDesc: TableDesc) extends MemoryTableReade
       val hivePartitionedTable = hivePartitionedTableOpt.get
 
       val rddAndStatsOpt = hivePartitionedTable.getPartitionAndStats(partitionKeyStr)
-      if (rddAndStatsOpt.isEmpty) throwMissingPartitionException(partitionKeyStr)
+      if (rddAndStatsOpt.isEmpty) {
+        throwMissingPartitionException(partitionKeyStr)
+      }
       val (hivePartitionRDD, hivePartitionStats) = (rddAndStatsOpt.get._1, rddAndStatsOpt.get._2)
       val prunedPartitionRDD = if (pruningFnOpt.isDefined) {
         val pruningFn = pruningFnOpt.get
@@ -186,21 +188,11 @@ class HeapTableReader(@transient _tableDesc: TableDesc) extends MemoryTableReade
       } else {
         hivePartitionRDD
       }
-      hivePartitionRDD.mapPartitions { iter =>
+      prunedPartitionRDD.mapPartitions { iter =>
         if (iter.hasNext) {
-          val nextElem = iter.next()
-          // `pruningFn` may or may not unravel the TablePartition.
-          val rowIter = nextElem match {
-            case tablePartition: TablePartition => {
-              tablePartition.iterator
-            }
-            case _ => {
-              iter
-            }
-          }
           // Map each tuple to a row object
           val rowWithPartArr = new Array[Object](2)
-          rowIter.map { value =>
+          iter.map { value =>
             rowWithPartArr.update(0, value.asInstanceOf[Object])
             rowWithPartArr.update(1, partValues)
             rowWithPartArr.asInstanceOf[Object]

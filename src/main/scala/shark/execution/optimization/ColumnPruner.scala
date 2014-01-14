@@ -37,7 +37,8 @@ class ColumnPruner(@transient op: TopOperator[_], @transient tbl: Table) extends
 
   val columnsUsed: BitSet = {
     val colsToKeep = computeColumnsToKeep()
-    val allColumns = tbl.getAllCols().map(x => x.getName())
+    // No need to prune partition columns - Hive does that for us.
+    val allColumns = tbl.getCols().map(x => x.getName())
     val b = new BitSet()
     for (i <- Range(0, allColumns.size) if colsToKeep.contains(allColumns(i))) {
       b.set(i, true)
