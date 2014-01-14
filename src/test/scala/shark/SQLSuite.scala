@@ -30,6 +30,8 @@ import org.apache.spark.storage.StorageLevel
 
 import shark.api.QueryExecutionException
 import shark.memstore2.{CacheType, MemoryMetadataManager, PartitionedMemoryTable}
+// import expectSql() shortcut methods
+import shark.SharkRunner._
 
 
 class SQLSuite extends FunSuite {
@@ -101,9 +103,6 @@ class SQLSuite extends FunSuite {
     val diskSum = sc.sql("select sum(key) from %s".format(diskTableName))(0)
     assert(diskSum == cacheSum, "Sum of keys from cached and disk contents differ")
   }
-
-  // import expectSql() shortcut methods
-  import shark.SharkRunner._
 
   //////////////////////////////////////////////////////////////////////////////
   // basic SQL
@@ -1034,7 +1033,6 @@ class SQLSuite extends FunSuite {
     sharkMetastore.shutdown()
     for ((tableName, i) <- globalCachedTableNames.zipWithIndex) {
       val hiveTable = Hive.get().getTable(DEFAULT_DB_NAME, tableName)
-
       // Check that the number of rows from the table on disk remains the same.
       val onDiskCount = sc.sql("select count(*) from %s".format(tableName))(0)
       val cachedCount = cachedTableCounts(i)
