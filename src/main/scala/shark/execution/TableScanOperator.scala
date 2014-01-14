@@ -139,7 +139,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         throw(new QueryExecutionException("Cached table not found"))
       }
       logInfo("Loading table " + tableKey + " from Spark block manager")
-      createPrunedRdd(tableKey, rdd)
+      return createPrunedRdd(tableKey, rdd)
     } else if (cacheMode == CacheType.TACHYON) {
       // Table is in Tachyon.
       if (!SharkEnv.tachyonUtil.tableExists(tableKey)) {
@@ -211,7 +211,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
         rdd
       }
 
-    prunedRdd.mapPartitions { iter =>
+    return prunedRdd.mapPartitions { iter =>
       if (iter.hasNext) {
         val tablePartition = iter.next.asInstanceOf[TablePartition]
         tablePartition.prunedIterator(columnsUsed)
