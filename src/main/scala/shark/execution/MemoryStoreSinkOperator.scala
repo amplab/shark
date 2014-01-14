@@ -46,7 +46,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
   // If true, columnar storage will use compression.
   @BeanProperty var shouldCompress: Boolean = _
 
-  // For CTAS, this is the name of the table that is created. For INSERTS, this is the name of
+  // For CTAS, this is the name of the table that is created. For INSERTS, this is the name of*
   // the table that is modified.
   @BeanProperty var tableName: String = _
 
@@ -56,7 +56,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
   // Used only for commands that target Hive partitions. The partition key is a set of unique values
   // for the the table's partitioning columns and identifies the partition (represented by an RDD)
   // that will be created or modified by the INSERT command being handled.
-  @BeanProperty var hivePartitionKey: String = _
+  @BeanProperty var hivePartitionKeyOpt: Option[String] = _
 
   // The memory storage used to store the output RDD - e.g., CacheType.HEAP refers to Spark's
   // block manager.
@@ -87,11 +87,18 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
     val statsAcc = SharkEnv.sc.accumulableCollection(ArrayBuffer[(Int, TablePartitionStats)]())
     val op = OperatorSerializationWrapper(this)
+    val isHivePartitioned = SharkEnv.memoryMetadataManager.isHivePartitioned(
+      databaseName, tableName)
+    val tableKey = MemoryMetadataManager.makeTableKey(databaseName, tableName)
 
     val tachyonWriter: TachyonTableWriter =
       if (cacheMode == CacheType.TACHYON) {
+        if (!useUnionRDD && SharkEnv.tachyonUtil.tableExists(tableKey, hivePartitionKeyOpt)) {
+          // For INSERT OVERWRITE, delete the old table or Hive partition directory, if it exists.
+          SharkEnv.tachyonUtil.dropTable(tableKey, hivePartitionKeyOpt)
+        }
         // Use an additional row to store metadata (e.g. number of rows in each partition).
-        SharkEnv.tachyonUtil.createTableWriter(tableName, numColumns + 1)
+        SharkEnv.tachyonUtil.createTableWriter(tableKey, hivePartitionKeyOpt, numColumns + 1)
       } else {
         null
       }
@@ -120,12 +127,9 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       }
     }
 
-    val isHivePartitioned = SharkEnv.memoryMetadataManager.isHivePartitioned(
-      databaseName, tableName)
-
     // If true, a UnionRDD will be used to combine the RDD that contains the query output with the
     // previous RDD, which is fetched using 'tableName' or - if the table is Hive-partitioned - a
-    // ('tableName', 'hivePartitionKey') pair.
+    // ('tableName', 'hivePartitionKeyOpt.get') pair.
     var hasPreviousRDDForUnion = false
 
     if (tachyonWriter != null) {
@@ -161,38 +165,42 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       tableName,
       if (cacheMode == CacheType.NONE) "disk" else cacheMode.toString))
 
-    val tableStats = if (isHivePartitioned) {
-      val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(
-        databaseName, tableName).get
-      outputRDD.setName("%s.%s(%s)".format(databaseName, tableName, hivePartitionKey))
-      if (useUnionRDD && hasPreviousRDDForUnion) {
-        // An RDD for the Hive partition already exists, so update its metadata entry in
-        // 'partitionedTable'.
-        assert(outputRDD.isInstanceOf[UnionRDD[_]])
-        partitionedTable.updatePartition(hivePartitionKey, outputRDD, statsAcc.value)
-      } else {
-        // This is a new Hive-partition. Add a new metadata entry in 'partitionedTable'.
-        partitionedTable.putPartition(hivePartitionKey, outputRDD, statsAcc.value.toMap)
-      }
-      // Stats should be updated at this point.
-      partitionedTable.getStats(hivePartitionKey).get
-    } else {
-      outputRDD.setName(tableName)
-      // Create a new MemoryTable entry if one doesn't exist (i.e., this operator is for a CTAS).
-      val memoryTable = SharkEnv.memoryMetadataManager.getMemoryTable(databaseName, tableName)
-        .getOrElse(SharkEnv.memoryMetadataManager.createMemoryTable(
-          databaseName, tableName, cacheMode))
-      if (useUnionRDD) {
-        memoryTable.update(outputRDD, statsAcc.value)
-      } else {
-        memoryTable.put(outputRDD, statsAcc.value.toMap)
-      }
-      // TODO: For Tachyon support, have Shark Tables manage stats store and updates.
-      if (tachyonWriter != null) {
+    val tableStats =
+      if (cacheMode == CacheType.TACHYON) {
         tachyonWriter.updateMetadata(ByteBuffer.wrap(JavaSerializer.serialize(statsAcc.value.toMap)))
+        statsAcc.value.toMap
+      } else {
+        if (isHivePartitioned) {
+          val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(
+            databaseName, tableName).get
+          val hivePartitionKey = hivePartitionKeyOpt.get
+          outputRDD.setName("%s.%s(%s)".format(databaseName, tableName, hivePartitionKey))
+          if (useUnionRDD && hasPreviousRDDForUnion) {
+            // An RDD for the Hive partition already exists, so update its metadata entry in
+            // 'partitionedTable'.
+            assert(outputRDD.isInstanceOf[UnionRDD[_]])
+            partitionedTable.updatePartition(hivePartitionKey, outputRDD, statsAcc.value)
+          } else {
+            // This is a new Hive-partition. Add a new metadata entry in 'partitionedTable'.
+            partitionedTable.putPartition(hivePartitionKey, outputRDD, statsAcc.value.toMap)
+          }
+          // Stats should be updated at this point.
+          partitionedTable.getStats(hivePartitionKey).get
+        } else {
+          outputRDD.setName(tableName)
+          // Create a new MemoryTable entry if one doesn't exist (i.e., this operator is for a CTAS).
+          val memoryTable = SharkEnv.memoryMetadataManager.getMemoryTable(databaseName, tableName)
+            .getOrElse(SharkEnv.memoryMetadataManager.createMemoryTable(
+              databaseName, tableName, cacheMode))
+          if (useUnionRDD) {
+            // Ok, a Tachyon table should manage stats for each rdd, and never union the maps.
+            memoryTable.update(outputRDD, statsAcc.value)
+          } else {
+            memoryTable.put(outputRDD, statsAcc.value.toMap)
+          }
+          memoryTable.getStats.get
+        }
       }
-      memoryTable.getStats.get
-    }
 
     if (SharkConfVars.getBoolVar(localHconf, SharkConfVars.MAP_PRUNING_PRINT_DEBUG)) {
       tableStats.foreach { case(index, tablePartitionStats) =>

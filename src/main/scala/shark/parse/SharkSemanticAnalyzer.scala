@@ -27,12 +27,13 @@ import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.Warehouse
 import org.apache.hadoop.hive.metastore.api.{FieldSchema, MetaException}
+import org.apache.hadoop.hive.serde2.`lazy`.LazySimpleSerDe
 import org.apache.hadoop.hive.ql.exec.{DDLTask, FetchTask}
 import org.apache.hadoop.hive.ql.exec.{FileSinkOperator => HiveFileSinkOperator}
 import org.apache.hadoop.hive.ql.exec.MoveTask
 import org.apache.hadoop.hive.ql.exec.{Operator => HiveOperator}
 import org.apache.hadoop.hive.ql.exec.TaskFactory
-import org.apache.hadoop.hive.ql.metadata.HiveException
+import org.apache.hadoop.hive.ql.metadata.{Hive, HiveException}
 import org.apache.hadoop.hive.ql.optimizer.Optimizer
 import org.apache.hadoop.hive.ql.parse._
 import org.apache.hadoop.hive.ql.plan._
@@ -41,7 +42,7 @@ import org.apache.hadoop.hive.ql.session.SessionState
 import shark.{LogHelper, SharkConfVars, SharkEnv, Utils}
 import shark.execution.{HiveDesc, Operator, OperatorFactory, RDDUtils, ReduceSinkOperator}
 import shark.execution.{SharkDDLWork, SparkLoadWork, SparkWork, TerminalOperator}
-import shark.memstore2.{CacheType, ColumnarSerDe, MemoryMetadataManager}
+import shark.memstore2.{CacheType, ColumnarSerDe, LazySimpleSerDeWrapper, MemoryMetadataManager}
 import shark.memstore2.{MemoryTable, PartitionedMemoryTable, SharkTblProperties, TableRecovery}
 
 
@@ -182,30 +183,26 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
             val tableNameSplit = tableName.split('.') // Split from 'databaseName.tableName'
             val cachedTableName = tableNameSplit(1)
             val databaseName = tableNameSplit(0)
-            if (SharkEnv.memoryMetadataManager.containsTable(databaseName, cachedTableName)) {
+            val hiveTable = Hive.get().getTable(databaseName, tableName)
+            val cacheMode = CacheType.fromString(
+              hiveTable.getProperty(SharkTblProperties.CACHE_FLAG.varname))
+            if (CacheType.shouldCache(cacheMode)) {
               if (hiveSinkOps.size == 1) {
-                val table = SharkEnv.memoryMetadataManager.getTable(
-                  databaseName, cachedTableName).get
                 // INSERT INTO or OVERWRITE update on a cached table.
                 qb.targetTableDesc = tableDesc
                 // If useUnionRDD is true, the sink op is for INSERT INTO.
                 val useUnionRDD = qbParseInfo.isInsertIntoTable(cachedTableName)
-                val isPartitioned = SharkEnv.memoryMetadataManager.isHivePartitioned(
-                  databaseName, cachedTableName)
-                var hivePartitionKey = if (isPartitioned) {
-                  if (table.cacheMode == CacheType.TACHYON) {
-                    throw new SemanticException(
-                      "Shark does not support caching Hive-partitioned table(s) in Tachyon.")
-                  }
-                  SharkSemanticAnalyzer.getHivePartitionKey(qb)
+                val isPartitioned = hiveTable.isPartitioned
+                var hivePartitionKeyOpt = if (isPartitioned) {
+                  Some(SharkSemanticAnalyzer.getHivePartitionKey(qb))
                 } else {
-                  new String
+                  None
                 }
-                if (table.cacheMode == CacheType.MEMORY) {
+                if (cacheMode == CacheType.MEMORY) {
                   // The table being updated is stored in memory and backed by disk, a
                   // SparkLoadTask will be created by the genMapRedTasks() call below. Set fields
                   // in `qb` that will be needed.
-                  qb.cacheMode = table.cacheMode
+                  qb.cacheMode = cacheMode
                   qb.targetTableDesc = tableDesc
                   OperatorFactory.createSharkFileOutputPlan(hiveSinkOp)
                 } else {
@@ -214,8 +211,8 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                     cachedTableName,
                     databaseName,
                     _resSchema.size,  /* numColumns */
-                    hivePartitionKey,
-                    table.cacheMode,
+                    hivePartitionKeyOpt,
+                    cacheMode,
                     useUnionRDD)
                 }
               } else {
@@ -243,10 +240,10 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                 hiveSinkOps.head,
                 qb.createTableDesc.getTableName,
                 qb.createTableDesc.getDatabaseName,
-                _resSchema.size,  /* numColumns */
-                new String,  /* hivePartitionKey */
+                numColumns = _resSchema.size,  /* numColumns */
+                hivePartitionKeyOpt = None,
                 qb.cacheMode,
-                false  /* useUnionRDD */)
+                useUnionRDD = false)
             }
           } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink && !qb.isCTAS) {
             OperatorFactory.createSharkRddOutputPlan(hiveSinkOps.head)
@@ -483,9 +480,14 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       // Continue planning based on the 'cacheMode' read.
       val shouldCache = CacheType.shouldCache(cacheMode)
       if (shouldCache) {
-        if (cacheMode == CacheType.MEMORY_ONLY) {
-          // Directly set the ColumnarSerDe property.
-          createTableDesc.setSerName(classOf[ColumnarSerDe].getName)
+        if (cacheMode == CacheType.MEMORY_ONLY || cacheMode == CacheType.TACHYON) {
+          val serDeName = createTableDesc.getSerName
+          if (serDeName == null || serDeName == classOf[LazySimpleSerDe].getName) {
+            // Hive's SemanticAnalyzer optimizes based on checks for LazySimpleSerDe, which causes
+            // casting exceptions for cached table scans during runtime. Use a simple SerDe wrapper
+            // to guard against these optimizations.
+            createTableDesc.setSerName(classOf[LazySimpleSerDeWrapper].getName)
+          }
         }
         createTableProperties.put(SharkTblProperties.CACHE_FLAG.varname, cacheMode.toString)
       }

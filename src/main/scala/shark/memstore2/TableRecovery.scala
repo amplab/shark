@@ -17,11 +17,13 @@
 
 package shark.memstore2
 
+import java.util.{HashMap => JavaHashMap}
+
 import scala.collection.JavaConversions.asScalaBuffer
 
 import org.apache.hadoop.hive.ql.metadata.Hive
 
-import shark.LogHelper
+import shark.{LogHelper, SharkEnv}
 import shark.util.QueryRewriteUtils
 
 /**
@@ -42,7 +44,8 @@ object TableRecovery extends LogHelper {
     // Filter for tables that should be reloaded into the cache.
     val currentDbName = db.getCurrentDatabase()
     for (databaseName <- db.getAllDatabases(); tableName <- db.getAllTables(databaseName)) {
-      val tblProps = db.getTable(databaseName, tableName).getParameters
+      val hiveTable = db.getTable(databaseName, tableName)
+      val tblProps = hiveTable.getParameters
       val cacheMode = CacheType.fromString(tblProps.get(SharkTblProperties.CACHE_FLAG.varname))
       if (cacheMode == CacheType.MEMORY) {
         logInfo("Reloading %s.%s into memory.".format(databaseName, tableName))
