@@ -82,8 +82,10 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
   }
 
   override def outputObjectInspector() = {
+    val cacheMode = CacheType.fromString(
+      tableDesc.getProperties().get("shark.cache").asInstanceOf[String])
     if (parts == null) {
-      val serializer = if (isInMemoryTableScan) {
+      val serializer = if (CacheType.shouldCache(cacheMode)) {
         new ColumnarSerDe
       } else {
         tableDesc.getDeserializerClass().newInstance()
@@ -92,7 +94,7 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
       serializer.getObjectInspector()
     } else {
       val partProps = firstConfPartDesc.getProperties()
-      val partSerDe = if (isInMemoryTableScan) {
+      val partSerDe = if (CacheType.shouldCache(cacheMode)) {
         new ColumnarSerDe
       } else {
         firstConfPartDesc.getDeserializerClass().newInstance()
@@ -116,12 +118,12 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
     val cacheMode = CacheType.fromString(
       tableDesc.getProperties().get("shark.cache").asInstanceOf[String])
     // TODO(harvey): Pruning Hive-partitioned, cached tables isn't supported yet.
-    if (isInMemoryTableScan) {
-      assert (
-        cacheMode == CacheType.MEMORY || cacheMode == CacheType.MEMORY_ONLY ||
-          cacheMode == CacheType.TACHYON,
-        "Table %s.%s is in Shark metastore, but its cacheMode (%s) indicates otherwise".
-          format(databaseName, tableName, cacheMode))
+    if (isInMemoryTableScan || cacheMode == CacheType.TACHYON) {
+      if (isInMemoryTableScan) {
+        assert(cacheMode == CacheType.MEMORY || cacheMode == CacheType.MEMORY_ONLY,
+          "Table %s.%s is in Shark metastore, but its cacheMode (%s) indicates otherwise".
+            format(databaseName, tableName, cacheMode))
+      }
       val tableReader = if (cacheMode == CacheType.TACHYON) {
         new TachyonTableReader(tableDesc)
       } else {
@@ -144,7 +146,12 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
     // Run map pruning if the flag is set, there exists a filter predicate on
     // the input table and we have statistics on the table.
     val columnsUsed = new ColumnPruner(this, table).columnsUsed
-    SharkEnv.tachyonUtil.pushDownColumnPruning(rdd, columnsUsed)
+
+    val cacheMode = CacheType.fromString(
+      tableDesc.getProperties().get("shark.cache").asInstanceOf[String])
+    if (!table.isPartitioned && cacheMode == CacheType.TACHYON) {
+      SharkEnv.tachyonUtil.pushDownColumnPruning(rdd, columnsUsed)
+    }
 
     val shouldPrune = SharkConfVars.getBoolVar(localHConf, SharkConfVars.MAP_PRUNING) &&
       childOperators(0).isInstanceOf[FilterOperator] &&
@@ -183,7 +190,7 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
       rdd
     }
 
-    return prunedRdd.mapPartitions { iter =>
+    prunedRdd.mapPartitions { iter =>
       if (iter.hasNext) {
         val tablePartition1 = iter.next()
         val tablePartition = tablePartition1.asInstanceOf[TablePartition]

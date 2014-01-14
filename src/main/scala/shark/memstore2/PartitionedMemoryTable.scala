@@ -123,11 +123,18 @@ class PartitionedMemoryTable(
     rddRemoved.map(_.toTuple)
   }
 
+  /** Returns an immutable view of (partition key -> RDD) mappings to external callers */
+  def keyToPartitions: collection.immutable.Map[String, RDD[TablePartition]] = {
+    _keyToPartitions.mapValues(_.rdd).toMap
+  }
+
   def setPartitionCachePolicy(cachePolicyStr: String, fallbackMaxSize: Int) {
     // The loadFunc will upgrade the persistence level of the RDD to the preferred storage level.
     val loadFunc: String => RDDValue = (partitionKey: String) => {
       val rddValue = _keyToPartitions.get(partitionKey).get
-      rddValue.rdd.persist(StorageLevel.MEMORY_AND_DISK)
+      if (cacheMode == CacheType.MEMORY) {
+        rddValue.rdd.persist(StorageLevel.MEMORY_AND_DISK)
+      }
       rddValue
     }
     // The evictionFunc will unpersist the RDD.
@@ -140,10 +147,5 @@ class PartitionedMemoryTable(
   }
 
   def cachePolicy: CachePolicy[String, RDDValue] = _cachePolicy
-
-  /** Returns an immutable view of (partition key -> RDD) mappings to external callers */
-  def keyToPartitions: collection.immutable.Map[String, RDD[TablePartition]] = {
-    _keyToPartitions.mapValues(_.rdd).toMap
-  }
 
 }

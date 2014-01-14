@@ -77,33 +77,78 @@ class TachyonTableReader(@transient _tableDesc: TableDesc) extends MemoryTableRe
       hiveTable: HiveTable,
       pruningFnOpt: Option[PruningFunctionType]
     ): RDD[_] = {
-    // Table is in Tachyon.
-    val tableKey = SharkEnv.makeTachyonTableKey(_databaseName, _tableName)
-    if (!SharkEnv.tachyonUtil.tableExists(tableKey)) {
-      throw new TachyonException("Table " + tableKey + " does not exist in Tachyon")
-    }
-    val statsByteBuffer = SharkEnv.tachyonUtil.getTableMetadata(tableKey)
-    val indexToStats = JavaSerializer.deserialize[collection.Map[Int, TablePartitionStats]](
-      statsByteBuffer.array())
-    logInfo("Fetching table " + tableKey + " stats from Tachyon.")
-    val (tableRdd, tableStats) = (SharkEnv.tachyonUtil.createRDD(tableKey), indexToStats)
-    if (pruningFnOpt.isDefined) {
-      val pruningFn = pruningFnOpt.get
-      pruningFn(tableRdd, tableStats)
-    } else {
-      tableRdd
-    }    
+    val tableKey = MemoryMetadataManager.makeTableKey(_databaseName, _tableName)
+    makeRDD(tableKey, hivePartitionKeyOpt = None, pruningFnOpt)
   }
 
   override def makeRDDForPartitionedTable(partitions: Seq[HivePartition]): RDD[_] = {
-    throw new UnsupportedOperationException("Partitioned tables are not yet supported for Tachyon.")
+    makeRDDForPartitionedTable(partitions, pruningFnOpt = None)
   }
 
   override def makeRDDForPartitionedTable(
       partitions: Seq[HivePartition],
-      pruningFnOpt: Option[PruningFunctionType]
-    ): RDD[_] = {
-    throw new UnsupportedOperationException("Partitioned tables are not yet supported for Tachyon.")
+      pruningFnOpt: Option[PruningFunctionType]): RDD[_] = {
+    val tableKey = MemoryMetadataManager.makeTableKey(_databaseName, _tableName)
+    val hivePartitionRDDs = partitions.map { hivePartition =>
+      val partDesc = Utilities.getPartitionDesc(hivePartition)
+      // Get partition field info
+      val partSpec = partDesc.getPartSpec()
+      val partProps = partDesc.getProperties()
+
+      val partColsDelimited = partProps.getProperty(META_TABLE_PARTITION_COLUMNS)
+      // Partitioning columns are delimited by "/"
+      val partCols = partColsDelimited.trim().split("/").toSeq
+      // 'partValues[i]' contains the value for the partitioning column at 'partCols[i]'.
+      val partValues = if (partSpec == null) {
+        Array.fill(partCols.size)(new String)
+      } else {
+        partCols.map(col => new String(partSpec.get(col))).toArray
+      }
+      val partitionKeyStr = MemoryMetadataManager.makeHivePartitionKeyStr(partCols, partSpec)
+      val hivePartitionRDD = makeRDD(tableKey, Some(partitionKeyStr), pruningFnOpt)
+      hivePartitionRDD.mapPartitions { iter =>
+        if (iter.hasNext) {
+          // Map each tuple to a row object
+          val rowWithPartArr = new Array[Object](2)
+          iter.map { value =>
+            rowWithPartArr.update(0, value.asInstanceOf[Object])
+            rowWithPartArr.update(1, partValues)
+            rowWithPartArr.asInstanceOf[Object]
+          }
+        } else {
+         Iterator.empty
+        }
+      }
+    }
+    if (hivePartitionRDDs.size > 0) {
+      new UnionRDD(hivePartitionRDDs.head.context, hivePartitionRDDs)
+    } else {
+      new EmptyRDD[Object](SharkEnv.sc)
+    }
+  }
+
+  private def makeRDD(
+      tableKey: String,
+      hivePartitionKeyOpt: Option[String],
+      pruningFnOpt: Option[PruningFunctionType]): RDD[Any] = {
+    // Check that the table is in Tachyon.
+    if (!SharkEnv.tachyonUtil.tableExists(tableKey, hivePartitionKeyOpt)) {
+      throw new TachyonException("Table " + tableKey + " does not exist in Tachyon")
+    }
+    val tableRDDsAndStats = SharkEnv.tachyonUtil.createRDD(tableKey, hivePartitionKeyOpt)
+    val prunedRDDs = if (pruningFnOpt.isDefined) {
+      val pruningFn = pruningFnOpt.get
+      tableRDDsAndStats.map(tableRDDWithStats =>
+        pruningFn(tableRDDWithStats._1, tableRDDWithStats._2).asInstanceOf[RDD[Any]])
+    } else {
+      tableRDDsAndStats.map(tableRDDAndStats => tableRDDAndStats._1.asInstanceOf[RDD[Any]])
+    }
+    val unionedRDD = if (prunedRDDs.isEmpty) {
+      new EmptyRDD[TablePartition](SharkEnv.sc)
+    } else {
+      new UnionRDD(SharkEnv.sc, prunedRDDs)
+    }
+    unionedRDD.asInstanceOf[RDD[Any]]
   }
 
 }
