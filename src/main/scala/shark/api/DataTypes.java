@@ -26,6 +26,7 @@ import scala.reflect.ClassTag;
 import scala.reflect.ClassTag$;
 
 import org.apache.hadoop.hive.serde.Constants;
+import shark.Utils$;
 
 /**
  * List of data types defined in Shark APIs.
@@ -108,19 +109,19 @@ public class DataTypes {
   }
 
   public static DataType fromClassTag(ClassTag<?> m) throws UnknownDataTypeException {
-    if (m.equals(ClassTag$.MODULE$.Boolean())) {
+    if (m.equals(ClassTag$.MODULE$.Boolean()) || m.equals(ClassTags$.MODULE$.jBoolean())) {
         return INT;
-    } else if (m.equals(ClassTag$.MODULE$.Byte())){
+    } else if (m.equals(ClassTag$.MODULE$.Byte()) || m.equals(ClassTags$.MODULE$.jByte())){
         return TINYINT;
-    } else if (m.equals(ClassTag$.MODULE$.Short())) {
+    } else if (m.equals(ClassTag$.MODULE$.Short()) || m.equals(ClassTags$.MODULE$.jShort())) {
         return SMALLINT;
-    } else if (m.equals(ClassTag$.MODULE$.Int())) {
+    } else if (m.equals(ClassTag$.MODULE$.Int()) || m.equals(ClassTags$.MODULE$.jInt())) {
         return INT;
-    } else if (m.equals(ClassTag$.MODULE$.Long())) {
+    } else if (m.equals(ClassTag$.MODULE$.Long()) || m.equals(ClassTags$.MODULE$.jLong())) {
         return BIGINT;
-    } else if (m.equals(ClassTag$.MODULE$.Float())) {
+    } else if (m.equals(ClassTag$.MODULE$.Float()) || m.equals(ClassTags$.MODULE$.jFloat())) {
         return FLOAT;
-    } else if (m.equals(ClassTag$.MODULE$.Double())) {
+    } else if (m.equals(ClassTag$.MODULE$.Double()) || m.equals(ClassTags$.MODULE$.jDouble())) {
         return DOUBLE;
     } else if (m.equals(ClassTag$.MODULE$.apply(String.class))) {
         return STRING;
