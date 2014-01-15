@@ -24,10 +24,10 @@ import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
 import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.hadoop.hive.ql.exec.{JoinOperator => HiveJoinOperator}
 import org.apache.hadoop.hive.ql.plan.{JoinDesc, TableDesc}
-import org.apache.hadoop.hive.serde2.{Deserializer, Serializer, SerDeUtils}
-import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspectorUtils, StandardStructObjectInspector}
+import org.apache.hadoop.hive.serde2.{Deserializer, SerDeUtils}
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils
+import org.apache.hadoop.hive.serde2.objectinspector.StandardStructObjectInspector
 import org.apache.hadoop.io.BytesWritable
 
 import org.apache.spark.{CoGroupedRDD, HashPartitioner}
@@ -36,8 +36,7 @@ import org.apache.spark.rdd.RDD
 import shark.execution.serialization.OperatorSerializationWrapper
 
 
-class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
-  with HiveTopOperator {
+class JoinOperator extends CommonJoinOperator[JoinDesc] with ReduceSinkTableDesc {
 
   @BeanProperty var valueTableDescMap: JHashMap[Int, TableDesc] = _
   @BeanProperty var keyTableDesc: TableDesc = _
@@ -48,9 +47,10 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
 
   override def initializeOnMaster() {
     super.initializeOnMaster()
+    val descs = keyValueDescs()
     valueTableDescMap = new JHashMap[Int, TableDesc]
-    valueTableDescMap ++= keyValueTableDescs.map { case(tag, kvdescs) => (tag, kvdescs._2) }
-    keyTableDesc = keyValueTableDescs.head._2._1
+    valueTableDescMap ++= descs.map { case(tag, kvdescs) => (tag, kvdescs._2) }
+    keyTableDesc = descs.head._2._1
 
     // Call initializeOnSlave to initialize the join filters, etc.
     initializeOnSlave()
@@ -113,7 +113,7 @@ class JoinOperator extends CommonJoinOperator[JoinDesc, HiveJoinOperator]
       op.initializeOnSlave()
 
       val writable = new BytesWritable
-      val nullSafes = op.conf.getNullSafes()
+      val nullSafes = conf.getNullSafes()
 
       val cp = new CartesianProduct[Any](op.numTables)
 

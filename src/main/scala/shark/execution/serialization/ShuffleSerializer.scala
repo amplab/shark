@@ -22,7 +22,8 @@ import java.nio.ByteBuffer
 
 import org.apache.hadoop.io.BytesWritable
 
-import org.apache.spark.serializer.{DeserializationStream, Serializer, SerializerInstance, SerializationStream}
+import org.apache.spark.serializer.DeserializationStream
+import org.apache.spark.serializer.{SerializationStream, Serializer, SerializerInstance}
 
 import shark.execution.{ReduceKey, ReduceKeyReduceSide}
 

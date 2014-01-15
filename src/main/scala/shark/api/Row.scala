@@ -17,8 +17,10 @@
 
 package shark.api
 
+import org.apache.hadoop.io.Text
+import org.apache.hadoop.hive.serde2.ByteStream
+import org.apache.hadoop.hive.serde2.`lazy`.LazySimpleSerDe
 import org.apache.hadoop.hive.serde2.objectinspector._
-import org.apache.hadoop.hive.serde2.objectinspector.primitive._
 
 
 /**
@@ -31,14 +33,24 @@ class Row(val rawdata: Any, val colname2indexMap: Map[String, Int], val oi: Stru
   def apply(field: String): Object = apply(colname2indexMap(field))
 
   def apply(field: Int): Object = {
-    val ref = oi.getAllStructFieldRefs.get(field)
-    val data = oi.getStructFieldData(rawdata, ref)
-
+    val ref: StructField = oi.getAllStructFieldRefs.get(field)
+    val data: Object = oi.getStructFieldData(rawdata, ref)
     ref.getFieldObjectInspector match {
       case poi: PrimitiveObjectInspector => poi.getPrimitiveJavaObject(data)
-      case loi: ListObjectInspector => loi.getList(data)
-      case moi: MapObjectInspector => moi.getMap(data)
-      case soi: StructObjectInspector => soi.getStructFieldsDataAsList(data)
+      case _: ListObjectInspector | _: MapObjectInspector | _: StructObjectInspector =>
+        // For complex types, return the string representation of data.
+        val stream = new ByteStream.Output()
+        LazySimpleSerDe.serialize(
+          stream,                               // out
+          data,                                 // obj
+          ref.getFieldObjectInspector,          // objInspector
+          Array[Byte](1, 2, 3, 4, 5, 6, 7, 8),  // separators
+          1,                                    // level
+          new Text(""),                         // nullSequence
+          true,                                 // escaped
+          92,                                   // escapeChar
+          Row.needsEscape)                      // needsEscape
+        stream.toString
     }
   }
 
@@ -98,34 +110,39 @@ class Row(val rawdata: Any, val colname2indexMap: Map[String, Int], val oi: Stru
     ref.getFieldObjectInspector.asInstanceOf[PrimitiveObjectInspector].getPrimitiveJavaObject(data)
   }
 
+  def getPrimitiveGeneric[T](field: Int): T = getPrimitive(field).asInstanceOf[T]
+
+  def getPrimitiveGeneric[T](field: String): T = getPrimitiveGeneric[T](colname2indexMap(field))
+
   /////////////////////////////////////////////////////////////////////////////////////////////////
-  // Complex data types
-  // rxin: I am not sure how useful these APIs are since they would expose the Hive internal
-  // data structure. For example, in the case of an array of strings, getList would actually
-  // return a List of LazyString.
+  // Complex data types - only return the string representation of them for now.
   /////////////////////////////////////////////////////////////////////////////////////////////////
 
-  def getList(field: String): java.util.List[_] = getList(colname2indexMap(field))
+  def getList(field: String): String = getList(colname2indexMap(field))
 
-  def getMap(field: String): java.util.Map[_, _] = getMap(colname2indexMap(field))
+  def getMap(field: String): String = getMap(colname2indexMap(field))
 
-  def getStruct(field: String): java.util.List[Object] = getStruct(colname2indexMap(field))
+  def getStruct(field: String): String = getStruct(colname2indexMap(field))
 
-  def getList(field: Int): java.util.List[_] = {
-    val ref = oi.getAllStructFieldRefs.get(field)
-    val data = oi.getStructFieldData(rawdata, ref)
-    ref.getFieldObjectInspector.asInstanceOf[ListObjectInspector].getList(data)
-  }
+  def getList(field: Int): String = apply(field).asInstanceOf[String]
 
-  def getMap(field: Int): java.util.Map[_, _] = {
-    val ref = oi.getAllStructFieldRefs.get(field)
-    val data = oi.getStructFieldData(rawdata, ref)
-    ref.getFieldObjectInspector.asInstanceOf[MapObjectInspector].getMap(data)
-  }
+  def getMap(field: Int): String = apply(field).asInstanceOf[String]
 
-  def getStruct(field: Int): java.util.List[Object] = {
-    val ref = oi.getAllStructFieldRefs.get(field)
-    val data = oi.getStructFieldData(rawdata, ref)
-    ref.getFieldObjectInspector.asInstanceOf[StructObjectInspector].getStructFieldsDataAsList(data)
-  }
+  def getStruct(field: Int): String = apply(field).asInstanceOf[String]
+}
+
+
+private[shark] object Row {
+  // For Hive's LazySimpleSerDe
+  val needsEscape = Array[Boolean](
+    false, true, true, true, true, true, true, true, true, false, false, false, false, false, false,
+    false, false, false, false, false, false, false, false, false, false, false, false, false,
+    false, false, false, false, false, false, false, false, false, false, false, false, false,
+    false, false, false, false, false, false, false, false, false, false, false, false, false,
+    false, false, false, false, false, false, false, false, false, false, false, false, false,
+    false, false, false, false, false, false, false, false, false, false, false, false, false,
+    false, false, false, false, false, false, false, false, false, false, false, false, true,
+    false, false, false, false, false, false, false, false, false, false, false, false, false,
+    false, false, false, false, false, false, false, false, false, false, false, false, false,
+    false, false, false, false, false, false, false, false, false)
 }

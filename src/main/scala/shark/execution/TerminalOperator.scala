@@ -23,6 +23,7 @@ import scala.reflect.BeanProperty
 
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{FileSinkOperator => HiveFileSinkOperator}
+import org.apache.hadoop.hive.ql.plan.FileSinkDesc
 
 
 /**
@@ -31,7 +32,7 @@ import org.apache.hadoop.hive.ql.exec.{FileSinkOperator => HiveFileSinkOperator}
  * - cache query output
  * - return query as RDD directly (without materializing it)
  */
-class TerminalOperator extends UnaryOperator[HiveFileSinkOperator] {
+class TerminalOperator extends UnaryOperator[FileSinkDesc] {
 
   // Create a local copy of hconf and hiveSinkOp so we can XML serialize it.
   @BeanProperty var localHiveOp: HiveFileSinkOperator = _
@@ -39,12 +40,12 @@ class TerminalOperator extends UnaryOperator[HiveFileSinkOperator] {
   @BeanProperty val now = new Date()
 
   override def initializeOnMaster() {
+    super.initializeOnMaster()
     localHconf = super.hconf
     // Set parent to null so we won't serialize the entire query plan.
-    hiveOp.setParentOperators(null)
-    hiveOp.setChildOperators(null)
-    hiveOp.setInputObjInspectors(null)
-    localHiveOp = hiveOp
+    localHiveOp.setParentOperators(null)
+    localHiveOp.setChildOperators(null)
+    localHiveOp.setInputObjInspectors(null)
   }
 
   override def initializeOnSlave() {

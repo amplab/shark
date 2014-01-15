@@ -21,6 +21,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.io.PrintStream
 import java.io.UnsupportedEncodingException
+import java.net.InetSocketAddress 
 import java.util.ArrayList
 import java.util.{List => JavaList}
 import java.util.Properties
@@ -50,8 +51,11 @@ import org.apache.thrift.server.TThreadPoolServer
 import org.apache.thrift.transport.TServerSocket
 import org.apache.thrift.transport.TTransport
 import org.apache.thrift.transport.TTransportFactory
+import org.apache.thrift.transport.TSocket
 
 import org.apache.spark.SparkEnv
+
+import shark.memstore2.TableRecovery
 
 
 /**
@@ -70,28 +74,55 @@ object SharkServer extends LogHelper {
 
   def main(args: Array[String]) {
 
-    val cli = new SharkServerCliOptions
-    cli.parse(args)
+    val cliOptions = new SharkServerCliOptions
+    cliOptions.parse(args)
 
     // From Hive: It is critical to do this prior to initializing log4j, otherwise
     // any log specific settings via hiveconf will be ignored.
-    val hiveconf: Properties = cli.addHiveconfToSystemProperties()
+    val hiveconf: Properties = cliOptions.addHiveconfToSystemProperties()
 
     // From Hive: It is critical to do this here so that log4j is reinitialized
     // before any of the other core hive classes are loaded
     LogUtils.initHiveLog4j()
 
     val latch = new CountDownLatch(1)
-    serverTransport = new TServerSocket(cli.port)
+    serverTransport = new TServerSocket(cliOptions.port)
 
     val hfactory = new ThriftHiveProcessorFactory(null, new HiveConf()) {
-      override def getProcessor(t: TTransport) =
-        new ThriftHive.Processor(new GatedSharkServerHandler(latch))
+      override def getProcessor(t: TTransport) = {
+        var remoteClient = "Unknown"
+
+        // Seed session ID by a random number
+        var sessionID = scala.Math.round(scala.Math.random * 10000000).toString
+        var jdbcSocket: java.net.Socket = null
+        if (t.isInstanceOf[TSocket]) {
+          remoteClient = t.asInstanceOf[TSocket].getSocket()
+            .getRemoteSocketAddress().asInstanceOf[InetSocketAddress]
+            .getAddress().toString()
+           
+          jdbcSocket = t.asInstanceOf[TSocket].getSocket()
+          jdbcSocket.setKeepAlive(true)
+          sessionID = remoteClient + "/" + jdbcSocket 
+            .getRemoteSocketAddress().asInstanceOf[InetSocketAddress].getPort().toString +
+            "/" + sessionID
+
+        }
+        logInfo("Audit Log: Connection Initiated with JDBC client - " + remoteClient)
+        
+        // Add and enable watcher thread
+        // This handles both manual killing of session as well as connection drops
+        val watcher = new JDBCWatcher(jdbcSocket, sessionID)
+        SharkEnv.activeSessions.add(sessionID)
+        watcher.start()
+        
+        new ThriftHive.Processor(new GatedSharkServerHandler(latch, remoteClient, 
+            sessionID))
+      }
     }
     val ttServerArgs = new TThreadPoolServer.Args(serverTransport)
       .processorFactory(hfactory)
-      .minWorkerThreads(cli.minWorkerThreads)
-      .maxWorkerThreads(cli.maxWorkerThreads)
+      .minWorkerThreads(cliOptions.minWorkerThreads)
+      .maxWorkerThreads(cliOptions.maxWorkerThreads)
       .transportFactory(new TTransportFactory())
       .protocolFactory(new TBinaryProtocol.Factory())
     server = new TThreadPoolServer(ttServerArgs)
@@ -110,12 +141,13 @@ object SharkServer extends LogHelper {
       }
     )
 
-    // Optionally load the cached tables.
-    execLoadRdds(cli.loadRdds, latch)
+    // Optionally reload cached tables from a previous session.
+    execLoadRdds(cliOptions.reloadRdds, latch)
 
     // Start serving.
-    val startupMsg = "Starting Shark server on port " + cli.port + " with " + cli.minWorkerThreads +
-      " min worker threads and " + cli.maxWorkerThreads + " max worker threads"
+    val startupMsg = "Starting Shark server on port " + cliOptions.port + " with " +
+      cliOptions.minWorkerThreads + " min worker threads and " + cliOptions.maxWorkerThreads +
+      " max worker threads."
     logInfo(startupMsg)
     println(startupMsg)
     server.serve()
@@ -136,8 +168,7 @@ object SharkServer extends LogHelper {
       while (!server.isServing()) {}
       try {
         val sshandler = new SharkServerHandler
-        CachedTableRecovery.loadAsRdds(sshandler.execute(_))
-        logInfo("Executed load " + CachedTableRecovery.getMeta)
+        TableRecovery.reloadRdds(sshandler.execute(_))
       } catch {
         case (e: Exception) => logWarning("Unable to load RDDs upon startup", e)
       } finally {
@@ -145,26 +176,66 @@ object SharkServer extends LogHelper {
       }
     }
   }
+  
+  // Detecting socket connection drops relies on TCP keep alives
+  // The approach is very platform specific on the duration and nature of detection
+  // Since java does not expose any mechanisms for tuning keepalive configurations,
+  //  the users should explore the server OS settings for the same.
+  class JDBCWatcher(sock:java.net.Socket, sessionID:String) extends Thread {
+    
+    override def run() {
+      try {
+        while ((sock == null || sock.isConnected) && SharkEnv.activeSessions.contains(sessionID)) {	    
+          if (sock != null)
+            sock.getOutputStream().write((new Array[Byte](0)).toArray)
+          logDebug("Session Socket Alive - " + sessionID)
+          Thread.sleep(2*1000)
+        }
+      } catch {
+        case ioe: IOException => Unit
+      }
+
+      // Session is terminated either manually or automatically
+      // clean up the jobs associated with the session ID
+      logInfo("Session Socket connection lost, cleaning up - " + sessionID)
+      SharkEnv.sc.cancelJobGroup(sessionID)
+    }
+
+  }
 
   // Used to parse command line arguments for the server.
   class SharkServerCliOptions extends HiveServerCli {
-    var loadRdds = false
+    var reloadRdds = false
 
-    val OPTION_LOAD_RDDS = "loadRdds"
-    OPTIONS.addOption(OptionBuilder.create(OPTION_LOAD_RDDS))
+    val OPTION_SKIP_RELOAD_RDDS = "skipRddReload"
+    OPTIONS.addOption(OptionBuilder.create(OPTION_SKIP_RELOAD_RDDS))
 
     override def parse(args: Array[String]) {
       super.parse(args)
-      loadRdds = commandLine.hasOption(OPTION_LOAD_RDDS)
+      reloadRdds = !commandLine.hasOption(OPTION_SKIP_RELOAD_RDDS)
     }
   }
 }
 
 
-class GatedSharkServerHandler(latch:CountDownLatch) extends SharkServerHandler {
+class GatedSharkServerHandler(latch:CountDownLatch, remoteClient:String,
+    sessionID:String) extends SharkServerHandler {
   override def execute(cmd: String): Unit = {
     latch.await
-    super.execute(cmd)
+    
+    logInfo("Audit Log: SessionID=" + sessionID + " client=" + remoteClient + "  cmd=" + cmd)
+    
+    // Handle cancel commands
+    if (cmd.startsWith("kill ")) {
+      logInfo("killing group - " + cmd)
+      val sessionIDToCancel = cmd.split("\\s+|\\s*;").apply(1)
+      SharkEnv.activeSessions.remove(sessionIDToCancel)
+    } else {
+      // Session ID is used as spark job group
+      // Job groups control cleanup/cancelling of unneeded jobs on connection terminations
+      SharkEnv.sc.setJobGroup(sessionID, "Session ID = " + sessionID)
+      super.execute(cmd)
+    }
   }
 }
 
@@ -271,9 +342,11 @@ class SharkServerHandler extends HiveServerHandler with LogHelper {
       ""
     } else {
       val list: JavaList[String] = fetchN(1)
-      if (list.isEmpty)
+      if (list.isEmpty) {
         ""
-      else list.get(0)
+      } else {
+        list.get(0)
+      }
     }
   }
 
