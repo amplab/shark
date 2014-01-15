@@ -18,10 +18,10 @@
 package shark.memstore2
 
 import java.io.{DataInput, DataOutput}
-import java.util.{List => JList}
+
+import scala.collection.JavaConversions._
 
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
-import org.apache.hadoop.hive.serde2.objectinspector.StructField
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 import org.apache.hadoop.io.Writable
 
@@ -33,19 +33,22 @@ import shark.memstore2.column.ColumnBuilder
  * partition of data into columnar format and to generate a TablePartition.
  */
 class TablePartitionBuilder(
-    oi: StructObjectInspector,
+    ois: Seq[ObjectInspector],
     initialColumnSize: Int,
-    shouldCompress: Boolean = true)
+    shouldCompress: Boolean)
   extends Writable {
 
-  var numRows: Long = 0
-  val fields: JList[_ <: StructField] = oi.getAllStructFieldRefs
+  def this(oi: StructObjectInspector, initialColumnSize: Int, shouldCompress: Boolean = true) = {
+    this(oi.getAllStructFieldRefs.map(_.getFieldObjectInspector), initialColumnSize, shouldCompress)
+  }
 
-  val columnBuilders = Array.tabulate[ColumnBuilder[_]](fields.size) { i =>
-    val columnBuilder = ColumnBuilder.create(fields.get(i).getFieldObjectInspector, shouldCompress)
+  private var numRows: Long = 0
+
+  private val columnBuilders: Array[ColumnBuilder[_]] = ois.map { oi =>
+    val columnBuilder = ColumnBuilder.create(oi, shouldCompress)
     columnBuilder.initialize(initialColumnSize)
     columnBuilder
-  }
+  }.toArray
 
   def incrementRowCount() {
     numRows += 1
@@ -57,7 +60,7 @@ class TablePartitionBuilder(
 
   def stats: TablePartitionStats = new TablePartitionStats(columnBuilders.map(_.stats), numRows)
 
-  def build: TablePartition = new TablePartition(numRows, columnBuilders.map(_.build))
+  def build(): TablePartition = new TablePartition(numRows, columnBuilders.map(_.build()))
 
   // We don't use these, but want to maintain Writable interface for SerDe
   override def write(out: DataOutput) {}

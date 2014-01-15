@@ -1,7 +1,23 @@
+/*
+ * Copyright (C) 2012 The Regents of The University California.
+ * All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package shark.util
 
 import java.lang.Integer.{ rotateLeft => rotl }
-import scala.math._
 
 /**
  * <p>The MurmurHash3_x86_128(...) is a fast, non-cryptographic, 128-bit hash 
@@ -109,7 +125,7 @@ object MurmurHash3_x86_128 {
    * @param seed is the seed for the murmurhash algorithm.
    * @param length is the length of the buffer to use for hashing.
    * @param results is the output buffer to store the four ints that are returned,
-   * 			 should have size atleast 4.
+   *        should have size at least 4.
    */
   @inline final def hash(data: Array[Byte], seed: Int, length: Int,
       results: Array[Int]): Unit = {
@@ -177,18 +193,18 @@ object MurmurHash3_x86_128 {
    * @param rem is the remainder of the byte array to examine.
    */
   @inline final def getInt(data: Array[Byte], index: Int, rem: Int): Int = {
-    rem  match {
+    rem match {
       case 3 => data(index) << 24 | 
-      			(data(index + 1) & 0xFF) << 16 |
-      			(data(index + 2) & 0xFF) << 8 
+                (data(index + 1) & 0xFF) << 16 |
+                (data(index + 2) & 0xFF) << 8
       case 2 => data(index) << 24 | 
-      			(data(index + 1) & 0xFF) << 16
+                (data(index + 1) & 0xFF) << 16
       case 1 => data(index) << 24
       case 0 => 0
       case _ => data(index) << 24 | 
-      			(data(index + 1) & 0xFF) << 16 |
-      			(data(index + 2) & 0xFF) << 8 |
-      			(data(index + 3) & 0xFF)
+                (data(index + 1) & 0xFF) << 16 |
+                (data(index + 2) & 0xFF) << 8 |
+                (data(index + 3) & 0xFF)
     }
   }
 }

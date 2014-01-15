@@ -23,13 +23,12 @@ import scala.collection.Iterator
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
-import org.apache.hadoop.hive.ql.exec.{ReduceSinkOperator => HiveReduceSinkOperator}
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory}
-import org.apache.hadoop.hive.ql.metadata.HiveException
 import org.apache.hadoop.hive.ql.plan.ReduceSinkDesc
 import org.apache.hadoop.hive.serde2.SerDe
-import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorFactory,
-  ObjectInspectorUtils}
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils
 import org.apache.hadoop.hive.serde2.objectinspector.StandardUnionObjectInspector.StandardUnion
 import org.apache.hadoop.io.BytesWritable
 
@@ -38,7 +37,7 @@ import org.apache.hadoop.io.BytesWritable
  * Converts a collection of rows into key, value pairs. This is the
  * upstream operator for joins and groupbys.
  */
-class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
+class ReduceSinkOperator extends UnaryOperator[ReduceSinkDesc] {
 
   @BeanProperty var conf: ReduceSinkDesc = _
 
@@ -58,16 +57,22 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
   @transient var keySer: SerDe = _
   @transient var valueSer: SerDe = _
   @transient var keyObjInspector: ObjectInspector = _
+  @transient var keyFieldObjInspectors: Array[ObjectInspector] = _
   @transient var valObjInspector: ObjectInspector = _
+  @transient var valFieldObjInspectors: Array[ObjectInspector] = _
   @transient var partitionObjInspectors: Array[ObjectInspector] = _
 
   override def getTag() = conf.getTag()
 
   override def initializeOnMaster() {
-    conf = hiveOp.getConf()
+    super.initializeOnMaster()
+    
+    conf = desc
   }
 
   override def initializeOnSlave() {
+    super.initializeOnSlave()
+    
     initializeOisAndSers(conf, objectInspector)
   }
 
@@ -79,45 +84,26 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
     }
   }
 
-  def initializeDownStreamHiveOperator() {
-
-    conf = hiveOp.getConf()
-
-    // Note that we get input object inspector from hiveOp rather than Shark's
-    // objectInspector because initializeMasterOnAll() hasn't been invoked yet.
-    initializeOisAndSers(conf, hiveOp.getInputObjInspectors().head)
-
-    // Determine output object inspector (a struct of KEY, VALUE).
+  override def outputObjectInspector() = {
+    initializeOisAndSers(conf, objectInspector)
+    
     val ois = new ArrayList[ObjectInspector]
     ois.add(keySer.getObjectInspector)
     ois.add(valueSer.getObjectInspector)
-
-    val outputObjInspector = ObjectInspectorFactory.getStandardStructObjectInspector(List("KEY","VALUE"), ois)
-
-    val joinTag = conf.getTag()
-
-    // Propagate the output object inspector and serde infos to downstream operator.
-    childOperators.foreach { child =>
-      child match {
-        case child: HiveTopOperator => {
-          child.setInputObjectInspector(joinTag, outputObjInspector)
-          child.setKeyValueTableDescs(joinTag,
-              (conf.getKeySerializeInfo, conf.getValueSerializeInfo))
-        }
-        case _ => {
-          throw new HiveException("%s's downstream operator should be %s. %s found.".format(
-            this.getClass.getName, classOf[HiveTopOperator].getName, child.getClass.getName))
-        }
-      }
-    }
+    ObjectInspectorFactory.getStandardStructObjectInspector(List("KEY", "VALUE"), ois)
   }
 
+  // will be used of the children operators (in JoinOperator/Extractor/GroupByPostShuffleOperator
+  def getKeyValueTableDescs() = (conf.getKeySerializeInfo, conf.getValueSerializeInfo)
+  
   /**
    * Initialize the object inspectors, evaluators, and serializers. Used on
    * both the master and the slave.
    */
   private def initializeOisAndSers(conf: ReduceSinkDesc, rowInspector: ObjectInspector) {
     keyEval = conf.getKeyCols.map(ExprNodeEvaluatorFactory.get(_)).toArray
+    keyFieldObjInspectors = initEvaluators(keyEval, 0, keyEval.length, rowInspector)
+    
     val numDistributionKeys = conf.getNumDistributionKeys()
     val distinctColIndices = conf.getDistinctColumnIndices()
     valueEval = conf.getValueCols.map(ExprNodeEvaluatorFactory.get(_)).toArray
@@ -133,17 +119,17 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
     valueSer.initialize(null, valueTableDesc.getProperties())
 
     // Initialize object inspector for key columns.
-    keyObjInspector = ReduceSinkOperatorHelper.initEvaluatorsAndReturnStruct(
-        keyEval,
-        distinctColIndices,
-        conf.getOutputKeyColumnNames,
-        numDistributionKeys,
-        rowInspector)
+    keyObjInspector = initEvaluatorsAndReturnStruct(
+      keyEval,
+      distinctColIndices,
+      conf.getOutputKeyColumnNames,
+      numDistributionKeys,
+      rowInspector)
 
     // Initialize object inspector for value columns.
-    val valFieldInspectors = valueEval.map(eval => eval.initialize(rowInspector)).toList
+    valFieldObjInspectors = valueEval.map(eval => eval.initialize(rowInspector))
     valObjInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
-        conf.getOutputValueColumnNames(), valFieldInspectors)
+      conf.getOutputValueColumnNames(), valFieldObjInspectors.toList)
 
     // Initialize evaluator and object inspector for partition columns.
     partitionEval = conf.getPartitionCols.map(ExprNodeEvaluatorFactory.get(_)).toArray

@@ -19,8 +19,8 @@ package shark
 
 import java.io.BufferedReader
 import java.util.{Map => JMap}
-
 import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.{Path, PathFilter}
 
 
 object Utils {
@@ -94,4 +94,18 @@ object Utils {
     new BufferedReader(new InputStreamReader(s3obj.getDataInputStream()))
   }
 
+  /**
+   * Returns a filter that accepts files not present in the captured snapshot of the `path`
+   * directory.
+   */
+  def createSnapshotFilter(path: Path, conf: Configuration): PathFilter = {
+    val fs = path.getFileSystem(conf)
+    val currentFiles = fs.listStatus(path).map(_.getPath).toSet
+    val fileFilter = new PathFilter() {
+      override def accept(path: Path) = {
+        (!path.getName().startsWith(".") && !currentFiles.contains(path))
+      }
+    }
+    fileFilter
+  }
 }

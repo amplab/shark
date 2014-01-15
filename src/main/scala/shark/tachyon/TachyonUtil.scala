@@ -22,8 +22,7 @@ import java.util.BitSet
 
 import org.apache.spark.rdd.RDD
 
-import shark.memstore2.TablePartition
-
+import shark.memstore2.{TablePartition, TablePartitionStats}
 
 
 /**
@@ -32,17 +31,27 @@ import shark.memstore2.TablePartition
  * even without Tachyon jars.
  */
 abstract class TachyonUtil {
+
   def pushDownColumnPruning(rdd: RDD[_], columnUsed: BitSet): Boolean
 
   def tachyonEnabled(): Boolean
 
-  def tableExists(tableName: String): Boolean
+  def tableExists(tableKey: String, hivePartitionKeyOpt: Option[String]): Boolean
 
-  def dropTable(tableName: String): Boolean
+  def dropTable(tableKey: String, hivePartitionKeyOpt: Option[String]): Boolean
 
-  def getTableMetadata(tableName: String): ByteBuffer
+  def createDirectory(tableKey: String, hivePartitionKeyOpt: Option[String]): Boolean
 
-  def createRDD(tableName: String): RDD[TablePartition]
+  def renameDirectory(oldName: String, newName: String): Boolean
 
-  def createTableWriter(tableName: String, numColumns: Int): TachyonTableWriter
+  def createRDD(
+      tableKey: String,
+      hivePartitionKeyOpt: Option[String]
+    ): Seq[(RDD[TablePartition], collection.Map[Int, TablePartitionStats])]
+
+  def createTableWriter(
+  	  tableKey: String,
+  	  hivePartitionKey: Option[String],
+  	  numColumns: Int
+    ): TachyonTableWriter
 }

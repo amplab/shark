@@ -27,8 +27,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo
 
-import shark.{SharkConfVars}
-
 
 class ColumnarStructObjectInspector(fields: JList[StructField]) extends StructObjectInspector {
 
@@ -60,7 +58,8 @@ object ColumnarStructObjectInspector {
     for (i <- 0 until columnNames.size) {
       val typeInfo = columnTypes.get(i)
       val fieldOI = typeInfo.getCategory match {
-        case Category.PRIMITIVE => PrimitiveObjectInspectorFactory.getPrimitiveWritableObjectInspector(
+        case Category.PRIMITIVE => 
+          PrimitiveObjectInspectorFactory.getPrimitiveWritableObjectInspector(
             typeInfo.asInstanceOf[PrimitiveTypeInfo].getPrimitiveCategory)
         case _ => LazyFactory.createLazyObjectInspector(
             typeInfo, serDeParams.getSeparators(), 1, serDeParams.getNullSequence(),
