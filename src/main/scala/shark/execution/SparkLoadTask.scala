@@ -19,6 +19,7 @@
 package shark.execution
 
 import java.io.Serializable
+import java.nio.ByteBuffer
 import java.util.{Properties, Map => JavaMap}
 
 import scala.collection.JavaConversions._
@@ -41,8 +42,9 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 
 import shark.{LogHelper, SharkEnv, Utils}
-import shark.execution.serialization.KryoSerializer
+import shark.execution.serialization.{KryoSerializer, JavaSerializer}
 import shark.memstore2._
+import shark.tachyon.TachyonTableWriter
 import shark.util.HiveUtils
 
 
@@ -54,7 +56,6 @@ import shark.util.HiveUtils
  * @param commandType Enum representing the command that will be executed for the target table. See
  *     SparkLoadWork.CommandTypes for a description of which SQL commands correspond to each type.
  * @param cacheMode Cache type that the RDD should be stored in (e.g., Spark heap).
- *                  TODO(harvey): Support Tachyon.
  */
 private[shark]
 class SparkLoadWork(
@@ -186,15 +187,27 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
    * @param broadcastedHiveConf Allows for sharing a Hive Configuration broadcast used to create
    *                            the Hadoop `inputRdd`.
    * @param inputOI Object inspector used to read rows from `inputRdd`.
+   * @param hivePartitionKeyOpt A defined Hive partition key if the RDD being loaded is part of a
+   *        Hive-partitioned table.
    */
   private def materialize(
       inputRdd: RDD[_],
       serDeProps: Properties,
       broadcastedHiveConf: Broadcast[SerializableWritable[HiveConf]],
-      inputOI: StructObjectInspector) = {
+      inputOI: StructObjectInspector,
+      tableKey: String,
+      hivePartitionKeyOpt: Option[String]) = {
     val statsAcc = SharkEnv.sc.accumulableCollection(ArrayBuffer[(Int, TablePartitionStats)]())
+    val tachyonWriter = if (work.cacheMode == CacheType.TACHYON) {
+      // Find the number of columns in the table schema using `serDeProps`.
+      val numColumns = serDeProps.getProperty(Constants.LIST_COLUMNS).split(',').size
+      // Use an additional row to store metadata (e.g. number of rows in each partition).
+      SharkEnv.tachyonUtil.createTableWriter(tableKey, hivePartitionKeyOpt, numColumns + 1)
+    } else {
+      null
+    }
     val serializedOI = KryoSerializer.serialize(inputOI)
-    val transformedRdd = inputRdd.mapPartitionsWithIndex { case (partIndex, partIter) =>
+    var transformedRdd = inputRdd.mapPartitionsWithIndex { case (partIndex, partIter) =>
       val serde = new ColumnarSerDe
       serde.initialize(broadcastedHiveConf.value.value, serDeProps)
       val localInputOI = KryoSerializer.deserialize[ObjectInspector](serializedOI)
@@ -212,9 +225,30 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
       }
     }
     // Run a job to materialize the RDD.
-    transformedRdd.persist(StorageLevel.MEMORY_AND_DISK)
+    if (work.cacheMode == CacheType.TACHYON) {
+      // Put the table in Tachyon.
+      logInfo("Putting RDD for %s in Tachyon".format(tableKey))
+      if (work.commandType == SparkLoadWork.CommandTypes.OVERWRITE &&
+          SharkEnv.tachyonUtil.tableExists(tableKey, hivePartitionKeyOpt)) {
+        // For INSERT OVERWRITE, delete the old table or Hive partition directory, if it exists.
+        SharkEnv.tachyonUtil.dropTable(tableKey, hivePartitionKeyOpt)
+      }
+      tachyonWriter.createTable(ByteBuffer.allocate(0))
+      transformedRdd = transformedRdd.mapPartitionsWithIndex { case(part, iter) =>
+        val partition = iter.next()
+        partition.toTachyon.zipWithIndex.foreach { case(buf, column) =>
+          tachyonWriter.writeColumnPartition(column, part, buf)
+        }
+        Iterator(partition)
+      }
+    } else {
+      transformedRdd.persist(StorageLevel.MEMORY_AND_DISK)
+    }
     transformedRdd.context.runJob(
       transformedRdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
+    if (work.cacheMode == CacheType.TACHYON) {
+      tachyonWriter.updateMetadata(ByteBuffer.wrap(JavaSerializer.serialize(statsAcc.value.toMap)))
+    }
     (transformedRdd, statsAcc.value)
   }
 
@@ -255,7 +289,6 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
       pathFilterOpt: Option[PathFilter]) {
     val databaseName = hiveTable.getDbName
     val tableName = hiveTable.getTableName
-    val memoryTable = getOrCreateMemoryTable(hiveTable)
     val tableSchema = hiveTable.getSchema
     val serDe = hiveTable.getDeserializer
     serDe.initialize(conf, tableSchema)
@@ -266,21 +299,19 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
       inputRDD,
       tableSchema,
       hadoopReader.broadcastedHiveConf,
-      serDe.getObjectInspector.asInstanceOf[StructObjectInspector])
-    memoryTable.tableRDD = work.commandType match {
-      case (SparkLoadWork.CommandTypes.OVERWRITE | SparkLoadWork.CommandTypes.NEW_ENTRY) =>
-        tablePartitionRDD
-      case SparkLoadWork.CommandTypes.INSERT => {
-        // Union the previous and new RDDs, and their respective table stats.
-        val unionedRDD = RDDUtils.unionAndFlatten(tablePartitionRDD, memoryTable.tableRDD)
-        SharkEnv.memoryMetadataManager.getStats(databaseName, tableName ) match {
-          case Some(previousStatsMap) => SparkLoadTask.unionStatsMaps(tableStats, previousStatsMap)
-          case None => Unit
+      serDe.getObjectInspector.asInstanceOf[StructObjectInspector],
+      MemoryMetadataManager.makeTableKey(databaseName, tableName),
+      hivePartitionKeyOpt = None)
+    if (work.cacheMode != CacheType.TACHYON) {
+      val memoryTable = getOrCreateMemoryTable(hiveTable)
+      work.commandType match {
+        case (SparkLoadWork.CommandTypes.OVERWRITE | SparkLoadWork.CommandTypes.NEW_ENTRY) =>
+          memoryTable.put(tablePartitionRDD, tableStats.toMap)
+        case SparkLoadWork.CommandTypes.INSERT => {
+          memoryTable.update(tablePartitionRDD, tableStats)
         }
-        unionedRDD
       }
     }
-    SharkEnv.memoryMetadataManager.putStats(databaseName, tableName, tableStats.toMap)
   }
 
   /**
@@ -343,7 +374,6 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
 
     for (partSpec <- partSpecs) {
       // Read, materialize, and store a columnar-backed RDD for `partSpec`.
-      val partitionedTable = getOrCreatePartitionedMemoryTable(hiveTable, partSpec)
       val partitionKey = MemoryMetadataManager.makeHivePartitionKeyStr(partCols, partSpec)
       val partition = db.getPartition(hiveTable, partSpec, false /* forceCreate */)
       val partSerDe = partition.getDeserializer()
@@ -359,23 +389,19 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
         inputRDD,
         SparkLoadTask.addPartitionInfoToSerDeProps(partCols, partition.getSchema),
         hadoopReader.broadcastedHiveConf,
-        unionOI)
-      // Determine how to cache the table RDD created.
-      val tableOpt = partitionedTable.getPartition(partitionKey)
-      if (tableOpt.isDefined && (work.commandType == SparkLoadWork.CommandTypes.INSERT)) {
-        val previousRDD = tableOpt.get
-        partitionedTable.updatePartition(partitionKey,
-          RDDUtils.unionAndFlatten(tablePartitionRDD, previousRDD))
-        // Union stats for the previous RDD with the new RDD loaded.
-        val previousStatsMapOpt = SharkEnv.memoryMetadataManager.getStats(databaseName, tableName)
-        assert(SharkEnv.memoryMetadataManager.getStats(databaseName, tableName).isDefined,
-          "Stats for %s.%s should be defined for an INSERT operation, but are missing.".
-            format(databaseName, tableName))
-        SparkLoadTask.unionStatsMaps(tableStats, previousStatsMapOpt.get)
-      } else {
-        partitionedTable.putPartition(partitionKey, tablePartitionRDD)
+        unionOI,
+        MemoryMetadataManager.makeTableKey(databaseName, tableName),
+        Some(partitionKey))
+      if (work.cacheMode != CacheType.TACHYON) {
+        // Handle appends or overwrites.
+        val partitionedTable = getOrCreatePartitionedMemoryTable(hiveTable, partSpec)
+        if (partitionedTable.containsPartition(partitionKey) &&
+            (work.commandType == SparkLoadWork.CommandTypes.INSERT)) {
+          partitionedTable.updatePartition(partitionKey, tablePartitionRDD, tableStats)
+        } else {
+          partitionedTable.putPartition(partitionKey, tablePartitionRDD, tableStats.toMap)
+        }
       }
-      SharkEnv.memoryMetadataManager.putStats(databaseName, tableName, tableStats.toMap)
     }
   }
 
@@ -418,16 +444,5 @@ object SparkLoadTask {
         columnTypeProperties + (":" + Constants.STRING_TYPE_NAME * partCols.size))
     }
     serDeProps
-  }
-
-  private def unionStatsMaps(
-      targetStatsMap: ArrayBuffer[(Int, TablePartitionStats)],
-      otherStatsMap: Iterable[(Int, TablePartitionStats)]
-    ): ArrayBuffer[(Int, TablePartitionStats)] = {
-    val targetStatsMapSize = targetStatsMap.size
-    for ((otherIndex, tableStats) <- otherStatsMap) {
-      targetStatsMap.append((otherIndex + targetStatsMapSize, tableStats))
-    }
-    targetStatsMap
   }
 }

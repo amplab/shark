@@ -21,6 +21,7 @@ import java.util.concurrent.{ConcurrentHashMap => ConcurrentJavaHashMap}
 
 import scala.collection.JavaConversions._
 import scala.collection.concurrent
+import scala.collection.mutable.{Buffer, HashMap}
 
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
@@ -42,18 +43,9 @@ class PartitionedMemoryTable(
     cacheMode: CacheType.CacheType)
   extends Table(databaseName, tableName, cacheMode) {
 
-  /**
-   * A simple, mutable wrapper for an RDD. This is needed so that a entry maintained by a
-   * CachePolicy's underlying data structure, such as the LinkedHashMap for LRUCachePolicy, can be
-   * updated without causing an eviction.
-   * The value entires for a single key in
-   * `_keyToPartitions` and `_cachePolicy` will reference the same RDDValue object.
-   */
-  class RDDValue(var rdd: RDD[TablePartition])
-
   // A map from the Hive-partition key to the RDD that contains contents of that partition.
   // The conventional string format for the partition key, 'col1=value1/col2=value2/...', can be
-  // computed using MemoryMetadataManager#makeHivePartitionKeyStr()
+  // computed using MemoryMetadataManager#makeHivePartitionKeyStr().
   private val _keyToPartitions: concurrent.Map[String, RDDValue] =
     new ConcurrentJavaHashMap[String, RDDValue]()
 
@@ -61,57 +53,88 @@ class PartitionedMemoryTable(
   // can be set from the CLI:
   //   `TBLPROPERTIES("shark.partition.cachePolicy", "LRUCachePolicy")`.
   // If 'None', then all partitions will be put in memory.
+  //
+  // Since RDDValue is mutable, entries maintained by a CachePolicy's underlying data structure,
+  // such as the LinkedHashMap for LRUCachePolicy, can be updated without causing an eviction.
+  // The value entires for a single key in
+  // `_keyToPartitions` and `_cachePolicy` will reference the same RDDValue object.
   private var _cachePolicy: CachePolicy[String, RDDValue] = _
 
   def containsPartition(partitionKey: String): Boolean = _keyToPartitions.contains(partitionKey)
 
   def getPartition(partitionKey: String): Option[RDD[TablePartition]] = {
+    getPartitionAndStats(partitionKey).map(_._1)
+  }
+
+  def getStats(partitionKey: String): Option[collection.Map[Int, TablePartitionStats]] = {
+    getPartitionAndStats(partitionKey).map(_._2)
+  }
+
+  def getPartitionAndStats(
+      partitionKey: String
+    ): Option[(RDD[TablePartition], collection.Map[Int, TablePartitionStats])] = {
     val rddValueOpt: Option[RDDValue] = _keyToPartitions.get(partitionKey)
     if (rddValueOpt.isDefined) _cachePolicy.notifyGet(partitionKey)
-    rddValueOpt.map(_.rdd)
+    rddValueOpt.map(_.toTuple)
   }
 
   def putPartition(
       partitionKey: String,
       newRDD: RDD[TablePartition],
-      isUpdate: Boolean = false): Option[RDD[TablePartition]] = {
+      newStats: collection.Map[Int, TablePartitionStats] = new HashMap[Int, TablePartitionStats]()
+    ): Option[(RDD[TablePartition], collection.Map[Int, TablePartitionStats])] = {
     val rddValueOpt = _keyToPartitions.get(partitionKey)
-    val prevRDD: Option[RDD[TablePartition]] = rddValueOpt.map(_.rdd)
-    val newRDDValue = new RDDValue(newRDD)
+    val prevRDDAndStats = rddValueOpt.map(_.toTuple)
+    val newRDDValue = new RDDValue(newRDD, newStats)
     _keyToPartitions.put(partitionKey, newRDDValue)
     _cachePolicy.notifyPut(partitionKey, newRDDValue)
-    prevRDD
+    prevRDDAndStats
   }
 
   def updatePartition(
       partitionKey: String,
-      updatedRDD: RDD[TablePartition]): Option[RDD[TablePartition]] = {
-    val rddValueOpt = _keyToPartitions.get(partitionKey)
-    val prevRDD: Option[RDD[TablePartition]] = rddValueOpt.map(_.rdd)
-    if (rddValueOpt.isDefined) {
+      newRDD: RDD[TablePartition],
+      newStats: Buffer[(Int, TablePartitionStats)]
+    ): Option[(RDD[TablePartition], collection.Map[Int, TablePartitionStats])] = {
+    val prevRDDAndStatsOpt = getPartitionAndStats(partitionKey)
+    if (prevRDDAndStatsOpt.isDefined) {
+      val (prevRDD, prevStats) = (prevRDDAndStatsOpt.get._1, prevRDDAndStatsOpt.get._2)
       // This is an update of an old value, so update the RDDValue's `rdd` entry.
       // Don't notify the `_cachePolicy`. Assumes that getPartition() has already been called to
       // obtain the value of the previous RDD.
-      // An RDD update refers to the RDD created from a transform or union.
-      val updatedRDDValue = rddValueOpt.get
-      updatedRDDValue.rdd = updatedRDD
+      // An RDD update refers to the RDD created from an INSERT.
+      val updatedRDDValue = _keyToPartitions.get(partitionKey).get
+      updatedRDDValue.rdd = RDDUtils.unionAndFlatten(prevRDD, newRDD)
+      updatedRDDValue.stats = Table.mergeStats(newStats, prevStats).toMap
+    } else {
+      // No previous RDDValue entry currently exists for `partitionKey`, so add one.
+      putPartition(partitionKey, newRDD, newStats.toMap)
     }
-    prevRDD
+    prevRDDAndStatsOpt
   }
 
-  def removePartition(partitionKey: String): Option[RDD[TablePartition]] = {
+  def removePartition(
+      partitionKey: String
+    ): Option[(RDD[TablePartition], collection.Map[Int, TablePartitionStats])] = {
     val rddRemoved = _keyToPartitions.remove(partitionKey)
     if (rddRemoved.isDefined) {
       _cachePolicy.notifyRemove(partitionKey)
     }
-    rddRemoved.map(_.rdd)
+    rddRemoved.map(_.toTuple)
+  }
+
+  /** Returns an immutable view of (partition key -> RDD) mappings to external callers */
+  def keyToPartitions: collection.immutable.Map[String, RDD[TablePartition]] = {
+    _keyToPartitions.mapValues(_.rdd).toMap
   }
 
   def setPartitionCachePolicy(cachePolicyStr: String, fallbackMaxSize: Int) {
     // The loadFunc will upgrade the persistence level of the RDD to the preferred storage level.
     val loadFunc: String => RDDValue = (partitionKey: String) => {
       val rddValue = _keyToPartitions.get(partitionKey).get
-      rddValue.rdd.persist(StorageLevel.MEMORY_AND_DISK)
+      if (cacheMode == CacheType.MEMORY) {
+        rddValue.rdd.persist(StorageLevel.MEMORY_AND_DISK)
+      }
       rddValue
     }
     // The evictionFunc will unpersist the RDD.
@@ -124,10 +147,5 @@ class PartitionedMemoryTable(
   }
 
   def cachePolicy: CachePolicy[String, RDDValue] = _cachePolicy
-
-  /** Returns an immutable view of (partition key -> RDD) mappings to external callers */
-  def keyToPartitions: collection.immutable.Map[String, RDD[TablePartition]] = {
-    _keyToPartitions.mapValues(_.rdd).toMap
-  }
 
 }
