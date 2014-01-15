@@ -40,7 +40,7 @@ import shark.execution.{SharkExplainTask, SharkExplainWork}
 import shark.execution.{SparkLoadWork, SparkLoadTask}
 import shark.execution.{SparkTask, SparkWork}
 import shark.memstore2.ColumnarSerDe
-import shark.parse.{QueryContext, SharkSemanticAnalyzerFactory}
+import shark.parse.{QueryContext, SharkExplainSemanticAnalyzer, SharkSemanticAnalyzerFactory}
 import shark.util.QueryRewriteUtils
 
 
