@@ -39,6 +39,11 @@ export HIVE_HOME=""
 # Only required if using Mesos:
 #export MESOS_NATIVE_LIBRARY=/usr/local/lib/libmesos.so 
 
+# Only required if run shark with spark on yarn
+#export SHARK_EXEC_MODE=yarn
+#export SPARK_ASSEMBLY_JAR=
+#export SHARK_ASSEMBLY_JAR=
+
 # (Optional) Extra classpath
 #export SPARK_LIBRARY_PATH=""
 
