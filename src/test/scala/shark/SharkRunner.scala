@@ -32,7 +32,7 @@ object SharkRunner {
   var sharkMetastore: MemoryMetadataManager = _
 
 
-  def init(): SharkContext = {
+  def init(): SharkContext = synchronized {
   	if (sc == null) {
       sc = SharkEnv.initWithSharkContext("shark-sql-suite-testing", MASTER)
 
@@ -55,7 +55,7 @@ object SharkRunner {
    * Tables accessible by any test. Their properties should remain constant across
    * tests.
    */
-  def loadTables() {
+  def loadTables() = synchronized {
     require(sc != null, "call init() to instantiate a SharkContext first")
 
     // Use the default namespace
@@ -101,6 +101,7 @@ object SharkRunner {
     sc.sql("LOAD DATA LOCAL INPATH '${hiveconf:shark.test.data.path}/test1.txt' INTO TABLE test1")
     sc.sql("drop table if exists test1_cached")
     sc.sql("CREATE TABLE test1_cached AS SELECT * FROM test1")
+    Unit
   }
 
   def expectSql(sql: String, expectedResults: Array[String], sort: Boolean = true) {

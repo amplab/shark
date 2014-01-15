@@ -181,16 +181,16 @@ object MapSplitPruning {
     }
   }
 
-  private def getIDStructField(field: StructField): IDStructField = {
-    field match {
-      case myField: MyField => {
-        MapSplitPruningHelper.getStructFieldFromUnionOIField(myField)
-          .asInstanceOf[IDStructField]
-      }
-      case idStructField: IDStructField => idStructField
-      case otherFieldType: Any => {
-        throw new Exception("Unrecognized StructField: " + otherFieldType)
-      }
+  private def getIDStructField(field: StructField): IDStructField = field match {
+    case myField: MyField => {
+      // For partitioned tables, the ColumnarStruct's IDStructFields are enclosed inside
+      // the Hive UnionStructObjectInspector's MyField objects.
+      MapSplitPruningHelper.getStructFieldFromUnionOIField(myField)
+        .asInstanceOf[IDStructField]
+    }
+    case idStructField: IDStructField => idStructField
+    case otherFieldType: Any => {
+      throw new Exception("Unrecognized StructField: " + otherFieldType)
     }
   }
 }
