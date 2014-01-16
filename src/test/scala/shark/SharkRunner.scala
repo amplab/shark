@@ -19,6 +19,7 @@ package shark
 
 import org.apache.hadoop.hive.metastore.MetaStoreUtils.DEFAULT_DATABASE_NAME
 
+import shark.api.JavaSharkContext
 import shark.memstore2.MemoryMetadataManager
 
 
@@ -29,8 +30,8 @@ object SharkRunner {
   val MASTER = "local"
 
   var sc: SharkContext = _
-  var sharkMetastore: MemoryMetadataManager = _
 
+  var javaSc: JavaSharkContext = _
 
   def init(): SharkContext = synchronized {
   	if (sc == null) {
@@ -41,14 +42,19 @@ object SharkRunner {
       sc.runSql("set hive.metastore.warehouse.dir=" + WAREHOUSE_PATH)
       sc.runSql("set shark.test.data.path=" + TestUtils.dataFilePath)
 
-      sharkMetastore = SharkEnv.memoryMetadataManager
-
       // second db
       sc.sql("create database if not exists seconddb")
 
       loadTables()
     }
     sc
+  }
+
+  def initWithJava(): JavaSharkContext = synchronized {
+    if (javaSc == null) {
+      javaSc = new JavaSharkContext(init())
+    }
+    javaSc
   }
 
   /**
