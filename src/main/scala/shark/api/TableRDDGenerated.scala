@@ -21,7 +21,7 @@
 package shark.api
 
 // *** This file is auto-generated from TableRDDGenerated_generator.py ***
-
+import scala.language.implicitConversions
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{TaskContext, Partition}
 
@@ -55,7 +55,7 @@ class TableRDD1[T1](prev: TableRDD,
 
   override def getPartitions = prev.getPartitions
 
-  override def compute(split: Partition, context: TaskContext): 
+  override def compute(split: Partition, context: TaskContext):
   Iterator[Tuple1[T1]] = {
     prev.compute(split, context).map( row =>
       new Tuple1[T1](
@@ -78,7 +78,7 @@ class TableRDD2[T1, T2](prev: TableRDD,
 
   override def getPartitions = prev.getPartitions
 
-  override def compute(split: Partition, context: TaskContext): 
+  override def compute(split: Partition, context: TaskContext):
   Iterator[Tuple2[T1, T2]] = {
     prev.compute(split, context).map( row =>
       new Tuple2[T1, T2](
@@ -101,7 +101,7 @@ class TableRDD3[T1, T2, T3](prev: TableRDD,
 
   override def getPartitions = prev.getPartitions
 
-  override def compute(split: Partition, context: TaskContext): 
+  override def compute(split: Partition, context: TaskContext):
   Iterator[Tuple3[T1, T2, T3]] = {
     prev.compute(split, context).map( row =>
       new Tuple3[T1, T2, T3](
@@ -125,7 +125,7 @@ class TableRDD4[T1, T2, T3, T4](prev: TableRDD,
 
   override def getPartitions = prev.getPartitions
 
-  override def compute(split: Partition, context: TaskContext): 
+  override def compute(split: Partition, context: TaskContext):
   Iterator[Tuple4[T1, T2, T3, T4]] = {
     prev.compute(split, context).map( row =>
       new Tuple4[T1, T2, T3, T4](
@@ -149,7 +149,7 @@ class TableRDD5[T1, T2, T3, T4, T5](prev: TableRDD,
 
   override def getPartitions = prev.getPartitions
 
-  override def compute(split: Partition, context: TaskContext): 
+  override def compute(split: Partition, context: TaskContext):
   Iterator[Tuple5[T1, T2, T3, T4, T5]] = {
     prev.compute(split, context).map( row =>
       new Tuple5[T1, T2, T3, T4, T5](
@@ -173,7 +173,7 @@ class TableRDD6[T1, T2, T3, T4, T5, T6](prev: TableRDD,
 
   override def getPartitions = prev.getPartitions
 
-  override def compute(split: Partition, context: TaskContext): 
+  override def compute(split: Partition, context: TaskContext):
   Iterator[Tuple6[T1, T2, T3, T4, T5, T6]] = {
     prev.compute(split, context).map( row =>
       new Tuple6[T1, T2, T3, T4, T5, T6](
@@ -198,7 +198,7 @@ class TableRDD7[T1, T2, T3, T4, T5, T6, T7](prev: TableRDD,
 
   override def getPartitions = prev.getPartitions
 
-  override def compute(split: Partition, context: TaskContext): 
+  override def compute(split: Partition, context: TaskContext):
   Iterator[Tuple7[T1, T2, T3, T4, T5, T6, T7]] = {
     prev.compute(split, context).map( row =>
       new Tuple7[T1, T2, T3, T4, T5, T6, T7](
@@ -223,7 +223,7 @@ class TableRDD8[T1, T2, T3, T4, T5, T6, T7, T8](prev: TableRDD,
 
   override def getPartitions = prev.getPartitions
 
-  override def compute(split: Partition, context: TaskContext): 
+  override def compute(split: Partition, context: TaskContext):
   Iterator[Tuple8[T1, T2, T3, T4, T5, T6, T7, T8]] = {
     prev.compute(split, context).map( row =>
       new Tuple8[T1, T2, T3, T4, T5, T6, T7, T8](
@@ -248,7 +248,7 @@ class TableRDD9[T1, T2, T3, T4, T5, T6, T7, T8, T9](prev: TableRDD,
 
   override def getPartitions = prev.getPartitions
 
-  override def compute(split: Partition, context: TaskContext): 
+  override def compute(split: Partition, context: TaskContext):
   Iterator[Tuple9[T1, T2, T3, T4, T5, T6, T7, T8, T9]] = {
     prev.compute(split, context).map( row =>
       new Tuple9[T1, T2, T3, T4, T5, T6, T7, T8, T9](
@@ -274,7 +274,7 @@ class TableRDD10[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10](prev: TableRDD,
 
   override def getPartitions = prev.getPartitions
 
-  override def compute(split: Partition, context: TaskContext): 
+  override def compute(split: Partition, context: TaskContext):
   Iterator[Tuple10[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10]] = {
     prev.compute(split, context).map( row =>
       new Tuple10[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10](
@@ -300,7 +300,7 @@ class TableRDD11[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11](prev: TableRDD,
 
   override def getPartitions = prev.getPartitions
 
-  override def compute(split: Partition, context: TaskContext): 
+  override def compute(split: Partition, context: TaskContext):
   Iterator[Tuple11[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11]] = {
     prev.compute(split, context).map( row =>
       new Tuple11[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11](
@@ -326,7 +326,7 @@ class TableRDD12[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12](prev: TableR
 
   override def getPartitions = prev.getPartitions
 
-  override def compute(split: Partition, context: TaskContext): 
+  override def compute(split: Partition, context: TaskContext):
   Iterator[Tuple12[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12]] = {
     prev.compute(split, context).map( row =>
       new Tuple12[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12](
@@ -353,7 +353,7 @@ class TableRDD13[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13](prev: T
 
   override def getPartitions = prev.getPartitions
 
-  override def compute(split: Partition, context: TaskContext): 
+  override def compute(split: Partition, context: TaskContext):
   Iterator[Tuple13[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13]] = {
     prev.compute(split, context).map( row =>
       new Tuple13[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13](
@@ -380,7 +380,7 @@ class TableRDD14[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14](pr
 
   override def getPartitions = prev.getPartitions
 
-  override def compute(split: Partition, context: TaskContext): 
+  override def compute(split: Partition, context: TaskContext):
   Iterator[Tuple14[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14]] = {
     prev.compute(split, context).map( row =>
       new Tuple14[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14](
@@ -407,7 +407,7 @@ class TableRDD15[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T1
 
   override def getPartitions = prev.getPartitions
 
-  override def compute(split: Partition, context: TaskContext): 
+  override def compute(split: Partition, context: TaskContext):
   Iterator[Tuple15[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15]] = {
     prev.compute(split, context).map( row =>
       new Tuple15[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15](
@@ -435,7 +435,7 @@ class TableRDD16[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T1
 
   override def getPartitions = prev.getPartitions
 
-  override def compute(split: Partition, context: TaskContext): 
+  override def compute(split: Partition, context: TaskContext):
   Iterator[Tuple16[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16]] = {
     prev.compute(split, context).map( row =>
       new Tuple16[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16](
@@ -449,10 +449,10 @@ class TableRDD16[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T1
   }
 }
 
-class TableRDD17[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
+class TableRDD17[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
     T17](prev: TableRDD,
                           tags: Seq[ClassTag[_]])
-  extends RDD[Tuple17[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
+  extends RDD[Tuple17[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
     T17]](prev) {
   def schema = prev.schema
 
@@ -465,11 +465,11 @@ class TableRDD17[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T1
 
   override def getPartitions = prev.getPartitions
 
-  override def compute(split: Partition, context: TaskContext): 
-  Iterator[Tuple17[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
+  override def compute(split: Partition, context: TaskContext):
+  Iterator[Tuple17[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
     T17]] = {
     prev.compute(split, context).map( row =>
-      new Tuple17[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
+      new Tuple17[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
     T17](
                 row.getPrimitiveGeneric[T1](0), row.getPrimitiveGeneric[T2](1), row.getPrimitiveGeneric[T3](2),
         row.getPrimitiveGeneric[T4](3), row.getPrimitiveGeneric[T5](4), row.getPrimitiveGeneric[T6](5),
@@ -481,10 +481,10 @@ class TableRDD17[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T1
   }
 }
 
-class TableRDD18[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
+class TableRDD18[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
     T17, T18](prev: TableRDD,
                           tags: Seq[ClassTag[_]])
-  extends RDD[Tuple18[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
+  extends RDD[Tuple18[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
     T17, T18]](prev) {
   def schema = prev.schema
 
@@ -497,11 +497,11 @@ class TableRDD18[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T1
 
   override def getPartitions = prev.getPartitions
 
-  override def compute(split: Partition, context: TaskContext): 
-  Iterator[Tuple18[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
+  override def compute(split: Partition, context: TaskContext):
+  Iterator[Tuple18[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
     T17, T18]] = {
     prev.compute(split, context).map( row =>
-      new Tuple18[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
+      new Tuple18[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
     T17, T18](
                 row.getPrimitiveGeneric[T1](0), row.getPrimitiveGeneric[T2](1), row.getPrimitiveGeneric[T3](2),
         row.getPrimitiveGeneric[T4](3), row.getPrimitiveGeneric[T5](4), row.getPrimitiveGeneric[T6](5),
@@ -514,10 +514,10 @@ class TableRDD18[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T1
   }
 }
 
-class TableRDD19[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
+class TableRDD19[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
     T17, T18, T19](prev: TableRDD,
                           tags: Seq[ClassTag[_]])
-  extends RDD[Tuple19[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
+  extends RDD[Tuple19[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
     T17, T18, T19]](prev) {
   def schema = prev.schema
 
@@ -530,11 +530,11 @@ class TableRDD19[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T1
 
   override def getPartitions = prev.getPartitions
 
-  override def compute(split: Partition, context: TaskContext): 
-  Iterator[Tuple19[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
+  override def compute(split: Partition, context: TaskContext):
+  Iterator[Tuple19[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
     T17, T18, T19]] = {
     prev.compute(split, context).map( row =>
-      new Tuple19[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
+      new Tuple19[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
     T17, T18, T19](
                 row.getPrimitiveGeneric[T1](0), row.getPrimitiveGeneric[T2](1), row.getPrimitiveGeneric[T3](2),
         row.getPrimitiveGeneric[T4](3), row.getPrimitiveGeneric[T5](4), row.getPrimitiveGeneric[T6](5),
@@ -547,10 +547,10 @@ class TableRDD19[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T1
   }
 }
 
-class TableRDD20[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
+class TableRDD20[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
     T17, T18, T19, T20](prev: TableRDD,
                           tags: Seq[ClassTag[_]])
-  extends RDD[Tuple20[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
+  extends RDD[Tuple20[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
     T17, T18, T19, T20]](prev) {
   def schema = prev.schema
 
@@ -563,11 +563,11 @@ class TableRDD20[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T1
 
   override def getPartitions = prev.getPartitions
 
-  override def compute(split: Partition, context: TaskContext): 
-  Iterator[Tuple20[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
+  override def compute(split: Partition, context: TaskContext):
+  Iterator[Tuple20[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
     T17, T18, T19, T20]] = {
     prev.compute(split, context).map( row =>
-      new Tuple20[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
+      new Tuple20[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
     T17, T18, T19, T20](
                 row.getPrimitiveGeneric[T1](0), row.getPrimitiveGeneric[T2](1), row.getPrimitiveGeneric[T3](2),
         row.getPrimitiveGeneric[T4](3), row.getPrimitiveGeneric[T5](4), row.getPrimitiveGeneric[T6](5),
@@ -580,10 +580,10 @@ class TableRDD20[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T1
   }
 }
 
-class TableRDD21[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
+class TableRDD21[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
     T17, T18, T19, T20, T21](prev: TableRDD,
                           tags: Seq[ClassTag[_]])
-  extends RDD[Tuple21[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
+  extends RDD[Tuple21[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
     T17, T18, T19, T20, T21]](prev) {
   def schema = prev.schema
 
@@ -596,11 +596,11 @@ class TableRDD21[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T1
 
   override def getPartitions = prev.getPartitions
 
-  override def compute(split: Partition, context: TaskContext): 
-  Iterator[Tuple21[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
+  override def compute(split: Partition, context: TaskContext):
+  Iterator[Tuple21[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
     T17, T18, T19, T20, T21]] = {
     prev.compute(split, context).map( row =>
-      new Tuple21[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
+      new Tuple21[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
     T17, T18, T19, T20, T21](
                 row.getPrimitiveGeneric[T1](0), row.getPrimitiveGeneric[T2](1), row.getPrimitiveGeneric[T3](2),
         row.getPrimitiveGeneric[T4](3), row.getPrimitiveGeneric[T5](4), row.getPrimitiveGeneric[T6](5),
@@ -614,10 +614,10 @@ class TableRDD21[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T1
   }
 }
 
-class TableRDD22[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
+class TableRDD22[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
     T17, T18, T19, T20, T21, T22](prev: TableRDD,
                           tags: Seq[ClassTag[_]])
-  extends RDD[Tuple22[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
+  extends RDD[Tuple22[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
     T17, T18, T19, T20, T21, T22]](prev) {
   def schema = prev.schema
 
@@ -630,11 +630,11 @@ class TableRDD22[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T1
 
   override def getPartitions = prev.getPartitions
 
-  override def compute(split: Partition, context: TaskContext): 
-  Iterator[Tuple22[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
+  override def compute(split: Partition, context: TaskContext):
+  Iterator[Tuple22[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
     T17, T18, T19, T20, T21, T22]] = {
     prev.compute(split, context).map( row =>
-      new Tuple22[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, 
+      new Tuple22[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
     T17, T18, T19, T20, T21, T22](
                 row.getPrimitiveGeneric[T1](0), row.getPrimitiveGeneric[T2](1), row.getPrimitiveGeneric[T3](2),
         row.getPrimitiveGeneric[T4](3), row.getPrimitiveGeneric[T5](4), row.getPrimitiveGeneric[T6](5),
