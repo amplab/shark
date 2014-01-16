@@ -47,7 +47,7 @@ object OperatorFactory extends LogHelper {
       tableName: String,
       databaseName: String,
       numColumns: Int,
-      hivePartitionKey: String,
+      hivePartitionKeyOpt: Option[String],
       cacheMode: CacheType,
       isInsertInto: Boolean): TerminalOperator = {
     // TODO the terminal operator is the FileSinkOperator in Hive?
@@ -59,7 +59,7 @@ object OperatorFactory extends LogHelper {
     sinkOp.databaseName = databaseName
     sinkOp.numColumns = numColumns
     sinkOp.cacheMode = cacheMode
-    sinkOp.hivePartitionKey = hivePartitionKey
+    sinkOp.hivePartitionKeyOpt = hivePartitionKeyOpt
     sinkOp.isInsertInto = isInsertInto
     _createAndSetParents(sinkOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }

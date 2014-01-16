@@ -47,6 +47,26 @@ if [ -n "$MASTER" ] ; then
   fi
 fi
 
+# check for shark with spark on yarn params
+if [ "x$SHARK_EXEC_MODE" == "xyarn" ] ; then
+  if [ "x$SPARK_ASSEMBLY_JAR" == "x" ] ; then
+    echo "No SPARK_ASSEMBLY_JAR specified. Please set SPARK_ASSEMBLY_JAR for spark on yarn mode."
+    exit 1
+  else
+    export SPARK_JAR=$SPARK_ASSEMBLY_JAR
+  fi
+
+  if [ "x$SHARK_ASSEMBLY_JAR" == "x" ] ; then
+    echo "No SHARK_ASSEMBLY_JAR specified. please set SHARK_ASSEMBLY_JAR for spark on yarn mode."
+    exit 1
+  else
+    export SPARK_YARN_APP_JAR = $SHARK_ASSEMBLY_JAR
+  fi
+
+  # use yarn-client mode for interactive shell.
+  export MASTER=yarn-client
+fi
+
 # Check for optionally specified configuration file path
 if [ "x$HIVE_CONF_DIR" == "x" ] ; then
     HIVE_CONF_DIR="$HIVE_HOME/conf"

@@ -111,26 +111,6 @@ object SharkEnv extends LogHelper {
   val addedFiles = HashSet[String]()
   val addedJars = HashSet[String]()
 
-  /**
-   * Drops the table associated with 'key'. This method checks for Tachyon tables before
-   * delegating to MemoryMetadataManager#removeTable() for removing the table's entry from the
-   * Shark metastore.
-   *
-   * @param tableName The table that should be dropped from the Shark metastore and from memory
-   *                  storage.
-   */
-  def dropTable(databaseName: String, tableName: String): Option[RDD[_]] = {
-    val tableKey = makeTachyonTableKey(databaseName, tableName)
-    if (SharkEnv.tachyonUtil.tachyonEnabled() && SharkEnv.tachyonUtil.tableExists(tableKey)) {
-      if (SharkEnv.tachyonUtil.dropTable(tableKey)) {
-        logInfo("Table " + tableKey + " was deleted from Tachyon.");
-      } else {
-        logWarning("Failed to remove table " + tableKey + " from Tachyon.");
-      }
-    }
-    memoryMetadataManager.removeTable(databaseName, tableName)
-  }
-
   /** Cleans up and shuts down the Shark environments. */
   def stop() {
     logDebug("Shutting down Shark Environment")
@@ -144,14 +124,6 @@ object SharkEnv extends LogHelper {
 
   /** Return the value of an environmental variable as a string. */
   def getEnv(varname: String) = if (System.getenv(varname) == null) "" else System.getenv(varname)
-
-  /**
-   * Return an identifier for RDDs that back tables stored in Tachyon. The format is
-   * "databaseName.tableName".
-   */
-  def makeTachyonTableKey(databaseName: String, tableName: String): String = {
-    (databaseName + "." + tableName).toLowerCase
-  }
 
 }
 
