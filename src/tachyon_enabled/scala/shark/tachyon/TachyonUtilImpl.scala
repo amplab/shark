@@ -87,7 +87,8 @@ class TachyonUtilImpl(
     isTachyonTableRdd
   }
 
-  override def tachyonEnabled(): Boolean = (master != null && warehousePath != null)
+  override def tachyonEnabled(): Boolean =
+    (master != null && warehousePath != null && client.isConnected)
 
   override def tableExists(tableKey: String, hivePartitionKeyOpt: Option[String]): Boolean = {
     client.exist(getPath(tableKey, hivePartitionKeyOpt))
