@@ -64,7 +64,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
   // Whether to compose a UnionRDD from the output RDD and a previous RDD. For example, for an
   // INSERT INTO <tableName> command, the previous RDD will contain the contents of the 'tableName'.
-  @transient var useUnionRDD: Boolean = _
+  @transient var isInsertInto: Boolean = _
 
   // The number of columns in the schema for the table corresponding to 'tableName'. Used only
   // to create a TachyonTableWriter, if Tachyon is used.
@@ -87,8 +87,6 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
     val statsAcc = SharkEnv.sc.accumulableCollection(ArrayBuffer[(Int, TablePartitionStats)]())
     val op = OperatorSerializationWrapper(this)
-    val isHivePartitioned = SharkEnv.memoryMetadataManager.isHivePartitioned(
-      databaseName, tableName)
     val tableKey = MemoryMetadataManager.makeTableKey(databaseName, tableName)
 
     val tachyonWriter: TachyonTableWriter =
@@ -127,11 +125,6 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       }
     }
 
-    // If true, a UnionRDD will be used to combine the RDD that contains the query output with the
-    // previous RDD, which is fetched using 'tableName' or - if the table is Hive-partitioned - a
-    // ('tableName', 'hivePartitionKeyOpt.get') pair.
-    var hasPreviousRDDForUnion = false
-
     if (tachyonWriter != null) {
       // Put the table in Tachyon.
       op.logInfo("Putting RDD for %s.%s in Tachyon".format(databaseName, tableName))
@@ -160,7 +153,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
     // Put the table in Spark block manager or Tachyon.
     op.logInfo("Putting %sRDD for %s.%s in %s store".format(
-      if (useUnionRDD) "Union" else "",
+      if (isInsertInto) "Union" else "",
       databaseName,
       tableName,
       if (cacheMode == CacheType.NONE) "disk" else cacheMode.toString))
@@ -170,6 +163,8 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         tachyonWriter.updateMetadata(ByteBuffer.wrap(JavaSerializer.serialize(statsAcc.value.toMap)))
         statsAcc.value.toMap
       } else {
+        val isHivePartitioned = SharkEnv.memoryMetadataManager.isHivePartitioned(
+          databaseName, tableName)
         if (isHivePartitioned) {
           val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(
             databaseName, tableName).get
