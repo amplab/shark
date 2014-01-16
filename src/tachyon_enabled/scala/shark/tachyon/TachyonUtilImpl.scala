@@ -87,7 +87,8 @@ class TachyonUtilImpl(
     isTachyonTableRdd
   }
 
-  override def tachyonEnabled(): Boolean = (master != null && warehousePath != null)
+  override def tachyonEnabled(): Boolean =
+    (master != null && warehousePath != null && client.isConnected)
 
   override def tableExists(tableKey: String, hivePartitionKeyOpt: Option[String]): Boolean = {
     client.exist(getPath(tableKey, hivePartitionKeyOpt))
@@ -122,7 +123,6 @@ class TachyonUtilImpl(
     // The first path is just "{tableDirectory}/", so ignore it.
     val rawTableFiles = files.subList(1, files.size)
     val tableRDDsAndStats = rawTableFiles.map { filePath =>
-      val serializedMetadata2 = client.getRawTable(filePath).getMetadata
       val serializedMetadata = client.getRawTable(client.getFileId(filePath)).getMetadata
       val indexToStats = JavaSerializer.deserialize[collection.Map[Int, TablePartitionStats]](
         serializedMetadata.array())

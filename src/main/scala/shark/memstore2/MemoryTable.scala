@@ -33,32 +33,45 @@ private[shark] class MemoryTable(
     cacheMode: CacheType.CacheType)
   extends Table(databaseName, tableName, cacheMode) {
 
-  var rddValueOpt: Option[RDDValue] = None
+  private var _rddValueOpt: Option[RDDValue] = None
 
+  /**
+   * Sets the RDD and stats fields the `_rddValueOpt`. Used for INSERT/LOAD OVERWRITE.
+   * @param newRDD The table's data.
+   * @param newStats Stats for each TablePartition in `newRDD`.
+   * @return The previous (RDD, stats) pair for this table.
+   */
   def put(
   	  newRDD: RDD[TablePartition],
   	  newStats: collection.Map[Int, TablePartitionStats] = new HashMap[Int, TablePartitionStats]()
   	): Option[(RDD[TablePartition], collection.Map[Int, TablePartitionStats])] = {
-  	val prevRDDAndStatsOpt = rddValueOpt.map(_.toTuple)
-  	if (rddValueOpt.isDefined) {
-  	  rddValueOpt.foreach { rddValue =>
+  	val prevRDDAndStatsOpt = _rddValueOpt.map(_.toTuple)
+  	if (_rddValueOpt.isDefined) {
+  	  _rddValueOpt.foreach { rddValue =>
   	  	rddValue.rdd = newRDD
   	  	rddValue.stats = newStats
   	  }
   	} else {
-      rddValueOpt = Some(new RDDValue(newRDD, newStats))
+      _rddValueOpt = Some(new RDDValue(newRDD, newStats))
   	}
     prevRDDAndStatsOpt 
   }
 
+  /**
+   * Used for append operations, such as INSERT and LOAD INTO.
+   *
+   * @param newRDD Data to append to the table.
+   * @param newStats Stats for each TablePartition in `newRDD`.
+   * @return The previous (RDD, stats) pair for this table.
+   */
   def update(
   	  newRDD: RDD[TablePartition],
   	  newStats: Buffer[(Int, TablePartitionStats)]
   	): Option[(RDD[TablePartition], collection.Map[Int, TablePartitionStats])] = {
-    val prevRDDAndStatsOpt = rddValueOpt.map(_.toTuple)
-  	if (rddValueOpt.isDefined) {
+    val prevRDDAndStatsOpt = _rddValueOpt.map(_.toTuple)
+  	if (_rddValueOpt.isDefined) {
       val (prevRDD, prevStats) = (prevRDDAndStatsOpt.get._1, prevRDDAndStatsOpt.get._2)
-      val updatedRDDValue = rddValueOpt.get
+      val updatedRDDValue = _rddValueOpt.get
       updatedRDDValue.rdd = RDDUtils.unionAndFlatten(prevRDD, newRDD)
       updatedRDDValue.stats = Table.mergeStats(newStats, prevStats).toMap
     } else {
@@ -67,8 +80,8 @@ private[shark] class MemoryTable(
     prevRDDAndStatsOpt
   }
 
-  def getRDD = rddValueOpt.map(_.rdd)
+  def getRDD = _rddValueOpt.map(_.rdd)
 
-  def getStats = rddValueOpt.map(_.stats)
+  def getStats = _rddValueOpt.map(_.stats)
 
 }

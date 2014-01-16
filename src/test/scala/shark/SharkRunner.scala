@@ -19,6 +19,7 @@ package shark
 
 import org.apache.hadoop.hive.metastore.MetaStoreUtils.DEFAULT_DATABASE_NAME
 
+import shark.api.JavaSharkContext
 import shark.memstore2.MemoryMetadataManager
 
 
@@ -29,10 +30,10 @@ object SharkRunner {
   val MASTER = "local"
 
   var sc: SharkContext = _
-  var sharkMetastore: MemoryMetadataManager = _
 
+  var javaSc: JavaSharkContext = _
 
-  def init(): SharkContext = {
+  def init(): SharkContext = synchronized {
   	if (sc == null) {
       sc = SharkEnv.initWithSharkContext("shark-sql-suite-testing", MASTER)
 
@@ -40,8 +41,6 @@ object SharkRunner {
       METASTORE_PATH + ";create=true")
       sc.runSql("set hive.metastore.warehouse.dir=" + WAREHOUSE_PATH)
       sc.runSql("set shark.test.data.path=" + TestUtils.dataFilePath)
-
-      sharkMetastore = SharkEnv.memoryMetadataManager
 
       // second db
       sc.sql("create database if not exists seconddb")
@@ -51,11 +50,18 @@ object SharkRunner {
     sc
   }
 
+  def initWithJava(): JavaSharkContext = synchronized {
+    if (javaSc == null) {
+      javaSc = new JavaSharkContext(init())
+    }
+    javaSc
+  }
+
   /**
    * Tables accessible by any test. Their properties should remain constant across
    * tests.
    */
-  def loadTables() {
+  def loadTables() = synchronized {
     require(sc != null, "call init() to instantiate a SharkContext first")
 
     // Use the default namespace
@@ -101,6 +107,7 @@ object SharkRunner {
     sc.sql("LOAD DATA LOCAL INPATH '${hiveconf:shark.test.data.path}/test1.txt' INTO TABLE test1")
     sc.sql("drop table if exists test1_cached")
     sc.sql("CREATE TABLE test1_cached AS SELECT * FROM test1")
+    Unit
   }
 
   def expectSql(sql: String, expectedResults: Array[String], sort: Boolean = true) {
@@ -109,7 +116,7 @@ object SharkRunner {
     val expected = if (sort) expectedResults.sortWith(_ < _) else expectedResults
     assert(results.corresponds(expected)(_.equals(_)),
       "In SQL: " + sql + "\n" +
-      "Expected: " + expected.mkString("\n") + "; got " + results.mkString("\n"))
+      "Expected:" + expected.mkString("\n") + "; got:" + results.mkString("\n") + ";")
   }
 
   // A shortcut for single row results.

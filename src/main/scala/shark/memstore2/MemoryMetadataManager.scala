@@ -17,8 +17,8 @@
 
 package shark.memstore2
 
-import java.util.{HashMap=> JavaHashMap, Map => JavaMap}
 import java.util.concurrent.ConcurrentHashMap
+import java.util.{HashMap=> JavaHashMap, Map => JavaMap}
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ConcurrentMap

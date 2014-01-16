@@ -48,13 +48,9 @@ public class JavaAPISuite implements Serializable {
         // Intentionally leaving this here since SBT doesn't seem to display junit tests well ...
         System.out.println("running JavaAPISuite ================================================");
 
-        sc = SharkEnv.initWithJavaSharkContext("JavaAPISuite", "local");
-
-        sc.sql("set javax.jdo.option.ConnectionURL=jdbc:derby:;databaseName=" +
-                    METASTORE_PATH + ";create=true");
-        sc.sql("set hive.metastore.warehouse.dir=" + WAREHOUSE_PATH);
-
-        sc.sql("set shark.test.data.path=" + TestUtils$.MODULE$.dataFilePath());
+        // Check if the SharkEnv's SharkContext has already been initialized. If so, use that to
+        // instantiate a JavaSharkContext.
+        sc = SharkRunner.initWithJava();
 
         // test
         sc.sql("drop table if exists test_java");

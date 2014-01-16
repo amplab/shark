@@ -56,7 +56,10 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
 
   def hiveConf = _broadcastedHiveConf.value.value
 
-  override def makeRDDForTable(hiveTable: HiveTable): RDD[_] =
+  override def makeRDDForTable(
+      hiveTable: HiveTable,
+      pruningFnOpt: Option[PruningFunctionType] = None
+    ): RDD[_] =
     makeRDDForTable(
       hiveTable,
       _tableDesc.getDeserializerClass.asInstanceOf[Class[Deserializer]],
@@ -107,7 +110,10 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
     deserializedHadoopRDD
   }
 
-  override def makeRDDForPartitionedTable(partitions: Seq[HivePartition]): RDD[_] = {
+  override def makeRDDForPartitionedTable(
+      partitions: Seq[HivePartition],
+      pruningFnOpt: Option[PruningFunctionType] = None
+    ): RDD[_] = {
     val partitionToDeserializer = partitions.map(part =>
       (part, part.getDeserializer.getClass.asInstanceOf[Class[Deserializer]])).toMap
     makeRDDForPartitionedTable(partitionToDeserializer, filterOpt = None)
