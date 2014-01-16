@@ -56,7 +56,7 @@ class RDDTableFunctions(self: RDD[Seq[_]], manifests: Seq[ClassManifest[_]]) {
       Iterator(builder.build())
     }.persist()
 
-    var isSucessfulCreateTable = HiveUtils.createTableInHive(tableName, fields, manifests)
+    var isSucessfulCreateTable = HiveUtils.createTableInHive(tableName, fields, manifests, Hive.get().getConf())
 
     // Put the table in the metastore. Only proceed if the DDL statement is executed successfully.
     val databaseName = Hive.get(SharkContext.hiveconf).getCurrentDatabase()

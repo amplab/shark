@@ -104,6 +104,68 @@ class SQLSuite extends FunSuite {
     assert(diskSum == cacheSum, "Sum of keys from cached and disk contents differ")
   }
 
+  private def createCachedPartitionedTable(
+      tableName: String,
+      numPartitionsToCreate: Int,
+      maxCacheSize: Int = 10,
+      cachePolicyClassName: String = "shark.memstore2.LRUCachePolicy"
+    ): PartitionedMemoryTable = {
+    sc.runSql("drop table if exists %s".format(tableName))
+    sc.runSql("""
+      create table %s(key int, value string)
+        partitioned by (keypart int)
+        tblproperties('shark.cache' = 'true',
+                      'shark.cache.policy.maxSize' = '%d',
+                      'shark.cache.policy' = '%s')
+      """.format(
+        tableName,
+        maxCacheSize,
+        cachePolicyClassName))
+    var partitionNum = 1
+    while (partitionNum <= numPartitionsToCreate) {
+      sc.runSql("""insert into table %s partition(keypart = %d)
+        select * from test_cached""".format(tableName, partitionNum))
+      partitionNum += 1
+    }
+    assert(SharkEnv.memoryMetadataManager.containsTable(DEFAULT_DB_NAME, tableName))
+    val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(
+      DEFAULT_DB_NAME, tableName).get
+    return partitionedTable
+  }
+
+  def isFlattenedUnionRDD(unionRDD: UnionRDD[_]) = {
+    unionRDD.rdds.find(_.isInstanceOf[UnionRDD[_]]).isEmpty
+  }
+
+  // Takes a sum over the table's 'key' column, for both the cached contents and the copy on disk.
+  def expectUnifiedKVTable(
+      cachedTableName: String,
+      partSpecOpt: Option[Map[String, String]] = None) {
+    // Check that the table is in memory and is a unified view.
+    val sharkTableOpt = sharkMetastore.getTable(DEFAULT_DB_NAME, cachedTableName)
+    assert(sharkTableOpt.isDefined, "Table %s cannot be found in the Shark meatstore")
+    assert(sharkTableOpt.get.cacheMode == CacheType.MEMORY,
+      "'shark.cache' field for table %s is not CacheType.MEMORY")
+
+    // Load a non-cached copy of the table into memory.
+    val cacheSum = sc.sql("select sum(key) from %s".format(cachedTableName))(0)
+    val hiveTable = Hive.get().getTable(DEFAULT_DB_NAME, cachedTableName)
+    val location = partSpecOpt match {
+      case Some(partSpec) => {
+        val partition = Hive.get().getPartition(hiveTable, partSpec, false /* forceCreate */)
+        partition.getDataLocation.toString
+      }
+      case None => hiveTable.getDataLocation.toString
+    }
+    // Create a table with contents loaded from the table's data directory.
+    val diskTableName = "%s_disk_copy".format(cachedTableName)
+    sc.sql("drop table if exists %s".format(diskTableName))
+    sc.sql("create table %s (key int, value string)".format(diskTableName))
+    sc.sql("load data local inpath '%s' into table %s".format(location, diskTableName))
+    val diskSum = sc.sql("select sum(key) from %s".format(diskTableName))(0)
+    assert(diskSum == cacheSum, "Sum of keys from cached and disk contents differ")
+  }
+
   //////////////////////////////////////////////////////////////////////////////
   // basic SQL
   //////////////////////////////////////////////////////////////////////////////
