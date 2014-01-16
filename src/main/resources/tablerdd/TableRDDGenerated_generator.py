@@ -31,7 +31,7 @@ p.write(
 package shark.api
 
 // *** This file is auto-generated from TableRDDGenerated_generator.py ***
-
+import scala.language.implicitConversions
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{TaskContext, Partition}
 
@@ -78,7 +78,7 @@ class TableRDD$num[$list](prev: TableRDD,
 
   override def getPartitions = prev.getPartitions
 
-  override def compute(split: Partition, context: TaskContext): 
+  override def compute(split: Partition, context: TaskContext):
   Iterator[Tuple$num[$list]] = {
     prev.compute(split, context).map( row =>
       new Tuple$num[$list](

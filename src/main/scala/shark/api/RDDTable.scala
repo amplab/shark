@@ -18,7 +18,7 @@
 package shark.api
 
 // *** This file is auto-generated from RDDTable_generator.py ***
-
+import scala.language.implicitConversions
 import scala.reflect.ClassTag
 import org.apache.spark.rdd.RDD
 

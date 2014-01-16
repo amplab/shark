@@ -20,6 +20,7 @@ package shark.tgf
 import java.sql.Timestamp
 import java.util.Date
 
+import scala.language.implicitConversions
 import scala.reflect.{classTag, ClassTag}
 import scala.util.parsing.combinator._
 
