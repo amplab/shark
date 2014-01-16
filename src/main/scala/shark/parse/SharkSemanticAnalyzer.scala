@@ -188,8 +188,8 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                   databaseName, cachedTableName).get
                 // INSERT INTO or OVERWRITE update on a cached table.
                 qb.targetTableDesc = tableDesc
-                // If useUnionRDD is true, the sink op is for INSERT INTO.
-                val useUnionRDD = qbParseInfo.isInsertIntoTable(cachedTableName)
+                // If `isInsertInto` is true, the sink op is for INSERT INTO.
+                val isInsertInto = qbParseInfo.isInsertIntoTable(cachedTableName)
                 val isPartitioned = SharkEnv.memoryMetadataManager.isHivePartitioned(
                   databaseName, cachedTableName)
                 var hivePartitionKey = if (isPartitioned) {
@@ -216,7 +216,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                     _resSchema.size,  /* numColumns */
                     hivePartitionKey,
                     table.cacheMode,
-                    useUnionRDD)
+                    isInsertInto)
                 }
               } else {
                 throw new SemanticException(
