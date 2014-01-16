@@ -30,15 +30,15 @@ import org.apache.hadoop.hive.ql.plan.api.StageType
 import org.apache.spark.rdd.EmptyRDD
 
 import shark.{LogHelper, SharkEnv}
-import shark.memstore2.{CacheType, MemoryMetadataManager, PartitionedMemoryTable}
+import shark.memstore2.{CacheType, MemoryTable, MemoryMetadataManager, PartitionedMemoryTable}
 import shark.memstore2.{SharkTblProperties, TablePartitionStats}
 import shark.util.HiveUtils
 
 
 private[shark] class SharkDDLWork(val ddlDesc: DDLDesc) extends java.io.Serializable {
 
-  // Used only for CREATE TABLE.
   var cacheMode: CacheType.CacheType = _
+
 }
 
 /**
@@ -61,9 +61,9 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
     //   use.
     work.ddlDesc match {
       case creatTblDesc: CreateTableDesc => createTable(hiveDb, creatTblDesc, work.cacheMode)
-      case addPartitionDesc: AddPartitionDesc => addPartition(hiveDb, addPartitionDesc)
-      case dropTableDesc: DropTableDesc => dropTableOrPartition(hiveDb, dropTableDesc)
-      case alterTableDesc: AlterTableDesc => alterTable(hiveDb, alterTableDesc)
+      case addPartitionDesc: AddPartitionDesc => addPartition(hiveDb, addPartitionDesc, work.cacheMode)
+      case dropTableDesc: DropTableDesc => dropTableOrPartition(hiveDb, dropTableDesc, work.cacheMode)
+      case alterTableDesc: AlterTableDesc => alterTable(hiveDb, alterTableDesc, work.cacheMode)
       case _ => {
         throw new UnsupportedOperationException(
           "Shark does not require a Shark DDL task for: " + work.ddlDesc.getClass.getName)
@@ -92,20 +92,24 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
     val tableName = createTblDesc.getTableName
     val tblProps = createTblDesc.getTblProps
 
-    val isHivePartitioned = (createTblDesc.getPartCols.size > 0)
-    if (isHivePartitioned) {
-      // Add a new PartitionedMemoryTable entry in the Shark metastore.
-      // An empty table has a PartitionedMemoryTable entry with no 'hivePartition -> RDD' mappings.
-      SharkEnv.memoryMetadataManager.createPartitionedMemoryTable(
-        dbName, tableName, cacheMode, tblProps)
+    if (cacheMode == CacheType.TACHYON) {
+      // For Tachyon tables (partitioned or not), just create the parent directory.
+      SharkEnv.tachyonUtil.createDirectory(
+        MemoryMetadataManager.makeTableKey(dbName, tableName), hivePartitionKeyOpt = None)
     } else {
-      val memoryTable = SharkEnv.memoryMetadataManager.createMemoryTable(
-        dbName, tableName, cacheMode)
-      // An empty table has a MemoryTable table entry with 'tableRDD' referencing an EmptyRDD.
-      memoryTable.tableRDD = new EmptyRDD(SharkEnv.sc)
+      val isHivePartitioned = (createTblDesc.getPartCols.size > 0)
+      if (isHivePartitioned) {
+        // Add a new PartitionedMemoryTable entry in the Shark metastore.
+        // An empty table has a PartitionedMemoryTable entry with no 'hivePartition -> RDD' mappings.
+        SharkEnv.memoryMetadataManager.createPartitionedMemoryTable(
+          dbName, tableName, cacheMode, tblProps)
+      } else {
+        val memoryTable = SharkEnv.memoryMetadataManager.createMemoryTable(
+          dbName, tableName, cacheMode)
+        // An empty table has a MemoryTable table entry with 'tableRDD' referencing an EmptyRDD.
+        memoryTable.put(new EmptyRDD(SharkEnv.sc))
+      }
     }
-    // Add an empty stats entry to the Shark metastore.
-    SharkEnv.memoryMetadataManager.putStats(dbName, tableName, Map[Int, TablePartitionStats]())
   }
 
   /**
@@ -116,10 +120,10 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
    */
   def addPartition(
       hiveMetadataDb: Hive,
-      addPartitionDesc: AddPartitionDesc) {
+      addPartitionDesc: AddPartitionDesc,
+      cacheMode: CacheType.CacheType) {
     val dbName = hiveMetadataDb.getCurrentDatabase()
     val tableName = addPartitionDesc.getTableName
-    val partitionedTable = getPartitionedTableWithAssertions(dbName, tableName)
 
     // Find the set of partition column values that specifies the partition being added.
     val hiveTable = db.getTable(tableName, false /* throwException */);
@@ -127,7 +131,13 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
     val partColToValue: JavaMap[String, String] = addPartitionDesc.getPartSpec
     // String format for partition key: 'col1=value1/col2=value2/...'
     val partKeyStr: String = MemoryMetadataManager.makeHivePartitionKeyStr(partCols, partColToValue)
-    partitionedTable.putPartition(partKeyStr, new EmptyRDD(SharkEnv.sc))
+    if (cacheMode == CacheType.TACHYON) {
+      SharkEnv.tachyonUtil.createDirectory(
+        MemoryMetadataManager.makeTableKey(dbName, tableName), Some(partKeyStr))
+    } else {
+      val partitionedTable = getPartitionedTableWithAssertions(dbName, tableName)
+      partitionedTable.putPartition(partKeyStr, new EmptyRDD(SharkEnv.sc))
+    }
   }
 
   /**
@@ -140,25 +150,35 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
    */
   def dropTableOrPartition(
       hiveMetadataDb: Hive,
-      dropTableDesc: DropTableDesc) {
+      dropTableDesc: DropTableDesc,
+      cacheMode: CacheType.CacheType) {
     val dbName = hiveMetadataDb.getCurrentDatabase()
     val tableName = dropTableDesc.getTableName
     val hiveTable = db.getTable(tableName, false /* throwException */);
     val partSpecs: JavaList[PartitionSpec] = dropTableDesc.getPartSpecs
+    val tableKey = MemoryMetadataManager.makeTableKey(dbName, tableName)
 
     if (partSpecs == null) {
       // The command is a true DROP TABLE.
-      SharkEnv.dropTable(dbName, tableName)
+      if (cacheMode == CacheType.TACHYON) {
+        SharkEnv.tachyonUtil.dropTable(tableKey, hivePartitionKeyOpt = None)
+      } else {
+        SharkEnv.memoryMetadataManager.removeTable(dbName, tableName)
+      }
     } else {
       // The command is an ALTER TABLE DROP PARTITION
-      val partitionedTable = getPartitionedTableWithAssertions(dbName, tableName)
       // Find the set of partition column values that specifies the partition being dropped.
       val partCols: Seq[String] = hiveTable.getPartCols.map(_.getName)
       for (partSpec <- partSpecs) {
         val partColToValue: JavaMap[String, String] = partSpec.getPartSpecWithoutOperator
         // String format for partition key: 'col1=value1/col2=value2/...'
         val partKeyStr = MemoryMetadataManager.makeHivePartitionKeyStr(partCols, partColToValue)
-        partitionedTable.removePartition(partKeyStr)
+        if (cacheMode == CacheType.TACHYON) {
+          SharkEnv.tachyonUtil.dropTable(tableKey, Some(partKeyStr))
+        } else {
+          val partitionedTable = getPartitionedTableWithAssertions(dbName, tableName)
+          getPartitionedTableWithAssertions(dbName, tableName).removePartition(partKeyStr)
+        }
       }
     }
   }
@@ -169,17 +189,24 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
    * @param hiveMetadataDb Namespace of the table to update.
    * @param alterTableDesc Hive metadata object containing fields needed to handle various table
    *        update commands, such as ALTER TABLE <table> RENAME TO.
-   *                   
+   *
    */
   def alterTable(
       hiveMetadataDb: Hive,
-      alterTableDesc: AlterTableDesc) {
+      alterTableDesc: AlterTableDesc,
+      cacheMode: CacheType.CacheType) {
     val dbName = hiveMetadataDb.getCurrentDatabase()
     alterTableDesc.getOp() match {
       case AlterTableDesc.AlterTableTypes.RENAME => {
         val oldName = alterTableDesc.getOldName
         val newName = alterTableDesc.getNewName
-        SharkEnv.memoryMetadataManager.renameTable(dbName, oldName, newName)
+        if (cacheMode == CacheType.TACHYON) {
+          val oldTableKey = MemoryMetadataManager.makeTableKey(dbName, oldName)
+          val newTableKey = MemoryMetadataManager.makeTableKey(dbName, newName)
+          SharkEnv.tachyonUtil.renameDirectory(oldTableKey, newTableKey)
+        } else {
+          SharkEnv.memoryMetadataManager.renameTable(dbName, oldName, newName)
+        }
       }
       case _ => {
         // TODO(harvey): Support more ALTER TABLE commands, such as ALTER TABLE PARTITION RENAME TO.

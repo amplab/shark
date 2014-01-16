@@ -83,8 +83,12 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
 
     val oldCacheMode = CacheType.fromString(oldTblProps.get(SharkTblProperties.CACHE_FLAG.varname))
     val newCacheMode = CacheType.fromString(newTblProps.get(SharkTblProperties.CACHE_FLAG.varname))
-    val isAlreadyCached = SharkEnv.memoryMetadataManager.containsTable(databaseName, tableName)
-    if (!isAlreadyCached && newCacheMode == CacheType.MEMORY) {
+    if ((oldCacheMode == CacheType.TACHYON && newCacheMode != CacheType.TACHYON) ||
+        (oldCacheMode == CacheType.MEMORY_ONLY && newCacheMode != CacheType.MEMORY_ONLY)) {
+      throw new SemanticException("""Table %s.%s's 'shark.cache' table property is %s. Only changes
+        from "'MEMORY' and 'NONE' are supported. Tables stored in TACHYON and MEMORY_ONLY must be
+        "dropped.""".format(databaseName, tableName, oldCacheMode))
+    } else if (newCacheMode == CacheType.MEMORY) {
       // The table should be cached (and is not already cached).
       val partSpecsOpt = if (hiveTable.isPartitioned) {
         val columnNames = hiveTable.getPartCols.map(_.getName)
@@ -106,30 +110,30 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
         newCacheMode)
       partSpecsOpt.foreach(partSpecs => sparkLoadWork.partSpecs = partSpecs)
       rootTasks.head.addDependentTask(TaskFactory.get(sparkLoadWork, conf))
+    } else if (newCacheMode == CacheType.NONE) {
+      // Uncache the table.
+      SharkEnv.memoryMetadataManager.dropTableFromMemory(db, databaseName, tableName)
     }
-    if (CacheType.shouldCache(oldCacheMode) && !CacheType.shouldCache(newCacheMode)) {
-      if (oldCacheMode == CacheType.MEMORY) {
-        // Uncache the table.
-        SharkEnv.memoryMetadataManager.dropTableFromMemory(db, databaseName, tableName)
-      } else {
-        throw new SemanticException(
-          "A memory-only table should be dropped.")
-      }
-    }
-
   }
 
   def analyzeDropTableOrDropParts(ast: ASTNode) {
     val databaseName = db.getCurrentDatabase()
     val tableName = getTableName(ast)
-    // Create a SharkDDLTask only if the table is cached.
-    if (SharkEnv.memoryMetadataManager.containsTable(databaseName, tableName)) {
-      // Hive's DDLSemanticAnalyzer#analyzeInternal() will only populate rootTasks with DDLTasks
-      // and DDLWorks that contain DropTableDesc objects.
-      for (ddlTask <- rootTasks) {
-        val dropTableDesc = ddlTask.getWork.asInstanceOf[DDLWork].getDropTblDesc
-        val sharkDDLWork = new SharkDDLWork(dropTableDesc)
-        ddlTask.addDependentTask(TaskFactory.get(sharkDDLWork, conf))
+    val hiveTableOpt = Option(db.getTable(databaseName, tableName, false /* throwException */))
+    // `hiveTableOpt` can be NONE for a DROP TABLE IF EXISTS command on a nonexistent table.
+    hiveTableOpt.foreach { hiveTable =>
+      val cacheMode = CacheType.fromString(
+        hiveTable.getProperty(SharkTblProperties.CACHE_FLAG.varname))
+      // Create a SharkDDLTask only if the table is cached.
+      if (CacheType.shouldCache(cacheMode)) {
+        // Hive's DDLSemanticAnalyzer#analyzeInternal() will only populate rootTasks with DDLTasks
+        // and DDLWorks that contain DropTableDesc objects.
+        for (ddlTask <- rootTasks) {
+          val dropTableDesc = ddlTask.getWork.asInstanceOf[DDLWork].getDropTblDesc
+          val sharkDDLWork = new SharkDDLWork(dropTableDesc)
+          sharkDDLWork.cacheMode = cacheMode
+          ddlTask.addDependentTask(TaskFactory.get(sharkDDLWork, conf))
+        }
       }
     }
   }
@@ -137,13 +141,17 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
   def analyzeAlterTableAddParts(ast: ASTNode) {
     val databaseName = db.getCurrentDatabase()
     val tableName = getTableName(ast)
+    val hiveTable = db.getTable(databaseName, tableName)
+    val cacheMode = CacheType.fromString(
+      hiveTable.getProperty(SharkTblProperties.CACHE_FLAG.varname))
     // Create a SharkDDLTask only if the table is cached.
-    if (SharkEnv.memoryMetadataManager.containsTable(databaseName, tableName)) {
+    if (CacheType.shouldCache(cacheMode)) {
       // Hive's DDLSemanticAnalyzer#analyzeInternal() will only populate rootTasks with DDLTasks
       // and DDLWorks that contain AddPartitionDesc objects.
       for (ddlTask <- rootTasks) {
         val addPartitionDesc = ddlTask.getWork.asInstanceOf[DDLWork].getAddPartitionDesc
         val sharkDDLWork = new SharkDDLWork(addPartitionDesc)
+        sharkDDLWork.cacheMode = cacheMode
         ddlTask.addDependentTask(TaskFactory.get(sharkDDLWork, conf))
       }
     }
@@ -152,11 +160,12 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
   private def analyzeAlterTableRename(astNode: ASTNode) {
     val databaseName = db.getCurrentDatabase()
     val oldTableName = getTableName(astNode)
-    if (SharkEnv.memoryMetadataManager.containsTable(databaseName, oldTableName)) {
-      val newTableName = BaseSemanticAnalyzer.getUnescapedName(
-        astNode.getChild(1).asInstanceOf[ASTNode])
+    val hiveTable = db.getTable(databaseName, oldTableName)
+    val cacheMode = CacheType.fromString(hiveTable.getProperty(SharkTblProperties.CACHE_FLAG.varname))
+    if (CacheType.shouldCache(cacheMode)) {
       val alterTableDesc = getAlterTblDesc()
       val sharkDDLWork = new SharkDDLWork(alterTableDesc)
+      sharkDDLWork.cacheMode = cacheMode
       rootTasks.head.addDependentTask(TaskFactory.get(sharkDDLWork, conf))
     }
   }

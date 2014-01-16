@@ -17,11 +17,8 @@
 
 package shark
 
-import java.util.{HashMap => JavaHashMap}
-
 import scala.collection.JavaConversions._
 
-import org.scalatest.BeforeAndAfterAll
 import org.scalatest.FunSuite
 
 import org.apache.hadoop.hive.metastore.MetaStoreUtils.DEFAULT_DATABASE_NAME
@@ -33,101 +30,17 @@ import org.apache.spark.storage.StorageLevel
 import shark.api.QueryExecutionException
 import shark.memstore2.{CacheType, MemoryMetadataManager, PartitionedMemoryTable}
 import shark.tgf.{RDDSchema, Schema}
-import scala.util.Try
+// import expectSql() shortcut methods
+import shark.SharkRunner._
 
-class SQLSuite extends FunSuite with BeforeAndAfterAll {
 
-  val WAREHOUSE_PATH = TestUtils.getWarehousePath()
-  val METASTORE_PATH = TestUtils.getMetastorePath()
-  val MASTER = "local"
+class SQLSuite extends FunSuite {
+
   val DEFAULT_DB_NAME = DEFAULT_DATABASE_NAME
   val KV1_TXT_PATH = "${hiveconf:shark.test.data.path}/kv1.txt"
 
-  var sc: SharkContext = _
-  var sharkMetastore: MemoryMetadataManager = _
-
-  /**
-   * Tables accessible by any test in SQLSuite. Their properties should remain constant across
-   * tests.
-   */
-  def loadTables() {
-    // test
-    sc.runSql("drop table if exists test")
-    sc.runSql("CREATE TABLE test (key INT, val STRING)")
-    sc.runSql("LOAD DATA LOCAL INPATH '${hiveconf:shark.test.data.path}/kv1.txt' INTO TABLE test")
-    sc.runSql("drop table if exists test_cached")
-    sc.runSql("CREATE TABLE test_cached AS SELECT * FROM test")
-
-    // test_null
-    sc.runSql("drop table if exists test_null")
-    sc.runSql("CREATE TABLE test_null (key INT, val STRING)")
-    sc.runSql("""LOAD DATA LOCAL INPATH '${hiveconf:shark.test.data.path}/kv3.txt'
-      INTO TABLE test_null""")
-    sc.runSql("drop table if exists test_null_cached")
-    sc.runSql("CREATE TABLE test_null_cached AS SELECT * FROM test_null")
-
-    // clicks
-    sc.runSql("drop table if exists clicks")
-    sc.runSql("""create table clicks (id int, click int)
-      row format delimited fields terminated by '\t'""")
-    sc.runSql("""load data local inpath '${hiveconf:shark.test.data.path}/clicks.txt'
-      OVERWRITE INTO TABLE clicks""")
-    sc.runSql("drop table if exists clicks_cached")
-    sc.runSql("create table clicks_cached as select * from clicks")
-
-    // users
-    sc.runSql("drop table if exists users")
-    sc.runSql("""create table users (id int, name string)
-      row format delimited fields terminated by '\t'""")
-    sc.runSql("""load data local inpath '${hiveconf:shark.test.data.path}/users.txt'
-      OVERWRITE INTO TABLE users""")
-    sc.runSql("drop table if exists users_cached")
-    sc.runSql("create table users_cached as select * from users")
-
-    // test1
-    sc.sql("drop table if exists test1")
-    sc.sql("""CREATE TABLE test1 (id INT, test1val ARRAY<INT>)
-      row format delimited fields terminated by '\t'""")
-    sc.sql("LOAD DATA LOCAL INPATH '${hiveconf:shark.test.data.path}/test1.txt' INTO TABLE test1")
-    sc.sql("drop table if exists test1_cached")
-    sc.sql("CREATE TABLE test1_cached AS SELECT * FROM test1")
-  }
-
-  override def beforeAll() {
-    sc = SharkEnv.initWithSharkContext("shark-sql-suite-testing", MASTER)
-
-    sc.runSql("set javax.jdo.option.ConnectionURL=jdbc:derby:;databaseName=" +
-        METASTORE_PATH + ";create=true")
-    sc.runSql("set hive.metastore.warehouse.dir=" + WAREHOUSE_PATH)
-
-    sc.runSql("set shark.test.data.path=" + TestUtils.dataFilePath)
-
-    sharkMetastore = SharkEnv.memoryMetadataManager
-
-    // second db
-    sc.sql("create database if not exists seconddb")
-
-    loadTables()
-  }
-
-  override def afterAll() {
-    sc.stop()
-    System.clearProperty("spark.driver.port")
-  }
-
-  private def expectSql(sql: String, expectedResults: Array[String], sort: Boolean = true) {
-    val sharkResults: Array[String] = sc.runSql(sql).results.map(_.mkString("\t")).toArray
-    val results = if (sort) sharkResults.sortWith(_ < _) else sharkResults
-    val expected = if (sort) expectedResults.sortWith(_ < _) else expectedResults
-    assert(results.corresponds(expected)(_.equals(_)),
-      "In SQL: " + sql + "\n" +
-      "Expected: " + expected.mkString("\n") + "; got " + results.mkString("\n"))
-  }
-
-  // A shortcut for single row results.
-  private def expectSql(sql: String, expectedResult: String) {
-    expectSql(sql, Array(expectedResult))
-  }
+  var sc: SharkContext = SharkRunner.init()
+  var sharkMetastore: MemoryMetadataManager = SharkEnv.memoryMetadataManager
 
   private def createCachedPartitionedTable(
       tableName: String,
@@ -155,7 +68,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     assert(SharkEnv.memoryMetadataManager.containsTable(DEFAULT_DB_NAME, tableName))
     val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(
       DEFAULT_DB_NAME, tableName).get
-    return partitionedTable
+    partitionedTable
   }
 
   def isFlattenedUnionRDD(unionRDD: UnionRDD[_]) = {
@@ -168,7 +81,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
       partSpecOpt: Option[Map[String, String]] = None) {
     // Check that the table is in memory and is a unified view.
     val sharkTableOpt = sharkMetastore.getTable(DEFAULT_DB_NAME, cachedTableName)
-    assert(sharkTableOpt.isDefined, "Table %s cannot be found in the Shark meatstore")
+    assert(sharkTableOpt.isDefined, "Table %s cannot be found in the Shark metastore")
     assert(sharkTableOpt.get.cacheMode == CacheType.MEMORY,
       "'shark.cache' field for table %s is not CacheType.MEMORY")
 
@@ -255,26 +168,6 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     expectSql("select * from users order by name, id limit 2", Array("1\tA", "3\tA"), sort = false)
     expectSql("select * from users order by name desc, id desc limit 2", Array("2\tB", "3\tA"),
       sort = false)
-  }
-
-  //////////////////////////////////////////////////////////////////////////////
-  // column pruning
-  //////////////////////////////////////////////////////////////////////////////
-  test("column pruning filters") {
-    expectSql("select count(*) from test_cached where key > -1", "500")
-  }
-
-  test("column pruning group by") {
-    expectSql("select key, count(*) from test_cached group by key order by key limit 1", "0\t3")
-  }
-
-  test("column pruning group by with single filter") {
-    expectSql("select key, count(*) from test_cached where val='val_484' group by key", "484\t1")
-  }
-
-  test("column pruning aggregate function") {
-    expectSql("select val, sum(key) from test_cached group by val order by val desc limit 1",
-      "val_98\t196")
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -730,13 +623,13 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sc.sql("insert into table flat_cached select * from test")
     val tableName = "flat_cached"
     var memoryTable = SharkEnv.memoryMetadataManager.getMemoryTable(DEFAULT_DB_NAME, tableName).get
-    var unionRDD = memoryTable.tableRDD.asInstanceOf[UnionRDD[_]]
+    var unionRDD = memoryTable.getRDD.get.asInstanceOf[UnionRDD[_]]
     val numParentRDDs = unionRDD.rdds.size
     assert(isFlattenedUnionRDD(unionRDD))
 
     // Insert another set of query results. The flattening should kick in here.
     sc.sql("insert into table flat_cached select * from test")
-    unionRDD = memoryTable.tableRDD.asInstanceOf[UnionRDD[_]]
+    unionRDD = memoryTable.getRDD.get.asInstanceOf[UnionRDD[_]]
     assert(isFlattenedUnionRDD(unionRDD))
     assert(unionRDD.rdds.size == numParentRDDs + 1)
   }
@@ -1140,7 +1033,6 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
     sharkMetastore.shutdown()
     for ((tableName, i) <- globalCachedTableNames.zipWithIndex) {
       val hiveTable = Hive.get().getTable(DEFAULT_DB_NAME, tableName)
-
       // Check that the number of rows from the table on disk remains the same.
       val onDiskCount = sc.sql("select count(*) from %s".format(tableName))(0)
       val cachedCount = cachedTableCounts(i)
@@ -1148,7 +1040,7 @@ class SQLSuite extends FunSuite with BeforeAndAfterAll {
         (rows cached = %s, rows on disk = %s)""".format(tableName, cachedCount, onDiskCount))
     }
     // Finally, reload all tables.
-    loadTables()
+    SharkRunner.loadTables()
   }
 
   //////////////////////////////////////////////////////////////////////////////
