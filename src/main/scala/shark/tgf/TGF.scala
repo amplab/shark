@@ -266,7 +266,7 @@ case class RDDSchema(rdd: RDD[Seq[_]], schema: String)
 private class TGFParser extends JavaTokenParsers {
 
   // Code to enable case-insensitive modifiers to strings, e.g.
-  // "DataBricks".ci will match "databricks"
+  // "Berkeley".ci will match "berkeley"
   class MyString(str: String) {
     def ci: Parser[String] = ("(?i)" + str).r
   }
