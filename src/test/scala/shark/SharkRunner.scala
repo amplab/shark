@@ -116,7 +116,7 @@ object SharkRunner {
     val expected = if (sort) expectedResults.sortWith(_ < _) else expectedResults
     assert(results.corresponds(expected)(_.equals(_)),
       "In SQL: " + sql + "\n" +
-      "Expected: " + expected.mkString("\n") + "; got " + results.mkString("\n"))
+      "Expected:" + expected.mkString("\n") + "; got:" + results.mkString("\n") + ";")
   }
 
   // A shortcut for single row results.

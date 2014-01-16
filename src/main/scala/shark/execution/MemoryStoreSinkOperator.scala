@@ -196,10 +196,6 @@ class MemoryStoreSinkOperator extends TerminalOperator {
           memoryTable.getStats.get
         }
       }
-      currentStats.toMap
-    } else {
-      statsAcc.value.toMap
-    }
 
     if (SharkConfVars.getBoolVar(localHconf, SharkConfVars.MAP_PRUNING_PRINT_DEBUG)) {
       tableStats.foreach { case(index, tablePartitionStats) =>

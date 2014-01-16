@@ -34,7 +34,7 @@ import org.apache.spark.{SparkContext, SparkEnv}
 import org.apache.spark.rdd.RDD
 
 import shark.api._
-import org.apache.spark.rdd.RDD
+import shark.tgf.TGF
 
 
 class SharkContext(

@@ -25,11 +25,15 @@ import org.scalatest.FunSuite
 
 import org.apache.hadoop.hive.metastore.MetaStoreUtils.DEFAULT_DATABASE_NAME
 import org.apache.hadoop.hive.ql.metadata.Hive
+import org.apache.spark.rdd.RDD
 import org.apache.spark.rdd.UnionRDD
 import org.apache.spark.storage.StorageLevel
 
 import shark.api.QueryExecutionException
 import shark.memstore2.{CacheType, MemoryMetadataManager, PartitionedMemoryTable}
+import shark.tgf.{RDDSchema, Schema}
+import scala.util.Try
+
 // import expectSql() shortcut methods
 import shark.SharkRunner._
 
@@ -82,68 +86,6 @@ class SQLSuite extends FunSuite {
     // Check that the table is in memory and is a unified view.
     val sharkTableOpt = sharkMetastore.getTable(DEFAULT_DB_NAME, cachedTableName)
     assert(sharkTableOpt.isDefined, "Table %s cannot be found in the Shark metastore")
-    assert(sharkTableOpt.get.cacheMode == CacheType.MEMORY,
-      "'shark.cache' field for table %s is not CacheType.MEMORY")
-
-    // Load a non-cached copy of the table into memory.
-    val cacheSum = sc.sql("select sum(key) from %s".format(cachedTableName))(0)
-    val hiveTable = Hive.get().getTable(DEFAULT_DB_NAME, cachedTableName)
-    val location = partSpecOpt match {
-      case Some(partSpec) => {
-        val partition = Hive.get().getPartition(hiveTable, partSpec, false /* forceCreate */)
-        partition.getDataLocation.toString
-      }
-      case None => hiveTable.getDataLocation.toString
-    }
-    // Create a table with contents loaded from the table's data directory.
-    val diskTableName = "%s_disk_copy".format(cachedTableName)
-    sc.sql("drop table if exists %s".format(diskTableName))
-    sc.sql("create table %s (key int, value string)".format(diskTableName))
-    sc.sql("load data local inpath '%s' into table %s".format(location, diskTableName))
-    val diskSum = sc.sql("select sum(key) from %s".format(diskTableName))(0)
-    assert(diskSum == cacheSum, "Sum of keys from cached and disk contents differ")
-  }
-
-  private def createCachedPartitionedTable(
-      tableName: String,
-      numPartitionsToCreate: Int,
-      maxCacheSize: Int = 10,
-      cachePolicyClassName: String = "shark.memstore2.LRUCachePolicy"
-    ): PartitionedMemoryTable = {
-    sc.runSql("drop table if exists %s".format(tableName))
-    sc.runSql("""
-      create table %s(key int, value string)
-        partitioned by (keypart int)
-        tblproperties('shark.cache' = 'true',
-                      'shark.cache.policy.maxSize' = '%d',
-                      'shark.cache.policy' = '%s')
-      """.format(
-        tableName,
-        maxCacheSize,
-        cachePolicyClassName))
-    var partitionNum = 1
-    while (partitionNum <= numPartitionsToCreate) {
-      sc.runSql("""insert into table %s partition(keypart = %d)
-        select * from test_cached""".format(tableName, partitionNum))
-      partitionNum += 1
-    }
-    assert(SharkEnv.memoryMetadataManager.containsTable(DEFAULT_DB_NAME, tableName))
-    val partitionedTable = SharkEnv.memoryMetadataManager.getPartitionedTable(
-      DEFAULT_DB_NAME, tableName).get
-    return partitionedTable
-  }
-
-  def isFlattenedUnionRDD(unionRDD: UnionRDD[_]) = {
-    unionRDD.rdds.find(_.isInstanceOf[UnionRDD[_]]).isEmpty
-  }
-
-  // Takes a sum over the table's 'key' column, for both the cached contents and the copy on disk.
-  def expectUnifiedKVTable(
-      cachedTableName: String,
-      partSpecOpt: Option[Map[String, String]] = None) {
-    // Check that the table is in memory and is a unified view.
-    val sharkTableOpt = sharkMetastore.getTable(DEFAULT_DB_NAME, cachedTableName)
-    assert(sharkTableOpt.isDefined, "Table %s cannot be found in the Shark meatstore")
     assert(sharkTableOpt.get.cacheMode == CacheType.MEMORY,
       "'shark.cache' field for table %s is not CacheType.MEMORY")
 
@@ -737,7 +679,7 @@ class SQLSuite extends FunSuite {
     sc.sql("drop table if exists selstar")
     sc.sql("""create table selstar TBLPROPERTIES ("shark.cache" = "true") as
       select * from test""")
-    expectSql("select * from selstar where val='val_487'","487	val_487")
+    expectSql("select * from selstar where val='val_487'","487\tval_487")
   }
 
   test("map pruning with functions in between clause") {
@@ -767,7 +709,7 @@ class SQLSuite extends FunSuite {
       select * from default.test where key != 'val_487' """)
 
     sc.sql("use default")
-    expectSql("select * from selstar where val='val_487'","487	val_487")
+    expectSql("select * from selstar where val='val_487'","487\tval_487")
 
     assert(SharkEnv.memoryMetadataManager.containsTable(DEFAULT_DB_NAME, "selstar"))
     assert(SharkEnv.memoryMetadataManager.containsTable("seconddb", "selstar"))
@@ -1104,4 +1046,45 @@ class SQLSuite extends FunSuite {
     // Finally, reload all tables.
     SharkRunner.loadTables()
   }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Table Generating Functions (TGFs)
+  //////////////////////////////////////////////////////////////////////////////
+
+  test("Simple TGFs") {
+    expectSql("generate shark.TestTGF1(test, 15)", Array(15,15,15,17,19).map(_.toString).toArray)
+  }
+
+  test("Saving simple TGFs") {
+    sc.sql("drop table if exists TGFTestTable")
+    sc.runSql("generate shark.TestTGF1(test, 15) as TGFTestTable")
+    expectSql("select * from TGFTestTable", Array(15,15,15,17,19).map(_.toString).toArray)
+    sc.sql("drop table if exists TGFTestTable")
+  }
+
+  test("Advanced TGFs") {
+    expectSql("generate shark.TestTGF2(test, 25)", Array(25,25,25,27,29).map(_.toString).toArray)
+  }
+
+  test("Saving advanced TGFs") {
+    sc.sql("drop table if exists TGFTestTable2")
+    sc.runSql("generate shark.TestTGF2(test, 25) as TGFTestTable2")
+    expectSql("select * from TGFTestTable2", Array(25,25,25,27,29).map(_.toString).toArray)
+    sc.sql("drop table if exists TGFTestTable2")
+  }
+}
+
+object TestTGF1 {
+  @Schema(spec = "values int")
+  def apply(test: RDD[(Int, String)], integer: Int) = {
+    test.map{ case Tuple2(k, v) => Tuple1(k + integer) }.filter{ case Tuple1(v) => v < 20 }
+  }
+}
+
+object TestTGF2 {
+  def apply(sc: SharkContext, test: RDD[(Int, String)], integer: Int) = {
+    val rdd = test.map{ case Tuple2(k, v) => Seq(k + integer) }.filter{ case Seq(v) => v < 30 }
+    RDDSchema(rdd.asInstanceOf[RDD[Seq[_]]], "myvalues int")
+  }
+
 }
