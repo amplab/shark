@@ -190,8 +190,8 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
               if (hiveSinkOps.size == 1) {
                 // INSERT INTO or OVERWRITE update on a cached table.
                 qb.targetTableDesc = tableDesc
-                // If useUnionRDD is true, the sink op is for INSERT INTO.
-                val useUnionRDD = qbParseInfo.isInsertIntoTable(cachedTableName)
+                // If isInsertInto is true, the sink op is for INSERT INTO.
+                val isInsertInto = qbParseInfo.isInsertIntoTable(cachedTableName)
                 val isPartitioned = hiveTable.isPartitioned
                 var hivePartitionKeyOpt = if (isPartitioned) {
                   Some(SharkSemanticAnalyzer.getHivePartitionKey(qb))
@@ -213,7 +213,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                     _resSchema.size,  /* numColumns */
                     hivePartitionKeyOpt,
                     cacheMode,
-                    useUnionRDD)
+                    isInsertInto)
                 }
               } else {
                 throw new SemanticException(
@@ -240,10 +240,10 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                 hiveSinkOps.head,
                 qb.createTableDesc.getTableName,
                 qb.createTableDesc.getDatabaseName,
-                numColumns = _resSchema.size,  /* numColumns */
+                numColumns = _resSchema.size,
                 hivePartitionKeyOpt = None,
                 qb.cacheMode,
-                useUnionRDD = false)
+                isInsertInto = false)
             }
           } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink && !qb.isCTAS) {
             OperatorFactory.createSharkRddOutputPlan(hiveSinkOps.head)
