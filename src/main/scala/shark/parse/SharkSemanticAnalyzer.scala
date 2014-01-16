@@ -243,7 +243,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                 numColumns = _resSchema.size,  /* numColumns */
                 hivePartitionKeyOpt = None,
                 qb.cacheMode,
-                useUnionRDD = false)
+                isInsertInto = false)
             }
           } else if (pctx.getContext().asInstanceOf[QueryContext].useTableRddSink && !qb.isCTAS) {
             OperatorFactory.createSharkRddOutputPlan(hiveSinkOps.head)

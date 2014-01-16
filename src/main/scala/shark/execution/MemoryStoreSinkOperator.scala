@@ -91,7 +91,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
     val tachyonWriter: TachyonTableWriter =
       if (cacheMode == CacheType.TACHYON) {
-        if (!useUnionRDD && SharkEnv.tachyonUtil.tableExists(tableKey, hivePartitionKeyOpt)) {
+        if (!isInsertInto && SharkEnv.tachyonUtil.tableExists(tableKey, hivePartitionKeyOpt)) {
           // For INSERT OVERWRITE, delete the old table or Hive partition directory, if it exists.
           SharkEnv.tachyonUtil.dropTable(tableKey, hivePartitionKeyOpt)
         }
@@ -170,7 +170,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
             databaseName, tableName).get
           val hivePartitionKey = hivePartitionKeyOpt.get
           outputRDD.setName("%s.%s(%s)".format(databaseName, tableName, hivePartitionKey))
-          if (useUnionRDD && hasPreviousRDDForUnion) {
+          if (isInsertInto) {
             // An RDD for the Hive partition already exists, so update its metadata entry in
             // 'partitionedTable'.
             assert(outputRDD.isInstanceOf[UnionRDD[_]])
@@ -187,7 +187,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
           val memoryTable = SharkEnv.memoryMetadataManager.getMemoryTable(databaseName, tableName)
             .getOrElse(SharkEnv.memoryMetadataManager.createMemoryTable(
               databaseName, tableName, cacheMode))
-          if (useUnionRDD) {
+          if (isInsertInto) {
             // Ok, a Tachyon table should manage stats for each rdd, and never union the maps.
             memoryTable.update(outputRDD, statsAcc.value)
           } else {
