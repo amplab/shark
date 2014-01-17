@@ -19,7 +19,7 @@ package shark.execution
 
 import scala.collection.JavaConversions._
 
-import org.apache.hadoop.hive.ql.exec.{GroupByPostShuffleOperator, GroupByPreShuffleOperator}
+import org.apache.hadoop.hive.ql.exec.{GroupByPostShuffleOperator, GroupByPreShuffleOperator, PartitionTableFunctionOperator}
 import org.apache.hadoop.hive.ql.metadata.HiveException
 
 import org.apache.spark.storage.StorageLevel
@@ -111,6 +111,9 @@ object OperatorFactory extends LogHelper {
         } else {
           _newOperatorInstance(classOf[GroupByPreShuffleOperator], hiveOp)
         }
+      }
+      case hop: org.apache.hadoop.hive.ql.exec.PTFOperator => {
+        _newOperatorInstance(classOf[PartitionTableFunctionOperator], hiveOp)
       }
       case _ => throw new HiveException("Unsupported Hive operator: " + hiveOp.getClass.getName)
     }
