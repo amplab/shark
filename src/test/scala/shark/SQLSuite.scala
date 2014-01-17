@@ -17,19 +17,19 @@
 
 package shark
 
-import java.util.{HashMap => JavaHashMap}
-
 import scala.collection.JavaConversions._
 
 import org.scalatest.FunSuite
 
 import org.apache.hadoop.hive.metastore.MetaStoreUtils.DEFAULT_DATABASE_NAME
 import org.apache.hadoop.hive.ql.metadata.Hive
+import org.apache.spark.rdd.RDD
 import org.apache.spark.rdd.UnionRDD
 import org.apache.spark.storage.StorageLevel
 
 import shark.api.QueryExecutionException
 import shark.memstore2.{CacheType, MemoryMetadataManager, PartitionedMemoryTable}
+import shark.tgf.{RDDSchema, Schema}
 // import expectSql() shortcut methods
 import shark.SharkRunner._
 
@@ -1041,5 +1041,45 @@ class SQLSuite extends FunSuite {
     }
     // Finally, reload all tables.
     SharkRunner.loadTables()
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Table Generating Functions (TGFs)
+  //////////////////////////////////////////////////////////////////////////////
+
+  test("Simple TGFs") {
+    expectSql("generate shark.TestTGF1(test, 15)", Array(15,15,15,17,19).map(_.toString).toArray)
+  }
+
+  test("Saving simple TGFs") {
+    sc.sql("drop table if exists TGFTestTable")
+    sc.runSql("generate shark.TestTGF1(test, 15) as TGFTestTable")
+    expectSql("select * from TGFTestTable", Array(15,15,15,17,19).map(_.toString).toArray)
+    sc.sql("drop table if exists TGFTestTable")
+  }
+
+  test("Advanced TGFs") {
+    expectSql("generate shark.TestTGF2(test, 25)", Array(25,25,25,27,29).map(_.toString).toArray)
+  }
+
+  test("Saving advanced TGFs") {
+    sc.sql("drop table if exists TGFTestTable2")
+    sc.runSql("generate shark.TestTGF2(test, 25) as TGFTestTable2")
+    expectSql("select * from TGFTestTable2", Array(25,25,25,27,29).map(_.toString).toArray)
+    sc.sql("drop table if exists TGFTestTable2")
+  }
+}
+
+object TestTGF1 {
+  @Schema(spec = "values int")
+  def apply(test: RDD[(Int, String)], integer: Int) = {
+    test.map{ case Tuple2(k, v) => Tuple1(k + integer) }.filter{ case Tuple1(v) => v < 20 }
+  }
+}
+
+object TestTGF2 {
+  def apply(sc: SharkContext, test: RDD[(Int, String)], integer: Int) = {
+    val rdd = test.map{ case Tuple2(k, v) => Seq(k + integer) }.filter{ case Seq(v) => v < 30 }
+    RDDSchema(rdd.asInstanceOf[RDD[Seq[_]]], "myvalues int")
   }
 }

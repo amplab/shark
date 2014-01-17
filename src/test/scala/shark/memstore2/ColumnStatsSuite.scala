@@ -18,6 +18,7 @@
 package shark.memstore2
 
 import java.sql.Timestamp
+import scala.language.implicitConversions
 
 import org.apache.hadoop.io.Text
 

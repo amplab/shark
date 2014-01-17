@@ -47,9 +47,8 @@ package shark.api
 // *** This file is auto-generated from RDDTable_generator.py ***
 
 import scala.language.implicitConversions
-
-import org.apache.spark.rdd.RDD
 import scala.reflect.ClassTag
+import org.apache.spark.rdd.RDD
 
 object RDDTableImplicits {
   private type C[T] = ClassTag[T]
@@ -74,11 +73,11 @@ prefix = """
 object RDDTable {
 
   private type C[T] = ClassTag[T]
-  private def ct[T](implicit c : ClassTag[T]) = c
+  private def ct[T](implicit c: ClassTag[T]) = c
 """
 
 p.write(prefix)
-  
+
 for x in range(2,23):
 
     tableClass = Template(
