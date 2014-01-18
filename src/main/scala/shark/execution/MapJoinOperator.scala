@@ -17,20 +17,18 @@
 
 package shark.execution
 
-import java.util.{HashMap => JHashMap, List => JList}
+import java.util.{ArrayList, HashMap => JHashMap, List => JList}
 
-import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, JoinUtil => HiveJoinUtil}
-import org.apache.hadoop.hive.ql.exec.{MapJoinOperator => HiveMapJoinOperator}
 import org.apache.hadoop.hive.ql.plan.MapJoinDesc
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
 
-import org.apache.spark.SparkEnv
 import org.apache.spark.rdd.RDD
-import org.apache.spark.storage.StorageLevel
 
 import shark.SharkEnv
 import shark.execution.serialization.{OperatorSerializationWrapper, SerializableWritable}
@@ -44,7 +42,7 @@ import shark.execution.serialization.{OperatorSerializationWrapper, Serializable
  * Different from Hive, we don't spill the hash tables to disk. If the "small"
  * tables are too big to fit in memory, the normal join should be used anyway.
  */
-class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperator] {
+class MapJoinOperator extends CommonJoinOperator[MapJoinDesc] {
 
   @BeanProperty var posBigTable: Int = _
   @BeanProperty var bigTableAlias: Int = _
@@ -81,6 +79,30 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
       joinKeys, objectInspectors.toArray, CommonJoinOperator.NOTSKIPBIGTABLE)
 
   }
+  
+  // copied from the org.apache.hadoop.hive.ql.exec.AbstractMapJoinOperator
+  override def outputObjectInspector() = {
+    var outputObjInspector = super.outputObjectInspector()
+    val structFields = outputObjInspector.asInstanceOf[StructObjectInspector]
+      .getAllStructFieldRefs()
+    if (conf.getOutputColumnNames().size() < structFields.size()) {
+      var structFieldObjectInspectors = new ArrayList[ObjectInspector]()
+      for (alias <- order) {
+        var sz = conf.getExprs().get(alias).size()
+        var retained = conf.getRetainList().get(alias)
+        for (i <- 0 to sz - 1) {
+          var pos = retained.get(i)
+          structFieldObjectInspectors.add(structFields.get(pos).getFieldObjectInspector())
+        }
+      }
+      outputObjInspector = ObjectInspectorFactory
+        .getStandardStructObjectInspector(
+          conf.getOutputColumnNames(),
+          structFieldObjectInspectors)
+    }
+    
+    outputObjInspector
+  }
 
   override def execute(): RDD[_] = {
     val inputRdds = executeParents()
@@ -114,6 +136,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
       // following mapParititons will fail because it tries to include the
       // outer closure, which references "this".
       val op = op1
+      // An RDD of (Join key, Corresponding rows) tuples.
       val rddForHash: RDD[(Seq[AnyRef], Seq[Array[AnyRef]])] =
         rdd.mapPartitions { partition =>
           op.initializeOnSlave()
@@ -125,28 +148,14 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc, HiveMapJoinOperato
 
       // Collect the RDD and build a hash table.
       val startCollect = System.currentTimeMillis()
-      val storageLevel = rddForHash.getStorageLevel
-      if(storageLevel == StorageLevel.NONE)
-        rddForHash.persist(StorageLevel.MEMORY_AND_DISK)
-      rddForHash.foreach(_ => Unit)
-      val wrappedRows = rddForHash.partitions.flatMap { part =>
-        val blockId = "rdd_%s_%s".format(rddForHash.id, part.index)
-        val iter = SparkEnv.get.blockManager.get(blockId)
-        val partRows = new ArrayBuffer[(Seq[AnyRef], Seq[Array[AnyRef]])]
-        iter.foreach(_.foreach { row =>
-          partRows += row.asInstanceOf[(Seq[AnyRef], Seq[Array[AnyRef]])]
-        })
-        partRows
-      }
-      if(storageLevel == StorageLevel.NONE)
-        rddForHash.unpersist()
+      val collectedRows: Array[(Seq[AnyRef], Seq[Array[AnyRef]])] = rddForHash.collect()
 
-      logDebug("wrappedRows size:" + wrappedRows.size)
+      logDebug("collectedRows size:" + collectedRows.size)
       val collectTime = System.currentTimeMillis() - startCollect
       logInfo("HashTable collect took " + collectTime + " ms")
 
       // Build the hash table.
-      val hash = wrappedRows.groupBy(x => x._1)
+      val hash = collectedRows.groupBy(x => x._1)
        .mapValues(v => v.flatMap(t => t._2))
 
       val map = new JHashMap[Seq[AnyRef], Array[Array[AnyRef]]]()

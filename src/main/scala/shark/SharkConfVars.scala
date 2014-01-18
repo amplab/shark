@@ -34,17 +34,14 @@ object SharkConfVars {
 
   val COLUMNAR_COMPRESSION = new ConfVar("shark.column.compress", true)
 
+  // If true, then cache any table whose name ends in "_cached".
+  val CHECK_TABLENAME_FLAG = new ConfVar("shark.cache.flag.checkTableName", true)
+
   // Specify the initial capacity for ArrayLists used to represent columns in columnar
   // cache. The default -1 for non-local mode means that Shark will try to estimate
   // the number of rows by using: partition_size / (num_columns * avg_field_size).
   val COLUMN_BUILDER_PARTITION_SIZE = new ConfVar("shark.column.partitionSize.mb",
     if (System.getenv("MASTER") == null) 1 else -1)
-
-  // Default storage level for cached tables.
-  val STORAGE_LEVEL = new ConfVar("shark.cache.storageLevel", "MEMORY_AND_DISK")
-
-  // If true, then cache any table whose name ends in "_cached".
-  val CHECK_TABLENAME_FLAG = new ConfVar("shark.cache.flag.checkTableName", true)
 
   // Prune map splits for cached tables based on predicates in queries.
   val MAP_PRUNING = new ConfVar("shark.mappruning", true)
@@ -65,7 +62,8 @@ object SharkConfVars {
       conf.set(EXPLAIN_MODE.varname, EXPLAIN_MODE.defaultVal)
     }
     if (conf.get(COLUMN_BUILDER_PARTITION_SIZE.varname) == null) {
-      conf.setInt(COLUMN_BUILDER_PARTITION_SIZE.varname, COLUMN_BUILDER_PARTITION_SIZE.defaultIntVal)
+      conf.setInt(COLUMN_BUILDER_PARTITION_SIZE.varname,
+        COLUMN_BUILDER_PARTITION_SIZE.defaultIntVal)
     }
     if (conf.get(COLUMNAR_COMPRESSION.varname) == null) {
       conf.setBoolean(COLUMNAR_COMPRESSION.varname, COLUMNAR_COMPRESSION.defaultBoolVal)
@@ -166,18 +164,18 @@ case class ConfVar(
   }
 
   def this(varname: String, defaultVal: Int) = {
-    this(varname, classOf[Int], null, defaultVal, 0, 0, false)
+    this(varname, classOf[Int], defaultVal.toString, defaultVal, 0, 0, false)
   }
 
   def this(varname: String, defaultVal: Long) = {
-    this(varname, classOf[Long], null, 0, defaultVal, 0, false)
+    this(varname, classOf[Long], defaultVal.toString, 0, defaultVal, 0, false)
   }
 
   def this(varname: String, defaultVal: Float) = {
-    this(varname, classOf[Float], null, 0, 0, defaultVal, false)
+    this(varname, classOf[Float], defaultVal.toString, 0, 0, defaultVal, false)
   }
 
   def this(varname: String, defaultVal: Boolean) = {
-    this(varname, classOf[Boolean], null, 0, 0, 0, defaultVal)
+    this(varname, classOf[Boolean], defaultVal.toString, 0, 0, 0, defaultVal)
   }
 }

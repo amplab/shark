@@ -19,7 +19,6 @@ package shark.execution
 
 import org.apache.hadoop.hive.ql.exec.{GroupByOperator => HiveGroupByOperator}
 import org.apache.hadoop.hive.ql.exec.{ReduceSinkOperator => HiveReduceSinkOperator}
-import org.apache.hadoop.hive.ql.plan.GroupByDesc
 
 
 /**

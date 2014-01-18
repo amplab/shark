@@ -49,12 +49,15 @@ case class NarrowCoGroupSplitDep(
 
 case class ShuffleCoGroupSplitDep(shuffleId: Int) extends CoGroupSplitDep
 
+// equals not implemented style error
+// scalastyle:off
 class CoGroupPartition(idx: Int, val deps: Seq[CoGroupSplitDep])
   extends Partition with Serializable {
 
   override val index: Int = idx
   override def hashCode(): Int = idx
 }
+// scalastyle:on
 
 class CoGroupAggregator
   extends Aggregator[Any, Any, ArrayBuffer[Any]](
@@ -122,11 +125,11 @@ class CoGroupedRDD[K](@transient var rdds: Seq[RDD[(_, _)]], part: Partitioner)
         // Read map outputs of shuffle
         def mergePair(pair: (K, Any)) { getSeq(pair._1)(depNum) += pair._2 }
         val fetcher = SparkEnv.get.shuffleFetcher
-        fetcher.fetch[(K, Seq[Any])](shuffleId, split.index, context.taskMetrics, serializer)
+        fetcher.fetch[(K, Seq[Any])](shuffleId, split.index, context, serializer)
           .foreach(mergePair)
       }
     }
-    map.iterator
+    new InterruptibleIterator(context, map.iterator)
   }
 
   override def clearDependencies() {

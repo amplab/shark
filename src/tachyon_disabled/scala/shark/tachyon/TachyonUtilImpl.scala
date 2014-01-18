@@ -22,35 +22,51 @@ import java.util.BitSet
 
 import org.apache.spark.rdd.RDD
 
-import shark.memstore2.TablePartition
-
+import shark.memstore2.{Table, TablePartition, TablePartitionStats}
 
 class TachyonUtilImpl(val master: String, val warehousePath: String) extends TachyonUtil {
+
   override def pushDownColumnPruning(rdd: RDD[_], columnUsed: BitSet): Boolean = false
 
   override def tachyonEnabled(): Boolean = false
 
-  override def tableExists(tableName: String): Boolean = {
+  override def tableExists(tableKey: String, hivePartitionKeyOpt: Option[String]): Boolean = {
     throw new UnsupportedOperationException(
       "This version of Shark is not compiled with Tachyon support.")
   }
 
-  override def dropTable(tableName: String): Boolean = {
+  override def dropTable(tableKey: String, hivePartitionKeyOpt: Option[String]): Boolean = {
     throw new UnsupportedOperationException(
       "This version of Shark is not compiled with Tachyon support.")
   }
 
-  override def getTableMetadata(tableName: String): ByteBuffer = {
+  override def createDirectory(
+      tableKey: String,
+      hivePartitionKeyOpt: Option[String]): Boolean = {
     throw new UnsupportedOperationException(
       "This version of Shark is not compiled with Tachyon support.")
   }
 
-  override def createRDD(tableName: String): RDD[TablePartition] = {
+  override def renameDirectory(
+      oldName: String,
+      newName: String): Boolean = {
     throw new UnsupportedOperationException(
       "This version of Shark is not compiled with Tachyon support.")
   }
 
-  override def createTableWriter(tableName: String, numColumns: Int): TachyonTableWriter = {
+  override def createRDD(
+      tableKey: String,
+      hivePartitionKeyOpt: Option[String]
+    ): Seq[(RDD[TablePartition], collection.Map[Int, TablePartitionStats])] = {
+    throw new UnsupportedOperationException(
+      "This version of Shark is not compiled with Tachyon support.")
+  }
+
+  override def createTableWriter(
+      tableKey: String,
+      hivePartitionKeyOpt: Option[String],
+      numColumns: Int
+    ): TachyonTableWriter = {
     throw new UnsupportedOperationException(
       "This version of Shark is not compiled with Tachyon support.")
   }
