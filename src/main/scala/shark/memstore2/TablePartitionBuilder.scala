@@ -18,7 +18,8 @@
 package shark.memstore2
 
 import java.io.{DataInput, DataOutput}
-import java.util.{List => JList}
+
+import scala.collection.JavaConversions._
 
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.StructField
@@ -39,11 +40,11 @@ class TablePartitionBuilder(
   extends Writable {
 
   var numRows: Long = 0
-  val fields: JList[_ <: StructField] = oi.getAllStructFieldRefs
+  val fields: Seq[_ <: StructField] = oi.getAllStructFieldRefs
 
   val columnBuilders = Array.tabulate[ColumnBuilder[_]](fields.size) { i =>
-    val columnBuilder = ColumnBuilder.create(fields.get(i), shouldCompress)
-    columnBuilder.initialize(initialColumnSize, fields.get(i).getFieldName)
+    val columnBuilder = ColumnBuilder.create(fields(i), shouldCompress)
+    columnBuilder.initialize(initialColumnSize, fields(i).getFieldName)
     columnBuilder
   }
 
