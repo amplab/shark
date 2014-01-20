@@ -161,6 +161,8 @@ object SharkCliDriver {
     val cli = new SharkCliDriver(reloadRdds)
     cli.setHiveVariables(oproc.getHiveVariables())
 
+    SharkEnv.fixUncompatibleConf(conf)
+
     // Execute -i init files (always in silent mode)
     cli.processInitFiles(ss)
 
