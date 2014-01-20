@@ -44,7 +44,8 @@ import shark.execution.serialization.OperatorSerializationWrapper
 
 // The final phase of group by.
 // TODO(rxin): For multiple distinct aggregations, use sort-based shuffle.
-class GroupByPostShuffleOperator extends GroupByPreShuffleOperator with HiveTopOperator {
+class GroupByPostShuffleOperator extends GroupByPreShuffleOperator 
+  with ReduceSinkTableDesc {
 
   @BeanProperty var keyTableDesc: TableDesc = _
   @BeanProperty var valueTableDesc: TableDesc = _
@@ -64,16 +65,9 @@ class GroupByPostShuffleOperator extends GroupByPreShuffleOperator with HiveTopO
   @transient val distinctHashSets = new JHashMap[Int, JArrayList[JHashSet[KeyWrapper]]]()
   @transient var unionExprEvaluator: ExprNodeEvaluator = _
 
-  override def initializeOnMaster() {
-    super.initializeOnMaster()
-    keyTableDesc = keyValueTableDescs.values.head._1
-    valueTableDesc = keyValueTableDescs.values.head._2
-    initializeOnSlave()
-  }
+  override def createLocals() {
+    super.createLocals()
 
-  override def initializeOnSlave() {
-
-    super.initializeOnSlave()
     // Initialize unionExpr. KEY has union field as the last field if there are distinct aggrs.
     unionExprEvaluator = initializeUnionExprEvaluator(rowInspector)
 
@@ -89,6 +83,14 @@ class GroupByPostShuffleOperator extends GroupByPreShuffleOperator with HiveTopO
     valueSer.initialize(null, valueTableDesc.getProperties())
     valueSer1 = valueTableDesc.getDeserializerClass.newInstance()
     valueSer1.initialize(null, valueTableDesc.getProperties())
+  }
+  
+  override def createRemotes() {
+    super.createRemotes()
+    
+    var kvd = keyValueDescs()
+    keyTableDesc = kvd.head._2._1
+    valueTableDesc = kvd.head._2._2
   }
 
   private def initializeKeyWrapperFactories() {

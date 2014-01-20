@@ -1,0 +1,78 @@
+<!--
+  ~ Licensed to the Apache Software Foundation (ASF) under one or more
+  ~ contributor license agreements.  See the NOTICE file distributed with
+  ~ this work for additional information regarding copyright ownership.
+  ~ The ASF licenses this file to You under the Apache License, Version 2.0
+  ~ (the "License"); you may not use this file except in compliance with
+  ~ the License.  You may obtain a copy of the License at
+  ~
+  ~    http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+<assembly>
+  <id>dist</id>
+  <formats>
+    <format>tar.gz</format>
+    <format>dir</format>
+  </formats>
+  <includeBaseDirectory>false</includeBaseDirectory>
+
+  <fileSets>
+    <fileSet>
+      <includes>
+        <include>README.md</include>
+      </includes>
+    </fileSet>
+    <fileSet>
+      <directory>
+        ${project.basedir}/bin
+      </directory>
+      <outputDirectory>/bin</outputDirectory>
+      <excludes>
+        <exclude>dev/**</exclude>
+      </excludes>
+    </fileSet>
+    <fileSet>
+      <directory>
+        ${project.basedir}/conf
+      </directory>
+      <outputDirectory>/conf</outputDirectory>
+      <includes>
+        <include>*</include>
+      </includes>
+    </fileSet>
+  </fileSets>
+
+  <dependencySets>
+    <dependencySet>
+      <includes>
+        <include>edu.berkeley.cs.amplab:*:jar</include>
+      </includes>
+      <excludes>
+        <exclude>edu.berkeley.cs.amplab:shark-assembly:jar</exclude>
+      </excludes>
+    </dependencySet>
+    <dependencySet>
+      <outputDirectory>lib</outputDirectory>
+      <useTransitiveDependencies>false</useTransitiveDependencies>
+      <unpack>false</unpack>
+      <scope>runtime</scope>
+      <useProjectArtifact>false</useProjectArtifact>
+      <excludes>
+        <exclude>org.apache.hadoop:*:jar</exclude>
+        <exclude>org.apache.hive:*:jar</exclude>
+        <exclude>org.apache.spark:*:jar</exclude>
+
+        <exclude>org.scalatest:*:jar</exclude>
+        <exclude>org.scalacheck:*:jar</exclude>
+        <exclude>org.apache.derby:*:jar</exclude>
+      </excludes>
+    </dependencySet>
+  </dependencySets>
+
+</assembly>

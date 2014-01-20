@@ -328,8 +328,9 @@ class BooleanBitSetCompression extends CompressionAlgorithm {
 
   // Booleans are encoded into Longs; in addition, we need one int to store the number of
   // Booleans contained in the compressed buffer.
-  override def compressedSize: Int =
+  override def compressedSize: Int = {
     math.ceil(_uncompressedSize.toFloat / BooleanBitSetCompression.BOOLEANS_PER_LONG).toInt * 8 + 4
+  }
 
   override def uncompressedSize: Int = _uncompressedSize
 

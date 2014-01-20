@@ -23,14 +23,14 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
-import org.apache.hadoop.hive.ql.exec.{UDTFOperator => HiveUDTFOperator}
 import org.apache.hadoop.hive.ql.plan.UDTFDesc
 import org.apache.hadoop.hive.ql.udf.generic.Collector
-import org.apache.hadoop.hive.serde2.objectinspector.{ ObjectInspector,
-  StandardStructObjectInspector, StructField, StructObjectInspector }
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.StandardStructObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.StructField
 
 
-class UDTFOperator extends UnaryOperator[HiveUDTFOperator] {
+class UDTFOperator extends UnaryOperator[UDTFDesc] {
 
   @BeanProperty var conf: UDTFDesc = _
 
@@ -38,9 +38,14 @@ class UDTFOperator extends UnaryOperator[HiveUDTFOperator] {
   @transient var soi: StandardStructObjectInspector = _
   @transient var inputFields: JavaList[_ <: StructField] = _
   @transient var collector: UDTFCollector = _
+  @transient var outputObjInspector: ObjectInspector = _
 
   override def initializeOnMaster() {
-    conf = hiveOp.getConf()
+    super.initializeOnMaster()
+    
+    conf = desc
+    
+    initializeOnSlave()
   }
 
   override def initializeOnSlave() {
@@ -56,8 +61,10 @@ class UDTFOperator extends UnaryOperator[HiveUDTFOperator] {
     }.toArray
 
     objToSendToUDTF = new Array[java.lang.Object](inputFields.size)
-    val udtfOutputOI = conf.getGenericUDTF().initialize(udtfInputOIs)
+    outputObjInspector = conf.getGenericUDTF().initialize(udtfInputOIs)
   }
+
+  override def outputObjectInspector() = outputObjInspector
 
   override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
     iter.flatMap { row =>

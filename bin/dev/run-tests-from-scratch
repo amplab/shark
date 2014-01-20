@@ -15,7 +15,7 @@ SHARK_PROJ_DIR_DEFAULT="$(cd `dirname $0`/../../; pwd)"
 SPARK_MEM_DEFAULT=4g
 SHARK_MASTER_MEM_DEFAULT=4g
 SPARK_KV_JAVA_OPTS_DEFAULT=("-Dspark.local.dir=/tmp " "-Dspark.kryoserializer.buffer.mb=10 ")
-SPARK_GIT_URL_DEFAULT="https://github.com/apache/incubator-spark.git spark"
+SPARK_GIT_URL_DEFAULT="https://github.com/apache/incubator-spark.git -b branch-0.8 spark"
 HIVE_GIT_URL_DEFAULT="https://github.com/amplab/hive.git -b shark-0.9"
 SPARK_HADOOP_VERSION_DEFAULT="1.0.4"
 SPARK_WITH_YARN_DEFAULT=false
@@ -226,6 +226,7 @@ fi
 # Download Scala if SCALA_HOME is not specified.
 ####################################################################
 if [ "x$SCALA_HOME" == "x" ] ; then
+  rm -rf ./scala*tgz
   wget $SCALA_DOWNLOAD_PATH
   tar xvfz scala*tgz
   export SCALA_HOME="$WORKSPACE/scala-$SCALA_VERSION"
@@ -274,17 +275,11 @@ export HADOOP_HOME="$WORKSPACE/hadoop-${SPARK_HADOOP_VERSION}"
 # Download and build Hive.
 #####################################################################
 if $SKIP_HIVE ; then
-  if [ ! -e "hive" -o ! -e "hive-warehouse" ] ; then
-    echo "hive and hive-warehouse dirs must exist when skipping Hive download and build stage."
+  if [ ! -e "hive" ] ; then
+    echo "hive dir must exist when skipping Hive download and build stage."
     exit -1
   fi
 else
-  # Setup the Hive warehouse directory.
-  HIVE_WAREHOUSE=./hive-warehouse
-  rm -rf $HIVE_WAREHOUSE
-  mkdir -p $HIVE_WAREHOUSE
-  chmod 0777 $HIVE_WAREHOUSE
-
   rm -rf hive
   git clone $HIVE_GIT_URL
   pushd hive

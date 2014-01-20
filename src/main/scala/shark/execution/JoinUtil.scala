@@ -56,13 +56,17 @@ object JoinUtil {
      noOuterJoin: Boolean): Array[AnyRef] = {
 
     val isFiltered: Boolean = {
-      Range(0, filters.size()).exists { x =>
-        val cond = filters.get(x).evaluate(row)
-        val result = Option[AnyRef](
-          filtersOI.get(x).asInstanceOf[PrimitiveOI].getPrimitiveJavaObject(cond))
-        result match {
-          case Some(u) => u.asInstanceOf[Boolean].unary_!
-          case None => true
+      if (filters == null) {
+        false
+      } else {
+        Range(0, filters.size()).exists { x =>
+          val cond = filters.get(x).evaluate(row)
+          val result = Option[AnyRef](
+            filtersOI.get(x).asInstanceOf[PrimitiveOI].getPrimitiveJavaObject(cond))
+          result match {
+            case Some(u) => u.asInstanceOf[Boolean].unary_!
+            case None => true
+          }
         }
       }
     }
@@ -78,7 +82,7 @@ object JoinUtil {
     if (noOuterJoin) {
       a
     } else {
-      val n = new Array[AnyRef](size+1)
+      val n = new Array[AnyRef](size + 1)
       Array.copy(a, 0, n, 0, size)
       n(size) = new SerializableWritable(new BooleanWritable(isFiltered))
       n

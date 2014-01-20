@@ -23,10 +23,10 @@ import org.apache.hadoop.io.Text
 
 import shark.util.BloomFilter
 
-
-/** Column level statistics, including range (min, max) for columns in cached tables.
-  * These will be get stored in the spark master's memory, per column, per RDD after serialization.
-  */
+/**
+ * Column level statistics, including range (min, max). We expect null values to be taken care
+ * of outside of the ColumnStats, so none of these stats should take null values.
+ */
 sealed trait ColumnStats[@specialized(Boolean, Byte, Short, Int, Long, Float, Double) T]
   extends Serializable {
   var _nullCount = 0
@@ -34,7 +34,6 @@ sealed trait ColumnStats[@specialized(Boolean, Byte, Short, Int, Long, Float, Do
 
   protected def _min: T
   protected def _max: T
-
 
   def min: T = _min
   def max: T = _max
@@ -67,27 +66,29 @@ object ColumnStats {
   class BooleanColumnStats extends ColumnStats[Boolean] {
     protected var _max = false
     protected var _min = true
+
     override def append(v: Boolean) {
       if (v) _max = v
       else _min = v
     }
+
     def :=(v: Any): Boolean = {
       v match {
-        case u:Boolean => _min <= u && _max >= u
+        case u: Boolean => _min <= u && _max >= u
         case _ => true
       }
     }
 
     def :>(v: Any): Boolean = {
       v match {
-        case u:Boolean => _max > u
+        case u: Boolean => _max > u
         case _ => true
       }
     }
 
     def :<(v: Any): Boolean = {
       v match {
-        case u:Boolean => _min < u
+        case u: Boolean => _min < u
         case _ => true
       }
     }
@@ -97,6 +98,7 @@ object ColumnStats {
   class ByteColumnStats extends ColumnStats[Byte] {
     protected var _max = Byte.MinValue
     protected var _min = Byte.MaxValue
+
     override def append(v: Byte) {
       if (v > _max) _max = v
       if (v < _min) _min = v
@@ -104,21 +106,21 @@ object ColumnStats {
     
     def :=(v: Any): Boolean = {
       v match {
-        case u:Byte => _min <= u && _max >= u
+        case u: Byte => _min <= u && _max >= u
         case _ => true
       }
     }
 
     def :>(v: Any): Boolean = {
       v match {
-        case u:Byte => _max > u
+        case u: Byte => _max > u
         case _ => true
       }
     }
 
     def :<(v: Any): Boolean = {
       v match {
-        case u:Byte => _min < u
+        case u: Byte => _min < u
         case _ => true
       }
     }
@@ -127,27 +129,29 @@ object ColumnStats {
   class ShortColumnStats extends ColumnStats[Short] {
     protected var _max = Short.MinValue
     protected var _min = Short.MaxValue
+
     override def append(v: Short) {
       if (v > _max) _max = v
       if (v < _min) _min = v
     }
+
     def :=(v: Any): Boolean = {
       v match {
-        case u:Short => _min <= u && _max >= u
+        case u: Short => _min <= u && _max >= u
         case _ => true
       }
     }
 
     def :>(v: Any): Boolean = {
       v match {
-        case u:Short => _max > u
+        case u: Short => _max > u
         case _ => true
       }
     }
 
     def :<(v: Any): Boolean = {
       v match {
-        case u:Short => _min < u
+        case u: Short => _min < u
         case _ => true
       }
     }
@@ -184,14 +188,14 @@ object ColumnStats {
 
     def :>(v: Any): Boolean = {
       v match {
-        case u:Int => _max > u
+        case u: Int => _max > u
         case _ => true
       }
     }
 
     def :<(v: Any): Boolean = {
       v match {
-        case u:Int => _min < u
+        case u: Int => _min < u
         case _ => true
       }
     }
@@ -228,27 +232,29 @@ object ColumnStats {
   class LongColumnStats extends ColumnStats[Long] {
     protected var _max = Long.MinValue
     protected var _min = Long.MaxValue
+
     override def append(v: Long) {
       if (v > _max) _max = v
       if (v < _min) _min = v
     }
+
     def :=(v: Any): Boolean = {
       v match {
-        case u:Long => _min <= u && _max >= u
+        case u: Long => _min <= u && _max >= u
         case _ => true
       }
     }
 
     def :>(v: Any): Boolean = {
       v match {
-        case u:Long => _max > u
+        case u: Long => _max > u
         case _ => true
       }
     }
 
     def :<(v: Any): Boolean = {
       v match {
-        case u:Long => _min < u
+        case u: Long => _min < u
         case _ => true
       }
     }
@@ -257,20 +263,22 @@ object ColumnStats {
   class FloatColumnStats extends ColumnStats[Float] {
     protected var _max = Float.MinValue
     protected var _min = Float.MaxValue
+
     override def append(v: Float) {
       if (v > _max) _max = v
       if (v < _min) _min = v
     }
+
     def :=(v: Any): Boolean = {
       v match {
-        case u:Float => _min <= u && _max >= u
+        case u: Float => _min <= u && _max >= u
         case _ => true
       }
     }
 
     def :>(v: Any): Boolean = {
       v match {
-        case u:Float => _max > u
+        case u: Float => _max > u
         case _ => true
       }
     }
@@ -286,10 +294,12 @@ object ColumnStats {
   class DoubleColumnStats extends ColumnStats[Double] {
     protected var _max = Double.MinValue
     protected var _min = Double.MaxValue
+
     override def append(v: Double) {
       if (v > _max) _max = v
       if (v < _min) _min = v
     }
+
     def :=(v: Any): Boolean = {
       v match {
         case u:Double => _min <= u && _max >= u
@@ -315,10 +325,12 @@ object ColumnStats {
   class TimestampColumnStats extends ColumnStats[Timestamp] {
     protected var _max = new Timestamp(0)
     protected var _min = new Timestamp(Long.MaxValue)
+
     override def append(v: Timestamp) {
       if (v.compareTo(_max) > 0) _max = v
       if (v.compareTo(_min) < 0) _min = v
     }
+
     def :=(v: Any): Boolean = {
       v match {
         case u: Timestamp => _min.compareTo(u) <=0 && _max.compareTo(u) >= 0
@@ -345,8 +357,12 @@ object ColumnStats {
     // Note: this is not Java serializable because Text is not Java serializable.
     protected var _max: Text = null
     protected var _min: Text = null
-    
+
     def :=(v: Any): Boolean = {
+      if (_max eq null) {
+        // This partition doesn't contain any non-null strings in this column. Return false.
+        return false
+      }
       v match {
         case u: Text => _min.compareTo(u) <= 0 && _max.compareTo(u) >= 0
         case u: String => this := new Text(u)
@@ -355,6 +371,10 @@ object ColumnStats {
     }
 
     def :>(v: Any): Boolean = {
+      if (_max eq null) {
+        // This partition doesn't contain any non-null strings in this column. Return false.
+        return false
+      }
       v match {
         case u: Text => _max.compareTo(u) > 0
         case u: String => this :> new Text(u)
@@ -363,14 +383,19 @@ object ColumnStats {
     }
 
     def :<(v: Any): Boolean = {
+      if (_max eq null) {
+        // This partition doesn't contain any non-null strings in this column. Return false.
+        return false
+      }
       v match {
-        case u:Text => _min.compareTo(u) < 0
+        case u: Text => _min.compareTo(u) < 0
         case u: String => this :< new Text(u)
         case _ => true
       }
     }
 
     override def append(v: Text) {
+      assert(!(v eq null))
       // Need to make a copy of Text since Text is not immutable and we reuse
       // the same Text object in serializer to mitigate frequent GC.
       if (_max == null) {
@@ -382,7 +407,7 @@ object ColumnStats {
         _min = new Text(v)
       } else if (v.compareTo(_min) < 0) {
         _min.set(v.getBytes(), 0, v.getLength())
-      } 
+      }
     }
 
     override def readExternal(in: ObjectInput) {

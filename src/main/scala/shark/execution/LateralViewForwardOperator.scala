@@ -17,12 +17,12 @@
 
 package shark.execution
 
-import org.apache.hadoop.hive.ql.exec.{LateralViewForwardOperator => HiveLateralViewForwardOperator}
+import org.apache.hadoop.hive.ql.plan.LateralViewForwardDesc
 
 import org.apache.spark.rdd.RDD
 
 
-class LateralViewForwardOperator extends UnaryOperator[HiveLateralViewForwardOperator] {
+class LateralViewForwardOperator extends UnaryOperator[LateralViewForwardDesc] {
 
   override def execute(): RDD[_] = executeParents().head._2
 
