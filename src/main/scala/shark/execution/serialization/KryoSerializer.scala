@@ -31,7 +31,7 @@ import shark.SharkContext
  */
 object KryoSerializer {
 
-  @transient var ser = new SparkKryoSerializer(SparkEnv.get.conf)
+  @transient var ser = new SparkKryoSerializer(new SparkConf())
 
   def initWithSharkContext(sc: SharkContext) {
   	ser = new SparkKryoSerializer(sc.sparkEnv.conf)
