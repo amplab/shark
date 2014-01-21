@@ -21,7 +21,10 @@ import java.nio.{ByteBuffer, ByteOrder}
 
 import scala.annotation.tailrec
 import scala.collection.mutable.{ArrayBuffer, HashMap}
-import scala.Numeric.Implicits._
+
+import spire.math._
+import spire.implicits._
+
 
 /**
  * API for Compression
@@ -380,8 +383,11 @@ class BooleanBitSetCompression extends CompressionAlgorithm {
   * The worst case is a large difference from previous value - the flag byte followed by the full
   * unencoded value is stored in the buffer.
   * Non-adaptive - does not use different number of bytes to adjust for differences.
+  *
+  * spire 0.3.0 works with scala 2.9.3
+  * newer spire versions are required for scala 2.10
   */
-class ByteDeltaEncoding[T: Numeric] extends CompressionAlgorithm {
+class ByteDeltaEncoding[@specialized(Int, Long) T: Integral] extends CompressionAlgorithm {
 
   private var prev: T = _
   private var startedEncoding = false
@@ -393,18 +399,13 @@ class ByteDeltaEncoding[T: Numeric] extends CompressionAlgorithm {
 
   override def supportsType(t: ColumnType[_, _]) = { 
     t match {
-      case LONG | INT | SHORT => true
+      case LONG | INT => true
       case _ => false
     }
   }
 
   var _compressedSize: Int = 0
   var _uncompressedSize: Int = 0
-
-  def minus[T: Numeric](x: T, y: T): T = x - y
-  def abs[T: Numeric](x: T): T = implicitly[Numeric[T]].abs(x)
-  def toDouble[T: Numeric](x: T): Double = implicitly[Numeric[T]].toDouble(x)
-  def toByte[T: Numeric](x: T): Byte = implicitly[Numeric[T]].toInt(x).asInstanceOf[Byte]
 
   override def uncompressedSize: Int = _uncompressedSize
   override def compressedSize: Int = _compressedSize
@@ -413,8 +414,9 @@ class ByteDeltaEncoding[T: Numeric] extends CompressionAlgorithm {
     full: () => Unit,
     delta: () => Unit) {
 
-    val diff: T = minus(current.asInstanceOf[T], prev.asInstanceOf[T])
-    if ((toDouble(abs(diff)) >= (Byte.MaxValue / 2).toDouble) || !startedEncoding) {
+    val diff: T = current.asInstanceOf[T] - prev.asInstanceOf[T]
+
+    if (((2 * diff.abs) >= Byte.MaxValue) || !startedEncoding) {
       full()
       prev = current.asInstanceOf[T]
       startedEncoding = true
@@ -444,7 +446,7 @@ class ByteDeltaEncoding[T: Numeric] extends CompressionAlgorithm {
 
     while (b.hasRemaining()) {
       val current = t.extract(b)
-      val diff: T = minus(current.asInstanceOf[T], prev.asInstanceOf[T])
+      val diff: T = current.asInstanceOf[T] - prev.asInstanceOf[T]
 
       val closureFull = () => {
         val flagByte: Byte = ByteDeltaEncoding.newBaseValue
@@ -454,7 +456,7 @@ class ByteDeltaEncoding[T: Numeric] extends CompressionAlgorithm {
 
       val closureDelta = () => {
         // just storing the delta
-        val sevenBits: Byte = toByte(diff)
+        val sevenBits: Byte = diff.toByte
         // mark the first bit as 0 to indicate that this is a delta
         val flagByte: Byte = sevenBits
         compressedBuffer.put(flagByte)

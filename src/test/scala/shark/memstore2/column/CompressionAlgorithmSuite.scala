@@ -260,44 +260,6 @@ class CompressionAlgorithmSuite extends FunSuite {
     assert(!compressedBuffer.hasRemaining)
   }
 
-
-  test("ByteDeltaEncoding Short") {
-    val b = ByteBuffer.allocate(10024)
-    b.order(ByteOrder.nativeOrder())
-    b.putInt(SHORT.typeID)
-
-    val bde = new ByteDeltaEncoding[Short]()
-
-    val x: Short = 1
-    b.putShort(x)
-    bde.gatherStatsForCompressibility(x, SHORT)
-
-    val y: Short = (x + 400).toShort
-    b.putShort(y)
-    bde.gatherStatsForCompressibility(y, SHORT)
-
-    val z: Short = (y + 1).toShort
-    b.putShort(z)
-    bde.gatherStatsForCompressibility(z, SHORT)
-
-    b.limit(b.position())
-    b.rewind()
-    val compressedBuffer = bde.compress(b, SHORT)
-    assert(compressedBuffer.getInt() === SHORT.typeID)
-    assert(compressedBuffer.getInt() === ByteDeltaCompressionType.typeID)
-
-    compressedBuffer.get() // first flagByte
-    assert(SHORT.extract(compressedBuffer).equals(x))
-
-    compressedBuffer.get() // second flagByte
-    assert(SHORT.extract(compressedBuffer).equals(y))
-
-    val seven: Byte = compressedBuffer.get() // third flagByte
-    assert(seven === 1.toByte)
-
-    assert(!compressedBuffer.hasRemaining)
-  }
-
   test("Dictionary Encoding") {
 
     def testList[T](

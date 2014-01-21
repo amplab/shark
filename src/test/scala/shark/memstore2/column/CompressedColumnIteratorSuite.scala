@@ -58,6 +58,7 @@ class CompressedColumnIteratorSuite extends FunSuite {
     info("compressed size: %d, uncompressed size: %d, compression ratio %f".format(
       algo.compressedSize, algo.uncompressedSize, algo.compressionRatio))
 
+    info("expected compressed size: %d".format(expectedCompressedSize))
     assert(algo.compressedSize === expectedCompressedSize)
 
     if (shouldNotCompress) {
@@ -185,9 +186,10 @@ class CompressedColumnIteratorSuite extends FunSuite {
     testList(ints2, INT, new ByteDeltaEncoding[Int], 5 + 4 + 5)
 
     testList(List(0, 62),      INT, new ByteDeltaEncoding[Int], 1 + 4 + 1)
-    testList(List(0, 63),      INT, new ByteDeltaEncoding[Int], 1 + 4 + 1 + 4)
-    testList(List(0, 63, 64),  INT, new ByteDeltaEncoding[Int], 1 + 4 + 1 + 4 + 1)
-    testList(List(0, 64, -25), INT, new ByteDeltaEncoding[Int], 1 + 4 + 1 + 4 + 1 + 4)
+    testList(List(0, 63),      INT, new ByteDeltaEncoding[Int], 1 + 4 +  1)
+    testList(List(0, 64),      INT, new ByteDeltaEncoding[Int], 1 + 4 +  1 + 4)
+    testList(List(0, 63, 64),  INT, new ByteDeltaEncoding[Int], 1 + 4 +  1 +  1)
+    testList(List(0, 64, -25), INT, new ByteDeltaEncoding[Int], 1 + 4 +  1 + 4 +  1 + 4)
 
     testList(List(0, 12400, 12500, 100, 200), INT, new ByteDeltaEncoding[Int], 5*5)
     testList(Range(-4, 0), INT, new ByteDeltaEncoding[Int], 1 + 4 + 3)
@@ -206,12 +208,6 @@ class CompressedColumnIteratorSuite extends FunSuite {
     // base 9 + 3 small deltas + newBase 9 + 2 small deltas = 23
     val longs = Seq[Long](2147483649L, 2147483649L, 2147483649L, 2147483649L, 500L, 500L, 500L)
     testList(longs, LONG, new ByteDeltaEncoding[Long], 23)
-  }
-
-  test("ByteDeltaEncoding Short") {
-    // base 3 + 2 small deltas + newBase 3 + 2 small deltas + new Base 3 + 3 deltas = 16
-    val shorts = Seq[Short](10, 10, 10, 20000, 20000, 20000, 500, 500, 500, 500)
-    testList(shorts, SHORT, new ByteDeltaEncoding[Short], 16)
   }
 
   test("ByteDeltaEncoding should not compress") {

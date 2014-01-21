@@ -161,10 +161,7 @@ object ColumnBuilder {
           case PrimitiveCategory.FLOAT     => new FloatColumnBuilder
           case PrimitiveCategory.DOUBLE    => new DoubleColumnBuilder
           case PrimitiveCategory.STRING    => new StringColumnBuilder
-          case PrimitiveCategory.SHORT     => {
-            bde = new ByteDeltaEncoding[Short]
-            new ShortColumnBuilder
-          }
+          case PrimitiveCategory.SHORT     => new ShortColumnBuilder
           case PrimitiveCategory.BYTE      => new ByteColumnBuilder
           case PrimitiveCategory.TIMESTAMP => new TimestampColumnBuilder
           case PrimitiveCategory.BINARY    => new BinaryColumnBuilder
