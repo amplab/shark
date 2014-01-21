@@ -38,7 +38,6 @@ object SharkEnv extends LogHelper {
       val master = System.getenv("MASTER")
       initWithSharkContext(jobName, master)
     }
-    KryoSerializer.initWithSharkContext(sc)
     sc
   }
 
@@ -57,7 +56,6 @@ object SharkEnv extends LogHelper {
       Nil,
       executorEnvVars)
     sc.addSparkListener(new StatsReportListener())
-    KryoSerializer.initWithSharkContext(sc)
     sc
   }
 
