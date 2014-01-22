@@ -60,6 +60,16 @@ private[shark] object HiveUtils {
   }
 
   /**
+   * Returns a StructObjectInspector
+   */
+  def makeStandardStructObjectInspector(fieldNames: Seq[String], ois: Seq[PrimitiveObjectInspector]) = {
+    val fields = fieldNames.toList
+    val oiList = ois.toList
+
+    ObjectInspectorFactory.getStandardStructObjectInspector(fields, oiList)
+  }
+
+  /**
    * Return a UnionStructObjectInspector that combines the StructObjectInspectors for the table
    * schema and the partition columns, which are virtual in Hive.
    */
