@@ -25,6 +25,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.io.BytesWritable
 import org.apache.hadoop.io.Text
 
+
 import shark.execution.serialization.KryoSerializer
 import shark.memstore2.column.ColumnStats._
 
@@ -59,8 +60,8 @@ class GenericColumnBuilder(oi: ObjectInspector)
   extends DefaultColumnBuilder[ByteStream.Output](new NoOpStats(), GENERIC) {
 
   // Complex data types cannot be null. Override the initialize in NullableColumnBuilder.
-  override def initialize(initialSize: Int): ByteBuffer = {
-    val buffer = super.initialize(initialSize)
+  override def initialize(initialSize: Int, columnName: String): ByteBuffer = {
+    val buffer = super.initialize(initialSize, columnName)
     val objectInspectorSerialized = KryoSerializer.serialize(oi)
     buffer.putInt(objectInspectorSerialized.size)
     buffer.put(objectInspectorSerialized)
