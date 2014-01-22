@@ -19,7 +19,7 @@ package shark
 
 import scala.collection.mutable.{HashMap, HashSet}
 
-import org.apache.spark.SparkContext
+import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.scheduler.StatsReportListener
 
@@ -61,10 +61,16 @@ object SharkEnv extends LogHelper {
     sc
   }
 
+  def initWithSharkContext(conf: SparkConf): SharkContext = {
+    conf.setExecutorEnv(executorEnvVars.toSeq)
+    initWithSharkContext(new SharkContext(conf))
+  }
+
   def initWithSharkContext(newSc: SharkContext): SharkContext = {
     if (sc != null) {
       sc.stop()
     }
+    sc.addSparkListener(new StatsReportListener())
     sc = newSc
     sc
   }
@@ -95,6 +101,7 @@ object SharkEnv extends LogHelper {
 
   val activeSessions = new HashSet[String]
   System.setProperty("spark.kryo.registrator", classOf[KryoRegistrator].getName)
+
   var sc: SharkContext = _
 
   val shuffleSerializerName = classOf[ShuffleSerializer].getName
