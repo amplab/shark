@@ -68,8 +68,8 @@ object SharkEnv extends LogHelper {
     if (sc != null) {
       sc.stop()
     }
-    sc.addSparkListener(new StatsReportListener())
     sc = newSc
+    sc.addSparkListener(new StatsReportListener())
     sc
   }
 
