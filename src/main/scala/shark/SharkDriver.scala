@@ -183,7 +183,7 @@ private[shark] class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHe
 
     try {
       val command = {
-        val varSubbedCmd = new VariableSubstitution().substitute(conf, cmd)
+        val varSubbedCmd = new VariableSubstitution().substitute(conf, cmd).trim
         val cmdInUpperCase = varSubbedCmd.toUpperCase
         if (cmdInUpperCase.startsWith("CACHE")) {
           QueryRewriteUtils.cacheToAlterTable(varSubbedCmd)
