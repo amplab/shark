@@ -270,7 +270,7 @@ class SharkCliDriver(reloadRdds: Boolean = true) extends CliDriver with LogHelpe
       console.printInfo(
         "Reloading cached RDDs from previous Shark sessions... (use %s flag to skip reloading)"
         .format(SharkCliDriver.SKIP_RDD_RELOAD_FLAG))
-      TableRecovery.reloadRdds(processCmd(_))
+      TableRecovery.reloadRdds(processCmd(_), Some(console))
     }
   }
 

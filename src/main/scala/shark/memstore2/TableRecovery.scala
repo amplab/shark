@@ -22,6 +22,7 @@ import java.util.{HashMap => JavaHashMap}
 import scala.collection.JavaConversions.asScalaBuffer
 
 import org.apache.hadoop.hive.ql.metadata.Hive
+import org.apache.hadoop.hive.ql.session.SessionState
 
 import shark.{LogHelper, SharkEnv}
 import shark.util.QueryRewriteUtils
@@ -39,8 +40,10 @@ object TableRecovery extends LogHelper {
    *        a) Creating the table metadata in Hive Meta Store
    *        b) Loading the table as an RDD in memory
    *        @see SharkServer for an example usage.
+   * @param console Optional SessionState.LogHelper used, if present, to log information about
+            the tables that get reloaded.
    */
-  def reloadRdds(cmdRunner: String => Unit) {
+  def reloadRdds(cmdRunner: String => Unit, console: Option[SessionState.LogHelper] = None) {
     // Filter for tables that should be reloaded into the cache.
     val currentDbName = db.getCurrentDatabase()
     for (databaseName <- db.getAllDatabases(); tableName <- db.getAllTables(databaseName)) {
@@ -48,7 +51,12 @@ object TableRecovery extends LogHelper {
       val tblProps = hiveTable.getParameters
       val cacheMode = CacheType.fromString(tblProps.get(SharkTblProperties.CACHE_FLAG.varname))
       if (cacheMode == CacheType.MEMORY) {
-        logInfo("Reloading %s.%s into memory.".format(databaseName, tableName))
+        val logMessage = "Reloading %s.%s into memory.".format(databaseName, tableName)
+        if (console.isDefined) {
+          console.get.printInfo(logMessage)
+        } else {
+          logInfo(logMessage)
+        }
         val cmd = QueryRewriteUtils.cacheToAlterTable("CACHE %s".format(tableName))
         cmdRunner(cmd)
       }
