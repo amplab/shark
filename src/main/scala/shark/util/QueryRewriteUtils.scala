@@ -30,7 +30,8 @@ object QueryRewriteUtils {
       val tableName = cmdSplit(1)
       "ALTER TABLE %s SET TBLPROPERTIES ('shark.cache' = 'true')".format(tableName)
     } else {
-      throw new SemanticException("CACHE accepts a single table name: 'CACHE <table name>'")
+      throw new SemanticException(
+        s"CACHE accepts a single table name: 'CACHE <table name>' (received command: '$cmd')")
     }
   }
 
@@ -40,7 +41,8 @@ object QueryRewriteUtils {
       val tableName = cmdSplit(1)
       "ALTER TABLE %s SET TBLPROPERTIES ('shark.cache' = 'false')".format(tableName)
     } else {
-      throw new SemanticException("UNCACHE accepts a single table name: 'UNCACHE <table name>'")
+      throw new SemanticException(
+        s"UNCACHE accepts a single table name: 'UNCACHE <table name>' (received command: '$cmd')")
     }  
   }
 }
