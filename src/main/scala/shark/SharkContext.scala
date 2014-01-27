@@ -58,13 +58,7 @@ class SharkContext(
       sparkHome: String,
       jars: Seq[String],
       environment: Map[String, String]) {
-    this(
-      (new SparkConf())
-      .setMaster(master)
-      .setAppName(jobName)
-      .setSparkHome(sparkHome)
-      .setJars(jars)
-      .setExecutorEnv(environment.toSeq))
+    this(SharkContext.createSparkConf(master, jobName, sparkHome, jars, environment))
   }
 
   /**
@@ -374,4 +368,20 @@ object SharkContext {
 
   // A dummy init to make sure the object is properly initialized.
   def init() {}
+
+  def createSparkConf(
+      master: String,
+      jobName: String,
+      sparkHome: String,
+      jars: Seq[String],
+      environment: Map[String, String]): SparkConf = {
+    val newConf = new SparkConf()
+      .setMaster(master)
+      .setAppName(jobName)
+      .setJars(jars)
+      .setExecutorEnv(environment.toSeq)
+    Option(sparkHome).foreach(newConf.setSparkHome(_))
+    newConf.set("spark.kryo.registrator", classOf[KryoRegistrator].getName)
+    newConf
+  }
 }

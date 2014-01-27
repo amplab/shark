@@ -98,7 +98,6 @@ object SharkEnv extends LogHelper {
   executorEnvVars.put("TACHYON_WAREHOUSE_PATH", getEnv("TACHYON_WAREHOUSE_PATH"))
 
   val activeSessions = new HashSet[String]
-  System.setProperty("spark.kryo.registrator", classOf[KryoRegistrator].getName)
 
   var sc: SharkContext = _
 
