@@ -32,6 +32,7 @@ import org.apache.hadoop.hive.serde2.Serializer
 import org.apache.hadoop.hive.serde2.`lazy`.LazyStruct
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorConverters, 
   ObjectInspectorFactory, StructObjectInspector}
+import org.apache.hadoop.hive.serde2.ColumnProjectionUtils
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorConverters.Converter
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 import org.apache.hadoop.io.Writable
@@ -158,6 +159,18 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
       createPrunedRdd(tableKey, SharkEnv.tachyonUtil.createRDD(tableKey))
     } else {
       // Table is a Hive table on HDFS (or other Hadoop storage).
+
+      val tableStorageType = tableDesc.getProperties().get("storage_handler").asInstanceOf[String]
+      if(tableStorageType == "org.apache.hadoop.hive.hbase.HBaseStorageHandler") {
+        val columnsUsed = new ColumnPruner(this, table).columnsUsed
+        val columnsId = new ArrayList[Integer]
+        for (i <- Range(0, columnsUsed.length())) {
+          if (columnsUsed.get(i) == true)
+          columnsId.add(i);
+        }
+        ColumnProjectionUtils.setReadColumnIDs(localHconf, columnsId)
+      }
+
       super.execute()
     }
   }
