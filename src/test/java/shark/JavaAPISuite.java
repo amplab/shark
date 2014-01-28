@@ -52,12 +52,6 @@ public class JavaAPISuite implements Serializable {
         // instantiate a JavaSharkContext.
         sc = SharkRunner.initWithJava();
 
-        sc.sql("set javax.jdo.option.ConnectionURL=jdbc:derby:;databaseName=" +
-                    METASTORE_PATH + ";create=true");
-        sc.sql("set hive.metastore.warehouse.dir=" + WAREHOUSE_PATH);
-
-        sc.sql("set shark.test.data.path=" + TestUtils$.MODULE$.dataFilePath());
-
         // test
         sc.sql("drop table if exists test_java");
         sc.sql("CREATE TABLE test_java (key INT, val STRING)");
