@@ -118,7 +118,7 @@ object SharkBuild extends Build {
       // See https://code.google.com/p/guava-libraries/issues/detail?id=1095
       "com.google.code.findbugs" % "jsr305" % "1.3.+",
       // For generic math functions that are not boxed
-      libraryDependencies += "org.spire-math" % "spire_2.10" % "0.7.3"
+      "org.spire-math" % "spire_2.10" % "0.7.3",
       // Hive unit test requirements. These are used by Hadoop to run the tests, but not necessary
       // in usual Shark runs.
       "commons-io" % "commons-io" % "2.1",

@@ -413,9 +413,7 @@ class ByteDeltaEncoding[@specialized(Int, Long) T: Integral] extends Compression
 
     val diff: T = current.asInstanceOf[T] - prev.asInstanceOf[T]
 
-    // val a: T = Byte.MaxValue.asInstanceOf[T]
-
-    if (((2 * diff.abs) >= Byte.MaxValue) || !startedEncoding) {
+    if ((Byte.MaxValue < 2*diff.abs) || !startedEncoding) {
       full()
       prev = current.asInstanceOf[T]
       startedEncoding = true
