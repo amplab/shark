@@ -154,6 +154,7 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
    * Process a partition when there is NO distinct key aggregations.
    */
   def processPartitionNoDistinct(iter: Iterator[_]) = {
+    val numDistributionKeys = conf.getNumDistributionKeys
     // Buffer for key, value evaluation to avoid frequent object allocation.
     val evaluatedKey = new Array[Object](keyEval.length)
     val evaluatedValue = new Array[Object](valueEval.length)
@@ -186,7 +187,7 @@ class ReduceSinkOperator extends UnaryOperator[HiveReduceSinkOperator] {
 
       // Evaluate the key columns.
       var i = 0
-      while (i < keyEval.length) {
+      while (i < numDistributionKeys) {
         evaluatedKey(i) = keyEval(i).evaluate(row)
         i += 1
       }
