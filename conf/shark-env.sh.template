@@ -49,7 +49,7 @@ export HIVE_HOME=""
 
 # Java options
 # On EC2, change the local.dir to /mnt/tmp
-SPARK_JAVA_OPTS="-Dspark.local.dir=/tmp "
+SPARK_JAVA_OPTS=" -Dspark.local.dir=/tmp "
 SPARK_JAVA_OPTS+="-Dspark.kryoserializer.buffer.mb=10 "
 SPARK_JAVA_OPTS+="-verbose:gc -XX:-PrintGCDetails -XX:+PrintGCTimeStamps "
 export SPARK_JAVA_OPTS
