@@ -1042,6 +1042,10 @@ class SQLSuite extends FunSuite {
       val cachedCount = cachedTableCounts(i)
       assert(onDiskCount == cachedCount, """Num rows for %s differ across Shark metastore restart. 
         (rows cached = %s, rows on disk = %s)""".format(tableName, cachedCount, onDiskCount))
+      // Check that we're able to materialize a row - i.e., make sure that table scan operator
+      // doesn't try to use a ColumnarSerDe when scanning contents on disk (for our test tables,
+      // LazySimpleSerDes should be used).
+      sc.sql("select * from %s limit 1".format(tableName))
     }
     // Finally, reload all tables.
     SharkRunner.loadTables()
