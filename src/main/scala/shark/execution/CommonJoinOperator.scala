@@ -89,7 +89,7 @@ abstract class CommonJoinOperator[T <: JoinDesc] extends NaryOperator[T] {
   }
   
   // copied from the org.apache.hadoop.hive.ql.exec.CommonJoinOperator
-  override def outputObjectInspector() = {
+  protected override def createOutputObjectInspector(): ObjectInspector = {
     var structFieldObjectInspectors = new JavaArrayList[ObjectInspector]()
     for (alias <- order) {
       var oiList = joinValuesStandardObjectInspectors.get(alias)

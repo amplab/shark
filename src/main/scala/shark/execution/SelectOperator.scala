@@ -23,6 +23,7 @@ import scala.reflect.BeanProperty
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory}
 import org.apache.hadoop.hive.ql.plan.SelectDesc
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 
 
 /**
@@ -34,6 +35,10 @@ class SelectOperator extends UnaryOperator[SelectDesc] {
   @BeanProperty var conf: SelectDesc = _
 
   @transient var evals: Array[ExprNodeEvaluator] = _
+  
+  // TODO this is for the code gen operator to extract the real value, and it will be removed
+  // when we use code gen for expression evaluating.
+  @transient var evalsOutputOIs: Array[ObjectInspector] = _
 
   override def initializeOnMaster() {
     super.initializeOnMaster()
@@ -45,36 +50,51 @@ class SelectOperator extends UnaryOperator[SelectDesc] {
     if (!conf.isSelStarNoCompute) {
       evals = conf.getColList().map(ExprNodeEvaluatorFactory.get(_)).toArray
       if (initializeEval) {
-        evals.foreach(_.initialize(objectInspector))
+        evalsOutputOIs = evals.map(_.initialize(objectInspector))
       }
+    } else {
+      // we don't need code gen for "select *"
+      useCG = false
     }
   }
 
   override def initializeOnSlave() {
     initializeEvals(true)
+    
+    // call the cgOnSlave() explicit
+    cgOnSlave()
   }
 
   override def processPartition(split: Int, iter: Iterator[_]) = {
     if (conf.isSelStarNoCompute) {
       iter
     } else {
-      val reusedRow = new Array[Object](evals.length)
-      iter.map { row =>
-        var i = 0
-        while (i < evals.length) {
-          reusedRow(i) = evals(i).evaluate(row)
-          i += 1
+      if(useCG) {
+        iter.map { row =>
+          cgexec.evaluate(row)
         }
-        reusedRow
+      } else {
+        val reusedRow = new Array[Object](evals.length)
+        iter.map { row =>
+          var i = 0
+          while (i < evals.length) {
+            reusedRow(i) = evals(i).evaluate(row)
+            i += 1
+          }
+          reusedRow
+        }
       }
     }
   }
   
-  override def outputObjectInspector(): ObjectInspector = {
+  protected override def createOutputObjectInspector() = {
     if (conf.isSelStarNoCompute()) {
-      super.outputObjectInspector()
+      super.createOutputObjectInspector()
     } else {
       initEvaluatorsAndReturnStruct(evals, conf.getOutputColumnNames(), objectInspector)
     }
   }
+  
+  protected override def createCGOperator(): CGOperator = new CGSelectOperator(cgrow, this)
 }
+

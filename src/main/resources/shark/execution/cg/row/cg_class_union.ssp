@@ -1,0 +1,153 @@
+<% escapeMarkup = false %>
+
+#import(shark.execution.cg.row.CGRow)
+#import(shark.execution.cg.row.CGField)
+#import(shark.execution.cg.row.CGStruct)
+#import(shark.execution.cg.row.CGUnion)
+#import(shark.execution.cg.row.CGPrimitive)
+
+<%@ import var obj: CGUnion %>
+
+public static class ${clazz} implements KryoSerializable {
+<%-- sub type definitions --%>
+// this is the sub type definition
+#for(f <- fields)
+    #{val block = f.defStaticBlocks}# 
+    #if(block != null)
+        ${block}
+    #end
+#end
+// end of sub type definition
+
+   public byte tag = (byte)-1;
+   public void reset() {
+      this.tag = (byte)-1;
+   }
+<%-- field definitions  --%>
+
+<%-- fields is Array[CGField[_]] --%>
+#for(f <- fields) 
+    ${f.defField}
+#end
+	
+	@Override
+    public void read(Kryo kryo, Input input) {
+      tag = input.readByte();
+      switch (tag) {
+#for(i <- 0 until fields.length; if (!fields(i).constant))    
+      case ${i}: 
+        ${fields(i).defRead}
+        break;
+#end
+        default: 
+      }
+    }
+
+    @Override
+    public void write(Kryo kryo, Output output) {
+      output.writeByte(tag);
+      switch (tag) {
+#for(i <- 0 until fields.length; if (!fields(i).constant))    
+      case ${i}: 
+        ${fields(i).defWrite}
+        break;
+#end
+        default: 
+      }
+    }
+
+    @Override
+    public int hashCode() {
+      switch (tag) {
+#for(i <- 0 until fields.length; if (!fields(i).constant))    
+      case ${i}: 
+        return tag + ${fields(i).defHashCode};
+#end
+        default: 
+      }
+      return 0;
+    }
+    
+    @Override
+    public boolean equals(Object other) {
+        if (null == other) return false;
+        if (other instanceof ${clazz}) {
+            ${clazz} ____that____ = (${clazz})other;
+            if (tag != ____that____.tag) {
+            	return false;
+            }
+      switch (tag) {
+#for(i <- 0 until fields.length; if (!fields(i).constant))    
+      case ${i}: 
+    #if(fields(i).constant)
+         return true;
+    #else
+         return ${fields(i).defEquals("____that____")};
+    #end
+#end
+        default: 
+          return true;
+      }
+     }
+     return false;
+    }
+
+public static ${clazz} BUILD(ObjectInspector oi, Object o) {
+    if (o == null) return null;
+    ${clazz} me = new ${clazz}();
+    org.apache.hadoop.hive.serde2.objectinspector.UnionObjectInspector uoi = (org.apache.hadoop.hive.serde2.objectinspector.UnionObjectInspector)oi;
+    Object uobj = uoi.getField(o);
+    if(uobj == null) {
+      me.tag = -1;
+    } else {
+    me.tag = uoi.getTag(o);
+    java.util.List<org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector> ois = uoi.getObjectInspectors();
+<%-- fields is Array[CGField[_]] --%>
+
+      switch (me.tag) {
+#for(i <- 0 until fields.length; if (!fields(i).constant))    
+      case ${i}: 
+        ${fields(i).defExtractValueViaOI("me." + fields(i).name, "ois.get(" +i + ")", "uobj")};
+        break;
+#end
+        default: 
+          {throw new RuntimeException("can't find the tag:" + me.tag);}
+      }
+  }
+  return me;
+}
+
+/**
+ * create ${clazz} from java object (array)
+ */
+public static ${clazz} INITIAL(Object o) {
+    if (o == null) {
+      return null;
+    }
+    
+    // array => [tag, object]
+    Object[] objs = (Object[])o;
+
+    ${clazz} c = new ${clazz}();
+      
+    c.tag = (Byte)objs[0];
+    switch (c.tag) {
+#for(i <- 0 until fields.length; if (!fields(i).constant))    
+      case ${i}: 
+        ${fields(i).defAssignValue("c." + fields(i).name, "objs[1]")}
+        break;
+#end
+        default: 
+          
+    }
+    return c;
+}
+}
+
+#if(constant && !constantNull)
+private static ${clazz} INITIAL_${name}() {
+    byte[] content = ${constantBytesInString};
+    
+    return ${clazz}.INITIAL(shark.execution.cg.CGUtil.deserialize(content));
+}
+#end

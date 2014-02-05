@@ -22,6 +22,8 @@ import java.util.{ArrayList, Arrays}
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.mapred.{FileInputFormat, InputFormat, JobConf}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_PARTITION_COLUMNS
 import org.apache.hadoop.hive.ql.exec.{TableScanOperator => HiveTableScanOperator}
@@ -88,7 +90,7 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
       table.getDbName, table.getTableName)
   }
 
-  override def outputObjectInspector() = {
+  protected override def createOutputObjectInspector() = {
     if (parts == null) {
       val serializer = if (isInMemoryTableScan || cacheMode == CacheType.TACHYON) {
         new ColumnarSerDe
