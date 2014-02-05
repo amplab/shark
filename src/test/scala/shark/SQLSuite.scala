@@ -338,6 +338,12 @@ class SQLSuite extends FunSuite {
     assert(!SharkEnv.memoryMetadataManager.containsTable(DEFAULT_DB_NAME, "sharkTest5Cached"))
   }
 
+  test("lateral view explode column pruning") {
+    // If column pruner doesn't take lateral view into account, the first result will be null.
+    assert(sc.runSql("""select * from test_cached
+      lateral view explode(array(1, 2, 3)) exploadedTbl as col1""").results.head.head != null)
+  }
+
   //////////////////////////////////////////////////////////////////////////////
   // Caching Hive-partititioned tables
   // Note: references to 'partition' for this section refer to a Hive-partition.
