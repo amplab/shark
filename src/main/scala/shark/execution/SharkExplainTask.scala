@@ -18,17 +18,15 @@
 package shark.execution
 
 import java.io.PrintStream
-import java.lang.reflect.Method
-import java.util.{Arrays, HashSet, List => JavaList}
+import java.util.{List => JavaList}
 
 import scala.collection.JavaConversions._
 
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.hadoop.hive.ql.exec.{ExplainTask, Task}
 import org.apache.hadoop.hive.ql.{Context, DriverContext, QueryPlan}
-import org.apache.hadoop.hive.ql.plan.{Explain, ExplainWork}
-import org.apache.hadoop.hive.ql.plan.api.StageType
+import org.apache.hadoop.hive.ql.exec.{ExplainTask, Task}
+import org.apache.hadoop.hive.ql.plan.ExplainWork
 import org.apache.hadoop.util.StringUtils
 
 import shark.LogHelper
@@ -89,7 +87,7 @@ class SharkExplainTask extends Task[SharkExplainWork] with java.io.Serializable 
       case e: Exception => {
         console.printError("Failed with exception " + e.getMessage(), "\n" +
             StringUtils.stringifyException(e))
-        throw(e)
+        throw e
         1
       }
     }

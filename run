@@ -2,7 +2,7 @@
 
 # This file is used to launch Shark on the master.
 export SCALA_VERSION=2.9.3
-SHARK_VERSION=0.8.0
+SHARK_VERSION=0.8.1
 
 # Figure out where the framework is installed
 FWDIR="$(cd `dirname $0`; pwd)"
@@ -44,6 +44,26 @@ if [ -n "$MASTER" ] ; then
     echo "No SPARK_HOME specified. Please set SPARK_HOME for cluster mode."
     exit 1
   fi
+fi
+
+# check for shark with spark on yarn params
+if [ "x$SHARK_EXEC_MODE" == "xyarn" ] ; then
+  if [ "x$SPARK_ASSEMBLY_JAR" == "x" ] ; then
+    echo "No SPARK_ASSEMBLY_JAR specified. Please set SPARK_ASSEMBLY_JAR for spark on yarn mode."
+    exit 1
+  else
+    export SPARK_JAR=$SPARK_ASSEMBLY_JAR
+  fi
+
+  if [ "x$SHARK_ASSEMBLY_JAR" == "x" ] ; then
+    echo "No SHARK_ASSEMBLY_JAR specified. please set SHARK_ASSEMBLY_JAR for spark on yarn mode."
+    exit 1
+  else
+    export SPARK_YARN_APP_JAR = $SHARK_ASSEMBLY_JAR
+  fi
+
+  # use yarn-client mode for interactive shell.
+  export MASTER=yarn-client
 fi
 
 # Check for optionally specified configuration file path

@@ -19,15 +19,13 @@ package shark.execution
 
 import java.util.{ArrayList, List => JavaList}
 
-import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
-import org.apache.hadoop.hive.ql.exec.{UnionOperator => HiveUnionOperator}
+import org.apache.hadoop.hive.ql.plan.UnionDesc
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFUtils.ReturnObjectInspectorResolver
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
-import org.apache.hadoop.hive.serde2.objectinspector.StandardStructObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.StructField
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 
@@ -40,23 +38,29 @@ import shark.execution.serialization.OperatorSerializationWrapper
  * A union operator. If the incoming data are of different type, the union
  * operator transforms the incoming data into the same type.
  */
-class UnionOperator extends NaryOperator[HiveUnionOperator] {
+class UnionOperator extends NaryOperator[UnionDesc] {
 
-  @transient var parentFields: ArrayBuffer[JavaList[_ <: StructField]] = _
-  @transient var parentObjInspectors: ArrayBuffer[StructObjectInspector] = _
+  @transient var parentFields: Seq[JavaList[_ <: StructField]] = _
+  @transient var parentObjInspectors: Seq[StructObjectInspector] = _
   @transient var columnTypeResolvers: Array[ReturnObjectInspectorResolver] = _
+  @transient var outputObjInspector: ObjectInspector = _
 
   @BeanProperty var needsTransform: Array[Boolean] = _
   @BeanProperty var numParents: Int = _
 
   override def initializeOnMaster() {
+    super.initializeOnMaster()
     numParents = parentOperators.size
 
-    // Use reflection to get the needsTransform boolean array.
-    val needsTransformField = hiveOp.getClass.getDeclaredField("needsTransform")
-    needsTransformField.setAccessible(true)
-    needsTransform = needsTransformField.get(hiveOp).asInstanceOf[Array[Boolean]]
-
+    // whether we need to do transformation for each parent
+    var parents = parentOperators.length
+    var outputOI = outputObjectInspector()
+    needsTransform = Array.tabulate[Boolean](objectInspectors.length) { i =>
+      // ObjectInspectors created by the ObjectInspectorFactory, 
+      // which take the same ref if equals
+      objectInspectors(i) != outputOI
+    }
+    
     initializeOnSlave()
   }
 
@@ -82,17 +86,19 @@ class UnionOperator extends NaryOperator[HiveUnionOperator] {
     }
 
     val outputFieldOIs = columnTypeResolvers.map(_.get())
-    val outputObjInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
-        columnNames, outputFieldOIs.toList)
+    outputObjInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
+      columnNames, outputFieldOIs.toList)
 
     // whether we need to do transformation for each parent
     // We reuse needsTransform from Hive because the comparison of object
     // inspectors are hard once we send object inspectors over the wire.
     needsTransform.zipWithIndex.filter(_._1).foreach { case(transform, p) =>
       logDebug("Union Operator needs to transform row from parent[%d] from %s to %s".format(
-          p, objectInspectors(p), outputObjInspector))
+        p, objectInspectors(p), outputObjInspector))
     }
   }
+
+  override def outputObjectInspector() = outputObjInspector
 
   /**
    * Override execute. The only thing we need to call is combineMultipleRdds().

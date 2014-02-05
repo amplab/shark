@@ -17,20 +17,25 @@
 
 package shark.memstore2
 
+import shark.LogHelper
+
+
 /*
  * Enumerations and static helper functions for caches supported by Shark.
  */
-object CacheType extends Enumeration {
+object CacheType extends Enumeration with LogHelper {
 
   /*
    * The CacheTypes:
-   * - NONE: On-disk storage (e.g. a Hive table that is stored in HDFS ).
-   * - HEAP: refers to Spark's block manager, which coordinates in-memory and on-disk RDD storage.
+   * - MEMORY: Stored in memory and on disk (i.e., cache is write-through). Persistent across Shark
+   *           sessions. By default, all such tables are reloaded into memory on restart.
+   * - MEMORY_ONLY: Stored only in memory and dropped at the end of each Shark session.
    * - TACHYON: A distributed storage system that manages an in-memory cache for sharing files and
-   *            RDDs across cluster frameworks.
+                RDDs across cluster frameworks.
+   * - NONE: Stored on disk (e.g., HDFS) and managed by Hive.
    */
   type CacheType = Value
-  val NONE, HEAP, TACHYON = Value
+  val MEMORY, MEMORY_ONLY, TACHYON, NONE = Value
 
   def shouldCache(c: CacheType): Boolean = (c != NONE)
 
@@ -39,11 +44,17 @@ object CacheType extends Enumeration {
     if (name == null || name == "" || name.toLowerCase == "false") {
       NONE
     } else if (name.toLowerCase == "true") {
-      HEAP
+      MEMORY
     } else {
       try {
-        // Try to use Scala's Enumeration::withName() to interpret 'name'.
-        withName(name.toUpperCase)
+        if (name.toUpperCase == "HEAP") {
+          // Interpret 'HEAP' as 'MEMORY' to ensure backwards compatibility with Shark 0.8.0.
+          logWarning("The 'HEAP' cache type name is deprecated. Use 'MEMORY' instead.")
+          MEMORY
+        } else {
+          // Try to use Scala's Enumeration::withName() to interpret 'name'.
+          withName(name.toUpperCase)
+        }
       } catch {
         case e: java.util.NoSuchElementException => throw new InvalidCacheTypeException(name)
       }
@@ -51,5 +62,5 @@ object CacheType extends Enumeration {
   }
 
   class InvalidCacheTypeException(name: String)
-    extends Exception("Invalid string representation of cache type " + name)
+    extends Exception("Invalid string representation of cache type: '%s'".format(name))
 }

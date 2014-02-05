@@ -20,8 +20,8 @@ package shark.execution
 import scala.reflect.BeanProperty
 
 import org.apache.hadoop.hive.conf.HiveConf
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory}
-import org.apache.hadoop.hive.ql.exec.{ExtractOperator => HiveExtractOperator}
 import org.apache.hadoop.hive.ql.plan.{ExtractDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.Deserializer
 import org.apache.hadoop.io.BytesWritable
@@ -29,7 +29,8 @@ import org.apache.hadoop.io.BytesWritable
 import org.apache.spark.rdd.RDD
 
 
-class ExtractOperator extends UnaryOperator[HiveExtractOperator] with HiveTopOperator {
+class ExtractOperator extends UnaryOperator[ExtractDesc] 
+  with ReduceSinkTableDesc {
 
   @BeanProperty var conf: ExtractDesc = _
   @BeanProperty var valueTableDesc: TableDesc = _
@@ -39,18 +40,28 @@ class ExtractOperator extends UnaryOperator[HiveExtractOperator] with HiveTopOpe
   @transient var valueDeser: Deserializer = _
 
   override def initializeOnMaster() {
-    conf = hiveOp.getConf()
+    super.initializeOnMaster()
+    
+    conf = desc
     localHconf = super.hconf
-    valueTableDesc = keyValueTableDescs.values.head._2
+    valueTableDesc = keyValueDescs().head._2._2
   }
 
   override def initializeOnSlave() {
+    super.initializeOnSlave()
+    
     eval = ExprNodeEvaluatorFactory.get(conf.getCol)
     eval.initialize(objectInspector)
     valueDeser = valueTableDesc.getDeserializerClass().newInstance()
     valueDeser.initialize(localHconf, valueTableDesc.getProperties())
   }
 
+  override def outputObjectInspector() = {
+    var soi = objectInspectors(0).asInstanceOf[StructObjectInspector]
+    // take the value part
+    soi.getAllStructFieldRefs().get(1).getFieldObjectInspector()
+  }
+  
   override def preprocessRdd(rdd: RDD[_]): RDD[_] = {
     // TODO: hasOrder and limit should really be made by optimizer.
     val hasOrder = parentOperator match {

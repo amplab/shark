@@ -22,8 +22,6 @@ package org.apache.hadoop.hive.serde2.binarysortable
 
 import java.util.{List => JList}
 
-import scala.collection.JavaConversions._
-
 import org.apache.hadoop.hive.serde2.objectinspector.{StructField, StructObjectInspector}
 
 

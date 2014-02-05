@@ -28,9 +28,7 @@ import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{FileSinkOperator => HiveFileSinkOperator}
 import org.apache.hadoop.hive.ql.exec.JobCloseFeedBack
 import org.apache.hadoop.hive.shims.ShimLoader
-import org.apache.hadoop.mapred.{JobID, TaskID}
-import org.apache.hadoop.mapred.TaskAttemptID
-import org.apache.hadoop.mapred.SparkHadoopWriter
+import org.apache.hadoop.mapred.{JobID, TaskAttemptID, TaskID}
 
 import org.apache.spark.TaskContext
 import org.apache.spark.rdd.RDD
@@ -61,7 +59,7 @@ class FileSinkOperator extends TerminalOperator with Serializable {
     }
 
     val jobID = context.stageId
-    val splitID = context.splitId
+    val splitID = context.partitionId
     val jID = createJobID(now, jobID)
     val taID = new TaskAttemptID(new TaskID(jID, true, splitID), 0)
     conf.set("mapred.job.id", jID.toString)
@@ -191,7 +189,7 @@ class FileSinkOperator extends TerminalOperator with Serializable {
         logDebug("Total number of rows written: " + rows.sum)
     }
 
-    hiveOp.jobClose(localHconf, true /* success */, new JobCloseFeedBack)
+    localHiveOp.jobClose(localHconf, true /* success */, new JobCloseFeedBack)
     rdd
   }
 }

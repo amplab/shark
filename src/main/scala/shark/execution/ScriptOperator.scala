@@ -19,22 +19,23 @@ package shark.execution
 
 import java.io.{File, InputStream, IOException}
 import java.lang.Thread.UncaughtExceptionHandler
-import java.util.{Arrays, Properties}
+import java.util.Properties
+
 import scala.collection.JavaConversions._
 import scala.io.Source
 import scala.reflect.BeanProperty
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hive.conf.HiveConf
+import org.apache.hadoop.hive.ql.exec.{RecordReader, RecordWriter}
 import org.apache.hadoop.hive.ql.exec.{ScriptOperator => HiveScriptOperator}
-import org.apache.hadoop.hive.ql.exec.{RecordReader, RecordWriter, ScriptOperatorHelper}
-import org.apache.hadoop.hive.ql.metadata.HiveException
+import org.apache.hadoop.hive.ql.exec.{ScriptOperatorHelper => HiveScriptOperatorHelper}
 import org.apache.hadoop.hive.ql.plan.ScriptDesc
 import org.apache.hadoop.hive.serde2.{Serializer, Deserializer}
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.io.{BytesWritable, Writable}
-import org.apache.spark.{OneToOneDependency, SparkEnv, SparkFiles}
+import org.apache.spark.{SparkEnv, SparkFiles}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.TaskContext
+
 import shark.execution.serialization.OperatorSerializationWrapper
 import shark.LogHelper
 
@@ -44,12 +45,13 @@ import shark.LogHelper
  *
  * Example: select transform(key) using 'cat' as cola from src;
  */
-class ScriptOperator extends UnaryOperator[HiveScriptOperator] {
+class ScriptOperator extends UnaryOperator[ScriptDesc] {
 
-  @BeanProperty var localHiveOp: HiveScriptOperator = _
   @BeanProperty var localHconf: HiveConf = _
   @BeanProperty var alias: String = _
+  @BeanProperty var conf: ScriptDesc = _
 
+  @transient var operatorId: String = _
   @transient var scriptInputSerializer: Serializer = _
   @transient var scriptOutputDeserializer: Deserializer = _
 
@@ -62,8 +64,8 @@ class ScriptOperator extends UnaryOperator[HiveScriptOperator] {
 
     val op = OperatorSerializationWrapper(this)
     val (command, envs) = getCommandAndEnvs()
-    val outRecordReaderClass: Class[_ <: RecordReader] = hiveOp.getConf().getOutRecordReaderClass()
-    val inRecordWriterClass: Class[_ <: RecordWriter] = hiveOp.getConf().getInRecordWriterClass()
+    val outRecordReaderClass: Class[_ <: RecordReader] = conf.getOutRecordReaderClass()
+    val inRecordWriterClass: Class[_ <: RecordWriter] = conf.getInRecordWriterClass()
     logDebug("Using %s and %s".format(outRecordReaderClass, inRecordWriterClass))
 
     // Deserialize the output from script back to what Hive understands.
@@ -119,7 +121,6 @@ class ScriptOperator extends UnaryOperator[HiveScriptOperator] {
           SparkEnv.set(sparkEnv)
           val recordWriter = inRecordWriterClass.newInstance
           recordWriter.initialize(proc.getOutputStream, op.localHconf)
-
           for (elem <- iter) {
             recordWriter.write(elem)
           }
@@ -141,31 +142,29 @@ class ScriptOperator extends UnaryOperator[HiveScriptOperator] {
       recordReader.initialize(
         proc.getInputStream,
         op.localHconf,
-        op.localHiveOp.getConf().getScriptOutputInfo().getProperties())
+        op.conf.getScriptOutputInfo().getProperties())
 
       op.deserializeFromScript(new ScriptOperator.RecordReaderIterator(recordReader))
     }
   }
 
   override def initializeOnMaster() {
-    localHiveOp = hiveOp
+    super.initializeOnMaster()
     localHconf = super.hconf
-    // Set parent to null so we won't serialize the entire query plan.
-    hiveOp.setParentOperators(null)
-    hiveOp.setChildOperators(null)
-    hiveOp.setInputObjInspectors(null)
+    conf = desc
+    
+    initializeOnSlave()
   }
 
+  override def outputObjectInspector() = scriptOutputDeserializer.getObjectInspector()
+  
   override def initializeOnSlave() {
-    scriptOutputDeserializer = localHiveOp.getConf().getScriptOutputInfo()
-        .getDeserializerClass().newInstance()
-    scriptOutputDeserializer.initialize(localHconf, localHiveOp.getConf()
-        .getScriptOutputInfo().getProperties())
+    scriptOutputDeserializer = conf.getScriptOutputInfo().getDeserializerClass().newInstance()
+    scriptOutputDeserializer.initialize(localHconf, conf.getScriptOutputInfo().getProperties())
 
-    scriptInputSerializer = localHiveOp.getConf().getScriptInputInfo().getDeserializerClass()
-        .newInstance().asInstanceOf[Serializer]
-    scriptInputSerializer.initialize(
-        localHconf, localHiveOp.getConf().getScriptInputInfo().getProperties())
+    scriptInputSerializer = conf.getScriptInputInfo().getDeserializerClass()
+      .newInstance().asInstanceOf[Serializer]
+    scriptInputSerializer.initialize(localHconf, conf.getScriptInputInfo().getProperties())
   }
 
   /**
@@ -174,17 +173,17 @@ class ScriptOperator extends UnaryOperator[HiveScriptOperator] {
    */
   def getCommandAndEnvs(): (Seq[String], Map[String, String]) = {
 
-    val scriptOpHelper = new ScriptOperatorHelper(new HiveScriptOperator)
+    val scriptOpHelper = new HiveScriptOperatorHelper(new HiveScriptOperator)
     alias = scriptOpHelper.getAlias
 
-    val cmdArgs = HiveScriptOperator.splitArgs(hiveOp.getConf().getScriptCmd())
+    val cmdArgs = HiveScriptOperator.splitArgs(conf.getScriptCmd())
     val prog = cmdArgs(0)
     val currentDir = new File(".").getAbsoluteFile()
 
     if (!(new File(prog)).isAbsolute()) {
       val finder = scriptOpHelper.newPathFinderInstance("PATH")
       finder.prependPathComponent(currentDir.toString())
-      var f = finder.getAbsolutePath(prog)
+      val f = finder.getAbsolutePath(prog)
       if (f != null) {
         cmdArgs(0) = f.getAbsolutePath()
       }
@@ -201,12 +200,12 @@ class ScriptOperator extends UnaryOperator[HiveScriptOperator] {
     scriptOpHelper.addJobConfToEnvironment(hconf, envs)
 
     envs.put(scriptOpHelper.safeEnvVarName(HiveConf.ConfVars.HIVEALIAS.varname),
-        String.valueOf(alias))
+      String.valueOf(alias))
 
     // Create an environment variable that uniquely identifies this script
     // operator
     val idEnvVarName = HiveConf.getVar(hconf, HiveConf.ConfVars.HIVESCRIPTIDENVVAR)
-    val idEnvVarVal = hiveOp.getOperatorId()
+    val idEnvVarVal = operatorId
     envs.put(scriptOpHelper.safeEnvVarName(idEnvVarName), idEnvVarVal)
 
     (wrappedCmdArgs, Map.empty ++ envs)
@@ -339,7 +338,7 @@ object ScriptOperator {
       if (recordLength >= 0) {
         bytesWritable.setSize(recordLength)
       }
-      return recordLength;
+      return recordLength
     }
 
     override def close() { if (in != null) { in.close() } }

@@ -1,9 +1,27 @@
+/*
+ * Copyright (C) 2012 The Regents of The University California.
+ * All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package shark.util
 
 import java.util.BitSet
 import java.nio.charset.Charset
-import scala.math._
-import com.google.common.primitives.Bytes
+
+import scala.math.{ceil, log}
+
 import com.google.common.primitives.Ints
 import com.google.common.primitives.Longs
 
@@ -16,13 +34,12 @@ import com.google.common.primitives.Longs
  * @param expectedSize is the number of elements to be contained in the filter.
  * @param numHashes is the number of hash functions.
  * @author Ram Sriharsha (harshars at yahoo-inc dot com)
- * @date 07/07/2013
  */
 class BloomFilter(numBitsPerElement: Double, expectedSize: Int, numHashes: Int) 
-	extends AnyRef with Serializable{
+  extends AnyRef with Serializable {
 
   val SEED = System.getProperty("shark.bloomfilter.seed","1234567890").toInt
-  val bitSetSize = ceil(numBitsPerElement * expectedSize).toInt
+  val bitSetSize = math.ceil(numBitsPerElement * expectedSize).toInt
   val bitSet = new BitSet(bitSetSize)
 
   /**
@@ -51,7 +68,7 @@ class BloomFilter(numBitsPerElement: Double, expectedSize: Int, numHashes: Int)
    * Optimization to allow reusing the same input buffer by specifying
    * the length of the buffer that contains the bytes to be hashed.
    * @param data is the bytes to be hashed.
-   * @param length is the length of the buffer to examine.
+   * @param len is the length of the buffer to examine.
    */
   def add(data: Array[Byte], len: Int) {
     val hashes = hash(data, numHashes, len)
@@ -96,9 +113,9 @@ class BloomFilter(numBitsPerElement: Double, expectedSize: Int, numHashes: Int)
    * Optimization to allow reusing the same input buffer by specifying
    * the length of the buffer that contains the bytes to be hashed.
    * @param data is the bytes to be hashed.
-   * @param length is the length of the buffer to examine.
+   * @param len is the length of the buffer to examine.
    * @return true with some false positive probability and false if the
-   * 			bytes is not contained in the bloom filter.
+   *         bytes is not contained in the bloom filter.
    */
   def contains(data: Array[Byte], len: Int): Boolean = {
     !hash(data,numHashes, len).exists {
@@ -119,14 +136,17 @@ class BloomFilter(numBitsPerElement: Double, expectedSize: Int, numHashes: Int)
       MurmurHash3_x86_128.hash(data, SEED + i, len, results)
       a(i) = results(0).abs
       var j = i + 1
-      if (j < n)
+      if (j < n) {
         a(j) = results(1).abs
+      }
       j += 1
-      if (j < n)
+      if (j < n) {
         a(j) = results(2).abs
+      }
       j += 1
-      if (j < n)
+      if (j < n) {
         a(j) = results(3).abs
+      }
       i += 1
     }
     a

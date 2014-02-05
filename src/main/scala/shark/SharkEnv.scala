@@ -19,14 +19,13 @@ package shark
 
 import scala.collection.mutable.{HashMap, HashSet}
 
-import org.apache.spark.{SparkContext, SparkEnv}
+import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.scheduler.StatsReportListener
-import org.apache.spark.serializer.{KryoSerializer => SparkKryoSerializer}
 
 import shark.api.JavaSharkContext
-import shark.memstore2.MemoryMetadataManager
 import shark.execution.serialization.ShuffleSerializer
+import shark.memstore2.MemoryMetadataManager
 import shark.tachyon.TachyonUtilImpl
 
 
@@ -36,11 +35,11 @@ object SharkEnv extends LogHelper {
   def init(): SparkContext = {
     if (sc == null) {
       sc = new SparkContext(
-          if (System.getenv("MASTER") == null) "local" else System.getenv("MASTER"),
-          "Shark::" + java.net.InetAddress.getLocalHost.getHostName,
-          System.getenv("SPARK_HOME"),
-          Nil,
-          executorEnvVars)
+        if (System.getenv("MASTER") == null) "local" else System.getenv("MASTER"),
+        "Shark::" + java.net.InetAddress.getLocalHost.getHostName,
+        System.getenv("SPARK_HOME"),
+        Nil,
+        executorEnvVars)
       sc.addSparkListener(new StatsReportListener())
     }
     sc
@@ -49,22 +48,22 @@ object SharkEnv extends LogHelper {
   def initWithSharkContext(jobName: String, master: String = System.getenv("MASTER"))
     : SharkContext = {
     if (sc != null) {
-      sc.stop
+      sc.stop()
     }
 
     sc = new SharkContext(
-        if (master == null) "local" else master,
-        jobName,
-        System.getenv("SPARK_HOME"),
-        Nil,
-        executorEnvVars)
+      if (master == null) "local" else master,
+      jobName,
+      System.getenv("SPARK_HOME"),
+      Nil,
+      executorEnvVars)
     sc.addSparkListener(new StatsReportListener())
     sc.asInstanceOf[SharkContext]
   }
 
   def initWithSharkContext(newSc: SharkContext): SharkContext = {
     if (sc != null) {
-      sc.stop
+      sc.stop()
     }
 
     sc = newSc
@@ -95,6 +94,8 @@ object SharkEnv extends LogHelper {
   executorEnvVars.put("TACHYON_MASTER", getEnv("TACHYON_MASTER"))
   executorEnvVars.put("TACHYON_WAREHOUSE_PATH", getEnv("TACHYON_WAREHOUSE_PATH"))
 
+  val activeSessions = new HashSet[String]
+  
   var sc: SparkContext = _
 
   val shuffleSerializerName = classOf[ShuffleSerializer].getName
@@ -111,21 +112,10 @@ object SharkEnv extends LogHelper {
   val addedFiles = HashSet[String]()
   val addedJars = HashSet[String]()
 
-  def unpersist(key: String): Option[RDD[_]] = {
-    if (SharkEnv.tachyonUtil.tachyonEnabled() && SharkEnv.tachyonUtil.tableExists(key)) {
-      if (SharkEnv.tachyonUtil.dropTable(key)) {
-        logInfo("Table " + key + " was deleted from Tachyon.");
-      } else {
-        logWarning("Failed to remove table " + key + " from Tachyon.");
-      }
-    }
-
-    memoryMetadataManager.unpersist(key)
-  }
-
   /** Cleans up and shuts down the Shark environments. */
   def stop() {
     logDebug("Shutting down Shark Environment")
+    memoryMetadataManager.shutdown()
     // Stop the SparkContext
     if (SharkEnv.sc != null) {
       sc.stop()
@@ -135,6 +125,7 @@ object SharkEnv extends LogHelper {
 
   /** Return the value of an environmental variable as a string. */
   def getEnv(varname: String) = if (System.getenv(varname) == null) "" else System.getenv(varname)
+
 }
 
 
