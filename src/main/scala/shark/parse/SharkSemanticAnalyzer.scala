@@ -39,11 +39,12 @@ import org.apache.hadoop.hive.ql.parse._
 import org.apache.hadoop.hive.ql.plan._
 import org.apache.hadoop.hive.ql.session.SessionState
 
-import shark.{LogHelper, SharkConfVars, SharkEnv, Utils}
+import shark.{LogHelper, SharkConfVars, SharkEnv, SharkOptimizer, Utils}
 import shark.execution.{HiveDesc, Operator, OperatorFactory, RDDUtils, ReduceSinkOperator}
 import shark.execution.{SharkDDLWork, SparkLoadWork, SparkWork, TerminalOperator}
 import shark.memstore2.{CacheType, ColumnarSerDe, LazySimpleSerDeWrapper, MemoryMetadataManager}
 import shark.memstore2.{MemoryTable, PartitionedMemoryTable, SharkTblProperties, TableRecovery}
+import org.apache.spark.storage.StorageLevel
 
 
 /**
@@ -86,7 +87,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     val pctx = getParseContext()
     pctx.setQB(qb)
     pctx.setParseTree(ast)
-    init(pctx)
+    initParseCtx(pctx)
     // The ASTNode that will be analyzed by SemanticAnalzyer#doPhase1().
     var child: ASTNode = ast
 
@@ -154,17 +155,15 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       ).asInstanceOf[JavaList[FieldSchema]]
 
     // Run Hive optimization.
-    var pCtx: ParseContext = getParseContext
-    val optm = new Optimizer()
-    optm.setPctx(pCtx)
+    val optm = new SharkOptimizer()
+    optm.setPctx(pctx)
     optm.initialize(conf)
-    pCtx = optm.optimize()
-    init(pCtx)
+    pctx = optm.optimize()
 
     // Replace Hive physical plan with Shark plan. This needs to happen after
     // Hive optimization.
     val hiveSinkOps = SharkSemanticAnalyzer.findAllHiveFileSinkOperators(
-      pCtx.getTopOps().values().head)
+      pctx.getTopOps().values().head)
 
     // TODO: clean the following code. It's too messy to understand...
     val terminalOpSeq = {
@@ -398,12 +397,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     // dependent of the main SparkTask.
     if (qb.isCTAS) {
       val crtTblDesc: CreateTableDesc = qb.getTableDesc
-
-      // Use reflection to call validateCreateTable, which is private.
-      val validateCreateTableMethod = this.getClass.getSuperclass.getDeclaredMethod(
-        "validateCreateTable", classOf[CreateTableDesc])
-      validateCreateTableMethod.setAccessible(true)
-      validateCreateTableMethod.invoke(this, crtTblDesc)
+      crtTblDesc.validate()
 
       // Clear the output for CTAS since we don't need the output from the
       // mapredWork, the DDLWork at the tail of the chain will have the output.

@@ -145,7 +145,7 @@ class JoinOperator extends CommonJoinOperator[JoinDesc] with ReduceSinkTableDesc
     val bytes = new BytesWritable
     val tmp = new Array[Object](2)
 
-    val tupleSizes = (0 until joinVals.size).map { i => joinVals.get(i.toByte).size() }.toIndexedSeq
+    val tupleSizes = joinVals.map((e) => e.size).toIndexedSeq
     val offsets = tupleSizes.scanLeft(0)(_ + _)
 
     val rowSize = offsets.last
@@ -157,16 +157,16 @@ class JoinOperator extends CommonJoinOperator[JoinDesc] with ReduceSinkTableDesc
         val element = elements(index).asInstanceOf[Array[Byte]]
         var i = 0
         if (element == null) {
-          while (i < joinVals.get(index.toByte).size) {
+          while (i < joinVals(index).size) {
             outputRow(i + offsets(index)) = null
             i += 1
           }
         } else {
           bytes.set(element, 0, element.length)
           tmp(1) = tagToValueSer.get(index).deserialize(bytes)
-          val joinVal = joinVals.get(index.toByte)
+          val joinVal = joinVals(index)
           while (i < joinVal.size) {
-            val joinValObjectInspectors = joinValuesObjectInspectors.get(index.toByte)
+            val joinValObjectInspectors = joinValuesObjectInspectors(index.toByte)
             outputRow(i + offsets(index)) = ObjectInspectorUtils.copyToStandardObject(
               joinVal(i).evaluate(tmp), joinValObjectInspectors(i),
               ObjectInspectorUtils.ObjectInspectorCopyOption.WRITABLE)

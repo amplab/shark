@@ -28,7 +28,7 @@ object SharkBuild extends Build {
   // Shark version
   val SHARK_VERSION = "0.9.0-SNAPSHOT"
 
-  val SPARK_VERSION = "0.9.0-incubating-SNAPSHOT"
+  val SPARK_VERSION = "0.9.0-incubating"
 
   val SCALA_VERSION = "2.10.3"
 
@@ -44,7 +44,7 @@ object SharkBuild extends Build {
   val YARN_ENABLED = env("SHARK_YARN").getOrElse("false").toBoolean
 
   // Whether to build Shark with Tachyon jar.
-  val TACHYON_ENABLED = true
+  val TACHYON_ENABLED = false
 
   lazy val root = Project(
     id = "root",
@@ -55,9 +55,10 @@ object SharkBuild extends Build {
   val excludeHadoop = ExclusionRule(organization = "org.apache.hadoop")
   val excludeNetty = ExclusionRule(organization = "org.jboss.netty")
   val excludeCurator = ExclusionRule(organization = "org.apache.curator")
-  val excludeJackson = ExclusionRule(organization = "org.codehaus.jackson")
   val excludeAsm = ExclusionRule(organization = "asm")
   val excludeSnappy = ExclusionRule(organization = "org.xerial.snappy")
+  // Differences in Jackson version cause runtime errors as per HIVE-3581
+  val excludeJackson = ExclusionRule(organization = "org.codehaus.jackson")
 
   def coreSettings = Defaults.defaultSettings ++ Seq(
 

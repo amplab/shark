@@ -24,6 +24,8 @@ import scala.collection.JavaConversions._
 
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hive.conf.HiveConf
+import org.apache.hadoop.hive.ql.exec.{ExplainTask, Task}
+import org.apache.hadoop.hive.ql.hooks.ReadEntity;
 import org.apache.hadoop.hive.ql.{Context, DriverContext, QueryPlan}
 import org.apache.hadoop.hive.ql.exec.{ExplainTask, Task}
 import org.apache.hadoop.hive.ql.plan.ExplainWork
@@ -36,8 +38,9 @@ class SharkExplainWork(
   resFile: String,
   rootTasks: JavaList[Task[_ <: java.io.Serializable]],
   astStringTree: String,
+  inputs: HashSet[ReadEntity],
   extended: Boolean)
- extends ExplainWork(resFile, rootTasks, astStringTree, extended, false)
+ extends ExplainWork(resFile, rootTasks, astStringTree, inputs, extended, false, false)
 
 
 /**

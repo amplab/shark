@@ -42,17 +42,20 @@ abstract class CommonJoinOperator[T <: JoinDesc] extends NaryOperator[T] {
   @BeanProperty var nullCheck: Boolean = _
 
   @transient
-  var joinVals: JavaHashMap[java.lang.Byte, JavaList[ExprNodeEvaluator]] = _
+  var tagLen: Int = _
   @transient
-  var joinFilters: JavaHashMap[java.lang.Byte, JavaList[ExprNodeEvaluator]] = _
+  var joinVals: Array[JavaList[ExprNodeEvaluator]] = _
   @transient
-  var joinValuesObjectInspectors: JavaHashMap[java.lang.Byte, JavaList[ObjectInspector]] = _
+  var joinFilters: Array[JavaList[ExprNodeEvaluator]] = _
   @transient
-  var joinFilterObjectInspectors: JavaHashMap[java.lang.Byte, JavaList[ObjectInspector]] = _
+  var joinValuesObjectInspectors: Array[JavaList[ObjectInspector]] = _
   @transient
-  var joinValuesStandardObjectInspectors: JavaHashMap[java.lang.Byte, JavaList[ObjectInspector]] = _
+  var joinFilterObjectInspectors: Array[JavaList[ObjectInspector]] = _
+  @transient
+  var joinValuesStandardObjectInspectors: Array[JavaList[ObjectInspector]] = _
 
   @transient var noOuterJoin: Boolean = _
+  @transient var filterMap: Array[Array[Int]] = _
 
   override def initializeOnMaster() {
     super.initializeOnMaster()
@@ -71,21 +74,24 @@ abstract class CommonJoinOperator[T <: JoinDesc] extends NaryOperator[T] {
   override def initializeOnSlave() {
 
     noOuterJoin = conf.isNoOuterJoin
+    filterMap = conf.getFilterMap
 
-    joinVals = new JavaHashMap[java.lang.Byte, JavaList[ExprNodeEvaluator]]
+    tagLen = conf.getTagLength()
+
+    joinVals = new Array[JavaList[ExprNodeEvaluator]](tagLen)
     HiveJoinUtil.populateJoinKeyValue(
       joinVals, conf.getExprs(), order, CommonJoinOperator.NOTSKIPBIGTABLE)
 
-    joinFilters = new JavaHashMap[java.lang.Byte, JavaList[ExprNodeEvaluator]]
+    joinFilters = new Array[JavaList[ExprNodeEvaluator]](tagLen)
     HiveJoinUtil.populateJoinKeyValue(
       joinFilters, conf.getFilters(), order, CommonJoinOperator.NOTSKIPBIGTABLE)
 
     joinValuesObjectInspectors = HiveJoinUtil.getObjectInspectorsFromEvaluators(
-      joinVals, objectInspectors.toArray, CommonJoinOperator.NOTSKIPBIGTABLE)
+      joinVals, objectInspectors.toArray, CommonJoinOperator.NOTSKIPBIGTABLE, tagLen)
     joinFilterObjectInspectors = HiveJoinUtil.getObjectInspectorsFromEvaluators(
-      joinFilters, objectInspectors.toArray, CommonJoinOperator.NOTSKIPBIGTABLE)
+      joinFilters, objectInspectors.toArray, CommonJoinOperator.NOTSKIPBIGTABLE, tagLen)
     joinValuesStandardObjectInspectors = HiveJoinUtil.getStandardObjectInspectors(
-      joinValuesObjectInspectors, CommonJoinOperator.NOTSKIPBIGTABLE)
+      joinValuesObjectInspectors, CommonJoinOperator.NOTSKIPBIGTABLE, tagLen)
   }
   
   // copied from the org.apache.hadoop.hive.ql.exec.CommonJoinOperator

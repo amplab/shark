@@ -66,7 +66,7 @@ private[shark] object HiveUtils {
    */
   def makeUnionOIForPartitionedTable(
       partProps: Properties,
-      partSerDe: Deserializer): UnionStructObjectInspector = {
+      tableSerDe: Deserializer): UnionStructObjectInspector = {
     val partCols = partProps.getProperty(META_TABLE_PARTITION_COLUMNS)
     val partColNames = new JArrayList[String]
     val partColObjectInspectors = new JArrayList[ObjectInspector]
@@ -78,7 +78,7 @@ private[shark] object HiveUtils {
     val partColObjectInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
       partColNames, partColObjectInspectors)
     val oiList = JArrays.asList(
-      partSerDe.getObjectInspector.asInstanceOf[StructObjectInspector],
+      tableSerDe.getObjectInspector.asInstanceOf[StructObjectInspector],
       partColObjectInspector.asInstanceOf[StructObjectInspector])
     // New oi is union of table + partition object inspectors
     ObjectInspectorFactory.getUnionStructObjectInspector(oiList)

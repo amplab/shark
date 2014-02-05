@@ -20,12 +20,16 @@ package org.apache.hadoop.hive.ql.exec
 
 import java.util.{ArrayList => JArrayList, HashMap => JHashMap}
 
+import scala.collection.immutable.BitSet.BitSet1
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.BeanProperty
 
 import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.hadoop.hive.ql.plan.{AggregationDesc, ExprNodeDesc, GroupByDesc}
+import org.apache.hadoop.hive.ql.exec.{GroupByOperator => HiveGroupByOperator}
+import org.apache.hadoop.hive.ql.plan.AggregationDesc
+import org.apache.hadoop.hive.ql.plan.{ExprNodeConstantDesc, ExprNodeDesc}
+import org.apache.hadoop.hive.ql.plan.GroupByDesc
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator.AggregationBuffer
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorFactory,
@@ -62,6 +66,14 @@ class GroupByPreShuffleOperator extends UnaryOperator[GroupByDesc] {
 
   @transient var aggregationIsDistinct: Array[Boolean] = _
   @transient var currentKeyObjectInspectors: Array[ObjectInspector] = _
+
+  // Grouping set related properties.
+  @transient var groupingSetsPresent: Boolean = _
+  @transient var groupingSets: java.util.List[java.lang.Integer] = _
+  @transient var groupingSetsPosition: Int = _
+  @transient var newKeysGroupingSets: Array[Object] = _
+  @transient var groupingSetsBitSet: Array[BitSet1] = _
+  @transient var cloneNewKeysArray: Array[Object] = _
 
   def createLocals() {
     aggregationEvals = conf.getAggregators.map(_.getGenericUDAFEvaluator).toArray
@@ -107,6 +119,51 @@ class GroupByPreShuffleOperator extends UnaryOperator[GroupByDesc] {
       getStandardStructObjectInspector(keyFieldNames, keyois)
 
     keyFactory = new KeyWrapperFactory(keyFields, keyObjectInspectors, currentKeyObjectInspectors)
+    
+    // Initializations for grouping set.
+    groupingSetsPresent = conf.isGroupingSetsPresent()
+    if (groupingSetsPresent) {
+      groupingSets = conf.getListGroupingSets()
+      groupingSetsPosition = conf.getGroupingSetPosition()
+      newKeysGroupingSets = new Array[Object](groupingSets.size)
+      groupingSetsBitSet = new Array[BitSet1](groupingSets.size)
+      cloneNewKeysArray = new Array[Object](groupingSets.size)
+
+      groupingSets.zipWithIndex.foreach { case(groupingSet, i) =>
+        val groupingSetValueEvaluator: ExprNodeEvaluator =
+          ExprNodeEvaluatorFactory.get(new ExprNodeConstantDesc(String.valueOf(groupingSet)));
+
+        newKeysGroupingSets(i) = groupingSetValueEvaluator.evaluate(null)
+        groupingSetsBitSet(i) = new BitSet1(groupingSet.longValue())
+      }
+    }
+  }
+
+  protected final def getNewKeysIterator (newKeysArray: Array[Object]): Iterator[Unit] = {
+    // This iterator abstracts the operation that gets an array of groupby keys for the next
+    // grouping set of the grouping sets and makes such logic re-usable in several places.
+    //
+    // Initially, newKeysArray is an array containing all groupby keys for the superset of
+    // grouping sets. next() method updates newKeysArray to be an array of groupby keys for
+    // the next grouping set.
+    new Iterator[Unit]() {
+      Array.copy(newKeysArray, 0, cloneNewKeysArray, 0, groupingSetsPosition)
+      var groupingSetIndex = 0
+
+      override def hasNext: Boolean = groupingSetIndex < groupingSets.size
+
+      // Update newKeys according to the current grouping set.
+      override def next(): Unit = {
+        for (i <- 0 until groupingSetsPosition) {
+          newKeysArray(i) = null
+        }
+        groupingSetsBitSet(groupingSetIndex).foreach {keyIndex =>
+          newKeysArray(keyIndex) = cloneNewKeysArray(keyIndex)
+        }
+        newKeysArray(groupingSetsPosition) = newKeysGroupingSets(groupingSetIndex)
+        groupingSetIndex += 1
+      }
+    }
   }
   
   def createRemotes() {
@@ -157,22 +214,30 @@ class GroupByPreShuffleOperator extends UnaryOperator[GroupByDesc] {
       numRowsInput += 1
 
       newKeys.getNewKey(row, rowInspector)
-      newKeys.setHashKey()
+      val newKeysIter =
+        if (groupingSetsPresent) getNewKeysIterator(newKeys.getKeyArray) else null
 
-      var aggs = hashAggregations.get(newKeys)
-      var isNewKey = false
-      if (aggs == null) {
-        isNewKey = true
-        val newKeyProber = newKeys.copyKey()
-        aggs = newAggregations()
-        hashAggregations.put(newKeyProber, aggs)
-        numRowsHashTbl += 1
-      }
-      if (isNewKey) {
-        aggregateNewKey(row, aggs)
-      } else {
-        aggregateExistingKey(row, aggs)
-      }
+      do {
+        if (groupingSetsPresent) {
+          newKeysIter.next
+        }
+        newKeys.setHashKey()
+
+        var aggs = hashAggregations.get(newKeys)
+        var isNewKey = false
+        if (aggs == null) {
+          isNewKey = true
+          val newKeyProber = newKeys.copyKey()
+          aggs = newAggregations()
+          hashAggregations.put(newKeyProber, aggs)
+          numRowsHashTbl += 1
+        }
+        if (isNewKey) {
+          aggregateNewKey(row, aggs)
+        } else {
+          aggregateExistingKey(row, aggs)
+        }
+      } while (groupingSetsPresent && newKeysIter.hasNext)
 
       // Disable partial hash-based aggregation if desired minimum reduction is
       // not observed after initial interval.
@@ -204,25 +269,42 @@ class GroupByPreShuffleOperator extends UnaryOperator[GroupByDesc] {
         i += 1
       }
       outputCache
-    } ++
-    // Concatenate with iterator for remaining rows not in hashAggregations.
-    iter.map { case row: AnyRef =>
-      newKeys.getNewKey(row, rowInspector)
-      val newAggrKey = newKeys.copyKey()
-      val aggrs = newAggregations()
-      aggregateNewKey(row, aggrs)
-      val keyArr = newAggrKey.getKeyArray()
-      var i = 0
-      while (i < keyArr.length) {
-        outputCache(i) = keyArr(i)
-        i += 1
+    } ++ {
+      // Concatenate with iterator for remaining rows not in hashAggregations.
+      val newIter = iter.map { case row: AnyRef =>
+        newKeys.getNewKey(row, rowInspector)
+        val newAggrKey = newKeys.copyKey()
+        val aggrs = newAggregations()
+        aggregateNewKey(row, aggrs)
+        val keyArr = newAggrKey.getKeyArray()
+        var i = 0
+        while (i < keyArr.length) {
+          outputCache(i) = keyArr(i)
+          i += 1
+        }
+        i = 0
+        while (i < aggrs.length) {
+          outputCache(i + keyArr.length) = aggregationEvals(i).evaluate(aggrs(i))
+          i += 1
+        }
+        outputCache
       }
-      i = 0
-      while (i < aggrs.length) {
-        outputCache(i + keyArr.length) = aggregationEvals(i).evaluate(aggrs(i))
-        i += 1
+      if (groupingSetsPresent) {
+        val outputBuffer = new Array[Array[Object]](groupingSets.size)
+        newIter.flatMap { row: Array[Object] =>
+          val newKeysIter = getNewKeysIterator(row)
+
+          var i = 0
+          while (newKeysIter.hasNext) {
+            newKeysIter.next
+            outputBuffer(i) = row.clone()
+            i += 1
+          }
+          outputBuffer
+        }
+      } else {
+        newIter
       }
-      outputCache
     }
   }
 

@@ -132,7 +132,7 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
   def makeRDDForPartitionedTable(
       partitionToDeserializer: Map[HivePartition, Class[_ <: Deserializer]],
       filterOpt: Option[PathFilter]): RDD[_] = {
-    val hivePartitionRDDs = partitionToDeserializer.map { case (partition, partDeserializer) =>
+    val hivePartitionRDDs = partitionToDeserializer.map { case (partition, partSerDeClass) =>
       val partDesc = Utilities.getPartitionDesc(partition)
       val partPath = partition.getPartitionPath
       val inputPathStr = applyFilterIfNeeded(partPath, filterOpt)
@@ -153,19 +153,41 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
       }
 
       // Create local references so that the outer object isn't serialized.
-      val tableDesc = _tableDesc
+      val tableDesc = partDesc.getTableDesc
       val broadcastedHiveConf = _broadcastedHiveConf
-      val localDeserializer = partDeserializer
 
+      val partSerde = partSerDeClass.newInstance()
+      val tableSerde = tableDesc.getDeserializerClass().newInstance()
+      partSerDe.initialize(broadcastedHiveConf.value.value, partProps)
+      tableSerDe.initialize
+      val partTblObjectInspectorConverter = ObjectInspectorConverters.getConverter(
+        partSerde.getObjectInspector(), tblConvertedOI)
       val hivePartitionRDD = createHadoopRdd(tableDesc, inputPathStr, ifc)
       hivePartitionRDD.mapPartitions { iter =>
+
         val hconf = broadcastedHiveConf.value.value
         val rowWithPartArr = new Array[Object](2)
         // Map each tuple to a row object
         iter.map { value =>
-          val deserializer = localDeserializer.newInstance()
-          deserializer.initialize(hconf, partProps)
-          val deserializedRow = deserializer.deserialize(value) // LazyStruct
+          val deserializedRow = {
+
+            // If partition schema does not match table schema, update the row to match
+            val convertedRow = partTblObjectInspectorConverter.convert(partSerde.deserialize(value))
+
+            // If conversion was performed, convertedRow will be a standard Object, but if
+            // conversion wasn't necessary, it will still be lazy. We can't have both across
+            // partitions, so we serialize and deserialize again to make it lazy.
+            if (tableSerde.isInstanceOf[OrcSerde]) {
+              convertedRow
+            } else {
+              convertedRow match {
+                case _: LazyStruct => convertedRow
+                case _ => tableSerde.deserialize(
+                  tableSerde.asInstanceOf[Serializer].serialize(
+                    convertedRow, tblConvertedOI))
+              }
+            }
+          }
           rowWithPartArr.update(0, deserializedRow)
           rowWithPartArr.update(1, partValues)
           rowWithPartArr.asInstanceOf[Object]

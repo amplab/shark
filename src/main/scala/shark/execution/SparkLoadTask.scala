@@ -376,15 +376,15 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
       // Read, materialize, and store a columnar-backed RDD for `partSpec`.
       val partitionKey = MemoryMetadataManager.makeHivePartitionKeyStr(partCols, partSpec)
       val partition = db.getPartition(hiveTable, partSpec, false /* forceCreate */)
-      val partSerDe = partition.getDeserializer()
-      val partSchema = partition.getSchema
-      partSerDe.initialize(conf, partSchema)
+      val partDesc = Utilities.getPartitionDesc(partition)
+      val tableDesc = Utilities.getTableDesc()
+      val tableSerDe = tableDesc.getDeserializerClass().newInstance()
+      tableSerde.initialize(hconf, tableDesc.getProperties())
       // Get a UnionStructObjectInspector that unifies the two StructObjectInspectors for the table
       // columns and the partition columns.
-      val unionOI = HiveUtils.makeUnionOIForPartitionedTable(partSchema, partSerDe)
+      val unionOI = HiveUtils.makeUnionOIForPartitionedTable(partition.getSchema, tableSerDe)
       // Create a HadoopRDD for the file scan.
-      val inputRDD = hadoopReader.makeRDDForPartitionedTable(
-        Map(partition -> partSerDe.getClass), pathFilterOpt)
+      val inputRDD = hadoopReader.makeRDDForPartitionedTable(partition, pathFilterOpt)
       val (tablePartitionRDD, tableStats) = materialize(
         inputRDD,
         SparkLoadTask.addPartitionInfoToSerDeProps(partCols, partition.getSchema),
