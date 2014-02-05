@@ -22,6 +22,7 @@ import java.io.{DataInput, DataOutput}
 import scala.collection.JavaConversions._
 
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.StructField
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 import org.apache.hadoop.io.Writable
 
@@ -33,22 +34,19 @@ import shark.memstore2.column.ColumnBuilder
  * partition of data into columnar format and to generate a TablePartition.
  */
 class TablePartitionBuilder(
-    ois: Seq[ObjectInspector],
+    oi: StructObjectInspector,
     initialColumnSize: Int,
-    shouldCompress: Boolean)
+    shouldCompress: Boolean = true)
   extends Writable {
 
-  def this(oi: StructObjectInspector, initialColumnSize: Int, shouldCompress: Boolean = true) = {
-    this(oi.getAllStructFieldRefs.map(_.getFieldObjectInspector), initialColumnSize, shouldCompress)
-  }
-
   private var numRows: Long = 0
+  val fields: Seq[_ <: StructField] = oi.getAllStructFieldRefs
 
-  private val columnBuilders: Array[ColumnBuilder[_]] = ois.map { oi =>
-    val columnBuilder = ColumnBuilder.create(oi, shouldCompress)
-    columnBuilder.initialize(initialColumnSize)
+  val columnBuilders = Array.tabulate[ColumnBuilder[_]](fields.size) { i =>
+    val columnBuilder = ColumnBuilder.create(fields(i), shouldCompress)
+    columnBuilder.initialize(initialColumnSize, fields(i).getFieldName)
     columnBuilder
-  }.toArray
+  }
 
   def incrementRowCount() {
     numRows += 1
