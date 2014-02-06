@@ -186,12 +186,12 @@ class CompressionAlgorithmSuite extends FunSuite {
     assert(!compressedBuffer.hasRemaining)
   }
 
-  test("ByteDeltaEncoding Int") {
+  test("IntDeltaEncoding") {
     val b = ByteBuffer.allocate(1024)
     b.order(ByteOrder.nativeOrder())
     b.putInt(INT.typeID)
 
-    val bde = new ByteDeltaEncoding[Int]
+    val bde = new IntDeltaEncoding
 
     val x = 1
     b.putInt(x)
@@ -209,7 +209,7 @@ class CompressionAlgorithmSuite extends FunSuite {
     b.rewind()
     val compressedBuffer = bde.compress(b, INT)
     assert(compressedBuffer.getInt() == INT.typeID)
-    assert(compressedBuffer.getInt() == ByteDeltaCompressionType.typeID)
+    assert(compressedBuffer.getInt() == IntDeltaCompressionType.typeID)
 
     compressedBuffer.get() // first flagByte
     assert(INT.extract(compressedBuffer).equals(x))
@@ -223,12 +223,12 @@ class CompressionAlgorithmSuite extends FunSuite {
     assert(!compressedBuffer.hasRemaining)
   }
 
-  test("ByteDeltaEncoding Long") {
+  test("LongDeltaEncoding") {
     val b = ByteBuffer.allocate(10024)
     b.order(ByteOrder.nativeOrder())
     b.putInt(LONG.typeID)
 
-    val bde = new ByteDeltaEncoding[Long]()
+    val bde = new LongDeltaEncoding
 
     val x: Long = 1
     b.putLong(x)
@@ -246,7 +246,7 @@ class CompressionAlgorithmSuite extends FunSuite {
     b.rewind()
     val compressedBuffer = bde.compress(b, LONG)
     assert(compressedBuffer.getInt() === LONG.typeID)
-    assert(compressedBuffer.getInt() === ByteDeltaCompressionType.typeID)
+    assert(compressedBuffer.getInt() === LongDeltaCompressionType.typeID)
 
     compressedBuffer.get() // first flagByte
     assert(LONG.extract(compressedBuffer).equals(x))

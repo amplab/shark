@@ -156,13 +156,13 @@ class CompressedColumnIteratorSuite extends FunSuite {
   }
 
   test("BooleanBitSet Boolean (shorter)") {
-    // 1 Long worth of Booleans, in addtion to the length field: 4+8
+    // 1 Long worth of Booleans, in addition to the length field: 4+8
     val bools = Seq(true, true, false, false)
     testList(bools, BOOLEAN, new BooleanBitSetCompression, 4+8)
   }
 
   test("BooleanBitSet Boolean (longer)") {
-    // 2 Longs worth of Booleans, in addtion to the length field: 4+8+8
+    // 2 Longs worth of Booleans, in addition to the length field: 4+8+8
     val bools = Seq(true, true, false, false, true, true, false, false,true, true, false, false,true, true, false, false,
       true, true, false, false,true, true, false, false, true, true, false, false,true, true, false, false,
       true, true, false, false,true, true, false, false, true, true, false, false,true, true, false, false,
@@ -177,44 +177,66 @@ class CompressedColumnIteratorSuite extends FunSuite {
     testList(bools, BOOLEAN, new BooleanBitSetCompression, 4+8, shouldNotCompress = true)
   }
 
-  test("ByteDeltaEncoding Int") {
+  test("IntDeltaEncoding") {
     // base 5 + 4 small diffs + newBase 5 = 14
     val ints = Seq[Int](1000000, 1000001, 1000002, 1000003, 1000004, 5)
-    testList(ints, INT, new ByteDeltaEncoding[Int], 5 + 4 + 5)
+    testList(ints, INT, new IntDeltaEncoding, 5 + 4 + 5)
 
     val ints2 = Seq[Int](1000000, 1000001, 1000000, 1000004, 1000001, 5)
-    testList(ints2, INT, new ByteDeltaEncoding[Int], 5 + 4 + 5)
+    testList(ints2, INT, new IntDeltaEncoding, 5 + 4 + 5)
 
-    testList(List(0, 62),      INT, new ByteDeltaEncoding[Int], 1 + 4 + 1)
-    testList(List(0, 63),      INT, new ByteDeltaEncoding[Int], 1 + 4 +  1)
-    testList(List(0, 64),      INT, new ByteDeltaEncoding[Int], 1 + 4 +  1 + 4)
-    testList(List(0, 63, 64),  INT, new ByteDeltaEncoding[Int], 1 + 4 +  1 +  1)
-    testList(List(0, 64, -25), INT, new ByteDeltaEncoding[Int], 1 + 4 +  1 + 4 +  1 + 4)
+    testList(List(0, 62),      INT, new IntDeltaEncoding, 1 + 4 + 1)
+    testList(List(0, 63),      INT, new IntDeltaEncoding, 1 + 4 +  1)
+    testList(List(0, 64),      INT, new IntDeltaEncoding, 1 + 4 + 1)
+    testList(List(0, 63, 64),  INT, new IntDeltaEncoding, 1 + 4 + 1 + 1)
+    testList(List(0, 128, -125), INT, new IntDeltaEncoding, 1 + 4 + 1 + 4 +  1 + 4)
 
-    testList(List(0, 12400, 12500, 100, 200), INT, new ByteDeltaEncoding[Int], 5*5)
-    testList(Range(-4, 0), INT, new ByteDeltaEncoding[Int], 1 + 4 + 3)
+    testList(List(0, 12400, 12600, 100, 228), INT, new IntDeltaEncoding, 5 * 5)
+    testList(Range(-4, 0), INT, new IntDeltaEncoding, 1 + 4 + 3)
 
     val ints3 = Range(0, Byte.MaxValue.toInt - 1)
-    testList(ints3, INT, new ByteDeltaEncoding[Int], 1 + 4 + 125)
-
-    val skips = ints3.map { x => 100*x }
-    testList(skips, INT, new ByteDeltaEncoding[Int], 1 + 4 + 5*125)
+    testList(ints3, INT, new IntDeltaEncoding, 1 + 4 + 125)
 
     val ints4 = Range(Byte.MinValue.toInt + 2, 0)
-    testList(ints4, INT, new ByteDeltaEncoding[Int], 1 + 4 + 125)
+    testList(ints4, INT, new IntDeltaEncoding, 1 + 4 + 125)
   }
 
-  test("ByteDeltaEncoding Long") {
+  test("LongDeltaEncoding") {
     // base 9 + 3 small deltas + newBase 9 + 2 small deltas = 23
     val longs = Seq[Long](2147483649L, 2147483649L, 2147483649L, 2147483649L, 500L, 500L, 500L)
-    testList(longs, LONG, new ByteDeltaEncoding[Long], 23)
+    testList(longs, LONG, new LongDeltaEncoding, 23)
   }
 
-  test("ByteDeltaEncoding should not compress") {
-    val skips = Range(0, 1000).map { x => 100*x }
-    testList(skips, INT, new ByteDeltaEncoding[Int], 1 + 4 + (5*999))
+  test("int delta encoding boundary condition") {
+    // 127 deltas are fine, while 128 are not.
+    var skips = Range(0, 1000).map { x => -127 * x }
+    testList(skips, INT, new IntDeltaEncoding, 1 + 4 + 999)
+
+    skips = Range(0, 1000).map { x => 127 * x }
+    testList(skips, INT, new IntDeltaEncoding, 1 + 4 + 999)
+
+    skips = Range(0, 1000).map { x => 128 * x }
+    testList(skips, INT, new IntDeltaEncoding, 1 + 4 + (5 * 999))
+
+    skips = Range(0, 1000).map { x => -128 * x }
+    testList(skips, INT, new IntDeltaEncoding, 1 + 4 + (5 * 999))
+  }
+
+  test("long delta encoding boundary condition") {
+    // 127 deltas are fine, while 128 are not.
+    var skips = Range(0, 1000).map { x => (-127 * x).toLong }
+    testList(skips, LONG, new LongDeltaEncoding, 1 + 8 + 999)
+
+    skips = Range(0, 1000).map { x => (127 * x).toLong }
+    testList(skips, LONG, new LongDeltaEncoding, 1 + 8 + 999)
+
+    skips = Range(0, 1000).map { x => (128 * x).toLong }
+    testList(skips, LONG, new LongDeltaEncoding, 1 + 8 + (9 * 999))
+
+    skips = Range(0, 1000).map { x => (-128 * x).toLong }
+    testList(skips, LONG, new LongDeltaEncoding, 1 + 8 + (9 * 999))
   }
 }
 
 class TestIterator(val buffer: ByteBuffer, val columnType: ColumnType[_,_])
-    extends CompressedColumnIterator
+  extends CompressedColumnIterator

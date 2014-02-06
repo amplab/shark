@@ -124,12 +124,12 @@ class ColumnStatsSuite extends FunSuite {
 
     c = new ColumnStats.IntColumnStats
     Array(22, 1, 24).foreach(c.append)
-    assert(c:=13 == true)
-    assert(c:>13 == true)
-    assert(c:<13 == true)
-    assert(c:=0 == false)
-    assert(c:>25 == false)
-    assert(c:<1 == false)
+    assert(c := 13 === true)
+    assert(c :> 13 === true)
+    assert(c :< 13 === true)
+    assert(c := 0  === false)
+    assert(c :> 25 === false)
+    assert(c :< 1  === false)
   }
 
   test("LongColumnStats") {

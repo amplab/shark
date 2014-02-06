@@ -26,7 +26,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.Pr
 import org.apache.hadoop.hive.serde2.objectinspector.StructField
 
 import shark.LogHelper
-import shark.memstore2.column
+
 
 trait ColumnBuilder[T] {
 
@@ -36,7 +36,9 @@ trait ColumnBuilder[T] {
 
   private var _buffer: ByteBuffer = _
   private var _initialSize: Int = _
-  var columnName: String = _
+  private var _columnName: String = _
+
+  def columnName: String = _columnName
 
   def append(o: Object, oi: ObjectInspector) {
     val v = t.get(o, oi)
@@ -60,9 +62,10 @@ trait ColumnBuilder[T] {
    * of elements in this column.
    */
   def initialize(initialSize: Int, colName: String = ""): ByteBuffer = {
-    columnName = colName
-    _initialSize = if(initialSize == 0) 1024*1024*10 else initialSize
-    _buffer = ByteBuffer.allocate(_initialSize*t.defaultSize + 4 + 4)
+    _columnName = colName
+    // Use 10MB as the initial size for the column if it is not specified.
+    _initialSize = if (initialSize == 0) 1024 * 1024 * 10 else initialSize
+    _buffer = ByteBuffer.allocate(_initialSize * t.defaultSize + 4 + 4)
     _buffer.order(ByteOrder.nativeOrder())
     _buffer.putInt(t.typeID)
   }
@@ -88,7 +91,7 @@ trait ColumnBuilder[T] {
 }
 
 class DefaultColumnBuilder[T](val stats: ColumnStats[T], val t: ColumnType[T, _])
-  extends CompressedColumnBuilder[T] with NullableColumnBuilder[T]{}
+  extends CompressedColumnBuilder[T] with NullableColumnBuilder[T]
 
 
 trait CompressedColumnBuilder[T] extends ColumnBuilder[T] with LogHelper {
@@ -117,8 +120,7 @@ trait CompressedColumnBuilder[T] extends ColumnBuilder[T] with LogHelper {
 
     if (compressionSchemes.isEmpty) {
       val strType: String = scheme.compressionType
-      logInfo("Compression scheme chosen for [%s] is %s - no compression".
-        format(columnName, strType))
+      logInfo(s"Compression scheme chosen for [$columnName] is $strType - no compression")
       new NoCompression().compress(b, t)
     } else {
       val candidateScheme = scheme.compressionType match {
@@ -127,9 +129,8 @@ trait CompressedColumnBuilder[T] extends ColumnBuilder[T] with LogHelper {
       }
 
       val strType: String = candidateScheme.compressionType
-      logInfo("Compression scheme chosen for [%s] is %s with ratio %f".
-        format(columnName, strType,
-          candidateScheme.compressionRatio))
+      logInfo(s"Compression scheme chosen for [$columnName] is $strType with ratio " +
+        candidateScheme.compressionRatio)
       if (shouldApply(candidateScheme)) {
         candidateScheme.compress(b, t)
       } else {
@@ -143,21 +144,14 @@ trait CompressedColumnBuilder[T] extends ColumnBuilder[T] with LogHelper {
 object ColumnBuilder {
 
   def create(structField: StructField, shouldCompress: Boolean = true): ColumnBuilder[_] = {
-    var bde: CompressionAlgorithm = null
     val columnOi = structField.getFieldObjectInspector
 
     val v = columnOi.getCategory match {
       case ObjectInspector.Category.PRIMITIVE => {
         columnOi.asInstanceOf[PrimitiveObjectInspector].getPrimitiveCategory match {
           case PrimitiveCategory.BOOLEAN   => new BooleanColumnBuilder
-          case PrimitiveCategory.INT       => {
-            bde = new ByteDeltaEncoding[Int]
-            new IntColumnBuilder
-          }
-          case PrimitiveCategory.LONG      => {
-            bde = new ByteDeltaEncoding[Long]
-            new LongColumnBuilder
-          }
+          case PrimitiveCategory.INT       => new IntColumnBuilder
+          case PrimitiveCategory.LONG      => new LongColumnBuilder
           case PrimitiveCategory.FLOAT     => new FloatColumnBuilder
           case PrimitiveCategory.DOUBLE    => new DoubleColumnBuilder
           case PrimitiveCategory.STRING    => new StringColumnBuilder
@@ -174,13 +168,13 @@ object ColumnBuilder {
       case _ => new GenericColumnBuilder(columnOi)
     }
     if (shouldCompress) {
-      v.compressionSchemes = Seq(new NoCompression,
+      v.compressionSchemes = Seq(
+        new NoCompression,
         new RLE,
         new BooleanBitSetCompression,
-        new DictionaryEncoding)
-      if(bde != null) {
-        v.compressionSchemes = bde +: v.compressionSchemes
-      }
+        new DictionaryEncoding,
+        new IntDeltaEncoding,
+        new LongDeltaEncoding)
     }
     v
   }

@@ -106,6 +106,9 @@ object INT extends ColumnType[Int, IntWritable](0, 4) {
     oi.asInstanceOf[IntObjectInspector].get(o)
   }
 
+  // Primitive version
+  def getInt(o: Object, oi: ObjectInspector): Int = oi.asInstanceOf[IntObjectInspector].get(o)
+
   override def extractInto(buffer: ByteBuffer, writable: IntWritable) {
     writable.set(extract(buffer))
   }
@@ -127,6 +130,9 @@ object LONG extends ColumnType[Long, LongWritable](1, 8) {
   override def get(o: Object, oi: ObjectInspector): Long = {
     oi.asInstanceOf[LongObjectInspector].get(o)
   }
+
+  // Primitive version
+  def getLong(o: Object, oi: ObjectInspector): Long = oi.asInstanceOf[LongObjectInspector].get(o)
 
   override def extractInto(buffer: ByteBuffer, writable: LongWritable) {
     writable.set(extract(buffer))
@@ -211,6 +217,7 @@ object BYTE extends ColumnType[Byte, ByteWritable](5, 1) {
   override def extract(buffer: ByteBuffer) = {
     buffer.get()
   }
+
   override def get(o: Object, oi: ObjectInspector): Byte = {
     oi.asInstanceOf[ByteObjectInspector].get(o)
   }
@@ -236,6 +243,9 @@ object SHORT extends ColumnType[Short, ShortWritable](6, 2) {
   override def get(o: Object, oi: ObjectInspector): Short = {
     oi.asInstanceOf[ShortObjectInspector].get(o)
   }
+
+  // Primitive version
+  def getShort(o: Object, oi: ObjectInspector): Short = oi.asInstanceOf[ShortObjectInspector].get(o)
 
   def extractInto(buffer: ByteBuffer, writable: ShortWritable) {
     writable.set(extract(buffer))

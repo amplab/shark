@@ -19,12 +19,9 @@ package shark.memstore2.column
 
 import java.nio.ByteBuffer
 
-import scala.Numeric.Implicits._
-
-import org.apache.hadoop.hive.serde2.io.{TimestampWritable, ShortWritable}
-import org.apache.hadoop.io._
+import org.apache.hadoop.hive.serde2.io.ShortWritable
 import org.apache.hadoop.hive.serde2.objectinspector.primitive._
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
+import org.apache.hadoop.io._
 
 import shark.memstore2.column.Implicits._
 
@@ -49,7 +46,8 @@ trait CompressedColumnIterator extends ColumnIterator {
       case RLECompressionType => new RLDecoder(buffer, columnType)
       case DictionaryCompressionType => new DictDecoder(buffer, columnType)
       case BooleanBitSetCompressionType => new BooleanBitSetDecoder(buffer, columnType)
-      case ByteDeltaCompressionType => new ByteDeltaDecoder(buffer, columnType)
+      case IntDeltaCompressionType => new ByteDeltaDecoder(buffer, columnType)
+      case LongDeltaCompressionType => new ByteDeltaDecoder(buffer, columnType)
       case _ => throw new UnsupportedOperationException()
     }
   }
@@ -164,18 +162,12 @@ class BooleanBitSetDecoder[V](
 }
 
 /**
- * ByteDelta decoding involves scanning one byte at a time and using the first bit of all flagbyte
- * to keep track of small deltas. When deltas are large, the flagbyte indicates that next fixed set
- * of types should be read to populate
+ * Decode delta encoding. See ByteDeltaEncoding for more information.
  */
 class ByteDeltaDecoder[T, W](buffer: ByteBuffer, columnType: ColumnType[T, W]) extends Iterator[W] {
 
-  var prev: W = columnType.newWritable()
-  var startedDecoding = false
-  var flagByte: Byte = _
-
+  private var prev: W = columnType.newWritable()
   private val current: W = columnType.newWritable()
-  private val byteWritable = BYTE.newWritable()
 
   override def hasNext = buffer.hasRemaining
 
@@ -183,50 +175,39 @@ class ByteDeltaDecoder[T, W](buffer: ByteBuffer, columnType: ColumnType[T, W]) e
     * Create a function that is set up to work with the right hive objects. Set this up beforehand
     * so that it is not called per row.
     */
-  private val deltaFunction = {
+  private val deltaFunction: (W, Byte) => W = {
     prev match {
-      case s: ShortWritable => {
-        (prev: W, flag: Byte) => {
-          val oi = PrimitiveObjectInspectorFactory.writableShortObjectInspector
-          val pvalue = flag.toShort +
-            columnType.get(prev.asInstanceOf[Object], oi).asInstanceOf[Short]
-          prev.asInstanceOf[ShortWritable].set(pvalue.toShort)
-          prev
-        }
-      }
-      case i: IntWritable => {
-        (prev: W, flag: Byte) => {
+      case i: IntWritable =>
+        (prev: W, delta: Byte) => {
           val oi = PrimitiveObjectInspectorFactory.writableIntObjectInspector
-          val pvalue = flag.toInt +
-            columnType.get(prev.asInstanceOf[Object], oi).asInstanceOf[Int]
-          prev.asInstanceOf[IntWritable].set(pvalue.toInt)
+          val pvalue = delta + INT.getInt(prev.asInstanceOf[Object], oi)
+          prev.asInstanceOf[IntWritable].set(pvalue)
           prev
         }
-      }
-      case l: LongWritable => {
-        (prev: W, flag: Byte) => {
+
+      case l: LongWritable =>
+        (prev: W, delta: Byte) => {
           val oi = PrimitiveObjectInspectorFactory.writableLongObjectInspector
-          val pvalue = flag.toLong +
-            columnType.get(prev.asInstanceOf[Object], oi).asInstanceOf[Long]
-          prev.asInstanceOf[LongWritable].set(pvalue.toLong)
+          val pvalue = delta + LONG.getLong(prev.asInstanceOf[Object], oi)
+          prev.asInstanceOf[LongWritable].set(pvalue)
           prev
         }
-      }
+
       case _ => throw new UnsupportedOperationException("Unsupported data type " + columnType)
     }
   }
 
   override def next(): W = {
-    flagByte = buffer.get()
+    val delta: Byte = buffer.get()
 
-    if (flagByte == ByteDeltaEncoding.newBaseValue || !startedDecoding) {
-      startedDecoding = true
+    if (delta > Byte.MinValue) {
+      // If it is greater than -128, apply the delta to the previous value.
+      deltaFunction(prev, delta)
+    } else {
+      // If it is -128, then read a whole new base value.
       columnType.extractInto(buffer, current)
       prev = current.asInstanceOf[W]
       current
-    } else {
-      val sevenBits = flagByte
-      deltaFunction(prev, sevenBits)
     }
   }
 }

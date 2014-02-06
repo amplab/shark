@@ -22,10 +22,6 @@ import java.nio.{ByteBuffer, ByteOrder}
 import scala.annotation.tailrec
 import scala.collection.mutable.{ArrayBuffer, HashMap}
 
-import spire.math._
-import spire.implicits._
-
-
 /**
  * API for Compression
  */
@@ -76,7 +72,9 @@ object DictionaryCompressionType extends CompressionType(1)
 
 object BooleanBitSetCompressionType extends CompressionType(2)
 
-object ByteDeltaCompressionType extends CompressionType(3)
+object IntDeltaCompressionType extends CompressionType(3)
+
+object LongDeltaCompressionType extends CompressionType(4)
 
 /**
  * An no-op compression.
@@ -369,37 +367,20 @@ class BooleanBitSetCompression extends CompressionAlgorithm {
 }
 
 /**
-  * Delta encoding for numeric columns. This algorithm encodes values into a single byte whenever
-  * the difference from the previous value (Delta) is small enough.
-  * A flag byte is always used for each value.
-  *
-  * The first bit of that flag byte acts as an escape code that identifies whether the next few
-  * bytes (fixed number based on Numeric Type) should be used or not.
-  *  0 implies there is a new baseValue in the following byte
-  *  1 implies that the delta is encoded into the next seven bits
-  *
-  * The best case is a small difference from previous value - small enough to fit in 7 bits - a
-  * single byte is used for encoding.
-  * The worst case is a large difference from previous value - the flag byte followed by the full
-  * unencoded value is stored in the buffer.
-  * Non-adaptive - does not use different number of bytes to adjust for differences.
-  */
-class ByteDeltaEncoding[@specialized(Int, Long) T: Integral] extends CompressionAlgorithm {
+ * Delta encoding for 32-bit integers. The integers are encoded as follows:
+ *
+ * The first byte is a delta byte. If the value of the delta byte is -128 (i.e. Byte.MinValue),
+ * we need to read the next 4 full bytes to get a new base value. If the value of the delta byte
+ * is anything else (i.e. from -127 inclusively to 127 inclusively), then its a delta value.
+ */
+class IntDeltaEncoding extends CompressionAlgorithm {
 
-  private var prev: T = _
-  private var startedEncoding = false
+  private var prev = 0
+  private var first = true
 
-  // Original size per value
-  def valueSize[T](v: T, t: ColumnType[T, _]): Int = t.actualSize(v)
+  override def compressionType = IntDeltaCompressionType
 
-  override def compressionType = ByteDeltaCompressionType
-
-  override def supportsType(t: ColumnType[_, _]) = { 
-    t match {
-      case LONG | INT => true
-      case _ => false
-    }
-  }
+  override def supportsType(t: ColumnType[_, _]) = t == INT
 
   var _compressedSize: Int = 0
   var _uncompressedSize: Int = 0
@@ -407,60 +388,45 @@ class ByteDeltaEncoding[@specialized(Int, Long) T: Integral] extends Compression
   override def uncompressedSize: Int = _uncompressedSize
   override def compressedSize: Int = _compressedSize
 
-  def deltaCoder[V](current: V, t: ColumnType[V, _],
-    full: () => Unit,
-    delta: () => Unit) {
-
-    val diff: T = current.asInstanceOf[T] - prev.asInstanceOf[T]
-
-    if ((Byte.MaxValue < 2*diff.abs) || !startedEncoding) {
-      full()
-      prev = current.asInstanceOf[T]
-      startedEncoding = true
+  override def gatherStatsForCompressibility[T](v: T, t: ColumnType[T, _]) {
+    val currentValue = v.asInstanceOf[Int]
+    if (first) {
+      first = false
+      _compressedSize += 1 + INT.actualSize(currentValue) // always 1 + 4
+      prev = currentValue
     } else {
-      delta()
-      prev = current.asInstanceOf[T]
+      val delta = currentValue - prev
+      if (math.abs(delta) > 127) {
+        _compressedSize += 1 + INT.actualSize(currentValue) // 1 + 4
+      } else {
+        _compressedSize += 1
+      }
+      prev = currentValue
     }
-  }
-
-  override def gatherStatsForCompressibility[V](v: V, t: ColumnType[V, _]) {
-    val closureFull = () => { _compressedSize += (1 + valueSize(v, t)) }
-    val closureDelta = () => { _compressedSize += 1 }
-    val current = t.clone(v)
-    deltaCoder(current, t, closureFull, closureDelta)
-
-    _uncompressedSize += valueSize(v, t)
+    _uncompressedSize += INT.actualSize(currentValue)
   }
 
   override def compress[V](b: ByteBuffer, t: ColumnType[V, _]): ByteBuffer = {
+    first = true
 
-    startedEncoding = false // reset to start afresh
     // Leave 4 extra bytes for column type, another 4 for compression type - header
     val compressedBuffer = ByteBuffer.allocate(4 + 4 + compressedSize)
     compressedBuffer.order(ByteOrder.nativeOrder())
     compressedBuffer.putInt(b.getInt())
     compressedBuffer.putInt(compressionType.typeID)
 
-    while (b.hasRemaining()) {
-      val current = t.extract(b)
-      val diff: T = current.asInstanceOf[T] - prev.asInstanceOf[T]
+    while (b.hasRemaining) {
+      val current = INT.extract(b)
+      val delta = current - prev
+      prev = current
 
-      val closureFull = () => {
-        val flagByte: Byte = ByteDeltaEncoding.newBaseValue
-        compressedBuffer.put(flagByte)
-        t.append(current.asInstanceOf[V], compressedBuffer)
+      if (math.abs(delta) > 127 || first) {
+        first = false
+        compressedBuffer.put(Byte.MinValue)
+        INT.append(current, compressedBuffer)
+      } else {
+        compressedBuffer.put(delta.toByte)
       }
-
-      val closureDelta = () => {
-        // just storing the delta
-        val sevenBits: Byte = diff.toByte
-        // mark the first bit as 0 to indicate that this is a delta
-        val flagByte: Byte = sevenBits
-        compressedBuffer.put(flagByte)
-        ()
-      }
-
-      deltaCoder(current, t, closureFull, closureDelta)
     }
 
     compressedBuffer.rewind()
@@ -468,6 +434,70 @@ class ByteDeltaEncoding[@specialized(Int, Long) T: Integral] extends Compression
   }
 }
 
-object ByteDeltaEncoding {
-  val newBaseValue: Byte = 0x7F
+/**
+ * Delta encoding for 64-bit integers. The integers are encoded as follows:
+ *
+ * The first byte is a delta byte. If the value of the delta byte is -128 (i.e. Byte.MinValue),
+ * we need to read the next 8 full bytes to get a new base value. If the value of the delta byte
+ * is anything else (i.e. from -127 inclusively to 127 inclusively), then its a delta value.
+ */
+class LongDeltaEncoding extends CompressionAlgorithm {
+
+  private var prev = 0L
+  private var first = true
+
+  override def compressionType = LongDeltaCompressionType
+
+  override def supportsType(t: ColumnType[_, _]) = t == LONG
+
+  var _compressedSize: Int = 0
+  var _uncompressedSize: Int = 0
+
+  override def uncompressedSize: Int = _uncompressedSize
+  override def compressedSize: Int = _compressedSize
+
+  override def gatherStatsForCompressibility[T](v: T, t: ColumnType[T, _]) {
+    val currentValue = v.asInstanceOf[Long]
+    if (first) {
+      first = false
+      _compressedSize += 1 + LONG.actualSize(currentValue) // always 1 + 8
+      prev = currentValue
+    } else {
+      val delta = currentValue - prev
+      if (math.abs(delta) > 127) {
+        _compressedSize += 1 + LONG.actualSize(currentValue) // 1 + 8
+      } else {
+        _compressedSize += 1
+      }
+      prev = v.asInstanceOf[Long]
+    }
+    _uncompressedSize += LONG.actualSize(currentValue)
+  }
+
+  override def compress[V](b: ByteBuffer, t: ColumnType[V, _]): ByteBuffer = {
+    first = true
+
+    // Leave 4 extra bytes for column type, another 4 for compression type - header
+    val compressedBuffer = ByteBuffer.allocate(4 + 4 + compressedSize)
+    compressedBuffer.order(ByteOrder.nativeOrder())
+    compressedBuffer.putInt(b.getInt())
+    compressedBuffer.putInt(compressionType.typeID)
+
+    while (b.hasRemaining) {
+      val current = LONG.extract(b)
+      val delta = current - prev
+      prev = current
+
+      if (math.abs(delta) > 127 || first) {
+        first = false
+        compressedBuffer.put(Byte.MinValue)
+        LONG.append(current, compressedBuffer)
+      } else {
+        compressedBuffer.put(delta.toByte)
+      }
+    }
+
+    compressedBuffer.rewind()
+    compressedBuffer
+  }
 }

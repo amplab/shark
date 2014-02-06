@@ -53,7 +53,8 @@ object Implicits {
     case RLECompressionType.typeID => RLECompressionType
     case DictionaryCompressionType.typeID => DictionaryCompressionType
     case BooleanBitSetCompressionType.typeID => BooleanBitSetCompressionType
-    case ByteDeltaCompressionType.typeID => ByteDeltaCompressionType
+    case IntDeltaCompressionType.typeID => IntDeltaCompressionType
+    case LongDeltaCompressionType.typeID => LongDeltaCompressionType
     case _ => throw new MemoryStoreException("Unknown compression type " + i)
   }
 
@@ -62,7 +63,8 @@ object Implicits {
     case RLECompressionType => "RLE"
     case DictionaryCompressionType => "Dictionary"
     case BooleanBitSetCompressionType => "BooleanBitSet"
-    case ByteDeltaCompressionType => "ByteDelta"
+    case IntDeltaCompressionType => "IntDelta"
+    case LongDeltaCompressionType => "LongDelta"
     case _ => throw new MemoryStoreException("Unknown compression type " + c.typeID)
   }
 
