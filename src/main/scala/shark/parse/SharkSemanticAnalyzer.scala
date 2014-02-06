@@ -84,7 +84,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     reset()
 
     val qb = new QueryBlock(null, null, false)
-    val pctx = getParseContext()
+    var pctx = getParseContext()
     pctx.setQB(qb)
     pctx.setParseTree(ast)
     initParseCtx(pctx)
@@ -102,6 +102,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       super.analyzeInternal(ast)
       return
     } else if (astTokenType == HiveParser.TOK_CREATETABLE) {
+      init()
       // Use Hive to do a first analysis pass.
       super.analyzeInternal(ast)
       // Do post-Hive analysis of the CREATE TABLE (e.g detect caching mode).
@@ -190,7 +191,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                 // INSERT INTO or OVERWRITE update on a cached table.
                 qb.targetTableDesc = tableDesc
                 // If isInsertInto is true, the sink op is for INSERT INTO.
-                val isInsertInto = qbParseInfo.isInsertIntoTable(cachedTableName)
+                val isInsertInto = qbParseInfo.isInsertIntoTable(databaseName, cachedTableName)
                 val isPartitioned = hiveTable.isPartitioned
                 var hivePartitionKeyOpt = if (isPartitioned) {
                   Some(SharkSemanticAnalyzer.getHivePartitionKey(qb))
@@ -383,7 +384,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
             conf,
             hiveTable,
             partSpecOpt,
-            isOverwrite = !qb.getParseInfo.isInsertIntoTable(cachedTableName))
+            isOverwrite = !qb.getParseInfo.isInsertIntoTable(databaseName, cachedTableName))
         }
         // Add a SparkLoadTask as a dependent of all MoveTasks, so that when executed, the table's
         // (or table partition's) data directory will already contain updates that should be
@@ -495,7 +496,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         // SemanticAnalyzer#analyzeCreateTable(), in 'rootTasks'. The DDL tasks' execution succeeds
         // only if the CREATE TABLE is valid. So, hook a SharkDDLTask as a child of the Hive DDLTask
         // so that Shark metadata is updated only if the Hive task execution is successful.
-        val hiveDDLTask = ddlTasks.head;
+        val hiveDDLTask = ddlTasks.head
         val sharkDDLWork = new SharkDDLWork(createTableDesc)
         sharkDDLWork.cacheMode = cacheMode
         hiveDDLTask.addDependentTask(TaskFactory.get(sharkDDLWork, conf))

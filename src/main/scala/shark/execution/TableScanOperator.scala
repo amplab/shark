@@ -33,7 +33,7 @@ import org.apache.hadoop.hive.ql.plan.{TableDesc, TableScanDesc}
 import org.apache.hadoop.hive.ql.plan.PartitionDesc
 import org.apache.hadoop.hive.ql.plan.PlanUtils
 import org.apache.hadoop.hive.ql.metadata.{Partition, Table}
-import org.apache.hadoop.hive.serde.Constants
+import org.apache.hadoop.hive.serde.serdeConstants
 import org.apache.hadoop.hive.serde2.Serializer
 import org.apache.hadoop.hive.serde2.`lazy`.LazyStruct
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
@@ -114,7 +114,7 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
         tableDesc.getDeserializerClass().newInstance()
       }
       tableSerDe.initialize(hconf, tableDesc.getProperties)
-      HiveUtils.makeUnionOIForPartitionedTable(partProps, partSerDe)
+      HiveUtils.makeUnionOIForPartitionedTable(partProps, tableSerDe)
     }
   }
 
@@ -259,7 +259,7 @@ object TableScanOperator extends LogHelper {
         columnNames.append(columnInfo.getInternalName())
       }
       val columnNamesString = columnNames.toString()
-      hiveConf.set(Constants.LIST_COLUMNS, columnNamesString)
+      hiveConf.set(serdeConstants.LIST_COLUMNS, columnNamesString)
 
       // Add column types to the HiveConf.
       val columnTypes = new StringBuilder
@@ -271,7 +271,7 @@ object TableScanOperator extends LogHelper {
         columnTypes.append(columnInfo.getType().getTypeName())
       }
       val columnTypesString = columnTypes.toString()
-      hiveConf.set(Constants.LIST_COLUMN_TYPES, columnTypesString)
+      hiveConf.set(serdeConstants.LIST_COLUMN_TYPES, columnTypesString)
     }
 
     // Push down predicate filters.

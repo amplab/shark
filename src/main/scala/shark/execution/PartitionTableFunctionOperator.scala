@@ -35,7 +35,7 @@ import org.apache.hadoop.hive.serde2.SerDe
 
 import shark.execution.UnaryOperator
 
-class PartitionTableFunctionOperator extends UnaryOperator[HivePTFOperator] {
+class PartitionTableFunctionOperator extends UnaryOperator[PTFDesc] {
 
   @BeanProperty var conf: PTFDesc = _
   @BeanProperty var inputPart: PTFPartition = _
@@ -46,7 +46,7 @@ class PartitionTableFunctionOperator extends UnaryOperator[HivePTFOperator] {
   @transient var keyWrapperFactory: KeyWrapperFactory = _
 
   override def initializeOnMaster() {
-    conf = hiveOp.getConf
+    conf = desc
     localHconf = super.hconf
   }
 
@@ -62,15 +62,18 @@ class PartitionTableFunctionOperator extends UnaryOperator[HivePTFOperator] {
     //Walk through the PTFInputDef chain to initialize ShapeDetails, OI etc.
     dS.initializePTFChain(conf.getFuncDef)
     inputPart = createFirstPartitionForChain(objectInspector, conf.isMapSide)
-    if (conf.isMapSide) {
-      val tDef = conf.getStartOfChain
-      outputObjInspector = tDef.getRawInputShape.getOI
-    } else {
-      outputObjInspector = conf.getFuncDef.getOutputShape.getOI
-    }
-
     setupKeysWrapper(objectInspectors.head)
   }
+
+  override def outputObjectInspector() = {
+    if (conf.isMapSide) {
+      val tDef = conf.getStartOfChain
+      tDef.getRawInputShape.getOI
+    } else {
+      conf.getFuncDef.getOutputShape.getOI
+    }
+  }
+
 
   override def processPartition(split: Int, iter: Iterator[_]) = {
     new LazyPTFIterator(iter)

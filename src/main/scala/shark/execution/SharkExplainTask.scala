@@ -18,7 +18,7 @@
 package shark.execution
 
 import java.io.PrintStream
-import java.util.{List => JavaList}
+import java.util.{HashSet => JHashSet, List => JList}
 
 import scala.collection.JavaConversions._
 
@@ -36,9 +36,9 @@ import shark.LogHelper
 
 class SharkExplainWork(
   resFile: String,
-  rootTasks: JavaList[Task[_ <: java.io.Serializable]],
+  rootTasks: JList[Task[_ <: java.io.Serializable]],
   astStringTree: String,
-  inputs: HashSet[ReadEntity],
+  inputs: JHashSet[ReadEntity],
   extended: Boolean)
  extends ExplainWork(resFile, rootTasks, astStringTree, inputs, extended, false, false)
 

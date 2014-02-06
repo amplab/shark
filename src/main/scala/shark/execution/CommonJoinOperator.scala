@@ -60,8 +60,7 @@ abstract class CommonJoinOperator[T <: JoinDesc] extends NaryOperator[T] {
   override def initializeOnMaster() {
     super.initializeOnMaster()
     conf = desc
-    // TODO currently remove the join filter
-    conf.getFilters().clear()
+    //conf.getFilters()
     
     order = conf.getTagOrder()
     joinConditions = conf.getConds()
@@ -98,7 +97,7 @@ abstract class CommonJoinOperator[T <: JoinDesc] extends NaryOperator[T] {
   override def outputObjectInspector() = {
     var structFieldObjectInspectors = new JavaArrayList[ObjectInspector]()
     for (alias <- order) {
-      var oiList = joinValuesStandardObjectInspectors.get(alias)
+      var oiList = joinValuesStandardObjectInspectors(alias.intValue)
       structFieldObjectInspectors.addAll(oiList)
     }
 

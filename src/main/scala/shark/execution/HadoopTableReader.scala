@@ -20,11 +20,15 @@ package shark.execution
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{Path, PathFilter}
 import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_PARTITION_COLUMNS
+import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants.META_TABLE_PARTITION_COLUMNS
 import org.apache.hadoop.hive.ql.exec.Utilities
+import org.apache.hadoop.hive.ql.io.orc.OrcSerde
 import org.apache.hadoop.hive.ql.metadata.{Partition => HivePartition, Table => HiveTable}
 import org.apache.hadoop.hive.ql.plan.TableDesc
-import org.apache.hadoop.hive.serde2.Deserializer
+import org.apache.hadoop.hive.serde2.{Deserializer, Serializer}
+import org.apache.hadoop.hive.serde2.`lazy`.LazyStruct
+import org.apache.hadoop.hive.serde2.objectinspector.{StructObjectInspector, ObjectInspectorConverters}
+
 import org.apache.hadoop.io.Writable
 import org.apache.hadoop.mapred.{FileInputFormat, InputFormat, JobConf}
 
@@ -132,7 +136,7 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
   def makeRDDForPartitionedTable(
       partitionToDeserializer: Map[HivePartition, Class[_ <: Deserializer]],
       filterOpt: Option[PathFilter]): RDD[_] = {
-    val hivePartitionRDDs = partitionToDeserializer.map { case (partition, partSerDeClass) =>
+    val hivePartitionRDDs = partitionToDeserializer.map { case (partition, _partSerDeClass) =>
       val partDesc = Utilities.getPartitionDesc(partition)
       val partPath = partition.getPartitionPath
       val inputPathStr = applyFilterIfNeeded(partPath, filterOpt)
@@ -154,36 +158,45 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
 
       // Create local references so that the outer object isn't serialized.
       val tableDesc = partDesc.getTableDesc
+      val tableSerDeClass = tableDesc.getDeserializerClass()
+      // Note that _partSerDeClass is an alias for Tuple2._2, the Tuple2 being a pair from `partitionToDeserializer`.
+      // Create another reference to just the SerDe class. Otherwise, the scheduler will try to serialize the Tuple2,
+      // which throws an exception due to the non-serializable Partition.
+      val partSerDeClass = _partSerDeClass
+      val tableProps = tableDesc.getProperties()
       val broadcastedHiveConf = _broadcastedHiveConf
 
-      val partSerde = partSerDeClass.newInstance()
-      val tableSerde = tableDesc.getDeserializerClass().newInstance()
-      partSerDe.initialize(broadcastedHiveConf.value.value, partProps)
-      tableSerDe.initialize
-      val partTblObjectInspectorConverter = ObjectInspectorConverters.getConverter(
-        partSerde.getObjectInspector(), tblConvertedOI)
       val hivePartitionRDD = createHadoopRdd(tableDesc, inputPathStr, ifc)
       hivePartitionRDD.mapPartitions { iter =>
-
+        val partSerDe = partSerDeClass.newInstance()
+        val tableSerDe = tableSerDeClass.newInstance()
         val hconf = broadcastedHiveConf.value.value
+        partSerDe.initialize(hconf, partProps)
+        tableSerDe.initialize(hconf, tableProps)
+
+        val tblConvertedOI = ObjectInspectorConverters.getConvertedOI(
+          partSerDe.getObjectInspector(), tableSerDe.getObjectInspector())
+          .asInstanceOf[StructObjectInspector]
+        val partTblObjectInspectorConverter = ObjectInspectorConverters.getConverter(
+          partSerDe.getObjectInspector(), tblConvertedOI)
         val rowWithPartArr = new Array[Object](2)
         // Map each tuple to a row object
         iter.map { value =>
           val deserializedRow = {
 
             // If partition schema does not match table schema, update the row to match
-            val convertedRow = partTblObjectInspectorConverter.convert(partSerde.deserialize(value))
+            val convertedRow = partTblObjectInspectorConverter.convert(partSerDe.deserialize(value))
 
             // If conversion was performed, convertedRow will be a standard Object, but if
             // conversion wasn't necessary, it will still be lazy. We can't have both across
             // partitions, so we serialize and deserialize again to make it lazy.
-            if (tableSerde.isInstanceOf[OrcSerde]) {
+            if (tableSerDe.isInstanceOf[OrcSerde]) {
               convertedRow
             } else {
               convertedRow match {
                 case _: LazyStruct => convertedRow
-                case _ => tableSerde.deserialize(
-                  tableSerde.asInstanceOf[Serializer].serialize(
+                case _ => tableSerDe.deserialize(
+                  tableSerDe.asInstanceOf[Serializer].serialize(
                     convertedRow, tblConvertedOI))
               }
             }
