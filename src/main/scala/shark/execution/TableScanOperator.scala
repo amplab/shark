@@ -30,6 +30,7 @@ import org.apache.hadoop.hive.ql.metadata.{Partition, Table}
 import org.apache.hadoop.hive.ql.plan.{PlanUtils, PartitionDesc, TableDesc}
 import org.apache.hadoop.hive.serde2.Serializer
 import org.apache.hadoop.hive.serde2.`lazy`.LazyStruct
+import org.apache.hadoop.hive.serde2.columnar.{ColumnarStruct => HiveColumnarStruct}
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorConverters, 
   ObjectInspectorFactory, StructObjectInspector}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorConverters.Converter
@@ -45,6 +46,7 @@ import shark.execution.serialization.{XmlSerializer, JavaSerializer}
 import shark.memstore2.{CacheType, TablePartition, TablePartitionStats}
 import shark.tachyon.TachyonException
 
+import org.apache.hadoop.hive.serde2.ColumnProjectionUtils;
 
 /**
  * The TableScanOperator is used for scanning any type of Shark or Hive table.
@@ -318,6 +320,7 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
             } else {
               convertedRow match {
                 case _: LazyStruct => convertedRow
+                case _: HiveColumnarStruct => convertedRow
                 case _ => tableSerde.deserialize(
                   tableSerde.asInstanceOf[Serializer].serialize(
                     convertedRow, tblConvertedOI))
@@ -350,6 +353,14 @@ class TableScanOperator extends TopOperator[HiveTableScanOperator] with HiveTopO
     }
     new HiveInputFormat() {
       def doPushFilters() {
+        // push down projections for this TableScanOperator to Hadoop JobConf
+        if (hiveOp.getNeededColumnIDs() != null) {
+          ColumnProjectionUtils.appendReadColumnIDs(conf, hiveOp.getNeededColumnIDs())
+        } else {
+          ColumnProjectionUtils.setFullyReadColumns(conf)
+        }
+        ColumnProjectionUtils.appendReadColumnNames(conf, hiveOp.getNeededColumns())
+        
         HiveInputFormat.pushFilters(conf, hiveOp)
       }
     }.doPushFilters()

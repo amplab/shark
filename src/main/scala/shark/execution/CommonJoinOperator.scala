@@ -204,10 +204,12 @@ object CommonJoinOperator {
   val LEFT_SEMI_JOIN = JoinDesc.LEFT_SEMI_JOIN
 
   /**
-   * Handles join filters in Hive. It is kind of buggy and not used at the moment.
+   * Handles join filters in Hive
    */
   def isFiltered(row: Any, filters: JavaList[ExprNodeEvaluator], ois: JavaList[ObjectInspector])
   : Boolean = {
+    if(row == null) return true
+    
     var ret: java.lang.Boolean = false
     var j = 0
     while (j < filters.size) {
