@@ -28,7 +28,7 @@ object SharkBuild extends Build {
   // Shark version
   val SHARK_VERSION = "0.9.0-SNAPSHOT"
 
-  val SPARK_VERSION = "0.9.0-incubating-SNAPSHOT"
+  val SPARK_VERSION = "0.9.0-incubating"
 
   val SCALA_VERSION = "2.10.3"
 
@@ -117,7 +117,6 @@ object SharkBuild extends Build {
       "org.apache.hadoop" % "hadoop-client" % hadoopVersion excludeAll(excludeJackson, excludeNetty, excludeAsm) force(),
       // See https://code.google.com/p/guava-libraries/issues/detail?id=1095
       "com.google.code.findbugs" % "jsr305" % "1.3.+",
-
       // Hive unit test requirements. These are used by Hadoop to run the tests, but not necessary
       // in usual Shark runs.
       "commons-io" % "commons-io" % "2.1",

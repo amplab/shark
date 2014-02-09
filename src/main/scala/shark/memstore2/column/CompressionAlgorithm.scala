@@ -25,7 +25,7 @@ import scala.collection.mutable.{ArrayBuffer, HashMap}
 /**
  * API for Compression
  */
-trait CompressionAlgorithm  {
+trait CompressionAlgorithm {
 
   def compressionType: CompressionType
 
@@ -40,8 +40,9 @@ trait CompressionAlgorithm  {
   def gatherStatsForCompressibility[T](v: T, t: ColumnType[T, _])
 
   /**
-   * Return compression ratio between 0 and 1, smaller score imply higher compressibility.
-   * This is used to pick the compression algorithm to apply at runtime.
+   * Return compression ratio, smaller scores imply higher compressibility.
+   * Scores greater than 1.0 indicate that compressed data will take up more space than uncompressed
+   * data. This number is used to pick the compression algorithm to apply at runtime.
    */
   def compressionRatio: Double = compressedSize.toDouble / uncompressedSize.toDouble
 
@@ -61,7 +62,6 @@ trait CompressionAlgorithm  {
   def compress[T](b: ByteBuffer, t: ColumnType[T, _]): ByteBuffer
 }
 
-
 case class CompressionType(typeID: Int)
 
 object DefaultCompressionType extends CompressionType(-1)
@@ -72,6 +72,10 @@ object DictionaryCompressionType extends CompressionType(1)
 
 object BooleanBitSetCompressionType extends CompressionType(2)
 
+object IntDeltaCompressionType extends CompressionType(3)
+
+object LongDeltaCompressionType extends CompressionType(4)
+
 /**
  * An no-op compression.
  */
@@ -79,9 +83,9 @@ class NoCompression extends CompressionAlgorithm {
 
   override def compressionType = DefaultCompressionType
 
-  override def supportsType(t: ColumnType[_,_]) = true
+  override def supportsType(t: ColumnType[_, _]) = true
 
-  override def gatherStatsForCompressibility[T](v: T, t: ColumnType[T,_]) {}
+  override def gatherStatsForCompressibility[T](v: T, t: ColumnType[T, _]) {}
 
   override def compressionRatio: Double = 1.0
 
@@ -103,7 +107,7 @@ class NoCompression extends CompressionAlgorithm {
 }
 
 /**
- * Run-length encoding for columns with a lot of repeated values.
+ * Run-length encoding for columns with a lot of repeated values that occur next to each other.
  */
 class RLE extends CompressionAlgorithm {
   private var _uncompressedSize: Int = 0
@@ -123,7 +127,7 @@ class RLE extends CompressionAlgorithm {
     }
   }
 
-  override def gatherStatsForCompressibility[T](v: T, t: ColumnType[T,_]) {
+  override def gatherStatsForCompressibility[T](v: T, t: ColumnType[T, _]) {
     val s = t.actualSize(v)
     if (_prev == null) {
       // This is the very first run.
@@ -150,7 +154,7 @@ class RLE extends CompressionAlgorithm {
   // logic a little bit.
   override def compressedSize: Int = _compressedSize
 
-  override def compress[T](b: ByteBuffer, t: ColumnType[T,_]): ByteBuffer = {
+  override def compress[T](b: ByteBuffer, t: ColumnType[T, _]): ByteBuffer = {
     // Leave 4 extra bytes for column type and another 4 for compression type.
     val compressedBuffer = ByteBuffer.allocate(4 + 4 + _compressedSize)
     compressedBuffer.order(ByteOrder.nativeOrder())
@@ -162,7 +166,7 @@ class RLE extends CompressionAlgorithm {
   }
 
   @tailrec private final def encode[T](currentBuffer: ByteBuffer,
-      compressedBuffer: ByteBuffer, currentRun: (T, Int), t: ColumnType[T,_]) {
+      compressedBuffer: ByteBuffer, currentRun: (T, Int), t: ColumnType[T, _]) {
     def writeOutRun() {
       t.append(currentRun._1, compressedBuffer)
       compressedBuffer.putInt(currentRun._2)
@@ -222,9 +226,11 @@ class DictionaryEncoding extends CompressionAlgorithm {
 
   override def compressionType = DictionaryCompressionType
 
-  override def supportsType(t: ColumnType[_, _]) = t match {
-    case STRING | LONG | INT => true
-    case _ => false
+  override def supportsType(t: ColumnType[_, _]) = {
+    t match {
+      case STRING | LONG | INT => true
+      case _ => false
+    }
   }
 
   override def gatherStatsForCompressibility[T](v: T, t: ColumnType[T, _]) {
@@ -245,8 +251,8 @@ class DictionaryEncoding extends CompressionAlgorithm {
         } else {
           // Overflown. Release the dictionary immediately to lower memory pressure.
           _overflow = true
-          _dictionary = null
           _values = null
+          _dictionary = null
         }
       }
     }
@@ -257,7 +263,7 @@ class DictionaryEncoding extends CompressionAlgorithm {
   /**
    * Return the compressed data size if encoded with dictionary encoding. If the dictionary
    * cardinality (i.e. the number of distinct elements) is bigger than 32K, we return an
-   * a really large number.
+   * a really large number so that dictionary encoding does not get used on this column.
    */
   override def compressedSize: Int = {
     // Total compressed size =
@@ -269,11 +275,10 @@ class DictionaryEncoding extends CompressionAlgorithm {
   override def compress[T](b: ByteBuffer, t: ColumnType[T, _]): ByteBuffer = {
     if (_overflow) {
       throw new MemoryStoreException(
-        "Dictionary encoding should not be used because we have overflown the dictionary.")
+        "Dictionary encoding should not be used because we have overflowed the dictionary.")
     }
 
-    // Create a new buffer and store the compression type and column type.
-    // Leave 4 extra bytes for column type and another 4 for compression type.
+    // Create a new buffer and store the compression type(4) and column type(4)
     val compressedBuffer = ByteBuffer.allocate(4 + 4 + compressedSize)
     compressedBuffer.order(ByteOrder.nativeOrder())
     compressedBuffer.putInt(b.getInt())
@@ -298,10 +303,10 @@ class DictionaryEncoding extends CompressionAlgorithm {
 }
 
 /**
-* BitSet compression for Boolean values.
-*/
+ * BitSet compression for Boolean values.
+ */
 object BooleanBitSetCompression {
-  val BOOLEANS_PER_LONG : Short = 64
+  val BOOLEANS_PER_LONG: Short = 64
 }
 
 class BooleanBitSetCompression extends CompressionAlgorithm {
@@ -317,7 +322,7 @@ class BooleanBitSetCompression extends CompressionAlgorithm {
     }
   }
 
-  override def gatherStatsForCompressibility[T](v: T, t: ColumnType[T,_]) {
+  override def gatherStatsForCompressibility[T](v: T, t: ColumnType[T, _]) {
     val s = t.actualSize(v)
     _uncompressedSize += s
   }
@@ -330,8 +335,8 @@ class BooleanBitSetCompression extends CompressionAlgorithm {
 
   override def uncompressedSize: Int = _uncompressedSize
 
-  override def compress[T](b: ByteBuffer, t: ColumnType[T,_]): ByteBuffer = {
-    // Leave 4 extra bytes for column type, another 4 for compression type.
+  override def compress[T](b: ByteBuffer, t: ColumnType[T, _]): ByteBuffer = {
+    // Leave 4 extra bytes for column type, another 4 for compression type - header
     val compressedBuffer = ByteBuffer.allocate(4 + 4 + compressedSize)
     compressedBuffer.order(ByteOrder.nativeOrder())
     compressedBuffer.putInt(b.getInt())
@@ -355,6 +360,143 @@ class BooleanBitSetCompression extends CompressionAlgorithm {
       }
       pos += 1
     }
+    // Rewind the compressed buffer and return it.
+    compressedBuffer.rewind()
+    compressedBuffer
+  }
+}
+
+/**
+ * Delta encoding for 32-bit integers. The integers are encoded as follows:
+ *
+ * The first byte is a delta byte. If the value of the delta byte is -128 (i.e. Byte.MinValue),
+ * we need to read the next 4 full bytes to get a new base value. If the value of the delta byte
+ * is anything else (i.e. from -127 inclusively to 127 inclusively), then its a delta value.
+ */
+class IntDeltaEncoding extends CompressionAlgorithm {
+
+  private var prev = 0
+  private var first = true
+
+  override def compressionType = IntDeltaCompressionType
+
+  override def supportsType(t: ColumnType[_, _]) = t == INT
+
+  var _compressedSize: Int = 0
+  var _uncompressedSize: Int = 0
+
+  override def uncompressedSize: Int = _uncompressedSize
+  override def compressedSize: Int = _compressedSize
+
+  override def gatherStatsForCompressibility[T](v: T, t: ColumnType[T, _]) {
+    val currentValue = v.asInstanceOf[Int]
+    if (first) {
+      first = false
+      _compressedSize += 1 + INT.actualSize(currentValue) // always 1 + 4
+      prev = currentValue
+    } else {
+      val delta = currentValue - prev
+      if (math.abs(delta) > 127) {
+        _compressedSize += 1 + INT.actualSize(currentValue) // 1 + 4
+      } else {
+        _compressedSize += 1
+      }
+      prev = currentValue
+    }
+    _uncompressedSize += INT.actualSize(currentValue)
+  }
+
+  override def compress[V](b: ByteBuffer, t: ColumnType[V, _]): ByteBuffer = {
+    first = true
+
+    // Leave 4 extra bytes for column type, another 4 for compression type - header
+    val compressedBuffer = ByteBuffer.allocate(4 + 4 + compressedSize)
+    compressedBuffer.order(ByteOrder.nativeOrder())
+    compressedBuffer.putInt(b.getInt())
+    compressedBuffer.putInt(compressionType.typeID)
+
+    while (b.hasRemaining) {
+      val current = INT.extract(b)
+      val delta = current - prev
+      prev = current
+
+      if (math.abs(delta) > 127 || first) {
+        first = false
+        compressedBuffer.put(Byte.MinValue)
+        INT.append(current, compressedBuffer)
+      } else {
+        compressedBuffer.put(delta.toByte)
+      }
+    }
+
+    compressedBuffer.rewind()
+    compressedBuffer
+  }
+}
+
+/**
+ * Delta encoding for 64-bit integers. The integers are encoded as follows:
+ *
+ * The first byte is a delta byte. If the value of the delta byte is -128 (i.e. Byte.MinValue),
+ * we need to read the next 8 full bytes to get a new base value. If the value of the delta byte
+ * is anything else (i.e. from -127 inclusively to 127 inclusively), then its a delta value.
+ */
+class LongDeltaEncoding extends CompressionAlgorithm {
+
+  private var prev = 0L
+  private var first = true
+
+  override def compressionType = LongDeltaCompressionType
+
+  override def supportsType(t: ColumnType[_, _]) = t == LONG
+
+  var _compressedSize: Int = 0
+  var _uncompressedSize: Int = 0
+
+  override def uncompressedSize: Int = _uncompressedSize
+  override def compressedSize: Int = _compressedSize
+
+  override def gatherStatsForCompressibility[T](v: T, t: ColumnType[T, _]) {
+    val currentValue = v.asInstanceOf[Long]
+    if (first) {
+      first = false
+      _compressedSize += 1 + LONG.actualSize(currentValue) // always 1 + 8
+      prev = currentValue
+    } else {
+      val delta = currentValue - prev
+      if (math.abs(delta) > 127) {
+        _compressedSize += 1 + LONG.actualSize(currentValue) // 1 + 8
+      } else {
+        _compressedSize += 1
+      }
+      prev = v.asInstanceOf[Long]
+    }
+    _uncompressedSize += LONG.actualSize(currentValue)
+  }
+
+  override def compress[V](b: ByteBuffer, t: ColumnType[V, _]): ByteBuffer = {
+    first = true
+
+    // Leave 4 extra bytes for column type, another 4 for compression type - header
+    val compressedBuffer = ByteBuffer.allocate(4 + 4 + compressedSize)
+    compressedBuffer.order(ByteOrder.nativeOrder())
+    compressedBuffer.putInt(b.getInt())
+    compressedBuffer.putInt(compressionType.typeID)
+
+    while (b.hasRemaining) {
+      val current = LONG.extract(b)
+      val delta = current - prev
+      prev = current
+
+      if (math.abs(delta) > 127 || first) {
+        first = false
+        compressedBuffer.put(Byte.MinValue)
+        LONG.append(current, compressedBuffer)
+      } else {
+        compressedBuffer.put(delta.toByte)
+      }
+    }
+
     compressedBuffer.rewind()
     compressedBuffer
   }

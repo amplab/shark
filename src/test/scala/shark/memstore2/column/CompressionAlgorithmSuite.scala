@@ -186,6 +186,80 @@ class CompressionAlgorithmSuite extends FunSuite {
     assert(!compressedBuffer.hasRemaining)
   }
 
+  test("IntDeltaEncoding") {
+    val b = ByteBuffer.allocate(1024)
+    b.order(ByteOrder.nativeOrder())
+    b.putInt(INT.typeID)
+
+    val bde = new IntDeltaEncoding
+
+    val x = 1
+    b.putInt(x)
+    bde.gatherStatsForCompressibility(x, INT)
+
+    val y = x + 40000
+    b.putInt(y)
+    bde.gatherStatsForCompressibility(y, INT)
+
+    val z = y + 1
+    b.putInt(z)
+    bde.gatherStatsForCompressibility(z, INT)
+
+    b.limit(b.position())
+    b.rewind()
+    val compressedBuffer = bde.compress(b, INT)
+    assert(compressedBuffer.getInt() == INT.typeID)
+    assert(compressedBuffer.getInt() == IntDeltaCompressionType.typeID)
+
+    compressedBuffer.get() // first flagByte
+    assert(INT.extract(compressedBuffer).equals(x))
+
+    compressedBuffer.get() // second flagByte
+    assert(INT.extract(compressedBuffer).equals(y))
+
+    val seven: Byte = compressedBuffer.get() // third flagByte
+    assert(seven === 1.toByte)
+
+    assert(!compressedBuffer.hasRemaining)
+  }
+
+  test("LongDeltaEncoding") {
+    val b = ByteBuffer.allocate(10024)
+    b.order(ByteOrder.nativeOrder())
+    b.putInt(LONG.typeID)
+
+    val bde = new LongDeltaEncoding
+
+    val x: Long = 1
+    b.putLong(x)
+    bde.gatherStatsForCompressibility(x, LONG)
+
+    val y: Long = x + 40000
+    b.putLong(y)
+    bde.gatherStatsForCompressibility(y, LONG)
+
+    val z: Long = y + 1
+    b.putLong(z)
+    bde.gatherStatsForCompressibility(z, LONG)
+
+    b.limit(b.position())
+    b.rewind()
+    val compressedBuffer = bde.compress(b, LONG)
+    assert(compressedBuffer.getInt() === LONG.typeID)
+    assert(compressedBuffer.getInt() === LongDeltaCompressionType.typeID)
+
+    compressedBuffer.get() // first flagByte
+    assert(LONG.extract(compressedBuffer).equals(x))
+
+    compressedBuffer.get() // second flagByte
+    assert(LONG.extract(compressedBuffer).equals(y))
+
+    val seven: Byte = compressedBuffer.get() // third flagByte
+    assert(seven === 1.toByte)
+
+    assert(!compressedBuffer.hasRemaining)
+  }
+
   test("Dictionary Encoding") {
 
     def testList[T](
@@ -199,8 +273,9 @@ class CompressionAlgorithmSuite extends FunSuite {
       b.putInt(u.typeID)
       val de = new DictionaryEncoding()
       l.foreach { item =>
+        assert(de.supportsType(u))
         u.append(item, b)
-        de.gatherStatsForCompressibility(item, u.asInstanceOf[ColumnType[Any, _]])
+        de.gatherStatsForCompressibility(item, u)
       }
       b.limit(b.position())
       b.rewind()

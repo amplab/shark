@@ -44,10 +44,8 @@ trait ColumnIterator {
   def current: Object
 }
 
-
 abstract class DefaultColumnIterator[T, V](val buffer: ByteBuffer, val columnType: ColumnType[T, V])
-  extends CompressedColumnIterator
-
+  extends CompressedColumnIterator{}
 
 object Implicits {
   implicit def intToCompressionType(i: Int): CompressionType = i match {
@@ -55,7 +53,19 @@ object Implicits {
     case RLECompressionType.typeID => RLECompressionType
     case DictionaryCompressionType.typeID => DictionaryCompressionType
     case BooleanBitSetCompressionType.typeID => BooleanBitSetCompressionType
+    case IntDeltaCompressionType.typeID => IntDeltaCompressionType
+    case LongDeltaCompressionType.typeID => LongDeltaCompressionType
     case _ => throw new MemoryStoreException("Unknown compression type " + i)
+  }
+
+  implicit def compressionTypeToString(c: CompressionType): String = c match {
+    case DefaultCompressionType => "Default"
+    case RLECompressionType => "RLE"
+    case DictionaryCompressionType => "Dictionary"
+    case BooleanBitSetCompressionType => "BooleanBitSet"
+    case IntDeltaCompressionType => "IntDelta"
+    case LongDeltaCompressionType => "LongDelta"
+    case _ => throw new MemoryStoreException("Unknown compression type " + c.typeID)
   }
 
   implicit def intToColumnType(i: Int): ColumnType[_, _] = i match {
