@@ -1,0 +1,139 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>Shark - Lightning Fast Data Warehouse System</title>
+
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/pygment_trac.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1>Shark (Hive on Spark)</h1>
+        <p>&nbsp;</p>
+
+        <p class="view">
+          <a href="https://github.com/amplab/shark/wiki/Shark-Release-0.2">Shark 0.2 Release</a>
+        </p>
+
+        <p class="view">
+          <a href="https://github.com/amplab/shark/wiki">Documentation</a>
+        </p>
+
+        <p class="view">
+          <a href="https://github.com/amplab/shark/downloads">Binary Distributions</a>
+        </p>
+
+        <p class="view">
+          <a href="https://github.com/amplab/shark">Source Code on GitHub</a>
+        </p>
+
+        <p class="view">
+          <a href="http://groups.google.com/group/shark-users">Mailing List</a>
+        </p>
+		<!--
+		        <ul>
+		          <li><a href="https://github.com/amplab/shark/zipball/master">Download <strong>ZIP File</strong></a></li>
+		          <li><a href="https://github.com/amplab/shark/tarball/master">Download <strong>TAR Ball</strong></a></li>
+		          <li><a href="https://github.com/amplab/shark">Fork On <strong>GitHub</strong></a></li>
+		        </ul>
+		-->
+      </header>
+      <section>
+
+		<p>Shark is a large-scale data warehouse system for Spark designed to be compatible with
+      <a href="http://hive.apache.org/">Apache Hive</a>. It can answer Hive QL queries up to
+      100 times faster than Hive without modification to the existing data nor queries. Shark
+      supports Hive's query language, metastore, serialization formats, and user-defined functions.
+
+    </p>
+
+    <p>We released
+      <a href="https://github.com/amplab/shark/wiki/Shark-Release-0.2">Shark 0.2</a> on Oct 15, 2012.
+      The new version is much more stable and also features significant performance improvements.
+    </p>
+
+    <h3>Getting Started</h3>
+
+    <p>See our <a href="https://github.com/amplab/shark/wiki">documentation on Github</a> to get
+      started. It takes around 5 mins to set up Shark on a single node for a quick spin, and about
+      20 mins on an Amazon EC2 cluster.
+    </p>
+
+    <h3>Fast Execution Engine</h3>
+    <p>Shark is built on top of <a href="http://www.spark-project.org/">Spark</a>, a data-parallel execution engine that is fast and fault-tolerant. Even if data are on disk, Shark can be noticeably faster than Hive because of the fast execution engine. It avoids the high task launching overhead of Hadoop MapReduce and does not require materializing intermediate data between stages on disk. Thanks to this fast engine, Shark can answer queries in sub-second latency.
+    </p>
+
+		<h3>Memory Store</h3>
+		<p>Analytical queries usually focus on a particular subset or time window, e.g., http logs from the previous month, touching only the (small) dimension tables and a small portion of the fact table. These queries exhibit strong temporal locality, and in many cases, it is plausible to ﬁt the working set into a cluster’s memory.</p>
+		<p>Shark allows users to exploit this temporal locality by storing their working set of data across a cluster's memory, or in database terms, to create in-memory materialized views. Common data types can be cached in a columnar format (as Java primitives arrays), which is very efficient for storage and garbage collection, yet provides maximum performance (orders of magnitude faster than reading data from disk). Below is an example on how to cache data in Shark:</p>
+
+<div class="highlight"><div class="syntax"><pre><span class="k">CREATE</span> <span class="k">TABLE</span> <span class="n">logs_last_month_cached</span> <span class="k">AS</span>
+<span class="k">SELECT</span> <span class="o">*</span> <span class="k">FROM</span> <span class="n">logs</span> <span class="k">WHERE</span> <span class="n">time</span> <span class="o">&gt;</span> <span class="nb">date</span><span class="p">(...);</span>
+
+<span class="k">SELECT</span> <span class="n">page</span><span class="p">,</span> <span class="k">count</span><span class="p">(</span><span class="o">*</span><span class="p">)</span> <span class="k">c</span> <span class="k">FROM</span> <span class="n">logs_last_month_cached</span>
+<span class="k">GROUP</span> <span class="k">BY</span> <span class="n">page</span> <span class="k">ORDER</span> <span class="k">BY</span> <span class="k">c</span> <span class="k">DESC</span> <span class="k">LIMIT</span> <span class="mi">10</span><span class="p">;</span>
+</pre></div></div>
+
+
+		<h3>Spark/Machine Learning Integration</h3>
+		<p>Shark provides a simple API for programmers to convert results from SQL queries into a special type of RDDs (<a href="http://www.spark-project.org/">Resilient Distributed Datasets</a>). This  integrates SQL query processing with machine learning, and provides a unified system for data analysis using both SQL and sophisticated statistical learning functions.</p>
+
+<div class="highlight">
+<div class="syntax"><pre><span class="k">val</span> <span class="n">youngUsers</span> <span class="k">=</span> <span class="n">sql2rdd</span><span class="o">(</span><span class="s">&quot;SELECT * FROM users WHERE age &lt; 20&quot;</span><span class="o">)</span>
+<span class="n">println</span><span class="o">(</span><span class="n">youngUsers</span><span class="o">.</span><span class="n">count</span><span class="o">)</span>
+<span class="k">val</span> <span class="n">featureMatrix</span> <span class="k">=</span> <span class="n">youngUsers</span><span class="o">.</span><span class="n">mapRows</span><span class="o">(</span><span class="n">extractFeatures</span><span class="o">(</span><span class="n">_</span><span class="o">))</span>
+<span class="n">kmeans</span><span class="o">(</span><span class="n">featureMatrix</span><span class="o">)</span>
+</pre></div></div>
+
+
+		<h3>References</h3>
+
+		<ul>
+    <li><a href="presentations/2012-11-26-shark-tech-report.pdf">Shark: SQL and Rich Analytics at Scale</a> (Tech Report, Nov 2012)</li>
+		<li><a href="presentations/2012-04-23_Shark_alpha_release.pdf">Shark Deep Dive presentation at Spark User Meetup</a> (Apr 2012)</li>
+<!-- 		<li><a href="http://amplab.cs.berkeley.edu/publication/shark-fast-data-analysis-using-coarse-grained-distributed-memory-demonstration-paper/">Shark's SIGMOD 2012 demo submission</a> (submitted March 2012)</li> -->
+		<li><a href="https://cwiki.apache.org/confluence/display/Hive/GettingStarted">Getting Started with Apache Hive</a></li>
+		<li><a href="http://www.spark-project.org/">Spark Project</a></li>
+		<li><a href="http://incubator.apache.org/mesos/">Apache Mesos</a></li>
+		</ul><h3>Authors and Contributors</h3>
+
+		<p>Shark is developed in the <a href="http://amplab.cs.berkeley.edu/">UC Berkeley AMP Lab</a>.
+      The research and development is supported in part by an NSF CISE Expeditions award,  gifts
+      from Google, SAP, Amazon Web Services, Blue Goji, Cisco, Cloudera, Ericsson, General Electric,
+       Hewlett Packard, Huawei, Intel, MarkLogic, Microsoft, NetApp, Oracle, Quanta, Splunk, VMware
+       and by DARPA (contract #FA8650-11-C-7136).
+    </p>
+
+		<h3>Support or Contact</h3>
+
+		<p>If you are interested in trying out Shark in your Hive warehouse, please contact
+      <a href="mailto:rxin@cs.berkeley.edu">Reynold</a>. You are also welcomed to use the
+      <a href="http://groups.google.com/group/shark-users">shark-users</a> mailing list for
+      support.
+    </p>
+
+      </section>
+      <footer>
+        <p><small>page theme modified from <a href="https://github.com/orderedlist">orderedlist</a></small></p>
+      </footer>
+    </div>
+    <script src="javascripts/scale.fix.js"></script>
+              <script type="text/javascript">
+            var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+            document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+          </script>
+          <script type="text/javascript">
+            try {
+              var pageTracker = _gat._getTracker("UA-31076020-1");
+            pageTracker._trackPageview();
+            } catch(err) {}
+          </script>
+  </body>
+</html>
