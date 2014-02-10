@@ -39,11 +39,12 @@ import org.apache.hadoop.hive.ql.parse._
 import org.apache.hadoop.hive.ql.plan._
 import org.apache.hadoop.hive.ql.session.SessionState
 
-import shark.{LogHelper, SharkConfVars, SharkEnv, Utils}
+import shark.{LogHelper, SharkConfVars, SharkEnv, SharkOptimizer, Utils}
 import shark.execution.{HiveDesc, Operator, OperatorFactory, RDDUtils, ReduceSinkOperator}
 import shark.execution.{SharkDDLWork, SparkLoadWork, SparkWork, TerminalOperator}
 import shark.memstore2.{CacheType, ColumnarSerDe, LazySimpleSerDeWrapper, MemoryMetadataManager}
 import shark.memstore2.{MemoryTable, PartitionedMemoryTable, SharkTblProperties, TableRecovery}
+import org.apache.spark.storage.StorageLevel
 
 
 /**
@@ -83,10 +84,10 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     reset()
 
     val qb = new QueryBlock(null, null, false)
-    val pctx = getParseContext()
+    var pctx = getParseContext()
     pctx.setQB(qb)
     pctx.setParseTree(ast)
-    init(pctx)
+    initParseCtx(pctx)
     // The ASTNode that will be analyzed by SemanticAnalzyer#doPhase1().
     var child: ASTNode = ast
 
@@ -101,6 +102,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       super.analyzeInternal(ast)
       return
     } else if (astTokenType == HiveParser.TOK_CREATETABLE) {
+      init()
       // Use Hive to do a first analysis pass.
       super.analyzeInternal(ast)
       // Do post-Hive analysis of the CREATE TABLE (e.g detect caching mode).
@@ -154,17 +156,15 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       ).asInstanceOf[JavaList[FieldSchema]]
 
     // Run Hive optimization.
-    var pCtx: ParseContext = getParseContext
-    val optm = new Optimizer()
-    optm.setPctx(pCtx)
+    val optm = new SharkOptimizer()
+    optm.setPctx(pctx)
     optm.initialize(conf)
-    pCtx = optm.optimize()
-    init(pCtx)
+    pctx = optm.optimize()
 
     // Replace Hive physical plan with Shark plan. This needs to happen after
     // Hive optimization.
     val hiveSinkOps = SharkSemanticAnalyzer.findAllHiveFileSinkOperators(
-      pCtx.getTopOps().values().head)
+      pctx.getTopOps().values().head)
 
     // TODO: clean the following code. It's too messy to understand...
     val terminalOpSeq = {
@@ -191,7 +191,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
                 // INSERT INTO or OVERWRITE update on a cached table.
                 qb.targetTableDesc = tableDesc
                 // If isInsertInto is true, the sink op is for INSERT INTO.
-                val isInsertInto = qbParseInfo.isInsertIntoTable(cachedTableName)
+                val isInsertInto = qbParseInfo.isInsertIntoTable(databaseName, cachedTableName)
                 val isPartitioned = hiveTable.isPartitioned
                 var hivePartitionKeyOpt = if (isPartitioned) {
                   Some(SharkSemanticAnalyzer.getHivePartitionKey(qb))
@@ -384,7 +384,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
             conf,
             hiveTable,
             partSpecOpt,
-            isOverwrite = !qb.getParseInfo.isInsertIntoTable(cachedTableName))
+            isOverwrite = !qb.getParseInfo.isInsertIntoTable(databaseName, cachedTableName))
         }
         // Add a SparkLoadTask as a dependent of all MoveTasks, so that when executed, the table's
         // (or table partition's) data directory will already contain updates that should be
@@ -398,12 +398,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
     // dependent of the main SparkTask.
     if (qb.isCTAS) {
       val crtTblDesc: CreateTableDesc = qb.getTableDesc
-
-      // Use reflection to call validateCreateTable, which is private.
-      val validateCreateTableMethod = this.getClass.getSuperclass.getDeclaredMethod(
-        "validateCreateTable", classOf[CreateTableDesc])
-      validateCreateTableMethod.setAccessible(true)
-      validateCreateTableMethod.invoke(this, crtTblDesc)
+      crtTblDesc.validate()
 
       // Clear the output for CTAS since we don't need the output from the
       // mapredWork, the DDLWork at the tail of the chain will have the output.
@@ -501,7 +496,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         // SemanticAnalyzer#analyzeCreateTable(), in 'rootTasks'. The DDL tasks' execution succeeds
         // only if the CREATE TABLE is valid. So, hook a SharkDDLTask as a child of the Hive DDLTask
         // so that Shark metadata is updated only if the Hive task execution is successful.
-        val hiveDDLTask = ddlTasks.head;
+        val hiveDDLTask = ddlTasks.head
         val sharkDDLWork = new SharkDDLWork(createTableDesc)
         sharkDDLWork.cacheMode = cacheMode
         hiveDDLTask.addDependentTask(TaskFactory.get(sharkDDLWork, conf))

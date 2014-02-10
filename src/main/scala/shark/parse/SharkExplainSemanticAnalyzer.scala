@@ -60,8 +60,8 @@ class SharkExplainSemanticAnalyzer(conf: HiveConf) extends ExplainSemanticAnalyz
     }
 
     val task = TaskFactory.get(
-      new SharkExplainWork(ctx.getResFile().toString(), tasks, childNode.toStringTree(), extended),
-      conf)
+      new SharkExplainWork(ctx.getResFile().toString(), tasks, childNode.toStringTree(), 
+        sem.getInputs(), extended), conf)
 
     rootTasks.add(task)
   }

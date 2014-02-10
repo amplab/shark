@@ -31,10 +31,9 @@ import org.apache.hadoop.hive.ql.{Context, DriverContext}
 import org.apache.hadoop.hive.ql.exec.{Task => HiveTask, Utilities}
 import org.apache.hadoop.hive.ql.metadata.{Hive, Partition, Table => HiveTable}
 import org.apache.hadoop.hive.ql.plan.api.StageType
-import org.apache.hadoop.hive.serde.Constants;
+import org.apache.hadoop.hive.serde.serdeConstants
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, StructObjectInspector}
 import org.apache.hadoop.io.Writable
-import org.apache.hadoop.mapred.{FileInputFormat, InputFormat}
 
 import org.apache.spark.SerializableWritable
 import org.apache.spark.broadcast.Broadcast
@@ -200,7 +199,7 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
     val statsAcc = SharkEnv.sc.accumulableCollection(ArrayBuffer[(Int, TablePartitionStats)]())
     val tachyonWriter = if (work.cacheMode == CacheType.TACHYON) {
       // Find the number of columns in the table schema using `serDeProps`.
-      val numColumns = serDeProps.getProperty(Constants.LIST_COLUMNS).split(',').size
+      val numColumns = serDeProps.getProperty(serdeConstants.LIST_COLUMNS).split(',').size
       // Use an additional row to store metadata (e.g. number of rows in each partition).
       SharkEnv.tachyonUtil.createTableWriter(tableKey, hivePartitionKeyOpt, numColumns + 1)
     } else {
@@ -289,7 +288,7 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
       pathFilterOpt: Option[PathFilter]) {
     val databaseName = hiveTable.getDbName
     val tableName = hiveTable.getTableName
-    val tableSchema = hiveTable.getSchema
+    val tableSchema = hiveTable.getMetadata
     val serDe = hiveTable.getDeserializer
     serDe.initialize(conf, tableSchema)
     // Scan the Hive table's data directory.
@@ -376,15 +375,15 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
       // Read, materialize, and store a columnar-backed RDD for `partSpec`.
       val partitionKey = MemoryMetadataManager.makeHivePartitionKeyStr(partCols, partSpec)
       val partition = db.getPartition(hiveTable, partSpec, false /* forceCreate */)
-      val partSerDe = partition.getDeserializer()
-      val partSchema = partition.getSchema
-      partSerDe.initialize(conf, partSchema)
+      val tableDesc = Utilities.getTableDesc(hiveTable)
+      val tableSerDe = tableDesc.getDeserializerClass().newInstance()
+      tableSerDe.initialize(conf, tableDesc.getProperties())
       // Get a UnionStructObjectInspector that unifies the two StructObjectInspectors for the table
       // columns and the partition columns.
-      val unionOI = HiveUtils.makeUnionOIForPartitionedTable(partSchema, partSerDe)
+      val unionOI = HiveUtils.makeUnionOIForPartitionedTable(partition.getSchema, tableSerDe)
       // Create a HadoopRDD for the file scan.
       val inputRDD = hadoopReader.makeRDDForPartitionedTable(
-        Map(partition -> partSerDe.getClass), pathFilterOpt)
+        Map(partition -> partition.getDeserializer.getClass), pathFilterOpt)
       val (tablePartitionRDD, tableStats) = materialize(
         inputRDD,
         SparkLoadTask.addPartitionInfoToSerDeProps(partCols, partition.getSchema),
@@ -429,19 +428,19 @@ object SparkLoadTask {
     //   CREATE TABLE page_views(key INT, val BIGINT), PARTITIONED BY (dt STRING, country STRING),
     // `columnNameProperties` will be "key,val". We want to append the "dt, country" partition
     // column names to it, and reset the Constants.LIST_COLUMNS entry in the SerDe properties.
-    var columnNameProperties: String = serDeProps.getProperty(Constants.LIST_COLUMNS)
+    var columnNameProperties: String = serDeProps.getProperty(serdeConstants.LIST_COLUMNS)
     columnNameProperties += "," + partCols.mkString(",")
-    serDeProps.setProperty(Constants.LIST_COLUMNS, columnNameProperties)
+    serDeProps.setProperty(serdeConstants.LIST_COLUMNS, columnNameProperties)
 
     // `None` if column types are missing. By default, Hive SerDeParameters initialized by the
     // ColumnarSerDe will treat all columns as having string types.
     // Column types specified by the Constants.LIST_COLUMN_TYPES key are delimited by ":"
     // E.g., for the CREATE TABLE example above, if `columnTypeProperties` is defined, then it
     // will be "int:bigint". Partition columns are strings, so "string:string" should be appended.
-    val columnTypePropertiesOpt = Option(serDeProps.getProperty(Constants.LIST_COLUMN_TYPES))
+    val columnTypePropertiesOpt = Option(serDeProps.getProperty(serdeConstants.LIST_COLUMN_TYPES))
     columnTypePropertiesOpt.foreach { columnTypeProperties =>
-      serDeProps.setProperty(Constants.LIST_COLUMN_TYPES,
-        columnTypeProperties + (":" + Constants.STRING_TYPE_NAME * partCols.size))
+      serDeProps.setProperty(serdeConstants.LIST_COLUMN_TYPES,
+        columnTypeProperties + (":" + serdeConstants.STRING_TYPE_NAME * partCols.size))
     }
     serDeProps
   }

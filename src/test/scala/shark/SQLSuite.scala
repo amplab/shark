@@ -1054,6 +1054,32 @@ class SQLSuite extends FunSuite {
   }
 
   //////////////////////////////////////////////////////////////////////////////
+  // Window Function Support
+  //////////////////////////////////////////////////////////////////////////////
+  test("window function support") {
+    expectSql("select id,name,count(id) over (partition by name) from users",
+      Array[String]("1\tA\t2", "3\tA\t2", "2\tB\t1"))
+    expectSql("select id,name,sum(id) over(partition by name order by id) from users",
+      Array[String]("1\tA\t1", "3\tA\t4", "2\tB\t2"))
+    expectSql("select id,name,sum(id) over(partition by name order by id rows between " +
+      "unbounded preceding and current row) from users",
+      Array[String]("1\tA\t1", "3\tA\t4", "2\tB\t2"))
+    expectSql("select id,name,sum(id) over(partition by name order by id rows between " +
+      "current row and unbounded following) from users",
+      Array[String]("1\tA\t4", "3\tA\t3", "2\tB\t2"))
+    expectSql("select id,name,sum(id) over(partition by name order by id rows between " +
+      "unbounded preceding and unbounded following) from users",
+      Array[String]("1\tA\t4", "3\tA\t4", "2\tB\t2"))
+    expectSql("select id,name,lead(id) over(partition by name order by id) from users",
+      Array[String]("1\tA\t3", "3\tA\tnull", "2\tB\tnull"))
+    expectSql("select id,name,lag(id) over(partition by name order by id) from users",
+      Array[String]("1\tA\tnull", "3\tA\t1", "2\tB\tnull"))
+    expectSql("select id, name, sum(id) over w1 as sum_id, max(id) over w1 as max_id from users" +
+      " window w1 as (partition by name)",
+      Array[String]("2\tB\t2\t2","1\tA\t4\t3","3\tA\t4\t3"))
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
   // Table Generating Functions (TGFs)
   //////////////////////////////////////////////////////////////////////////////
 
