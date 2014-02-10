@@ -115,7 +115,7 @@ class JoinOperator extends CommonJoinOperator[JoinDesc] with ReduceSinkTableDesc
       op.initializeOnSlave()
 
       val writable = new BytesWritable
-      val nullSafes = conf.getNullSafes()
+      val nullSafes = op.conf.getNullSafes()
 
       val cp = new CartesianProduct[Any](op.numTables)
 
