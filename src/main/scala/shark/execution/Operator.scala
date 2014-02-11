@@ -175,7 +175,7 @@ abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
     // var fieldObjectInspectors = initEvaluators(evals, 0, length, rowInspector);
     sois ++= fieldObjectInspectors
 
-    if (evals.length > length) {
+    if (outputColNames.size > length) {
       // union keys
       val uois = new ArrayBuffer[ObjectInspector]()
       for (/*List<Integer>*/ distinctCols <- distinctColIndices) {
