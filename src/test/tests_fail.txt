@@ -102,3 +102,6 @@ testCliDriver_loadpart_err
 # Indeterministic sort by. We produce the correct result, it's just different from Hive's.
 testCliDriver_input3_limit
 testCliDriver_ctas
+# Flaky: passes when run in isolation, and with other input_part* tests, though not when run with
+# the rest of test_pass.txt
+testCliDriver_input_part8

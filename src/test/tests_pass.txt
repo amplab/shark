@@ -155,7 +155,6 @@ testCliDriver_input_part4
 testCliDriver_input_part5
 testCliDriver_input_part6
 testCliDriver_input_part7
-testCliDriver_input_part8
 testCliDriver_input_part9
 testCliDriver_input_testsequencefile
 testCliDriver_input_testxpath
