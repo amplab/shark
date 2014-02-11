@@ -124,8 +124,17 @@ class ColumnPruner(@transient op: TopOperator[_], @transient tbl: Table) extends
     }
 
     // recurse on the subtree
-    op.childOperators.foreach { y =>
-      computeColumnsToKeep(y, cols, op)
+    val numChildren = op.childOperators.size
+    var currentChildIndex = 0
+    while (currentChildIndex < numChildren) {
+      val childOp = op.childOperators(currentChildIndex)
+      if (op.isInstanceOf[TableScanOperator] && childOp.isInstanceOf[LateralViewForwardOperator]) {
+        cols += "*"
+        return cols
+      } else {
+        computeColumnsToKeep(childOp, cols, op)
+      }
+      currentChildIndex = currentChildIndex + 1
     }
   }
 }
