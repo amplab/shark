@@ -324,9 +324,6 @@ testCliDriver_show_tablestatus
 testCliDriver_showparts
 testCliDriver_sort
 testCliDriver_stats0
-testCliDriver_stats1
-testCliDriver_stats3
-testCliDriver_stats4
 testCliDriver_str_to_map
 testCliDriver_subq
 testCliDriver_subq2
@@ -577,15 +574,6 @@ testCliDriver_nullgroup4_multi_distinct
 testCliDriver_explode_null
 testCliDriver_udf_count
 testCliDriver_count
-# These will be passing soon!
-testCliDriver_stats12
-testCliDriver_stats13
-testCliDriver_stats2
-testCliDriver_stats5
-testCliDriver_stats6
-testCliDriver_stats7
-testCliDriver_stats8
-testCliDriver_stats9
 
 # Moved from tests_fail:
 testCliDriver_init_file

@@ -76,8 +76,19 @@ testCliDriver_smb_mapjoin_5
 testCliDriver_smb_mapjoin_6
 testCliDriver_smb_mapjoin_7
 testCliDriver_source
+testCliDriver_stats1
+testCliDriver_stats2
+testCliDriver_stats3
+testCliDriver_stats4
+testCliDriver_stats5
+testCliDriver_stats6
+testCliDriver_stats7
+testCliDriver_stats8
+testCliDriver_stats9
 testCliDriver_stats10
 testCliDriver_stats11
+testCliDriver_stats12
+testCliDriver_stats13
 # udaf_context_ngrams is indeterministic
 testCliDriver_udaf_context_ngrams
 # JDK 7 changed behavior of return value when a string is null for substr.
