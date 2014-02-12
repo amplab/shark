@@ -60,7 +60,7 @@ if [ "x$SHARK_EXEC_MODE" == "xyarn" ] ; then
     echo "No SHARK_ASSEMBLY_JAR specified. please set SHARK_ASSEMBLY_JAR for spark on yarn mode."
     exit 1
   else
-    export SPARK_YARN_APP_JAR = $SHARK_ASSEMBLY_JAR
+    export SPARK_YARN_APP_JAR=$SHARK_ASSEMBLY_JAR
   fi
 
   # use yarn-client mode for interactive shell.
