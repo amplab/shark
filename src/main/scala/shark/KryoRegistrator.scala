@@ -42,7 +42,7 @@ class KryoRegistrator extends SparkKryoRegistrator {
 
     kryo.register(classOf[SerializableWritable[_]], new KryoSWSerializer)
 
-    // As far as I (rxin), among all Hadoop writables only TimestampWritable
+    // As far as I (rxin) know, among all Hadoop writables only TimestampWritable
     // cannot be serialized by Kryo out of the box.
     kryo.register(classOf[org.apache.hadoop.hive.serde2.io.TimestampWritable],
       new KryoWritableSerializer[org.apache.hadoop.hive.serde2.io.TimestampWritable])
@@ -56,7 +56,7 @@ class KryoSWSerializer[T <: Writable] extends KSerializer[SerializableWritable[T
   def read(kryo : Kryo, in : KryoInput, cls : Class[SerializableWritable[T]]) : SerializableWritable[T] = {
     new SerializableWritable(
       kryo.readClassAndObject(in).asInstanceOf[T]
-      )
+    )
   }
 }
 

@@ -18,10 +18,12 @@
 import sbt._
 import Keys._
 
-import sbtassembly.Plugin._
-import AssemblyKeys._
-
 import scala.util.Properties.{ envOrNone => env }
+
+import net.virtualvoid.sbt.graph.{Plugin => DependencyGraphPlugin}
+import sbtassembly.Plugin._
+import sbtassembly.Plugin.AssemblyKeys._
+
 
 object SharkBuild extends Build {
 
@@ -61,7 +63,7 @@ object SharkBuild extends Build {
   // Differences in Jackson version cause runtime errors as per HIVE-3581
   val excludeJackson = ExclusionRule(organization = "org.codehaus.jackson")
 
-  def coreSettings = Defaults.defaultSettings ++ Seq(
+  def coreSettings = Defaults.defaultSettings ++ DependencyGraphPlugin.graphSettings ++ Seq(
 
     name := "shark",
     organization := "edu.berkeley.cs.amplab",
