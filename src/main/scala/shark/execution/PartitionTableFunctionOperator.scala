@@ -57,15 +57,23 @@ class PartitionTableFunctionOperator extends UnaryOperator[PTFDesc] {
    * 4. Create input partition to store rows coming from previous operator
    */
   override def initializeOnSlave() {
-    val dS = new PTFDeserializer(conf, objectInspectors.head.asInstanceOf[StructObjectInspector],
-      localHconf)
-    //Walk through the PTFInputDef chain to initialize ShapeDetails, OI etc.
-    dS.initializePTFChain(conf.getFuncDef)
+    initializePTFs(conf)
     inputPart = createFirstPartitionForChain(objectInspector, conf.isMapSide)
     setupKeysWrapper(objectInspectors.head)
   }
 
+  /**
+   * Initializes function metadata, starting with the input PTFDesc's PartitionedTableFunctionDef.
+   */
+  protected def initializePTFs(conf: PTFDesc) {
+    val dS = new PTFDeserializer(conf, objectInspectors.head.asInstanceOf[StructObjectInspector],
+      localHconf)
+    //Walk through the PTFInputDef chain to initialize ShapeDetails, OI etc.
+    dS.initializePTFChain(conf.getFuncDef)
+  }
+
   override def outputObjectInspector() = {
+    initializePTFs(conf)
     if (conf.isMapSide) {
       val tDef = conf.getStartOfChain
       tDef.getRawInputShape.getOI
