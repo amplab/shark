@@ -129,6 +129,12 @@ class ColumnPruner(@transient op: TopOperator[_], @transient tbl: Table) extends
     while (currentChildIndex < numChildren) {
       val childOp = op.childOperators(currentChildIndex)
       if (op.isInstanceOf[TableScanOperator] && childOp.isInstanceOf[LateralViewForwardOperator]) {
+        // The query has a LATERAL VIEW command and its operator tree includes am LVJ Op.
+        // See LateralViewJoinOperator.scala for documentation on execution details.
+        // There is an implied SELECT * projection on a table's rows when we evaluate the LVF Op
+        // from the UDTF Op branch, so short-circuit the pruning here.
+        // Note that the actual Select Op in that branch only contains the Array evaluators, so we
+        // can't column prune based on it.
         cols += "*"
         return cols
       } else {

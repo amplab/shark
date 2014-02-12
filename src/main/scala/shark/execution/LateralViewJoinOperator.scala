@@ -59,8 +59,9 @@ class LateralViewJoinOperator extends NaryOperator[LateralViewJoinDesc] {
 
     // Get all relevant operators. Our inputRDD will come from lvfOp.
     // The LVJ op has two input operators, a Select (lvjSelOp) and a UDTF Op with another 
-    // Select Op as a parent (udtfSelOp). We need the evals from the Select Ops on each 
-    // branch. Finally, we need udtfOp's explode method to get the exploded array.
+    // Select Op as a parent (udtfSelOp) and a Lateral View Forward Op as a parent of that (lvfOp).
+    // We need the evals from the Select Ops on each branch. Finally, we need udtfOp's explode
+    // method to get the exploded array.
     udtfOp = parentOperators.filter(_.isInstanceOf[UDTFOperator]).head.asInstanceOf[UDTFOperator]
     udtfSelOp = udtfOp.parentOperators.head.asInstanceOf[SelectOperator]
     lvjSelOp = parentOperators.head.asInstanceOf[SelectOperator]
