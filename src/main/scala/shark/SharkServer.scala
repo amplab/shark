@@ -261,7 +261,7 @@ class SharkServerHandler extends HiveServerHandler with LogHelper {
   private var isSharkQuery = false
 
   override def execute(cmd: String) {
-    SessionState.get()
+    SessionState.start(conf.asInstanceOf[HiveConf])
     val cmd_trimmed = cmd.trim()
     val tokens = cmd_trimmed.split("\\s")
     val cmd_1 = cmd_trimmed.substring(tokens.apply(0).length()).trim()
