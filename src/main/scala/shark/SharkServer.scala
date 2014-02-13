@@ -245,7 +245,15 @@ class SharkServerHandler extends HiveServerHandler with LogHelper {
 
   private val ss = SessionState.get()
 
-  private val conf: Configuration = if (ss != null) ss.getConf() else new Configuration()
+  private val conf: Configuration =
+    if (ss != null) {
+      ss.getConf()
+    } else {
+      val newConf = new Configuration()
+      val ss = SessionState.start(newConf.asInstanceOf[HiveConf])
+      setupSessionIO(ss)
+      newConf
+    }
 
   SharkConfVars.initializeWithDefaults(conf)
 
@@ -261,7 +269,6 @@ class SharkServerHandler extends HiveServerHandler with LogHelper {
   private var isSharkQuery = false
 
   override def execute(cmd: String) {
-    SessionState.start(conf.asInstanceOf[HiveConf])
     val cmd_trimmed = cmd.trim()
     val tokens = cmd_trimmed.split("\\s")
     val cmd_1 = cmd_trimmed.substring(tokens.apply(0).length()).trim()
