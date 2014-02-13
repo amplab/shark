@@ -25,8 +25,8 @@ import scala.reflect.ClassTag
 import scala.collection.JavaConversions._
 
 import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_PARTITION_COLUMNS
 import org.apache.hadoop.hive.metastore.api.FieldSchema
+import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants.META_TABLE_PARTITION_COLUMNS
 import org.apache.hadoop.hive.serde2.Deserializer
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
@@ -61,12 +61,22 @@ private[shark] object HiveUtils {
   }
 
   /**
+   * Returns a StructObjectInspector
+   */
+  def makeStandardStructObjectInspector(fieldNames: Seq[String], ois: Seq[PrimitiveObjectInspector]) = {
+    val fields = fieldNames.toList
+    val oiList = ois.toList
+
+    ObjectInspectorFactory.getStandardStructObjectInspector(fields, oiList)
+  }
+
+  /**
    * Return a UnionStructObjectInspector that combines the StructObjectInspectors for the table
    * schema and the partition columns, which are virtual in Hive.
    */
   def makeUnionOIForPartitionedTable(
       partProps: Properties,
-      partSerDe: Deserializer): UnionStructObjectInspector = {
+      tableSerDe: Deserializer): UnionStructObjectInspector = {
     val partCols = partProps.getProperty(META_TABLE_PARTITION_COLUMNS)
     val partColNames = new JArrayList[String]
     val partColObjectInspectors = new JArrayList[ObjectInspector]
@@ -78,7 +88,7 @@ private[shark] object HiveUtils {
     val partColObjectInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
       partColNames, partColObjectInspectors)
     val oiList = JArrays.asList(
-      partSerDe.getObjectInspector.asInstanceOf[StructObjectInspector],
+      tableSerDe.getObjectInspector.asInstanceOf[StructObjectInspector],
       partColObjectInspector.asInstanceOf[StructObjectInspector])
     // New oi is union of table + partition object inspectors
     ObjectInspectorFactory.getUnionStructObjectInspector(oiList)

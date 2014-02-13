@@ -33,8 +33,10 @@ import shark.execution.serialization.SerializableWritable
 
 object JoinUtil {
 
-  def computeJoinKey(row: Any, keyFields: JavaList[ExprNodeEvaluator], keyFieldsOI: JavaList[OI])
-    : Seq[SerializableWritable[_]] = {
+  def computeJoinKey(
+      row: Any,
+      keyFields: JavaList[ExprNodeEvaluator],
+      keyFieldsOI: JavaList[OI]): Seq[SerializableWritable[_]] = {
     Range(0, keyFields.size).map { i =>
       val c = copy(row, keyFields.get(i), keyFieldsOI.get(i), CopyOption.WRITABLE)
       val s = if (c == null) NullWritable.get else c
@@ -49,11 +51,11 @@ object JoinUtil {
   }
 
   def computeJoinValues(row: Any,
-     valueFields: JavaList[ExprNodeEvaluator],
-     valueFieldsOI: JavaList[OI],
-     filters: JavaList[ExprNodeEvaluator],
-     filtersOI: JavaList[OI],
-     noOuterJoin: Boolean): Array[AnyRef] = {
+      valueFields: JavaList[ExprNodeEvaluator],
+      valueFieldsOI: JavaList[OI],
+      filters: JavaList[ExprNodeEvaluator],
+      filtersOI: JavaList[OI],
+      noOuterJoin: Boolean): Array[AnyRef] = {
 
     val isFiltered: Boolean = {
       if (filters == null) {

@@ -42,40 +42,58 @@ import org.apache.spark.serializer.{KryoSerializer => SparkKryoSerializer}
  */
 class LateralViewJoinOperator extends NaryOperator[LateralViewJoinDesc] {
 
-  @BeanProperty var conf: SelectDesc = _
-  @BeanProperty var lvfOp: LateralViewForwardOperator = _
-  @BeanProperty var lvfOIString: String = _
+  @BeanProperty var lvjSelOp: SelectOperator = _
+  @BeanProperty var udtfSelOp: SelectOperator = _
   @BeanProperty var udtfOp: UDTFOperator = _
-  @BeanProperty var udtfOIString: String = _
+  @BeanProperty var lvfOp: LateralViewForwardOperator = _
 
-  @transient var eval: Array[ExprNodeEvaluator] = _
-  @transient var fieldOis: StructObjectInspector = _
+  @BeanProperty var udtfOIString: String = _
+  @BeanProperty var udtfSelOIString: String = _
+  @BeanProperty var lvjSelOIString: String = _
+
+  @transient var udtfEval: Array[ExprNodeEvaluator] = _
+  @transient var lvjSelEval: Array[ExprNodeEvaluator] = _
 
   override def initializeOnMaster() {
     super.initializeOnMaster()
-    // Get conf from Select operator beyond UDTF Op to get eval()
-    conf = parentOperators.filter(_.isInstanceOf[UDTFOperator]).head
-      .parentOperators.head.asInstanceOf[SelectOperator].desc
 
+    // Get all relevant operators. Our inputRDD will come from lvfOp.
+    // The LVJ op has two input operators, a Select (lvjSelOp) and a UDTF Op with another 
+    // Select Op as a parent (udtfSelOp) and a Lateral View Forward Op as a parent of that (lvfOp).
+    // We need the evals from the Select Ops on each branch. Finally, we need udtfOp's explode
+    // method to get the exploded array.
     udtfOp = parentOperators.filter(_.isInstanceOf[UDTFOperator]).head.asInstanceOf[UDTFOperator]
+    udtfSelOp = udtfOp.parentOperators.head.asInstanceOf[SelectOperator]
+    lvjSelOp = parentOperators.head.asInstanceOf[SelectOperator]
+    lvfOp = udtfSelOp.parentOperators.head.asInstanceOf[LateralViewForwardOperator]
+
+    // Serialize the object inspectors for each operator before running on slaves
     udtfOIString = KryoSerializerToString.serialize(udtfOp.objectInspectors)
-    lvfOp = parentOperators.filter(_.isInstanceOf[SelectOperator]).head.parentOperators.head
-      .asInstanceOf[LateralViewForwardOperator]
-    lvfOIString = KryoSerializerToString.serialize(lvfOp.objectInspectors)
+    udtfSelOIString = KryoSerializerToString.serialize(udtfSelOp.objectInspectors)
+    lvjSelOIString = KryoSerializerToString.serialize(lvjSelOp.objectInspectors)
   }
 
   override def initializeOnSlave() {
-    lvfOp.objectInspectors = KryoSerializerToString.deserialize(lvfOIString)
+    // Deserialize the object inspectors on slaves & initialize the operators
     udtfOp.objectInspectors = KryoSerializerToString.deserialize(udtfOIString)
+    udtfSelOp.objectInspectors = KryoSerializerToString.deserialize(udtfSelOIString)
+    lvjSelOp.objectInspectors = KryoSerializerToString.deserialize(lvjSelOIString)
 
-    // Get eval(), which will return array that needs to be exploded
-    // eval doesn't exist when getColList() is null, but this happens only on select *'s,
-    // which are not allowed within explode
-    eval = conf.getColList().map(ExprNodeEvaluatorFactory.get(_)).toArray
-    eval.foreach(_.initialize(objectInspectors.head))
-
-    // Initialize UDTF operator so that we can call explode() later
     udtfOp.initializeOnSlave()
+    udtfSelOp.initializeOnSlave()
+    lvjSelOp.initializeOnSlave()
+
+    // Get eval from the Sel Op on the UDTF branch. This will return the array that 
+    // needs to be exploded. eval doesn't exist when getColList() is null, but this 
+    // happens only on select *'s, which are not allowed within explode
+    udtfEval = udtfSelOp.conf.getColList().map(ExprNodeEvaluatorFactory.get(_)).toArray
+    udtfEval.foreach(_.initialize(udtfSelOp.objectInspectors.head))
+
+    // Get the Select-branch eval
+    if (lvjSelOp.conf.getColList() != null) {
+      lvjSelEval = lvjSelOp.conf.getColList().map(ExprNodeEvaluatorFactory.get(_)).toArray
+      lvjSelEval.foreach(_.initialize(lvjSelOp.objectInspectors.head))
+    }
   }
 
   override def outputObjectInspector() = {
@@ -102,10 +120,8 @@ class LateralViewJoinOperator extends NaryOperator[LateralViewJoinDesc] {
   }
   
   override def execute: RDD[_] = {
-    // Execute LateralViewForwardOperator, bypassing Select / UDTF - Select
-    // branches (see diagram in Hive's).
+    // Execute LVF operator to get our inputRDD
     val inputRDD = lvfOp.execute()
-
     Operator.executeProcessPartition(this, inputRDD)
   }
 
@@ -116,27 +132,32 @@ class LateralViewJoinOperator extends NaryOperator[LateralViewJoinDesc] {
 
   /** Per existing row, emit a new row with each value of the exploded array */
   override def processPartition(split: Int, iter: Iterator[_]) = {
-    val lvfSoi = lvfOp.objectInspectors.head.asInstanceOf[StructObjectInspector]
-    val lvfFields = lvfSoi.getAllStructFieldRefs()
+
+    val lvjSelSoi = objectInspectors(0).asInstanceOf[StructObjectInspector]
+    val lvjSelFields = lvjSelSoi.getAllStructFieldRefs()
 
     iter.flatMap { row =>
-      var arrToExplode = eval.map(x => x.evaluate(row))
+      var arrToExplode = udtfEval.map(x => x.evaluate(row))
       val explodedRows = udtfOp.explode(arrToExplode)
 
       explodedRows.map { expRow =>
         val expRowArray = expRow.asInstanceOf[Array[java.lang.Object]]
-        val joinedRow = new Array[java.lang.Object](lvfFields.size + expRowArray.length)
+        val joinedRow = new Array[java.lang.Object](lvjSelFields.size + expRowArray.length)
 
         // Add row fields from LateralViewForward
         var i = 0
-        while (i < lvfFields.size) {
-          joinedRow(i) = lvfSoi.getStructFieldData(row, lvfFields.get(i))
+        while (i < lvjSelFields.size) {
+          if (lvjSelEval != null) {
+            joinedRow(i) = lvjSelEval(i).evaluate(row)
+          } else {
+            joinedRow(i) = lvjSelSoi.getStructFieldData(row, lvjSelFields.get(i))
+          }
           i += 1
         }
         // Append element(s) from explode
         i = 0
         while (i < expRowArray.length) {
-          joinedRow(i + lvfFields.size) = expRowArray(i)
+          joinedRow(i + lvjSelFields.size) = expRowArray(i)
           i += 1
         }
         joinedRow
@@ -145,9 +166,8 @@ class LateralViewJoinOperator extends NaryOperator[LateralViewJoinDesc] {
   }
 }
 
-
 /**
- * Use Kryo to serialize udtfOp and lvfOp ObjectInspectors, then convert the Array[Byte]
+ * Use Kryo to serialize udtfOp and selOp ObjectInspectors, then convert the Array[Byte]
  * to a String, since XML serialization of Bytes (for @BeanProperty keyword) is inefficient.
  */
 object KryoSerializerToString {

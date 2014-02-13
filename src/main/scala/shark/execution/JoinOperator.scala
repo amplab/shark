@@ -19,6 +19,7 @@ package shark.execution
 
 import java.util.{HashMap => JHashMap, List => JList}
 
+import scala.collection.mutable.Queue
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
@@ -34,6 +35,7 @@ import org.apache.spark.{CoGroupedRDD, HashPartitioner}
 import org.apache.spark.rdd.RDD
 
 import shark.execution.serialization.OperatorSerializationWrapper
+import shark.io.MutableBytesWritable
 
 
 class JoinOperator extends CommonJoinOperator[JoinDesc] with ReduceSinkTableDesc {
@@ -113,7 +115,7 @@ class JoinOperator extends CommonJoinOperator[JoinDesc] with ReduceSinkTableDesc
       op.initializeOnSlave()
 
       val writable = new BytesWritable
-      val nullSafes = conf.getNullSafes()
+      val nullSafes = op.conf.getNullSafes()
 
       val cp = new CartesianProduct[Any](op.numTables)
 
@@ -139,47 +141,229 @@ class JoinOperator extends CommonJoinOperator[JoinDesc] with ReduceSinkTableDesc
   }
 
   def generateTuples(iter: Iterator[Array[Any]]): Iterator[_] = {
-    //val tupleOrder = CommonJoinOperator.computeTupleOrder(joinConditions)
-
-    // TODO: use MutableBytesWritable to avoid the array copy.
-    val bytes = new BytesWritable
-    val tmp = new Array[Object](2)
-
-    val tupleSizes = (0 until joinVals.size).map { i => joinVals.get(i.toByte).size() }.toIndexedSeq
-    val offsets = tupleSizes.scanLeft(0)(_ + _)
-
-    val rowSize = offsets.last
-    val outputRow = new Array[Object](rowSize)
-
-    iter.map { elements: Array[Any] =>
-      var index = 0
-      while (index < numTables) {
-        val element = elements(index).asInstanceOf[Array[Byte]]
-        var i = 0
-        if (element == null) {
-          while (i < joinVals.get(index.toByte).size) {
-            outputRow(i + offsets(index)) = null
-            i += 1
-          }
-        } else {
-          bytes.set(element, 0, element.length)
-          tmp(1) = tagToValueSer.get(index).deserialize(bytes)
-          val joinVal = joinVals.get(index.toByte)
-          while (i < joinVal.size) {
-            val joinValObjectInspectors = joinValuesObjectInspectors.get(index.toByte)
-            outputRow(i + offsets(index)) = ObjectInspectorUtils.copyToStandardObject(
-              joinVal(i).evaluate(tmp), joinValObjectInspectors(i),
-              ObjectInspectorUtils.ObjectInspectorCopyOption.WRITABLE)
-            i += 1
-          }
-        }
-        index += 1
-      }
-
-      outputRow
-    }
+    new TupleIterator(iter)
   }
 
   override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] =
     throw new UnsupportedOperationException("JoinOperator.processPartition()")
+
+  class TupleIterator(iter: Iterator[Array[Any]]) extends Iterator[Object] {
+    val tupleSizes = joinVals.map((e) => e.size).toIndexedSeq
+    val offsets = tupleSizes.scanLeft(0)(_ + _)
+
+    val rowSize = offsets.last
+
+    val outputs = Queue[Array[Object]]()
+    var done = false
+    
+    def hasNext = {
+      if(outputs.isEmpty) {
+        processNext()
+      }
+      
+      !outputs.isEmpty
+    }
+    
+    def next = {
+      if(outputs.isEmpty) {
+        processNext()
+      }
+
+      outputs.dequeue
+    }
+    
+    private def processNext() {
+      if(!done) {
+        // if not set as finished, iterate the next
+        var continue = (outputs.isEmpty) // if not element in the queue, the try to get
+        
+        while(continue) {
+          if (iter.hasNext) {
+            var elements: Array[Any] = iter.next
+
+            val row = new Array[Object](rowSize)
+            done = generate(false, null, 0, elements, row, outputs)
+            
+            if(done || outputs.size() > 0) {
+              // if no more records needed, or got record(s)
+              continue = false
+            }
+          } else {
+            continue = false
+            done = true
+          }
+        }
+      }
+    }
+
+    /**
+     * Deserialize the value,.
+     */
+    private def deserColumns(element: Array[Byte], deser: Deserializer): Array[java.lang.Object] = {
+      // TODO should reuse the kv object
+      var kv = new Array[Object](2)
+      if (element != null) {
+        //reuseByte.set(element, 0, element.length)
+        var bytes = new BytesWritable(element)
+        // TODO may cause performance issue, cause the DUPLICATED table rows (in bytes) are fed 
+        // in the join entries, need to use the "lazy parse object" instead of the "bytes".
+        kv(1) = deser.deserialize(bytes)
+      
+        kv
+      } else {
+        null
+      }
+    }
+
+    /**
+     * Create the new output tuple(s), and put the output result into the outputRows.
+     * NOTICE: Single input entry("elements") can creates 0 or 1 or 2 output rows due to the 
+     * join filter.
+     */
+    private def generate(previousRightFiltered: Boolean, previousRightTable: Array[Object], 
+      startIdx: Int, elements: Array[Any], row: Array[Object],
+      outputRows: Queue[Array[Object]]): Boolean = {
+      
+      var index = startIdx
+      var done = false
+
+      var leftTable = if(index == 0) {
+        deserColumns(elements(index).asInstanceOf[Array[Byte]], tagToValueSer.get(index))
+      } else {
+        previousRightTable
+      }
+      
+      var leftFiltered = if(index == 0) {
+        // check the join filter (true for discard the data)
+        CommonJoinOperator.isFiltered(leftTable,
+          joinFilters(index), joinFilterObjectInspectors(index.toByte))
+      } else {
+        previousRightFiltered
+      }
+
+      var entireLeftFiltered = leftFiltered
+      
+      while (index < joinConditions.size) {
+        var joinCondition = joinConditions(index)
+        var rightTableIndex  = index + 1
+        
+        var rightTable = deserColumns(elements(rightTableIndex).asInstanceOf[Array[Byte]], 
+            tagToValueSer.get(rightTableIndex))
+        var rightFiltered = CommonJoinOperator.isFiltered(rightTable,
+          joinFilters(rightTableIndex.toByte), 
+          joinFilterObjectInspectors(rightTableIndex.toByte))
+
+        joinCondition.getType() match {
+          case CommonJoinOperator.FULL_OUTER_JOIN => {
+            /**
+             * if one of the node doesn't pass the filter test(filtered=true)
+             * will generate 2 rows:
+             * 1) keep the right table columns, and reset the left tables columns
+             * 2) keep the left tables columns, and reset the right table columns
+             */
+            if (entireLeftFiltered || rightFiltered) {
+              // Row 1: keep the right table columns, and discard left tables
+              // create a new row object, with null value for all of the columns
+              var row2 = new Array[java.lang.Object](row.length)
+              generate((rightTable == null), rightTable, 
+                  rightTableIndex, elements, row2, outputRows)
+              
+              // Row 2: keep the left table columns, and discard the right table
+              rightFiltered = true
+            } else {
+              rightFiltered = false
+            }
+            leftFiltered = false
+          }
+          case CommonJoinOperator.LEFT_OUTER_JOIN => {
+            if (entireLeftFiltered || rightFiltered) {
+              // will not output anything for the right table columns
+              rightFiltered = true
+            }
+            leftFiltered = false
+          }
+          case CommonJoinOperator.RIGHT_OUTER_JOIN => {
+            // setColumnValues(rightTable, row, rightTableIndex.toByte, offsets)
+            
+            if (entireLeftFiltered || rightFiltered) {
+              // if filtered then reset all of the left tables columns
+              java.util.Arrays.fill(row, 0, offsets(rightTableIndex.toByte), null)
+              leftFiltered = true
+            }
+            rightFiltered = false
+          }
+          case CommonJoinOperator.LEFT_SEMI_JOIN => {
+            // the same with left outer join, but only output the first valid row
+            if (entireLeftFiltered || rightFiltered) {
+              // will not output anything for the right table columns
+              rightFiltered = true
+            } else {
+              // find the valid output, and will not output new row any more
+              done = true
+            }
+            leftFiltered = false
+          }
+          case CommonJoinOperator.INNER_JOIN => {
+            if (entireLeftFiltered || rightFiltered) {
+              java.util.Arrays.fill(row, 0, offsets(joinCondition.getRight().toByte), null)
+              leftFiltered  = true
+              rightFiltered = true
+            }
+          }
+          case _ => assert(false)
+        }
+        
+        leftFiltered = leftFiltered || (leftTable == null)
+        rightFiltered = rightFiltered || (rightTable == null)
+        
+        // set the left table columns
+        if(!leftFiltered) {
+          setColumnValues(leftTable, row, index.toByte, offsets)
+        }
+
+        entireLeftFiltered = entireLeftFiltered && leftFiltered && rightFiltered
+        
+        leftFiltered = rightFiltered
+        leftTable = rightTable
+        index += 1
+      }
+      
+      // set the most right table columns
+      if(!leftFiltered) {
+        setColumnValues(leftTable, row, index.toByte, offsets)
+      }
+      
+      entireLeftFiltered = entireLeftFiltered && leftFiltered
+      
+      if(entireLeftFiltered)
+        done = false
+      else
+        outputRows.enqueue(row)
+
+      done
+    }
+
+    /**
+     * Set the columns for the join result of the specified table
+     */
+    private def setColumnValues(data: Object, outputRow: Array[Object], tblIdx: Byte,
+                                offsets: IndexedSeq[Int]) {
+
+      val joinVal = joinVals(tblIdx)
+      val joinValOIs = joinValuesObjectInspectors(tblIdx)
+      
+      var idx = 0
+      val size = joinVal.size()
+      
+      while (idx < size) {
+        outputRow(idx + offsets(tblIdx.toInt)) = ObjectInspectorUtils.copyToStandardObject(
+          joinVal(idx).evaluate(data), joinValOIs(idx),
+          ObjectInspectorUtils.ObjectInspectorCopyOption.WRITABLE)
+        
+        idx += 1
+      }
+    }
+  }
 }
+
+

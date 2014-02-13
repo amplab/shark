@@ -23,21 +23,34 @@ import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
 import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_PARTITION_COLUMNS
+import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants.META_TABLE_PARTITION_COLUMNS
 import org.apache.hadoop.hive.ql.exec.{TableScanOperator => HiveTableScanOperator}
 import org.apache.hadoop.hive.ql.exec.{MapSplitPruning, Utilities}
+import org.apache.hadoop.hive.ql.io.HiveInputFormat
+import org.apache.hadoop.hive.ql.io.orc.OrcSerde
 import org.apache.hadoop.hive.ql.metadata.{Partition, Table}
-import org.apache.hadoop.hive.ql.plan.{PartitionDesc, TableDesc, TableScanDesc}
-import org.apache.hadoop.hive.serde.Constants
-import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorFactory,
-  StructObjectInspector}
+import org.apache.hadoop.hive.ql.plan.{TableDesc, TableScanDesc}
+import org.apache.hadoop.hive.ql.plan.PartitionDesc
+import org.apache.hadoop.hive.ql.plan.PlanUtils
+import org.apache.hadoop.hive.ql.metadata.{Partition, Table}
+import org.apache.hadoop.hive.serde.serdeConstants
+import org.apache.hadoop.hive.serde2.Serializer
+import org.apache.hadoop.hive.serde2.ColumnProjectionUtils;
+import org.apache.hadoop.hive.serde2.`lazy`.LazyStruct
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorConverters
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorConverters.Converter
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory
 
 import org.apache.spark.rdd.{PartitionPruningRDD, RDD}
 
 import shark.{LogHelper, SharkConfVars, SharkEnv}
 import shark.execution.optimization.ColumnPruner
-import shark.memstore2.{CacheType, ColumnarSerDe, MemoryMetadataManager}
+import shark.memstore2.CacheType
+import shark.memstore2.CacheType._
+import shark.memstore2.{ColumnarSerDe, MemoryMetadataManager}
 import shark.memstore2.{TablePartition, TablePartitionStats}
 import shark.util.HiveUtils
 
@@ -70,37 +83,39 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
 
   @BeanProperty var tableDesc: TableDesc = _
 
+  // True if table data is stored the Spark heap.
   @BeanProperty var isInMemoryTableScan: Boolean = _
 
+  @BeanProperty var cacheMode: CacheType.CacheType = _
 
   override def initializeOnMaster() {
     // Create a local copy of the HiveConf that will be assigned job properties and, for disk reads,
     // broadcasted to slaves.
     localHConf = new HiveConf(super.hconf)
+    cacheMode = CacheType.fromString(
+      tableDesc.getProperties().get("shark.cache").asInstanceOf[String])
     isInMemoryTableScan = SharkEnv.memoryMetadataManager.containsTable(
       table.getDbName, table.getTableName)
   }
 
   override def outputObjectInspector() = {
-    val cacheMode = CacheType.fromString(
-      tableDesc.getProperties().get("shark.cache").asInstanceOf[String])
     if (parts == null) {
-      val serializer = if (CacheType.shouldCache(cacheMode)) {
+      val tableSerDe = if (isInMemoryTableScan || cacheMode == CacheType.TACHYON) {
         new ColumnarSerDe
       } else {
         tableDesc.getDeserializerClass().newInstance()
       }
-      serializer.initialize(hconf, tableDesc.getProperties)
-      serializer.getObjectInspector()
+      tableSerDe.initialize(hconf, tableDesc.getProperties)
+      tableSerDe.getObjectInspector()
     } else {
       val partProps = firstConfPartDesc.getProperties()
-      val partSerDe = if (CacheType.shouldCache(cacheMode)) {
+      val tableSerDe = if (isInMemoryTableScan || cacheMode == CacheType.TACHYON) {
         new ColumnarSerDe
       } else {
-        firstConfPartDesc.getDeserializerClass().newInstance()
+        tableDesc.getDeserializerClass().newInstance()
       }
-      partSerDe.initialize(hconf, partProps)
-      HiveUtils.makeUnionOIForPartitionedTable(partProps, partSerDe)
+      tableSerDe.initialize(hconf, tableDesc.getProperties)
+      HiveUtils.makeUnionOIForPartitionedTable(partProps, tableSerDe)
     }
   }
 
@@ -115,8 +130,6 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
     // 1. Spark heap (block manager), accessed through the Shark MemoryMetadataManager
     // 2. Tachyon table
     // 3. Hive table on HDFS (or other Hadoop storage)
-    val cacheMode = CacheType.fromString(
-      tableDesc.getProperties().get("shark.cache").asInstanceOf[String])
     // TODO(harvey): Pruning Hive-partitioned, cached tables isn't supported yet.
     if (isInMemoryTableScan || cacheMode == CacheType.TACHYON) {
       if (isInMemoryTableScan) {
@@ -147,8 +160,6 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
     // the input table and we have statistics on the table.
     val columnsUsed = new ColumnPruner(this, table).columnsUsed
 
-    val cacheMode = CacheType.fromString(
-      tableDesc.getProperties().get("shark.cache").asInstanceOf[String])
     if (!table.isPartitioned && cacheMode == CacheType.TACHYON) {
       SharkEnv.tachyonUtil.pushDownColumnPruning(rdd, columnsUsed)
     }
@@ -235,6 +246,14 @@ object TableScanOperator extends LogHelper {
    * since we would have to serialize the HiveTableScanOperator.
    */
   private def addFilterExprToConf(hiveConf: HiveConf, hiveTableScanOp: HiveTableScanOperator) {
+    // Push down projections for this TableScanOperator to Hadoop JobConf
+    if (hiveTableScanOp.getNeededColumnIDs() != null) {
+      ColumnProjectionUtils.appendReadColumnIDs(hiveConf, hiveTableScanOp.getNeededColumnIDs())
+    } else {
+      ColumnProjectionUtils.setFullyReadColumns(hiveConf)
+    }
+    ColumnProjectionUtils.appendReadColumnNames(hiveConf, hiveTableScanOp.getNeededColumns())
+
     val tableScanDesc = hiveTableScanOp.getConf()
     if (tableScanDesc == null) return
 
@@ -249,7 +268,7 @@ object TableScanOperator extends LogHelper {
         columnNames.append(columnInfo.getInternalName())
       }
       val columnNamesString = columnNames.toString()
-      hiveConf.set(Constants.LIST_COLUMNS, columnNamesString)
+      hiveConf.set(serdeConstants.LIST_COLUMNS, columnNamesString)
 
       // Add column types to the HiveConf.
       val columnTypes = new StringBuilder
@@ -260,7 +279,7 @@ object TableScanOperator extends LogHelper {
         columnTypes.append(columnInfo.getType().getTypeName())
       }
       val columnTypesString = columnTypes.toString()
-      hiveConf.set(Constants.LIST_COLUMN_TYPES, columnTypesString)
+      hiveConf.set(serdeConstants.LIST_COLUMN_TYPES, columnTypesString)
     }
 
     // Push down predicate filters.

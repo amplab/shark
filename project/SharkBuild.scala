@@ -18,17 +18,19 @@
 import sbt._
 import Keys._
 
-import sbtassembly.Plugin._
-import AssemblyKeys._
-
 import scala.util.Properties.{ envOrNone => env }
+
+import net.virtualvoid.sbt.graph.{Plugin => DependencyGraphPlugin}
+import sbtassembly.Plugin._
+import sbtassembly.Plugin.AssemblyKeys._
+
 
 object SharkBuild extends Build {
 
   // Shark version
   val SHARK_VERSION = "0.9.0-SNAPSHOT"
 
-  val SPARK_VERSION = "0.9.0-incubating-SNAPSHOT"
+  val SPARK_VERSION = "0.9.0-incubating"
 
   val SCALA_VERSION = "2.10.3"
 
@@ -45,6 +47,7 @@ object SharkBuild extends Build {
 
   // Whether to build Shark with Tachyon jar.
   val TACHYON_ENABLED = true
+  val TACHYON_VERSION = "0.4.0"
 
   lazy val root = Project(
     id = "root",
@@ -55,11 +58,12 @@ object SharkBuild extends Build {
   val excludeHadoop = ExclusionRule(organization = "org.apache.hadoop")
   val excludeNetty = ExclusionRule(organization = "org.jboss.netty")
   val excludeCurator = ExclusionRule(organization = "org.apache.curator")
-  val excludeJackson = ExclusionRule(organization = "org.codehaus.jackson")
   val excludeAsm = ExclusionRule(organization = "asm")
   val excludeSnappy = ExclusionRule(organization = "org.xerial.snappy")
+  // Differences in Jackson version cause runtime errors as per HIVE-3581
+  val excludeJackson = ExclusionRule(organization = "org.codehaus.jackson")
 
-  def coreSettings = Defaults.defaultSettings ++ Seq(
+  def coreSettings = Defaults.defaultSettings ++ DependencyGraphPlugin.graphSettings ++ Seq(
 
     name := "shark",
     organization := "edu.berkeley.cs.amplab",
@@ -117,7 +121,6 @@ object SharkBuild extends Build {
       "org.apache.hadoop" % "hadoop-client" % hadoopVersion excludeAll(excludeJackson, excludeNetty, excludeAsm) force(),
       // See https://code.google.com/p/guava-libraries/issues/detail?id=1095
       "com.google.code.findbugs" % "jsr305" % "1.3.+",
-
       // Hive unit test requirements. These are used by Hadoop to run the tests, but not necessary
       // in usual Shark runs.
       "commons-io" % "commons-io" % "2.1",
@@ -129,7 +132,7 @@ object SharkBuild extends Build {
       "net.java.dev.jets3t" % "jets3t" % "0.7.1",
       "com.novocode" % "junit-interface" % "0.8" % "test") ++
       (if (YARN_ENABLED) Some("org.apache.spark" %% "spark-yarn" % SPARK_VERSION) else None).toSeq ++
-      (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % "0.3.0" excludeAll(excludeKyro, excludeHadoop, excludeCurator, excludeJackson, excludeNetty, excludeAsm)) else None).toSeq
+      (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % TACHYON_VERSION excludeAll(excludeKyro, excludeHadoop, excludeCurator, excludeJackson, excludeNetty, excludeAsm)) else None).toSeq
   ) ++ org.scalastyle.sbt.ScalastylePlugin.Settings
 
   def assemblyProjSettings = Seq(

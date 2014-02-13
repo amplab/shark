@@ -19,6 +19,8 @@ import org.junit.Ignore;
 import org.apache.hadoop.hive.cli.TestCliDriver;
 import org.apache.hadoop.hive.ql.QTestUtil;
 
+import java.util.Iterator;
+
 /**
  * The test driver. It overloads Hive's TestCliDriver to use SharkQTestUtil.
  * There is also a feature to selectively run tests, i.e. only tests whose
@@ -113,11 +115,17 @@ import org.apache.hadoop.hive.ql.QTestUtil;
       if (regTestsFromFile.size() > 0) {
         passFile = regTestsFromFile.contains(test.getName());
       }
-
       if (passRegex && passFile) {
         suite.addTest(test);
+        regTestsFromFile.remove(test.getName());
         System.out.println("TestSharkCliDriver: " + test.getName());
       }
+    }
+
+    Iterator<String> regTestsFromFileIter = regTestsFromFile.iterator();
+    while (regTestsFromFileIter.hasNext()) {
+      String test = regTestsFromFileIter.next();
+      System.out.println("Warning! Hive test not found: " + test);
     }
 
     System.out.println("TestSharkCliDriver total test to run: " + suite.countTestCases());

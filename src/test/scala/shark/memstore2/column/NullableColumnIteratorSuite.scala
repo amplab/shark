@@ -27,9 +27,10 @@ import org.scalatest.FunSuite
 class NullableColumnIteratorSuite extends FunSuite {
 
   test("String Growth") {
+    val c = new StringColumnBuilder
+    c.initialize(4, "")
     val oi = PrimitiveObjectInspectorFactory.writableStringObjectInspector
-    val c = ColumnBuilder.create(oi)
-    c.initialize(4)
+
     val a = Array[Text](
         new Text("a"), null,
         new Text("b"), null,
@@ -55,9 +56,10 @@ class NullableColumnIteratorSuite extends FunSuite {
   }
 
   test("Iterate Strings") {
+    val c = new StringColumnBuilder
+    c.initialize(4, "")
     val oi = PrimitiveObjectInspectorFactory.writableStringObjectInspector
-    val c = ColumnBuilder.create(oi)
-    c.initialize(4)
+
     c.append(new Text("a"), oi)
     c.append(new Text(""), oi)
     c.append(null, oi)
@@ -83,12 +85,16 @@ class NullableColumnIteratorSuite extends FunSuite {
 
   test("Iterate Ints") {
     def testList(l: Seq[AnyRef]) {
+      val c = new IntColumnBuilder
+      c.initialize(l.size, "")
       val oi = PrimitiveObjectInspectorFactory.javaIntObjectInspector
-      val c = ColumnBuilder.create(oi)
-      c.initialize(l.size)
 
       l.foreach { item =>
-        c.append(item, oi)
+        if (item == null) {
+          c.append(null, oi)
+        } else {
+          c.append(item.asInstanceOf[Object], oi)
+        }
       }
 
       val b = c.build()

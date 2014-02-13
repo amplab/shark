@@ -21,6 +21,7 @@ import scala.collection.JavaConversions._
 
 import org.apache.hadoop.hive.ql.exec.{GroupByPostShuffleOperator, GroupByPreShuffleOperator}
 import org.apache.hadoop.hive.ql.exec.{Operator => HOperator}
+import org.apache.hadoop.hive.ql.exec.PartitionTableFunctionOperator
 import org.apache.hadoop.hive.ql.metadata.HiveException
 
 import shark.LogHelper
@@ -37,13 +38,13 @@ object OperatorFactory extends LogHelper {
    * uses Shark operators. This function automatically finds the Hive terminal
    * operator, and replicate the plan recursively up.
    */
-  def createSharkPlan[T<:HiveDesc](hiveOp: HOperator[T]): TerminalOperator = {
+  def createSharkPlan[T <: HiveDesc](hiveOp: HOperator[T]): TerminalOperator = {
     val hiveTerminalOp = _findHiveTerminalOperator(hiveOp)
     _createOperatorTree(hiveTerminalOp).asInstanceOf[TerminalOperator]
   }
 
   def createSharkMemoryStoreOutputPlan(
-      hiveTerminalOp: HOperator[_<:HiveDesc],
+      hiveTerminalOp: HOperator[_ <: HiveDesc],
       tableName: String,
       databaseName: String,
       numColumns: Int,
@@ -64,7 +65,7 @@ object OperatorFactory extends LogHelper {
     _createAndSetParents(sinkOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }
 
-  def createSharkFileOutputPlan(hiveTerminalOp: HOperator[_<:HiveDesc]): TerminalOperator = {
+  def createSharkFileOutputPlan(hiveTerminalOp: HOperator[_ <: HiveDesc]): TerminalOperator = {
     // TODO the terminal operator is the FileSinkOperator in Hive?
     val hiveOp = hiveTerminalOp.asInstanceOf[org.apache.hadoop.hive.ql.exec.FileSinkOperator]
     val sinkOp = _newOperatorInstance(classOf[FileSinkOperator], 
@@ -73,7 +74,7 @@ object OperatorFactory extends LogHelper {
     _createAndSetParents(sinkOp, hiveTerminalOp.getParentOperators).asInstanceOf[TerminalOperator]
   }
 
-  def createSharkRddOutputPlan(hiveTerminalOp: HOperator[_<:HiveDesc]): TerminalOperator = {
+  def createSharkRddOutputPlan(hiveTerminalOp: HOperator[_ <: HiveDesc]): TerminalOperator = {
     // TODO the terminal operator is the FileSinkOperator in Hive?
     val hiveOp = hiveTerminalOp.asInstanceOf[org.apache.hadoop.hive.ql.exec.FileSinkOperator]
     val sinkOp = _newOperatorInstance(classOf[TableRddSinkOperator], 
@@ -83,7 +84,7 @@ object OperatorFactory extends LogHelper {
   }
 
   /** Create a Shark operator given the Hive operator. */
-  private def createSingleOperator[T<:HiveDesc](hiveOp: HOperator[T]): Operator[T] = {
+  private def createSingleOperator[T <: HiveDesc](hiveOp: HOperator[T]): Operator[T] = {
     // This is kind of annoying, but it works with strong typing ...
     val sharkOp = hiveOp match {
       case hop: org.apache.hadoop.hive.ql.exec.TableScanOperator =>
@@ -130,6 +131,9 @@ object OperatorFactory extends LogHelper {
           _newOperatorInstance(classOf[GroupByPreShuffleOperator], hop)
         }
       }
+      case hop: org.apache.hadoop.hive.ql.exec.PTFOperator => {
+        _newOperatorInstance(classOf[PartitionTableFunctionOperator], hop)
+      }
       case _ => throw new HiveException("Unsupported Hive operator: " + hiveOp.getClass.getName)
     }
 
@@ -145,7 +149,7 @@ object OperatorFactory extends LogHelper {
   }
 
   private def _createAndSetParents[T <: HiveDesc](op: Operator[T], 
-      parents: Seq[HOperator[_<:HiveDesc]]) = {
+      parents: Seq[HOperator[_ <: HiveDesc]]) = {
     if (parents != null) {
       parents foreach { parent =>
         _createOperatorTree(parent).addChild(op)
@@ -158,7 +162,7 @@ object OperatorFactory extends LogHelper {
    * Given a terminal operator in Hive, create the plan that uses Shark physical
    * operators.
    */
-  private def _createOperatorTree[T<:HiveDesc](hiveOp: HOperator[T]): Operator[T] = {
+  private def _createOperatorTree[T <: HiveDesc](hiveOp: HOperator[T]): Operator[T] = {
     val current = createSingleOperator(hiveOp)
     val parents = hiveOp.getParentOperators
     if (parents != null) {
@@ -169,7 +173,7 @@ object OperatorFactory extends LogHelper {
     }
   }
 
-  private def _findHiveTerminalOperator(hiveOp: HOperator[_<:HiveDesc]): HOperator[_<:HiveDesc] = {
+  private def _findHiveTerminalOperator(hiveOp: HOperator[_ <: HiveDesc]): HOperator[_ <: HiveDesc] = {
     if (hiveOp.getChildOperators() == null || hiveOp.getChildOperators().size() == 0) {
       hiveOp
     } else {

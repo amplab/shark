@@ -19,16 +19,14 @@ package shark
 
 import java.io.{DataInputStream, DataOutputStream}
 import java.util.Arrays
-
 import com.esotericsoftware.kryo.{Kryo, Serializer => KSerializer}
 import com.esotericsoftware.kryo.io.{Input => KryoInput, Output => KryoOutput}
 import com.esotericsoftware.kryo.serializers.{JavaSerializer => KryoJavaSerializer}
-
 import org.apache.hadoop.io.Writable
 import org.apache.hadoop.hive.ql.exec.persistence.{MapJoinSingleKey, MapJoinObjectKey,
     MapJoinDoubleKeys, MapJoinObjectValue}
-
 import org.apache.spark.serializer.{KryoRegistrator => SparkKryoRegistrator}
+import shark.execution.serialization.SerializableWritable
 
 
 class KryoRegistrator extends SparkKryoRegistrator {
@@ -42,13 +40,25 @@ class KryoRegistrator extends SparkKryoRegistrator {
     kryo.register(classOf[MapJoinDoubleKeys], new KryoJavaSerializer)
     kryo.register(classOf[MapJoinObjectValue], new KryoJavaSerializer)
 
-    // As far as I (rxin), among all Hadoop writables only TimestampWritable
+    kryo.register(classOf[SerializableWritable[_]], new KryoSWSerializer)
+
+    // As far as I (rxin) know, among all Hadoop writables only TimestampWritable
     // cannot be serialized by Kryo out of the box.
     kryo.register(classOf[org.apache.hadoop.hive.serde2.io.TimestampWritable],
       new KryoWritableSerializer[org.apache.hadoop.hive.serde2.io.TimestampWritable])
   }
 }
 
+class KryoSWSerializer[T <: Writable] extends KSerializer[SerializableWritable[T]]  {
+  def write(kryo : Kryo, out : KryoOutput, obj : SerializableWritable[T]) {
+    kryo.writeClassAndObject(out, obj.t); out.flush;
+  }
+  def read(kryo : Kryo, in : KryoInput, cls : Class[SerializableWritable[T]]) : SerializableWritable[T] = {
+    new SerializableWritable(
+      kryo.readClassAndObject(in).asInstanceOf[T]
+    )
+  }
+}
 
 /** A Kryo serializer for Hadoop writables. */
 class KryoWritableSerializer[T <: Writable] extends KSerializer[T] {

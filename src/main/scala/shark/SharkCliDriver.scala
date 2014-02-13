@@ -49,6 +49,7 @@ import org.apache.thrift.transport.TSocket
 import shark.memstore2.TableRecovery
 
 object SharkCliDriver {
+  val SKIP_RDD_RELOAD_FLAG = "-skipRddReload"
 
   private var prompt  = "shark"
   private var prompt2 = "     " // when ';' is not yet seen.
@@ -78,7 +79,7 @@ object SharkCliDriver {
   }
 
   def main(args: Array[String]) {
-    val hiveArgs = args.filterNot(_.equals("-skipRddReload"))
+    val hiveArgs = args.filterNot(_.equals(SKIP_RDD_RELOAD_FLAG))
     val reloadRdds = hiveArgs.length == args.length
     val oproc = new OptionsProcessor()
     if (!oproc.process_stage1(hiveArgs)) {
@@ -183,7 +184,7 @@ object SharkCliDriver {
     val reader = new ConsoleReader()
     reader.setBellEnabled(false)
     // reader.setDebug(new PrintWriter(new FileWriter("writer.debug", true)))
-    reader.addCompletor(CliDriver.getCommandCompletor())
+    CliDriver.getCommandCompletor().foreach((e) => reader.addCompletor(e))
 
     var line: String = null
     val HISTORYFILE = ".hivehistory"
@@ -268,7 +269,10 @@ class SharkCliDriver(reloadRdds: Boolean = true) extends CliDriver with LogHelpe
   if (!ss.isRemoteMode()) {
     SharkEnv.init()
     if (reloadRdds) {
-      TableRecovery.reloadRdds(processCmd(_))
+      console.printInfo(
+        "Reloading cached RDDs from previous Shark sessions... (use %s flag to skip reloading)"
+        .format(SharkCliDriver.SKIP_RDD_RELOAD_FLAG))
+      TableRecovery.reloadRdds(processCmd(_), Some(console))
     }
   }
 

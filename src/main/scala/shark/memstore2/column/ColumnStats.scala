@@ -17,9 +17,7 @@
 
 package shark.memstore2.column
 
-import java.io.ObjectInput
-import java.io.ObjectOutput
-import java.io.Externalizable
+import java.io.{ObjectInput, ObjectOutput, Externalizable}
 import java.sql.Timestamp
 import org.apache.hadoop.io.Text
 
@@ -30,7 +28,6 @@ import org.apache.hadoop.io.Text
  */
 sealed trait ColumnStats[@specialized(Boolean, Byte, Short, Int, Long, Float, Double) T]
   extends Serializable {
-
   def append(v: T)
 
   protected def _min: T
