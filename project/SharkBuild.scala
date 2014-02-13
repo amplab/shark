@@ -36,9 +36,21 @@ object SharkBuild extends Build {
   // "1.0.1" for Apache releases, or "0.20.2-cdh3u3" for Cloudera Hadoop.
   val DEFAULT_HADOOP_VERSION = "1.0.4"
 
+  // Whether the Hadoop version to build against is 2.2.x, or a variant of it. This can be set
+  // through the SHARK_IS_NEW_HADOOP environment variable.
+  val DEFAULT_IS_NEW_HADOOP = false
+
   lazy val hadoopVersion = env("SHARK_HADOOP_VERSION") orElse
                            env("SPARK_HADOOP_VERSION") getOrElse
                            DEFAULT_HADOOP_VERSION
+
+  lazy val isNewHadoop = scala.util.Properties.envOrNone("SHARK_IS_NEW_HADOOP") match {
+    case None => {
+      val isNewHadoopVersion = "2.[2-9]+".r.findFirstIn(hadoopVersion).isDefined
+      (isNewHadoopVersion|| DEFAULT_IS_NEW_HADOOP)
+    }
+    case Some(v) => v.toBoolean
+  }
 
   // Whether to build Shark with Yarn support
   val YARN_ENABLED = env("SHARK_YARN").getOrElse("false").toBoolean
@@ -58,6 +70,10 @@ object SharkBuild extends Build {
   val excludeJackson = ExclusionRule(organization = "org.codehaus.jackson")
   val excludeAsm = ExclusionRule(organization = "asm")
   val excludeSnappy = ExclusionRule(organization = "org.xerial.snappy")
+
+  lazy val protobufVersion = if (isNewHadoop) "2.5.0" else "2.4.1"
+  lazy val akkaVersion = if (isNewHadoop) "2.0.5-protobuf-2.5-java-1.5" else "2.0.5"
+  lazy val akkaGroup = if (isNewHadoop) "org.spark-project" else "com.typesafe.akka"
 
   def coreSettings = Defaults.defaultSettings ++ Seq(
 
@@ -113,6 +129,10 @@ object SharkBuild extends Build {
       "org.apache.spark" %% "spark-core" % SPARK_VERSION,
       "org.apache.spark" %% "spark-repl" % SPARK_VERSION,
       "com.google.guava" % "guava" % "14.0.1",
+      "com.google.protobuf" % "protobuf-java" % protobufVersion,
+      akkaGroup % "akka-actor" % akkaVersion excludeAll(excludeNetty),
+      akkaGroup % "akka-remote" % akkaVersion excludeAll(excludeNetty),
+      akkaGroup % "akka-slf4j" % akkaVersion excludeAll(excludeNetty),
       "org.apache.hadoop" % "hadoop-client" % hadoopVersion excludeAll(excludeJackson, excludeNetty, excludeAsm) force(),
       // See https://code.google.com/p/guava-libraries/issues/detail?id=1095
       "com.google.code.findbugs" % "jsr305" % "1.3.+",
