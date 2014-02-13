@@ -46,9 +46,6 @@ object SerializationSuite {
 
 class SerializationSuite extends FunSuite {
 
-  // Initialize the Shark KryoSerializer singleton.
-  KryoSerializer.initWithSparkConf(new SparkConf(loadDefaults = false))
-
   test("Java serializing object inspectors") {
 
     val oi = PrimitiveObjectInspectorFactory.javaStringObjectInspector

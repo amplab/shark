@@ -31,7 +31,8 @@ import org.apache.hadoop.hive.ql.processors.CommandProcessorFactory
 import org.apache.hadoop.hive.ql.processors.CommandProcessorResponse
 import org.apache.hadoop.hive.ql.session.SessionState
 
-import org.apache.spark.{SparkContext, SparkEnv}
+import org.apache.spark.{SparkConf, SparkContext, SparkEnv}
+import org.apache.spark.scheduler.SplitInfo
 import org.apache.spark.rdd.RDD
 
 import shark.api._
@@ -39,21 +40,26 @@ import shark.tgf.TGF
 
 
 class SharkContext(
-    master: String,
-    jobName: String,
-    sparkHome: String,
-    jars: Seq[String],
-    environment: Map[String, String])
-  extends SparkContext(master, jobName, sparkHome, jars, environment) {
+    config: SparkConf,
+    preferredNodeLocationData: Map[String, Set[SplitInfo]] = Map())
+  extends SparkContext(config, preferredNodeLocationData) {
+  import SharkContext._
 
   @transient val sparkEnv = SparkEnv.get
-
-  SharkContext.init()
-  import SharkContext._
 
   private type C[T] = ClassTag[T]
   private def ct[T](implicit c : ClassTag[T]) = c
 
+  SharkContext.init()
+
+  def this(
+      master: String,
+      jobName: String,
+      sparkHome: String,
+      jars: Seq[String],
+      environment: Map[String, String]) {
+    this(SharkContext.createSparkConf(master, jobName, sparkHome, jars, environment))
+  }
 
   /**
    * Execute the command and return the results as a sequence. Each element
@@ -362,4 +368,20 @@ object SharkContext {
 
   // A dummy init to make sure the object is properly initialized.
   def init() {}
+
+  def createSparkConf(
+      master: String,
+      jobName: String,
+      sparkHome: String,
+      jars: Seq[String],
+      environment: Map[String, String]): SparkConf = {
+    val newConf = new SparkConf()
+      .setMaster(master)
+      .setAppName(jobName)
+      .setJars(jars)
+      .setExecutorEnv(environment.toSeq)
+    Option(sparkHome).foreach(newConf.setSparkHome(_))
+    newConf.set("spark.kryo.registrator", classOf[KryoRegistrator].getName)
+    newConf
+  }
 }

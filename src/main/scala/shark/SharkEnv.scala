@@ -19,7 +19,7 @@ package shark
 
 import scala.collection.mutable.{HashMap, HashSet}
 
-import org.apache.spark.SparkContext
+import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.scheduler.StatsReportListener
 
@@ -38,7 +38,6 @@ object SharkEnv extends LogHelper {
       val master = System.getenv("MASTER")
       initWithSharkContext(jobName, master)
     }
-    KryoSerializer.initWithSharkContext(sc)
     sc
   }
 
@@ -57,8 +56,12 @@ object SharkEnv extends LogHelper {
       Nil,
       executorEnvVars)
     sc.addSparkListener(new StatsReportListener())
-    KryoSerializer.initWithSharkContext(sc)
     sc
+  }
+
+  def initWithSharkContext(conf: SparkConf): SharkContext = {
+    conf.setExecutorEnv(executorEnvVars.toSeq)
+    initWithSharkContext(new SharkContext(conf))
   }
 
   def initWithSharkContext(newSc: SharkContext): SharkContext = {
@@ -66,6 +69,7 @@ object SharkEnv extends LogHelper {
       sc.stop()
     }
     sc = newSc
+    sc.addSparkListener(new StatsReportListener())
     sc
   }
 
@@ -94,7 +98,7 @@ object SharkEnv extends LogHelper {
   executorEnvVars.put("TACHYON_WAREHOUSE_PATH", getEnv("TACHYON_WAREHOUSE_PATH"))
 
   val activeSessions = new HashSet[String]
-  System.setProperty("spark.kryo.registrator", classOf[KryoRegistrator].getName)
+
   var sc: SharkContext = _
 
   val shuffleSerializerName = classOf[ShuffleSerializer].getName
