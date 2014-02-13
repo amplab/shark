@@ -26,9 +26,9 @@ import scala.util.Properties.{ envOrNone => env }
 object SharkBuild extends Build {
 
   // Shark version
-  val SHARK_VERSION = "0.8.1"
+  val SHARK_VERSION = "0.8.2-SNAPSHOT"
 
-  val SPARK_VERSION = "0.8.1-incubating"
+  val SPARK_VERSION = "0.8.2-incubating-SNAPSHOT"
 
   val SCALA_VERSION = "2.9.3"
 
