@@ -136,7 +136,8 @@ object SharkBuild extends Build {
       "org.apache.hadoop" % "hadoop-client" % hadoopVersion excludeAll(excludeJackson, excludeNetty, excludeAsm) force(),
       // See https://code.google.com/p/guava-libraries/issues/detail?id=1095
       "com.google.code.findbugs" % "jsr305" % "1.3.+",
-
+      // Will switch to newer spire from MVN repo when we move to scala 2.10
+      "spire" % "spire" % "0.3.0" from "http://repo1.maven.org/maven2/org/spire-math/spire_2.9.2/0.3.0/spire_2.9.2-0.3.0.jar",
       // Hive unit test requirements. These are used by Hadoop to run the tests, but not necessary
       // in usual Shark runs.
       "commons-io" % "commons-io" % "2.1",

@@ -42,7 +42,10 @@ class RDDTableFunctions(self: RDD[Seq[_]], manifests: Seq[ClassManifest[_]]) {
     // Create the RDD object.
     val rdd = self.mapPartitionsWithIndex { case(partitionIndex, iter) =>
       val ois = manifests.map(HiveUtils.getJavaPrimitiveObjectInspector)
-      val builder = new TablePartitionBuilder(ois, 1000000, shouldCompress = false)
+      val builder = new TablePartitionBuilder(
+        HiveUtils.makeStandardStructObjectInspector(fields, ois),
+        1000000,
+        shouldCompress = false)
 
       for (p <- iter) {
         builder.incrementRowCount()

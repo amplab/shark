@@ -19,7 +19,12 @@ package shark.memstore2.column
 
 import java.nio.ByteBuffer
 
-import org.apache.hadoop.io.BooleanWritable
+import scala.Numeric.Implicits._
+
+import org.apache.hadoop.hive.serde2.io.{TimestampWritable, ShortWritable}
+import org.apache.hadoop.io._
+import org.apache.hadoop.hive.serde2.objectinspector.primitive._
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 
 import shark.memstore2.column.Implicits._
 
@@ -35,7 +40,7 @@ trait CompressedColumnIterator extends ColumnIterator {
 
   def buffer: ByteBuffer
 
-  def columnType: ColumnType[_,_]
+  def columnType: ColumnType[_, _]
 
   override def init() {
     val compressionType: CompressionType = buffer.getInt()
@@ -44,6 +49,7 @@ trait CompressedColumnIterator extends ColumnIterator {
       case RLECompressionType => new RLDecoder(buffer, columnType)
       case DictionaryCompressionType => new DictDecoder(buffer, columnType)
       case BooleanBitSetCompressionType => new BooleanBitSetDecoder(buffer, columnType)
+      case ByteDeltaCompressionType => new ByteDeltaDecoder(buffer, columnType)
       case _ => throw new UnsupportedOperationException()
     }
   }
@@ -100,13 +106,13 @@ class RLDecoder[V](buffer: ByteBuffer, columnType: ColumnType[_, V]) extends Ite
 }
 
 /**
- * Dictionary encoding compression.
+ * Dictionary encoding decoder.
  */
 class DictDecoder[V](buffer: ByteBuffer, columnType: ColumnType[_, V]) extends Iterator[V] {
 
   // Dictionary in the form of an array. The index is the encoded value, and the value is the
   // decompressed value.
-  private val _dictionary: Array[V] =  {
+  private val _dictionary: Array[V] = {
     val size = buffer.getInt()
     val arr = columnType.writableManifest.newArray(size)
     var count = 0
@@ -136,11 +142,10 @@ class BooleanBitSetDecoder[V](
     var _pos: Int,
     var _uncompressedSize: Int,
     var _curValue: Long,
-    var _writable: BooleanWritable
-  ) extends Iterator[V] {
+    var _writable: BooleanWritable) extends Iterator[V] {
 
-  def this(buffer: ByteBuffer, columnType: ColumnType[_, V])
-      = this(buffer, columnType, 0, buffer.getInt(), 0, new BooleanWritable())
+  def this(buffer: ByteBuffer, columnType: ColumnType[_, V]) =
+    this(buffer, columnType, 0, buffer.getInt(), 0, new BooleanWritable())
 
   override def hasNext = _pos < _uncompressedSize
 
@@ -158,3 +163,70 @@ class BooleanBitSetDecoder[V](
   }
 }
 
+/**
+ * ByteDelta decoding involves scanning one byte at a time and using the first bit of all flagbyte
+ * to keep track of small deltas. When deltas are large, the flagbyte indicates that next fixed set
+ * of types should be read to populate
+ */
+class ByteDeltaDecoder[T, W](buffer: ByteBuffer, columnType: ColumnType[T, W]) extends Iterator[W] {
+
+  var prev: W = columnType.newWritable()
+  var startedDecoding = false
+  var flagByte: Byte = _
+
+  private val current: W = columnType.newWritable()
+  private val byteWritable = BYTE.newWritable()
+
+  override def hasNext = buffer.hasRemaining
+
+  /**
+    * Create a function that is set up to work with the right hive objects. Set this up beforehand
+    * so that it is not called per row.
+    */
+  private val deltaFunction = {
+    prev match {
+      case s: ShortWritable => {
+        (prev: W, flag: Byte) => {
+          val oi = PrimitiveObjectInspectorFactory.writableShortObjectInspector
+          val pvalue = flag.toShort +
+            columnType.get(prev.asInstanceOf[Object], oi).asInstanceOf[Short]
+          prev.asInstanceOf[ShortWritable].set(pvalue.toShort)
+          prev
+        }
+      }
+      case i: IntWritable => {
+        (prev: W, flag: Byte) => {
+          val oi = PrimitiveObjectInspectorFactory.writableIntObjectInspector
+          val pvalue = flag.toInt +
+            columnType.get(prev.asInstanceOf[Object], oi).asInstanceOf[Int]
+          prev.asInstanceOf[IntWritable].set(pvalue.toInt)
+          prev
+        }
+      }
+      case l: LongWritable => {
+        (prev: W, flag: Byte) => {
+          val oi = PrimitiveObjectInspectorFactory.writableLongObjectInspector
+          val pvalue = flag.toLong +
+            columnType.get(prev.asInstanceOf[Object], oi).asInstanceOf[Long]
+          prev.asInstanceOf[LongWritable].set(pvalue.toLong)
+          prev
+        }
+      }
+      case _ => throw new UnsupportedOperationException("Unsupported data type " + columnType)
+    }
+  }
+
+  override def next(): W = {
+    flagByte = buffer.get()
+
+    if (flagByte == ByteDeltaEncoding.newBaseValue || !startedDecoding) {
+      startedDecoding = true
+      columnType.extractInto(buffer, current)
+      prev = current.asInstanceOf[W]
+      current
+    } else {
+      val sevenBits = flagByte
+      deltaFunction(prev, sevenBits)
+    }
+  }
+}
