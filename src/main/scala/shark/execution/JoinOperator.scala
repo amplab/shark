@@ -165,16 +165,14 @@ class JoinOperator extends CommonJoinOperator[JoinDesc] with ReduceSinkTableDesc
             val bufsNull = Array.fill(op.numTables)(Seq[Array[AnyRef]]())
             
             bufsNull(label) = fillTableEntry(buf.asInstanceOf[Seq[Array[Byte]]], label)
-            
-//            op.tupleIterator.rebuilt(cp.product(bufsNull, op.joinConditions))
-            op.generateTuples(cp.product(bufsNull, op.joinConditions))
+
+            cp.product(bufsNull, op.joinConditions).map(elems => {op.generate(elems)})
           }
         } else {
            val inputs = bufs.zipWithIndex.map { case (tblSeq: Any, tblIdx: Int) =>
              fillTableEntry(tblSeq.asInstanceOf[Seq[Array[Byte]]], tblIdx)
            }
-           op.generateTuples(cp.product(inputs, op.joinConditions))
-//          op.tupleIterator.rebuilt(cp.product(inputs, op.joinConditions))
+           cp.product(inputs, op.joinConditions).map(elems => {op.generate(elems)})
         }
       }
     }

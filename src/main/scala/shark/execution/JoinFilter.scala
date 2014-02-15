@@ -35,7 +35,7 @@ trait JoinFilter[T <: JoinDesc] {
     
   @BeanProperty var resultTupleSizes: Array[Int] = _
   @BeanProperty var inputOffsets: Array[Int] = _
-  @BeanProperty var resultRowSize: Int = 0
+  @BeanProperty var resultRowSize: Int = 0 
   
   protected def initializeJoinFilterOnMaster() {
     // the columns count of the input tables in the final output tuple
@@ -43,18 +43,6 @@ trait JoinFilter[T <: JoinDesc] {
     inputOffsets = resultTupleSizes.scanLeft(0)(_ + _)
     resultRowSize = inputOffsets.last
   }
-  
-  /**
-   * check the join filter (true for discarding the data)
-   */
-  def isFilteredTable(tableData: AnyRef): Boolean = {
-    if (noOuterJoin || tableData == null) {
-      false
-    } else {
-      val columns = tableData.asInstanceOf[Array[AnyRef]]
-      columns(columns.length - 1).asInstanceOf[BooleanWritable].get()
-    }
-  }  
 
   /**
    * Copy the table(input) columns value to the output tuple
@@ -68,67 +56,6 @@ trait JoinFilter[T <: JoinDesc] {
     System.arraycopy(columns, 0, outputRow, offsets(tblIdx), size)
   }
   
-  /**
-   * The iter is the CartesianProduct sequence, and the type B is the value type of input tables. 
-   * sub classes could override the function 
-   * setColumnValues(data: AnyRef, outputRow: Array[AnyRef], tblIdx: Int, offsets: IndexedSeq[Int])
-   * for customizing the columns value assignment of the output entries
-   */
-  def generateTuples[B](iter: Iterator[Array[B]]): Iterator[_] = {
-    new TupleIterator(iter)
-  }
-
-  /**
-   * Parameter iter represents all of the the input tables entry combinations with same key in Join,
-   * each join entry (Array[Any]) may produce 0 or more output entries, due to the join 
-   * condition (left outer join, full outer join, inner join etc.) and the join filters.
-   * 
-   * TupleInterator is an abstract layer for the output entries feed into join filters. 
-   */
-  class TupleIterator[B](iter: Iterator[Array[B]]) extends Iterator[AnyRef] {
-    val outputs = Queue[AnyRef]()
-    var done = false
-    
-    def hasNext = {
-      if(outputs.isEmpty) {
-        processNext()
-      }
-      
-      !outputs.isEmpty
-    }
-    
-    def next = {
-      if(outputs.isEmpty) {
-        processNext()
-      }
-
-      outputs.dequeue
-    }
-    
-    private def processNext() {
-      if(!done) {
-        // if not set as finished, iterate the next
-        var continue = (outputs.isEmpty) // if not element in the queue, the try to get
-        
-        while(continue) {
-          if (iter.hasNext) {
-            var elements = iter.next.asInstanceOf[Array[AnyRef]]
-
-            val row = new Array[AnyRef](resultRowSize)
-            done = generate(false, null, 0, elements, row, outputs)
-            
-            if(done || outputs.size > 0) {
-              // if no more records needed, or got record(s)
-              continue = false
-            }
-          } else {
-            continue = false
-            done = true
-          }
-        }
-      }
-    }
-
     /**
      * Create the new output tuple(s), and put the outputs into the outputRows. The join sequence
      * generally looks like:
@@ -146,25 +73,26 @@ trait JoinFilter[T <: JoinDesc] {
      * 3) "Left/Right Outer Join" only outputs single row.
      * 4) "Left Semi Join" works like the "Left Outer Join", but only the first row outputs, usually
      *    it used in checking the "existence of relationship"
+     * @Param elements [input] represents values of all input tables columns 
      * @Param previousRightFiltered [input] represents the left columns should be discarded or not
      *                              true for discarding the columns
      * @Param previousRightTable [input] represents left columns value
      * @Param startIdx [input] left table index in the join sequence
-     * @Param elements [input] represents values of all input tables columns 
-     * @Param row [output] single row of output
-     * @Param outputRows [output] collecting the output record(s).
      * @Return this is for left semi join, false to indicate no more record needed. otherwise true
      * 
      * TODO:Rows from either side that do not match the join conditions should be included 
      * only once in the output (with the other sides values set to NULL). This implementation 
      * leads to over inclusion(by marmbrus). But currently, let's keep the same behavior as Hive.
-     * 
      */
-    private def generate(previousRightFiltered: Boolean, previousRightTable: AnyRef, 
-      startIdx: Int, elements: Array[AnyRef], row: Array[AnyRef],
-      outputRows: Queue[AnyRef]): Boolean = {
+    def generate[B <: AnyRef](elements: Array[B]): Array[AnyRef] = {
+      import java.util.Arrays
       
-      var index = startIdx
+      Arrays.fill(rowBuffer, 0, resultRowSize, null)
+      
+      var previousRightFiltered: Boolean = false
+      var previousRightTable: AnyRef = null
+      
+      var index = 0
 
       var leftTable = if(index == 0) {
         elements(0)
@@ -173,7 +101,7 @@ trait JoinFilter[T <: JoinDesc] {
       }
       
       var leftFiltered = if(index == 0) {
-        isFilteredTable(leftTable)
+        filterEval(leftTable)
       } else {
         previousRightFiltered
       }
@@ -186,7 +114,7 @@ trait JoinFilter[T <: JoinDesc] {
         
         var rightTable = elements(rightTableIndex)
 
-        var rightFiltered = isFilteredTable(rightTable)
+        var rightFiltered = filterEval(rightTable)
 
         joinCondition.getType() match {
           case CommonJoinOperator.FULL_OUTER_JOIN => {
@@ -209,7 +137,7 @@ trait JoinFilter[T <: JoinDesc] {
             
             if (entireLeftFiltered || rightFiltered) {
               // if filtered then reset all of the left tables columns
-              java.util.Arrays.fill(row, 0, inputOffsets(rightTableIndex), null)
+              Arrays.fill(rowBuffer, 0, inputOffsets(rightTableIndex), null)
               leftFiltered = true
             }
             rightFiltered = false
@@ -221,13 +149,12 @@ trait JoinFilter[T <: JoinDesc] {
               rightFiltered = true
             } else {
               // find the valid output, and will not output new row any more
-              done = true
             }
             leftFiltered = false
           }
           case CommonJoinOperator.INNER_JOIN => {
             if (entireLeftFiltered || rightFiltered) {
-              java.util.Arrays.fill(row, 0, inputOffsets(joinCondition.getRight()), null)
+              Arrays.fill(rowBuffer, 0, inputOffsets(joinCondition.getRight()), null)
               leftFiltered  = true
               rightFiltered = true
             }
@@ -240,7 +167,7 @@ trait JoinFilter[T <: JoinDesc] {
         
         // set the left table columns
         if(!leftFiltered) {
-          setColumnValues(leftTable, row, index, inputOffsets)
+          setColumnValues(leftTable, rowBuffer, index, inputOffsets)
         }
 
         entireLeftFiltered = entireLeftFiltered && leftFiltered && rightFiltered
@@ -252,14 +179,9 @@ trait JoinFilter[T <: JoinDesc] {
       
       // set the most right table columns
       if(!leftFiltered) {
-        setColumnValues(leftTable, row, index, inputOffsets)
+        setColumnValues(leftTable, rowBuffer, index, inputOffsets)
       }
       
-      entireLeftFiltered = entireLeftFiltered && leftFiltered
-      
-      if(entireLeftFiltered) done = false else outputRows.enqueue(row)
-
-      done
+      rowBuffer
     }
-  }
 }

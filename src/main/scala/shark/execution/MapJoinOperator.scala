@@ -272,8 +272,8 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc] {
         cp.product(bufs, joinConditions)
       }
     }
-    generateTuples(jointRows)
-//    tupleIterator.rebuilt(jointRows)
+
+    jointRows.map(elems => generate(elems))
   }
 
   override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {

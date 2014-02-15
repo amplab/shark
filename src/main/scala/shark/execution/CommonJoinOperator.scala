@@ -56,6 +56,8 @@ abstract class CommonJoinOperator[T <: JoinDesc] extends NaryOperator[T] with Jo
 
   @transient var noOuterJoin: Boolean = _
   @transient var filterMap: Array[Array[Int]] = _
+  
+  @transient var rowBuffer: Array[AnyRef] = _
 
   override def initializeOnMaster() {
     super.initializeOnMaster()
@@ -90,6 +92,8 @@ abstract class CommonJoinOperator[T <: JoinDesc] extends NaryOperator[T] with Jo
       joinFilters, objectInspectors.toArray, CommonJoinOperator.NOTSKIPBIGTABLE, tagLen)
     joinValuesStandardObjectInspectors = HiveJoinUtil.getStandardObjectInspectors(
       joinValuesObjectInspectors, CommonJoinOperator.NOTSKIPBIGTABLE, tagLen)
+      
+    rowBuffer = new Array[AnyRef](resultRowSize)
   }
   
   // copied from the org.apache.hadoop.hive.ql.exec.CommonJoinOperator
@@ -103,6 +107,10 @@ abstract class CommonJoinOperator[T <: JoinDesc] extends NaryOperator[T] with Jo
     ObjectInspectorFactory.getStandardStructObjectInspector(
       conf.getOutputColumnNames(),
       structFieldObjectInspectors)
+  }
+  
+  @inline def filterEval(data: AnyRef): Boolean = {
+    if(noOuterJoin) false else CommonJoinOperator.filterEval(data)
   }
 }
 
@@ -176,21 +184,10 @@ class CartesianProduct[T >: Null : ClassTag](val numTables: Int) {
     partial
   }
   
-  // get the evaluated value(boolean) from the table data (the last element in the array)
-  // true means failed in the join filter testing, we may need to skip it
   @inline
-  private def filterEval[B](data: B): Boolean = {
-    if(data == null) {
-      true      
-    } else {
-      val fields = data.asInstanceOf[Array[AnyRef]]
-	  fields(fields.length - 1).asInstanceOf[org.apache.hadoop.io.BooleanWritable].get
-    }
-  } 
-  
-  @inline
-  private def filter[B](iter: Iterator[B], eval: (B)=>Boolean = filterEval _)
-  : Iterator[B] = {
+  private def filter[B](iter: Iterator[B], 
+    eval: (B)=>Boolean = CommonJoinOperator.filterEval _): Iterator[B] = {
+    
     var occurs = 1
 	    
 	iter.filter(e => {
@@ -218,71 +215,42 @@ class CartesianProduct[T >: Null : ClassTag](val numTables: Int) {
   def product2FullOuterJoin(left: Iterator[Array[T]], right: Seq[T], pos: Int)
   : Iterator[Array[T]] = {
     left.flatMap(e => {
-      if(filterEval(e(pos - 1))) {
+      if(CommonJoinOperator.filterEval(e(pos - 1))) {
         outputBuffer(pos) = null
         Iterator(outputBuffer)
       } else {
-        right.filter(!filterEval(_)).iterator.map(entry => {
+        right.filter(!CommonJoinOperator.filterEval(_)).iterator.map(entry => {
           outputBuffer(pos) = entry
           outputBuffer
         })
       } 
-    }) ++ right.filter(filterEval(_)).iterator.flatMap(entry => {  
+    }) ++ right.filter(CommonJoinOperator.filterEval(_)).iterator.flatMap(entry => {  
           outputBuffer(pos) = entry
           outputBuffer(pos - 1) = null
           
           Iterator(outputBuffer)
 	  })
-//    right.toIterator.flatMap(entry => {
-//      outputBuffer(pos) = entry
-//      if(filterEval(entry)) {
-//        outputBuffer(pos - 1) = null
-//        Iterator(outputBuffer)
-//      } else {
-//        null
-//      } ++ 
-//        left.flatMap(entry => {
-//	      new Iterator[Array[T]] {
-//	        private val lt = entry(pos - 1)
-//	        private val rt = entry(pos)
-//	        private val l = filterEval(lt)
-//	        private val r = filterEval(rt)
-//	        
-//	        private var count = 2
-//	        
-//	        def hasNext = count > 0
-//	        def next: Array[T] = {
-//	          if(l || r) {
-//	            if(count > 1) {
-//	              outputBuffer(pos - 1) = null
-//	              outputBuffer(pos) = rt
-//	            } else {
-//	              outputBuffer(pos - 1) = lt
-//	              outputBuffer(pos) = null
-//	            }
-//	          }
-//	          outputBuffer
-//	        }
-//	      }
-//	    })
-//    })
   }
   
-  def product2LeftOuterJoin(left: Iterator[Array[T]], right: Seq[T], pos: Int): Iterator[Array[T]] = {
-    for (lt <- left; rt <- filter((if(filterEval(lt(pos - 1))) SINGLE_NULL_LIST else right).iterator)) yield {
+  def product2LeftOuterJoin(left: Iterator[Array[T]], right: Seq[T], pos: Int)
+  : Iterator[Array[T]] = {
+    for (lt <- left; 
+      rt <- filter((if(CommonJoinOperator.filterEval(lt(pos - 1))) 
+        SINGLE_NULL_LIST else right).iterator)) yield {
       outputBuffer(pos) = rt
       outputBuffer
     }
   }
   
-  def product2RightOuterJoin(left: Iterator[Array[T]], right: Seq[T], pos: Int): Iterator[Array[T]] = {
+  def product2RightOuterJoin(left: Iterator[Array[T]], right: Seq[T], pos: Int)
+  : Iterator[Array[T]] = {
     right.iterator.flatMap(entry => {
       outputBuffer(pos) = entry
-      if(filterEval(entry)) {
+      if(CommonJoinOperator.filterEval(entry)) {
         outputBuffer(pos - 1) = null
         Iterator(outputBuffer)
       } else {
-        filter(left, (e: Array[T]) => {filterEval(e(pos - 1))})
+        filter(left, (e: Array[T]) => {CommonJoinOperator.filterEval(e(pos - 1))})
       }
     })
   }
@@ -300,7 +268,6 @@ class CartesianProduct[T >: Null : ClassTag](val numTables: Int) {
   }
 }
 
-
 object CommonJoinOperator {
 
   val NOTSKIPBIGTABLE = -1
@@ -313,49 +280,16 @@ object CommonJoinOperator {
   val UNIQUE_JOIN = JoinDesc.UNIQUE_JOIN // We don't support UNIQUE JOIN.
   val LEFT_SEMI_JOIN = JoinDesc.LEFT_SEMI_JOIN
 
-  /**
-   * Handles join filters in Hive
-   */
-  def isFiltered(row: Any, filters: JavaList[ExprNodeEvaluator], ois: JavaList[ObjectInspector])
-  : Boolean = {
-    // if no filter, then will not be filtered
-    if (filters == null || ois == null) return false
-    if (row == null) return true
-    
-    var ret: java.lang.Boolean = false
-    var j = 0
-    while (j < filters.size) {
-      val condition: java.lang.Object = filters.get(j).evaluate(row)
-      ret = ois.get(j).asInstanceOf[PrimitiveObjectInspector].getPrimitiveJavaObject(
-        condition).asInstanceOf[java.lang.Boolean]
-      if (ret == null || !ret) {
-        return true
-      }
-      j += 1
+  // get the evaluated value(boolean) from the table data (the last element in the array)
+  // true means failed in the join filter testing, we may need to skip it
+  @inline
+  def filterEval[B](data: B): Boolean = {
+    if(data == null) {
+      true      
+    } else {
+      val fields = data.asInstanceOf[Array[AnyRef]]
+	  fields(fields.length - 1).asInstanceOf[org.apache.hadoop.io.BooleanWritable].get
     }
-    false
-  }
-
-  /**
-   * Determines the order in which the tables should be joined (i.e. the order
-   * in which we produce the Cartesian products).
-   */
-  def computeTupleOrder(joinConditions: Array[JoinCondDesc]): Array[Int] = {
-    val tupleOrder = new Array[Int](joinConditions.size + 1)
-    var pos = 0
-
-    def addIfNew(table: Int) {
-      if (!tupleOrder.contains(table)) {
-        tupleOrder(pos) = table
-        pos += 1
-      }
-    }
-
-    joinConditions.foreach { joinCond =>
-      addIfNew(joinCond.getLeft())
-      addIfNew(joinCond.getRight())
-    }
-    tupleOrder
   }
 }
 
