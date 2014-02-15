@@ -143,16 +143,15 @@ class CartesianProduct[T >: Null : ClassTag](val numTables: Int) {
           } else if (bufs(joinCondition.getRight).size == 0) {
             product2(partial, SINGLE_NULL_LIST, i)
           } else {
-            product2(partial, bufs(joinCondition.getRight), i)
+            product2FullOuterJoin(partial, bufs(joinCondition.getRight), i)
           }
-
         case CommonJoinOperator.LEFT_OUTER_JOIN =>
           if (bufs(joinCondition.getLeft()).size == 0) {
             createBase(EMPTY_LIST, i)
           } else if (bufs(joinCondition.getRight).size == 0) {
             product2(partial, SINGLE_NULL_LIST, i)
           } else {
-            product2(partial, bufs(joinCondition.getRight), i)
+            product2LeftOuterJoin(partial, bufs(joinCondition.getRight), i)
           }
 
         case CommonJoinOperator.RIGHT_OUTER_JOIN =>
@@ -161,7 +160,7 @@ class CartesianProduct[T >: Null : ClassTag](val numTables: Int) {
           } else if (bufs(joinCondition.getLeft).size == 0 || !partial.hasNext) {
             product2(createBase(SINGLE_NULL_LIST, i - 1), bufs(joinCondition.getRight), i)
           } else {
-            product2(partial, bufs(joinCondition.getRight), i)
+            product2RightOuterJoin(partial, bufs(joinCondition.getRight), i)
           }
 
         case CommonJoinOperator.LEFT_SEMI_JOIN =>
@@ -176,12 +175,116 @@ class CartesianProduct[T >: Null : ClassTag](val numTables: Int) {
     }
     partial
   }
-
-  def product2(left: Iterator[Array[T]], right: Seq[T], pos: Int): Iterator[Array[T]] = {
+  
+  // get the evaluated value(boolean) from the table data (the last element in the array)
+  // true means failed in the join filter testing, we may need to skip it
+  @inline
+  private def filterEval[B](data: B): Boolean = {
+    if(data == null) {
+      true      
+    } else {
+      val fields = data.asInstanceOf[Array[AnyRef]]
+	  fields(fields.length - 1).asInstanceOf[org.apache.hadoop.io.BooleanWritable].get
+    }
+  } 
+  
+  @inline
+  private def filter[B](iter: Iterator[B], eval: (B)=>Boolean = filterEval _)
+  : Iterator[B] = {
+    var occurs = 1
+	    
+	iter.filter(e => {
+	  // Per outer join semantic, on more than 1 null table value allowed, we need to filter out 
+	  // the entries from the iterator if it's failed in join filter testing (just keep 1) 
+	  val discard = eval(e)
+	  if(discard) {
+	    occurs = occurs - 1
+	    // if first appearance
+	    (occurs >= 0)
+	  } else {
+	    true
+	  }
+	})
+  }
+  
+  def product2(left: Iterator[Array[T]], right: Seq[T], pos: Int)
+  : Iterator[Array[T]] = {
     for (l <- left; r <- right.iterator) yield {
       outputBuffer(pos) = r
       outputBuffer
     }
+  }
+  
+  def product2FullOuterJoin(left: Iterator[Array[T]], right: Seq[T], pos: Int)
+  : Iterator[Array[T]] = {
+    left.flatMap(e => {
+      if(filterEval(e(pos - 1))) {
+        outputBuffer(pos) = null
+        Iterator(outputBuffer)
+      } else {
+        right.filter(!filterEval(_)).iterator.map(entry => {
+          outputBuffer(pos) = entry
+          outputBuffer
+        })
+      } 
+    }) ++ right.filter(filterEval(_)).iterator.flatMap(entry => {  
+          outputBuffer(pos) = entry
+          outputBuffer(pos - 1) = null
+          
+          Iterator(outputBuffer)
+	  })
+//    right.toIterator.flatMap(entry => {
+//      outputBuffer(pos) = entry
+//      if(filterEval(entry)) {
+//        outputBuffer(pos - 1) = null
+//        Iterator(outputBuffer)
+//      } else {
+//        null
+//      } ++ 
+//        left.flatMap(entry => {
+//	      new Iterator[Array[T]] {
+//	        private val lt = entry(pos - 1)
+//	        private val rt = entry(pos)
+//	        private val l = filterEval(lt)
+//	        private val r = filterEval(rt)
+//	        
+//	        private var count = 2
+//	        
+//	        def hasNext = count > 0
+//	        def next: Array[T] = {
+//	          if(l || r) {
+//	            if(count > 1) {
+//	              outputBuffer(pos - 1) = null
+//	              outputBuffer(pos) = rt
+//	            } else {
+//	              outputBuffer(pos - 1) = lt
+//	              outputBuffer(pos) = null
+//	            }
+//	          }
+//	          outputBuffer
+//	        }
+//	      }
+//	    })
+//    })
+  }
+  
+  def product2LeftOuterJoin(left: Iterator[Array[T]], right: Seq[T], pos: Int): Iterator[Array[T]] = {
+    for (lt <- left; rt <- filter((if(filterEval(lt(pos - 1))) SINGLE_NULL_LIST else right).iterator)) yield {
+      outputBuffer(pos) = rt
+      outputBuffer
+    }
+  }
+  
+  def product2RightOuterJoin(left: Iterator[Array[T]], right: Seq[T], pos: Int): Iterator[Array[T]] = {
+    right.iterator.flatMap(entry => {
+      outputBuffer(pos) = entry
+      if(filterEval(entry)) {
+        outputBuffer(pos - 1) = null
+        Iterator(outputBuffer)
+      } else {
+        filter(left, (e: Array[T]) => {filterEval(e(pos - 1))})
+      }
+    })
   }
 
   def createBase(left: Seq[T], pos: Int): Iterator[Array[T]] = {

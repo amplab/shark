@@ -47,7 +47,7 @@ trait JoinFilter[T <: JoinDesc] {
   /**
    * check the join filter (true for discarding the data)
    */
-  protected def isFiltered(tableData: AnyRef, index: Byte): Boolean = {
+  def isFilteredTable(tableData: AnyRef): Boolean = {
     if (noOuterJoin || tableData == null) {
       false
     } else {
@@ -63,14 +63,9 @@ trait JoinFilter[T <: JoinDesc] {
     offsets: IndexedSeq[Int]) {
     
     val columns = data.asInstanceOf[Array[AnyRef]]
-    var idx = 0
     val size = joinVals(tblIdx).size()
     
-    while (idx < size) {
-      outputRow(idx + offsets(tblIdx)) = columns(idx)
-      
-      idx += 1
-    }
+    System.arraycopy(columns, 0, outputRow, offsets(tblIdx), size)
   }
   
   /**
@@ -170,7 +165,6 @@ trait JoinFilter[T <: JoinDesc] {
       outputRows: Queue[AnyRef]): Boolean = {
       
       var index = startIdx
-      var done = false
 
       var leftTable = if(index == 0) {
         elements(0)
@@ -179,7 +173,7 @@ trait JoinFilter[T <: JoinDesc] {
       }
       
       var leftFiltered = if(index == 0) {
-        isFiltered(leftTable, index.toByte)
+        isFilteredTable(leftTable)
       } else {
         previousRightFiltered
       }
@@ -192,28 +186,15 @@ trait JoinFilter[T <: JoinDesc] {
         
         var rightTable = elements(rightTableIndex)
 
-        var rightFiltered = isFiltered(rightTable, rightTableIndex.toByte)
+        var rightFiltered = isFilteredTable(rightTable)
 
         joinCondition.getType() match {
           case CommonJoinOperator.FULL_OUTER_JOIN => {
-            /**
-             * if one of the node doesn't pass the filter test(filtered=true)
-             * will generate 2 rows:
-             * 1) keep the right table columns, and reset the left tables columns
-             * 2) keep the left tables columns, and reset the right table columns
-             */
-            if (entireLeftFiltered || rightFiltered) {
-              // Row 1: keep the right table columns, and discard left tables
-              // create a new row object, with null value for all of the columns
-              var row2 = new Array[AnyRef](row.length)
-              generate((rightTable == null), rightTable, 
-                  rightTableIndex, elements, row2, outputRows)
-              
-              // Row 2: keep the left table columns, and discard the right table
-              rightFiltered = true
-            } else {
-              rightFiltered = false
-            }
+            //
+            // CartesianProduct already contains all of the possible input entries
+            // Do nothing here.
+            //
+            rightFiltered = false
             leftFiltered = false
           }
           case CommonJoinOperator.LEFT_OUTER_JOIN => {
@@ -240,6 +221,7 @@ trait JoinFilter[T <: JoinDesc] {
               rightFiltered = true
             } else {
               // find the valid output, and will not output new row any more
+              done = true
             }
             leftFiltered = false
           }

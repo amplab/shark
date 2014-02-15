@@ -57,6 +57,7 @@ object JoinUtil {
       filtersOI: JavaList[OI],
       noOuterJoin: Boolean): Array[AnyRef] = {
 
+    // isFiltered = true means failed in the join filter testing
     val isFiltered: Boolean = {
       if (filters == null) {
         false
