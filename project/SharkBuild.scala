@@ -18,6 +18,7 @@
 import sbt._
 import Keys._
 
+import com.typesafe.sbt.pgp.PgpKeys._
 import scala.util.Properties.{ envOrNone => env }
 
 import net.virtualvoid.sbt.graph.{Plugin => DependencyGraphPlugin}
@@ -77,7 +78,45 @@ object SharkBuild extends Build {
     resolvers ++= Seq(
       "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
       "Cloudera Repository" at "https://repository.cloudera.com/artifactory/cloudera-repos/",
+      "Sonatype Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/",
+      "Sonatype Staging" at "https://oss.sonatype.org/service/local/staging/deploy/maven2/",
       "Local Maven" at Path.userHome.asFile.toURI.toURL + ".m2/repository"
+    ),
+ 
+    publishTo <<= version { (v: String) =>
+      val nexus = "https://oss.sonatype.org/"
+      if (v.trim.endsWith("SNAPSHOT"))
+        Some("sonatype-snapshots" at nexus + "content/repositories/snapshots")
+      else
+        Some("sonatype-staging"  at nexus + "service/local/staging/deploy/maven2")
+    },
+    publishMavenStyle := true,
+    useGpg in Global := true,
+    publishArtifact in Test := false,
+    pomIncludeRepository := { _ => false },
+    pomExtra := (
+      <url>http://shark.cs.berkeley.edu</url>
+      <licenses>
+        <license>
+          <name>Apache 2.0</name>
+          <url>http://www.apache.org/licenses/</url>
+          <distribution>repo</distribution>
+        </license>
+      </licenses>
+      <scm>
+        <url>git@github.com:amplab/shark.git</url>
+        <connection>scm:git:git@github.com:amplab/shark.git</connection>
+      </scm>
+      <developers>
+        <developer>
+          <id>rxin</id>
+          <name>Reynold Xin</name>
+          <email>reynoldx@gmail.com</email>
+          <url>http://www.cs.berkeley.edu/~rxin</url>
+          <organization>U.C. Berkeley Computer Science</organization>
+          <organizationUrl>http://www.cs.berkeley.edu</organizationUrl>
+        </developer>
+      </developers>
     ),
 
     fork := true,
