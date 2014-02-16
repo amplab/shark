@@ -99,11 +99,13 @@ import java.util.Iterator;
     System.out.println("---------------------------------------------------");
     System.out.println(TestSharkCliDriver.class.getName());
 
+    boolean readFile = (regTestsFromFile.size() != 0);
+
     while (tests.hasMoreElements()) {
       TestCase test = (TestCase) tests.nextElement();
 
       boolean passRegex = (regexPattern == null);
-      boolean passFile = (regTestsFromFile.size() == 0);
+      boolean passFile = !readFile;
 
       if (regexPattern != null) {
         Matcher m = regexPattern.matcher(test.getName());
@@ -114,11 +116,14 @@ import java.util.Iterator;
 
       if (regTestsFromFile.size() > 0) {
         passFile = regTestsFromFile.contains(test.getName());
-      }
+      } 
+
       if (passRegex && passFile) {
         suite.addTest(test);
         regTestsFromFile.remove(test.getName());
         System.out.println("TestSharkCliDriver: " + test.getName());
+        if (readFile && regTestsFromFile.size() == 0)
+          break;
       }
     }
 
