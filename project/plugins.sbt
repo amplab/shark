@@ -30,4 +30,3 @@ resolvers += Resolver.url(
   new URL("http://scalasbt.artifactoryonline.com/scalasbt/sbt-plugin-releases/"))(Resolver.ivyStylePatterns)
 
 resolvers += "sonatype-releases" at "https://oss.sonatype.org/content/repositories/releases/"
-
