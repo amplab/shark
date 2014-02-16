@@ -31,6 +31,10 @@ object SharkBuild extends Build {
   // Shark version
   val SHARK_VERSION = "0.9.0-SNAPSHOT"
 
+  val SHARK_ORGANIZATION = "edu.berkeley.cs.amplab"
+
+  val HIVE_VERSION = "0.11.0-shark-SNAPSHOT"
+
   val SPARK_VERSION = "0.9.0-incubating"
 
   val SCALA_VERSION = "2.10.3"
@@ -64,10 +68,42 @@ object SharkBuild extends Build {
   // Differences in Jackson version cause runtime errors as per HIVE-3581
   val excludeJackson = ExclusionRule(organization = "org.codehaus.jackson")
 
+  // Exclusion rules for Hive artifacts
+  val excludeGuava = ExclusionRule(organization = "com.google.guava")
+  val excludeLog4j = ExclusionRule(organization = "log4j")
+  val excludeServlet = ExclusionRule(organization = "javax.servlet")
+  val excludeDatanucleus = ExclusionRule(organization = "org.datanucleus")
+
+  // TODO(harvey): These should really be in a SharkHive project, but that requires re-organizing
+  //               all of our settings. Should be done for v0.9.1.
+  // TODO(harvey): Exclude datanucleus
+  val hiveArtifacts = Seq(
+    "hcatalog-core",
+    "hcatalog-pig-adapter",
+    "hcatalog",
+    "hive-anttasks",
+    "hive-beeline",
+    "hive-cli",
+    "hive-common",
+    "hive-exec",
+    "hive-hbase-handler",
+    "hive-hwi",
+    "hive-jdbc",
+    "hive-metastore",
+    "hive-serde",
+    "hive-service",
+    "hive-shims",
+    "webhcat-java-client",
+    "webhcat")
+  val hiveDependencies = hiveArtifacts.map ( artifactId =>
+    SHARK_ORGANIZATION % artifactId % HIVE_VERSION excludeAll(
+      excludeGuava, excludeLog4j, excludeServlet, excludeDatanucleus)
+  )
+
   def coreSettings = Defaults.defaultSettings ++ DependencyGraphPlugin.graphSettings ++ Seq(
 
     name := "shark",
-    organization := "edu.berkeley.cs.amplab",
+    organization := SHARK_ORGANIZATION,
     version := SHARK_VERSION,
     scalaVersion := SCALA_VERSION,
     scalacOptions := Seq("-deprecation", "-unchecked", "-optimize", "-feature", "-Yinline-warnings"),
@@ -137,22 +173,11 @@ object SharkBuild extends Build {
       }
     },
 
-    unmanagedJars in Compile <++= baseDirectory map { base =>
-      val hiveFile = file(System.getenv("HIVE_HOME")) / "lib"
-      val baseDirectories = (base / "lib") +++ (hiveFile)
-      val customJars = (baseDirectories ** "*.jar")
-      // Hive uses an old version of guava that doesn't have what we want.
-      customJars.classpath
-        .filter(!_.toString.contains("guava"))
-        .filter(!_.toString.contains("log4j"))
-        .filter(!_.toString.contains("servlet"))
-    },
-
     unmanagedJars in Test ++= Seq(
       file(System.getenv("HIVE_DEV_HOME")) / "build" / "ql" / "test" / "classes",
       file(System.getenv("HIVE_DEV_HOME")) / "build/ivy/lib/test/hadoop-test-0.20.2.jar"
     ),
-
+    libraryDependencies ++= hiveDependencies,
     libraryDependencies ++= Seq(
       "org.apache.spark" %% "spark-core" % SPARK_VERSION,
       "org.apache.spark" %% "spark-repl" % SPARK_VERSION,
