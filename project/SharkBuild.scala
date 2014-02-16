@@ -21,6 +21,7 @@ import Keys._
 import sbtassembly.Plugin._
 import AssemblyKeys._
 
+import com.typesafe.sbt.pgp.PgpKeys._
 import scala.util.Properties.{ envOrNone => env }
 
 object SharkBuild extends Build {
@@ -73,7 +74,43 @@ object SharkBuild extends Build {
     resolvers ++= Seq(
       "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
       "Cloudera Repository" at "https://repository.cloudera.com/artifactory/cloudera-repos/",
-      "Local Maven" at Path.userHome.asFile.toURI.toURL + ".m2/repository"
+      "Local Maven" at Path.userHome.asFile.toURI.toURL + ".m2/repository",
+      "Sonatype Shark" at "https://oss.sonatype.org/content/repositories/snapshots/"
+    ),
+
+    // See http://www.scala-sbt.org/release/docs/Community/Using-Sonatype.html for details
+    // about publishing to Sonatype Nexus repository.
+    // Specifically, you'll need to setup your credentials somewhere. I have a file
+    // called ~/.sbt/global.sbt containing the following:
+    // credentials += Credentials("Sonatype Nexus Repository Manager",
+    //                            "oss.sonatype.org",
+    //                            "<sonatype_username>",
+    //                            "<sonatype_password">")
+    publishTo <<= version { (v: String) =>
+      val nexus = "https://oss.sonatype.org/"
+      if (v.trim.endsWith("SNAPSHOT"))
+        Some("sonatype-snapshots" at nexus + "content/repositories/snapshots")
+      else
+        Some("sonatype-staging"  at nexus + "service/local/staging/deploy/maven2")
+    },
+    publishMavenStyle := true,
+    useGpg in Global := true,
+    publishArtifact in Test := false,
+    pomIncludeRepository := { _ => false },
+    //TODO: Add <developers> tag to PomExtra.
+    pomExtra := (
+      <url>http://shark.cs.berkeley.edu</url>
+      <licenses>
+        <license>
+          <name>Apache 2.0</name>
+          <url>http://www.apache.org/licenses/</url>
+          <distribution>repo</distribution>
+        </license>
+      </licenses>
+      <scm>
+        <url>git@github.com:amplab/shark.git</url>
+        <connection>scm:git:git@github.com:amplab/shark.git</connection>
+      </scm>
     ),
 
     fork := true,
