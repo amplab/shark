@@ -72,15 +72,12 @@ object SharkBuild extends Build {
   val excludeGuava = ExclusionRule(organization = "com.google.guava")
   val excludeLog4j = ExclusionRule(organization = "log4j")
   val excludeServlet = ExclusionRule(organization = "javax.servlet")
-  val excludeDatanucleus = ExclusionRule(organization = "org.datanucleus")
   val excludeXerces = ExclusionRule(organization = "xerces")
 
   // TODO(harvey): These should really be in a SharkHive project, but that requires re-organizing
   //               all of our settings. Should be done for v0.9.1.
   // TODO(harvey): Exclude datanucleus
   val hiveArtifacts = Seq(
-    "hcatalog-core",
-    "hcatalog-pig-adapter",
     "hcatalog",
     "hive-anttasks",
     "hive-beeline",
@@ -98,8 +95,21 @@ object SharkBuild extends Build {
     "webhcat")
   val hiveDependencies = hiveArtifacts.map ( artifactId =>
     SHARK_ORGANIZATION % artifactId % HIVE_VERSION excludeAll(
-      excludeGuava, excludeLog4j, excludeServlet, excludeDatanucleus, excludeAsm, excludeXerces)
+      excludeGuava, excludeLog4j, excludeServlet, excludeAsm, excludeNetty, excludeXerces)
   )
+
+  val tachyonDependency = (if (TACHYON_ENABLED) {
+    Some("org.tachyonproject" % "tachyon" % TACHYON_VERSION excludeAll(
+      excludeKyro, excludeHadoop, excludeCurator, excludeJackson, excludeNetty, excludeAsm))
+  } else {
+    None
+  }).toSeq
+
+  val yarnDependency = (if (YARN_ENABLED) {
+    Some("org.apache.spark" %% "spark-yarn" % SPARK_VERSION)
+  } else {
+    None
+  }).toSeq
 
   def coreSettings = Defaults.defaultSettings ++ DependencyGraphPlugin.graphSettings ++ Seq(
 
@@ -175,10 +185,9 @@ object SharkBuild extends Build {
     },
 
     unmanagedJars in Test ++= Seq(
-      file(System.getenv("HIVE_DEV_HOME")) / "build" / "ql" / "test" / "classes",
-      file(System.getenv("HIVE_DEV_HOME")) / "build/ivy/lib/test/hadoop-test-0.20.2.jar"
+      file(System.getenv("HIVE_DEV_HOME")) / "build" / "ql" / "test" / "classes"
     ),
-    libraryDependencies ++= hiveDependencies,
+    libraryDependencies ++= hiveDependencies ++ tachyonDependency ++ yarnDependency,
     libraryDependencies ++= Seq(
       "org.apache.spark" %% "spark-core" % SPARK_VERSION,
       "org.apache.spark" %% "spark-repl" % SPARK_VERSION,
@@ -186,18 +195,18 @@ object SharkBuild extends Build {
       "org.apache.hadoop" % "hadoop-client" % hadoopVersion excludeAll(excludeJackson, excludeNetty, excludeAsm) force(),
       // See https://code.google.com/p/guava-libraries/issues/detail?id=1095
       "com.google.code.findbugs" % "jsr305" % "1.3.+",
+
       // Hive unit test requirements. These are used by Hadoop to run the tests, but not necessary
       // in usual Shark runs.
       "commons-io" % "commons-io" % "2.1",
       "commons-httpclient" % "commons-httpclient" % "3.1" % "test",
 
       // Test infrastructure
+      "org.apache.hadoop" % "hadoop-test" % "0.20.2" % "test" excludeAll(excludeJackson, excludeNetty, excludeAsm) force(),
       "org.scalatest" %% "scalatest" % "1.9.1" % "test",
       "junit" % "junit" % "4.10" % "test",
       "net.java.dev.jets3t" % "jets3t" % "0.7.1",
-      "com.novocode" % "junit-interface" % "0.8" % "test") ++
-      (if (YARN_ENABLED) Some("org.apache.spark" %% "spark-yarn" % SPARK_VERSION) else None).toSeq ++
-      (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % TACHYON_VERSION excludeAll(excludeKyro, excludeHadoop, excludeCurator, excludeJackson, excludeNetty, excludeAsm)) else None).toSeq
+      "com.novocode" % "junit-interface" % "0.8" % "test")
   ) ++ org.scalastyle.sbt.ScalastylePlugin.Settings
 
   def assemblyProjSettings = Seq(
@@ -206,6 +215,10 @@ object SharkBuild extends Build {
 
   def extraAssemblySettings() = Seq(
     test in assembly := {},
+    excludedJars in assembly <<= (fullClasspath in assembly) map { cp =>
+      // Ignore datanucleus jars.
+      cp.filter { file => file.data.getName.contains("datanucleus") }
+    },
     mergeStrategy in assembly := {
       case m if m.toLowerCase.endsWith("manifest.mf") => MergeStrategy.discard
       case m if m.toLowerCase.matches("meta-inf.*\\.sf$") => MergeStrategy.discard
