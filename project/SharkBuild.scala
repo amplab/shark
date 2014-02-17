@@ -73,6 +73,7 @@ object SharkBuild extends Build {
   val excludeLog4j = ExclusionRule(organization = "log4j")
   val excludeServlet = ExclusionRule(organization = "javax.servlet")
   val excludeDatanucleus = ExclusionRule(organization = "org.datanucleus")
+  val excludeXerces = ExclusionRule(organization = "xerces")
 
   // TODO(harvey): These should really be in a SharkHive project, but that requires re-organizing
   //               all of our settings. Should be done for v0.9.1.
@@ -97,7 +98,7 @@ object SharkBuild extends Build {
     "webhcat")
   val hiveDependencies = hiveArtifacts.map ( artifactId =>
     SHARK_ORGANIZATION % artifactId % HIVE_VERSION excludeAll(
-      excludeGuava, excludeLog4j, excludeServlet, excludeDatanucleus, excludeAsm)
+      excludeGuava, excludeLog4j, excludeServlet, excludeDatanucleus, excludeAsm, excludeXerces)
   )
 
   def coreSettings = Defaults.defaultSettings ++ DependencyGraphPlugin.graphSettings ++ Seq(
