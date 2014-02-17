@@ -97,7 +97,7 @@ object SharkBuild extends Build {
     "webhcat")
   val hiveDependencies = hiveArtifacts.map ( artifactId =>
     SHARK_ORGANIZATION % artifactId % HIVE_VERSION excludeAll(
-      excludeGuava, excludeLog4j, excludeServlet, excludeDatanucleus)
+      excludeGuava, excludeLog4j, excludeServlet, excludeDatanucleus, excludeAsm)
   )
 
   def coreSettings = Defaults.defaultSettings ++ DependencyGraphPlugin.graphSettings ++ Seq(
