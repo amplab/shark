@@ -18,6 +18,7 @@
 import sbt._
 import Keys._
 
+import com.typesafe.sbt.pgp.PgpKeys._
 import scala.util.Properties.{ envOrNone => env }
 
 import net.virtualvoid.sbt.graph.{Plugin => DependencyGraphPlugin}
@@ -29,6 +30,10 @@ object SharkBuild extends Build {
 
   // Shark version
   val SHARK_VERSION = "0.9.0-SNAPSHOT"
+
+  val SHARK_ORGANIZATION = "edu.berkeley.cs.amplab"
+
+  val HIVE_VERSION = "0.11.0-shark-SNAPSHOT"
 
   val SPARK_VERSION = "0.9.0-incubating"
 
@@ -63,10 +68,53 @@ object SharkBuild extends Build {
   // Differences in Jackson version cause runtime errors as per HIVE-3581
   val excludeJackson = ExclusionRule(organization = "org.codehaus.jackson")
 
+  // Exclusion rules for Hive artifacts
+  val excludeGuava = ExclusionRule(organization = "com.google.guava")
+  val excludeLog4j = ExclusionRule(organization = "log4j")
+  val excludeServlet = ExclusionRule(organization = "javax.servlet")
+  val excludeXerces = ExclusionRule(organization = "xerces")
+
+  // TODO(harvey): These should really be in a SharkHive project, but that requires re-organizing
+  //               all of our settings. Should be done for v0.9.1.
+  // TODO(harvey): Exclude datanucleus
+  val hiveArtifacts = Seq(
+    "hcatalog",
+    "hive-anttasks",
+    "hive-beeline",
+    "hive-cli",
+    "hive-common",
+    "hive-exec",
+    "hive-hbase-handler",
+    "hive-hwi",
+    "hive-jdbc",
+    "hive-metastore",
+    "hive-serde",
+    "hive-service",
+    "hive-shims",
+    "webhcat-java-client",
+    "webhcat")
+  val hiveDependencies = hiveArtifacts.map ( artifactId =>
+    SHARK_ORGANIZATION % artifactId % HIVE_VERSION excludeAll(
+      excludeGuava, excludeLog4j, excludeServlet, excludeAsm, excludeNetty, excludeXerces)
+  )
+
+  val tachyonDependency = (if (TACHYON_ENABLED) {
+    Some("org.tachyonproject" % "tachyon" % TACHYON_VERSION excludeAll(
+      excludeKyro, excludeHadoop, excludeCurator, excludeJackson, excludeNetty, excludeAsm))
+  } else {
+    None
+  }).toSeq
+
+  val yarnDependency = (if (YARN_ENABLED) {
+    Some("org.apache.spark" %% "spark-yarn" % SPARK_VERSION)
+  } else {
+    None
+  }).toSeq
+
   def coreSettings = Defaults.defaultSettings ++ DependencyGraphPlugin.graphSettings ++ Seq(
 
     name := "shark",
-    organization := "edu.berkeley.cs.amplab",
+    organization := SHARK_ORGANIZATION,
     version := SHARK_VERSION,
     scalaVersion := SCALA_VERSION,
     scalacOptions := Seq("-deprecation", "-unchecked", "-optimize", "-feature", "-Yinline-warnings"),
@@ -77,7 +125,45 @@ object SharkBuild extends Build {
     resolvers ++= Seq(
       "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
       "Cloudera Repository" at "https://repository.cloudera.com/artifactory/cloudera-repos/",
+      "Sonatype Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/",
+      "Sonatype Staging" at "https://oss.sonatype.org/service/local/staging/deploy/maven2/",
       "Local Maven" at Path.userHome.asFile.toURI.toURL + ".m2/repository"
+    ),
+ 
+    publishTo <<= version { (v: String) =>
+      val nexus = "https://oss.sonatype.org/"
+      if (v.trim.endsWith("SNAPSHOT"))
+        Some("sonatype-snapshots" at nexus + "content/repositories/snapshots")
+      else
+        Some("sonatype-staging"  at nexus + "service/local/staging/deploy/maven2")
+    },
+    publishMavenStyle := true,
+    useGpg in Global := true,
+    publishArtifact in Test := false,
+    pomIncludeRepository := { _ => false },
+    pomExtra := (
+      <url>http://shark.cs.berkeley.edu</url>
+      <licenses>
+        <license>
+          <name>Apache 2.0</name>
+          <url>http://www.apache.org/licenses/</url>
+          <distribution>repo</distribution>
+        </license>
+      </licenses>
+      <scm>
+        <url>git@github.com:amplab/shark.git</url>
+        <connection>scm:git:git@github.com:amplab/shark.git</connection>
+      </scm>
+      <developers>
+        <developer>
+          <id>rxin</id>
+          <name>Reynold Xin</name>
+          <email>reynoldx@gmail.com</email>
+          <url>http://www.cs.berkeley.edu/~rxin</url>
+          <organization>U.C. Berkeley Computer Science</organization>
+          <organizationUrl>http://www.cs.berkeley.edu</organizationUrl>
+        </developer>
+      </developers>
     ),
 
     fork := true,
@@ -98,22 +184,10 @@ object SharkBuild extends Build {
       }
     },
 
-    unmanagedJars in Compile <++= baseDirectory map { base =>
-      val hiveFile = file(System.getenv("HIVE_HOME")) / "lib"
-      val baseDirectories = (base / "lib") +++ (hiveFile)
-      val customJars = (baseDirectories ** "*.jar")
-      // Hive uses an old version of guava that doesn't have what we want.
-      customJars.classpath
-        .filter(!_.toString.contains("guava"))
-        .filter(!_.toString.contains("log4j"))
-        .filter(!_.toString.contains("servlet"))
-    },
-
     unmanagedJars in Test ++= Seq(
-      file(System.getenv("HIVE_DEV_HOME")) / "build" / "ql" / "test" / "classes",
-      file(System.getenv("HIVE_DEV_HOME")) / "build/ivy/lib/test/hadoop-test-0.20.2.jar"
+      file(System.getenv("HIVE_DEV_HOME")) / "build" / "ql" / "test" / "classes"
     ),
-
+    libraryDependencies ++= hiveDependencies ++ tachyonDependency ++ yarnDependency,
     libraryDependencies ++= Seq(
       "org.apache.spark" %% "spark-core" % SPARK_VERSION,
       "org.apache.spark" %% "spark-repl" % SPARK_VERSION,
@@ -121,18 +195,18 @@ object SharkBuild extends Build {
       "org.apache.hadoop" % "hadoop-client" % hadoopVersion excludeAll(excludeJackson, excludeNetty, excludeAsm) force(),
       // See https://code.google.com/p/guava-libraries/issues/detail?id=1095
       "com.google.code.findbugs" % "jsr305" % "1.3.+",
+
       // Hive unit test requirements. These are used by Hadoop to run the tests, but not necessary
       // in usual Shark runs.
       "commons-io" % "commons-io" % "2.1",
       "commons-httpclient" % "commons-httpclient" % "3.1" % "test",
 
       // Test infrastructure
+      "org.apache.hadoop" % "hadoop-test" % "0.20.2" % "test" excludeAll(excludeJackson, excludeNetty, excludeAsm) force(),
       "org.scalatest" %% "scalatest" % "1.9.1" % "test",
       "junit" % "junit" % "4.10" % "test",
       "net.java.dev.jets3t" % "jets3t" % "0.7.1",
-      "com.novocode" % "junit-interface" % "0.8" % "test") ++
-      (if (YARN_ENABLED) Some("org.apache.spark" %% "spark-yarn" % SPARK_VERSION) else None).toSeq ++
-      (if (TACHYON_ENABLED) Some("org.tachyonproject" % "tachyon" % TACHYON_VERSION excludeAll(excludeKyro, excludeHadoop, excludeCurator, excludeJackson, excludeNetty, excludeAsm)) else None).toSeq
+      "com.novocode" % "junit-interface" % "0.8" % "test")
   ) ++ org.scalastyle.sbt.ScalastylePlugin.Settings
 
   def assemblyProjSettings = Seq(
@@ -141,6 +215,10 @@ object SharkBuild extends Build {
 
   def extraAssemblySettings() = Seq(
     test in assembly := {},
+    excludedJars in assembly <<= (fullClasspath in assembly) map { cp =>
+      // Ignore datanucleus jars.
+      cp.filter { file => file.data.getName.contains("datanucleus") }
+    },
     mergeStrategy in assembly := {
       case m if m.toLowerCase.endsWith("manifest.mf") => MergeStrategy.discard
       case m if m.toLowerCase.matches("meta-inf.*\\.sf$") => MergeStrategy.discard
