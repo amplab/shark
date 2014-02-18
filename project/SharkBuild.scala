@@ -75,8 +75,8 @@ object SharkBuild extends Build {
   val excludeXerces = ExclusionRule(organization = "xerces")
 
   // TODO(harvey): These should really be in a SharkHive project, but that requires re-organizing
-  //               all of our settings. Should be done for v0.9.1.
-  // TODO(harvey): Exclude datanucleus
+  //               all of our settings. Should be done for v0.9.1. Also, we might not need some
+  //               of these jars.
   val hiveArtifacts = Seq(
     "hive-anttasks",
     "hive-beeline",
