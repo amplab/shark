@@ -29,7 +29,7 @@ import sbtassembly.Plugin.AssemblyKeys._
 object SharkBuild extends Build {
 
   // Shark version
-  val SHARK_VERSION = "0.9.1-SNAPSHOT"
+  val SHARK_VERSION = "0.9.1-CodeGen-SNAPSHOT"
 
   val SHARK_ORGANIZATION = "edu.berkeley.cs.shark"
 
@@ -39,8 +39,9 @@ object SharkBuild extends Build {
 
   val SCALA_VERSION = "2.10.3"
 
-  val SCALAC_JVM_VERSION = "jvm-1.6"
-  val JAVAC_JVM_VERSION = "1.6"
+  val SCALAC_JVM_VERSION = "jvm-1.7"
+
+  val JAVAC_JVM_VERSION = "1.7"
 
   // Hadoop version to build against. For example, "0.20.2", "0.20.205.0", or
   // "1.0.1" for Apache releases, or "0.20.2-cdh3u3" for Cloudera Hadoop.
