@@ -1,9 +1,10 @@
 <% escapeMarkup = false %>
-#import(shark.execution.CGOperator)
+#import(shark.execution.cg.row.Constant)
 #import(shark.execution.cg.row.CGStruct)
+#import(shark.execution.cg.row.CGExprContext)
+#import(shark.execution.CGOperator)
 #import(shark.execution.CGObjectOperator)
 #import(shark.execution.SelectOperator)
-#import(shark.execution.cg.row.CGExprContext)
 
 <%@ import val cgo: CGOperator %>
 <%@ import val op: SelectOperator %>
@@ -14,26 +15,26 @@ package ${packageName};
 
 import shark.execution.cg.OperatorExecutor;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import ${cginputrows(0).fullClassName};
+import ${cgrow.fullClassName};
 
 #for(clazz <- ctx.imports)
 import ${clazz};
 #end
-
 public class ${className} extends OperatorExecutor {
+private final ${cgrow.clazz} ${Constant.CG_EXPR_NAME_OUTPUT} = new ${cgrow.clazz}();
   
 #for(property <- ctx.properties)
 ${property.toString}
 #end
-
     @Override
-    public ${ctx.inputRow.expr.struct.clazz} transform(Object input) {
+    public ${cginputrows(0).clazz} transform(Object input) {
 #if(parentOperators(0).useCG)
-    return (${ctx.inputRow.expr.struct.clazz})input;
+    return (${cginputrows(0).clazz})input;
 #else
-    return ${ctx.inputRow.expr.struct.clazz}.BUILD(this.inputOI, input);
+    return ${cginputrows(0).clazz}.BUILD(this.inputOI, input);
 #end
     }
-    
    @Override
    public void init(ObjectInspector[] inputOIs) throws Exception {
    super.init(inputOIs);
@@ -41,14 +42,14 @@ ${property.toString}
 ${init.toString}
 #end   
    } 
-  
   @Override
   public Object evaluate(Object obj) throws Exception {
-    ${ctx.inputRow.expr.struct.clazz} ${ctx.inputRow.exprName} = transform(obj);
+    ${cginputrows(0).clazz} ${Constant.CG_EXPR_NAME_INPUT} = transform(obj);
 
-    ${ctx.outputObjectName}.reset();
+    ${Constant.CG_EXPR_NAME_OUTPUT}.reset();
+    
     ${cs.code(ctx)}
     
-    return ${ctx.outputObjectName};
+    return ${Constant.CG_EXPR_NAME_OUTPUT};
   }
 }

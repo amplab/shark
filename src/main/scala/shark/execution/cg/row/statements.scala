@@ -37,7 +37,13 @@ case class EENDeclare(ten: TypedExprNode, expr: ExecuteOrderedExprNode = null) e
   	val code = new StringBuffer()
   	
   	if(variableType != null) {
+  	  if(ten.outputDT == TypeUtil.StringType || 
+  	     ten.outputDT == TypeUtil.BinaryType || 
+  	     ten.outputDT == TypeUtil.TimestampType) {
+  	    code.append("%s %s = null;".format(variableType, variableName))
+  	  } else {
   		code.append("%s %s;".format(variableType, variableName))
+  	  }
   	}
   	if(nullIndicatorName != null) code.append("boolean %s = false;".format(nullIndicatorName))
   	
@@ -61,7 +67,11 @@ case class EENAssignment(ten: TypedExprNode, expr: ExecuteOrderedExprNode) exten
 }
 
 case class EENSequence(expr: ExecuteOrderedExprNode, next: ExecuteOrderedExprNode) extends ExecuteOrderedExprNode(expr) {
-  override def code(ctx: CGExprContext): String = expr.code(ctx) + (
+  override def code(ctx: CGExprContext): String = 
+    (if(expr != null) 
+      expr.code(ctx)
+    else 
+      "") + (
   	if(next != null) 
   	  next.code(ctx) 
   	else 

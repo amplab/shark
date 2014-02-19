@@ -9,14 +9,17 @@ object TENInstance {
     val factory = new TENFactory
     val rowInput = TENInputRow(input)
 
-    val fields = if (output != null) {
-      Seq.tabulate(exprs.length)(i => {
-        factory.create(output.fields(i).oiName, exprs(i), output.fields(i), rowInput)
+    val fields: Seq[TENOutputField] = if (output != null) {
+      // sweep the constant expression in the root
+      output.fields.zip(exprs).filter((entry) => !(entry._1.constant)).map((entry) => {
+        factory.create(entry._1.oiName, entry._2, entry._1, rowInput)
       })
     } else {
-      Seq.tabulate(exprs.length)(i => {
-        factory.create(names(i), exprs(i), null, rowInput)
-      })
+      // sweep the constant expression in the root
+      import org.apache.hadoop.hive.ql.plan.{ExprNodeConstantDesc, ExprNodeNullDesc}
+      names.zip(exprs).filter((entry) => {
+        !(entry._2.isInstanceOf[ExprNodeConstantDesc] || entry._2.isInstanceOf[ExprNodeNullDesc])
+      }).map((entry) => factory.create(entry._1, entry._2, null, rowInput))
     }
 
     import scala.collection.JavaConversions._

@@ -129,9 +129,6 @@ trait ExprSymbolLookUp {
 }
 
 class CGExprContext extends ExprSymbolLookUp {
-	var inputRow: EENInputRow = _
-	var outputObjectName: String = _
-	
 	val imports = scala.collection.mutable.Set[String]()
 	val properties = ArrayBuffer[PropertyDefinition]()
 	val initials = ArrayBuffer[String]()
@@ -149,7 +146,7 @@ class CGExprContext extends ExprSymbolLookUp {
 	}
 
 	def propertyC(defType: Class[_], isCreate: Boolean = true, isFinal: Boolean = false, initString: String = null, isStatic: Boolean = false): String = {
-	  property(defType.getClass().getCanonicalName(), isCreate, isFinal, initString, isStatic)
+	  property(defType.getCanonicalName(), isCreate, isFinal, initString, isStatic)
 	}
 
 	def property(defType: String, isCreate: Boolean = true, isFinal: Boolean = false, initString: String = null, isStatic: Boolean = false): String = {
