@@ -963,6 +963,8 @@ object CGField {
     (f) => { f.oi.asInstanceOf[WritableConstantBinaryObjectInspector].getWritableConstantValue() },
     (f) => { f.oi.asInstanceOf[WritableConstantBooleanObjectInspector].getWritableConstantValue() },
     (f) => { f.oi.asInstanceOf[WritableConstantByteObjectInspector].getWritableConstantValue() },
+    // TODO keep the placeholder for date type
+    (f) => {null/*f.oi.asInstanceOf[WritableConstantDateObjectInspector].getWritableConstantValue() */},
     (f) => { f.oi.asInstanceOf[WritableConstantDoubleObjectInspector].getWritableConstantValue() },
     (f) => { f.oi.asInstanceOf[WritableConstantFloatObjectInspector].getWritableConstantValue() },
     (f) => { f.oi.asInstanceOf[WritableConstantIntObjectInspector].getWritableConstantValue() },

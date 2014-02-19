@@ -3,7 +3,7 @@ package shark.execution.cg.row
 abstract class EENExpr(val ten: TypedExprNode, nested: ExecuteOrderedExprNode = null) extends ExecuteOrderedExprNode(nested) {
   self: Product =>
 
-  override final def currCode(ctx: CGExprContext): String = {
+  override def currCode(ctx: CGExprContext): String = {
   	val codeCompute = exprCode(ctx)
   	
   	val code = new StringBuffer()
@@ -49,14 +49,11 @@ case class EENAlias(expr: TypedExprNode, sibling: ExecuteOrderedExprNode = null)
   	// do nothing rather than its default initialization.
   }
   
-  override def code(ctx: CGExprContext): String = ctx.exprName(expr)
+  override def currCode(ctx: CGExprContext): String = ctx.exprName(expr)
 }
 
 case class EENInputRow(expr: TENInputRow) extends EENExpr(expr) {
 	override def initial(ctx: CGExprContext) {
-		ctx.defineImport(expr.struct.fullClassName)
-		ctx.inputRow = this
-
 		ctx.register(expr, ctx.EXPR_NULL_INDICATOR_NAME, null)
 		ctx.register(expr, ctx.EXPR_VARIABLE_NAME, exprName)
 		ctx.register(expr, ctx.CODE_IS_VALID, "%s.mask.get(%s.%s)".format(exprName, expr.struct.clazz, expr.maskBitName))
@@ -64,7 +61,7 @@ case class EENInputRow(expr: TENInputRow) extends EENExpr(expr) {
 		ctx.register(expr, ctx.CODE_INVALIDATE, null)
 	}
 
-	val exprName: String = "__input__"
+	val exprName: String = Constant.CG_EXPR_NAME_INPUT
 		
 	override def exprCode(ctx: CGExprContext): String = exprName
 }
@@ -85,9 +82,9 @@ case class EENOutputField(output: TENOutputField, outter: ExecuteOrderedExprNode
 
   override def initial(ctx: CGExprContext) {
 	  ctx.register(output.expr)
-	  ctx.register(output, ctx.CODE_VALIDATE, "%s.mask.set(%s.%s, true);".format(ctx.outputObjectName, ctx.outputObjectName, output.maskBitName))
-	  ctx.register(output, ctx.EXPR_VARIABLE_NAME, "%s.%s".format(ctx.outputObjectName, output.escapedName))
-	  ctx.register(output, ctx.CODE_VALUE_REPL, "%s.%s".format(ctx.outputObjectName, output.escapedName))
+	  ctx.register(output, ctx.CODE_VALIDATE, "%s.mask.set(%s.%s, true);".format(Constant.CG_EXPR_NAME_OUTPUT, Constant.CG_EXPR_NAME_OUTPUT, output.maskBitName))
+	  ctx.register(output, ctx.EXPR_VARIABLE_NAME, "%s.%s".format(Constant.CG_EXPR_NAME_OUTPUT, output.escapedName))
+	  ctx.register(output, ctx.CODE_VALUE_REPL, "%s.%s".format(Constant.CG_EXPR_NAME_OUTPUT, output.escapedName))
   }
   
   override def exprCode(ctx: CGExprContext): String = ctx.exprName(outter.essential)
@@ -95,9 +92,7 @@ case class EENOutputField(output: TENOutputField, outter: ExecuteOrderedExprNode
 
 case class EENOutputExpr(output: TENOutputExpr, een: ExecuteOrderedExprNode) extends EENExpr(output) {
   override def initial(ctx: CGExprContext) {
-    ctx.outputObjectName = ctx.property(output.outputDT.primitive, false)
-    
-    ctx.register(output, ctx.EXPR_VARIABLE_NAME, ctx.outputObjectName)
+    ctx.register(output, ctx.EXPR_VARIABLE_NAME, Constant.CG_EXPR_NAME_OUTPUT)
     ctx.register(output, ctx.EXPR_NULL_INDICATOR_NAME, null)
     ctx.register(output, ctx.CODE_IS_VALID, null)
     ctx.register(output, ctx.CODE_INVALIDATE, null)
@@ -110,8 +105,6 @@ case class EENOutputExpr(output: TENOutputExpr, een: ExecuteOrderedExprNode) ext
 
 case class EENOutputRow(expr: TENOutputRow, een: ExecuteOrderedExprNode) extends ExecuteOrderedExprNode(een) {
   override def initialEssential(ctx: CGExprContext) {
-  	ctx.defineImport(expr.output.fullClassName)
-	ctx.outputObjectName = ctx.property(expr.output.clazz, true)
 	ctx.register(expr, ctx.CODE_INVALIDATE, null)
   }
 
