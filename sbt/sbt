@@ -12,14 +12,6 @@ if [[ "$@" == *"test"* ]] || [[ "$@" == "eclipse" ]]; then
   fi
 fi
 
-if [ "x$HIVE_HOME" == "x" ] ; then
-    echo "No HIVE_HOME specified. Please set HIVE_HOME"
-    exit 1
-else
-    echo "Launching sbt with HIVE_HOME set to "$HIVE_HOME
-fi
-
-
 realpath () {
 (
   TARGET_FILE=$1

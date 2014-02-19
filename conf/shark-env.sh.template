@@ -25,12 +25,9 @@ export SHARK_MASTER_MEM=1g
 # (Required) Point to your Scala installation.
 export SCALA_HOME=""
 
-# (Required) Point to the patched Hive binary distribution
-export HIVE_HOME=""
-
 # (Optional) Specify the location of Hive's configuration directory. By default,
-# it points to $HIVE_HOME/conf
-#export HIVE_CONF_DIR="$HIVE_HOME/conf"
+# Shark run scripts will point it to $SHARK_HOME/conf
+#export HIVE_CONF_DIR=""
 
 # For running Shark in distributed mode, set the following:
 #export HADOOP_HOME=""
