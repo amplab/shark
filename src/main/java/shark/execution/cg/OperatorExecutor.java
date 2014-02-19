@@ -18,6 +18,17 @@
 
 package shark.execution.cg;
 
-public interface OperatorExecutor {
-    Object evaluate(Object obj) throws Exception;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+
+public abstract class OperatorExecutor {
+	protected ObjectInspector inputOI = null;
+	public void init(ObjectInspector[] inputOIs) throws Exception {
+		inputOI = inputOIs[0];
+	}
+	
+	public Object transform(Object input) {
+		return input;
+	}
+	
+    abstract public Object evaluate(Object obj) throws Exception;
 }

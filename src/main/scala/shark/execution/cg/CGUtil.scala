@@ -35,7 +35,23 @@ object CGUtil {
   var o: Int = 0
   // generates the class name for Operator
   def randOperatorClassName() = this.synchronized({ o += 1; "OOperator" + o })
+  
+  var c: Int = 0
+  // generate the intermediate result variable name for expression evaluator
+  def randExressionEvaluatorName() = this.synchronized({ c += 1; "m" + c})
+  
+  var i: Int = 0
+  // generate the null value indicator variable name for expression evaluator
+  def randNullValueIndicatorName() = this.synchronized({ i += 1; "i" + i})
+  
+  var p: Int = 0
+  // generate the null value indicator variable name for expression evaluator
+  def randProperty() = this.synchronized({ p += 1; "p" + p})
 
+  var e: Int = 0
+  // generate the expression id
+  def randExprId() = this.synchronized({e += 1; "e" + e})
+  
   def serialize(o: Any): Array[Byte] = this.synchronized {
     serializer.serialize(o)
   }
