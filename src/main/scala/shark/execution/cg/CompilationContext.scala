@@ -30,12 +30,10 @@ import shark.execution.CGObjectOperator
 class CompilationContext() {
   
   private[this] val entries = ArrayBuffer[(String, String)]()
-  private[this] val operators = ArrayBuffer[CGObjectOperator]()
   private[this] val compiler = new JavaCompilerHelper
   val preCompiledClassLoader: OperatorClassLoader = compiler.getOperatorClassLoader
 
-  def add(op: CGObjectOperator, units: List[(String, String)]) {
-    operators += op
+  def add(units: List[(String, String)]) {
     entries ++= units
   }
 

@@ -39,6 +39,8 @@ import org.apache.hadoop.io.FloatWritable
 import org.apache.hadoop.hive.serde2.io.DoubleWritable
 import org.apache.hadoop.hive.serde2.io.ByteWritable
 
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo
+import org.apache.hadoop.hive.serde2.typeinfo.{TypeInfoFactory => TIF}
 import org.apache.hadoop.hive.serde2.objectinspector.StandardConstantMapObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.StandardConstantListObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
@@ -60,6 +62,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.WritableConstantI
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.WritableConstantFloatObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.WritableConstantDoubleObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.WritableBinaryObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.VoidObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.BinaryObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.BooleanObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.ByteObjectInspector
@@ -72,7 +75,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspe
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.StructField
 
-import shark.execution.serialization.KryoSerializer
 import shark.execution.cg.CGAssertRuntimeException
 import shark.execution.cg.CGUtil
 
@@ -447,9 +449,12 @@ abstract class CGField[+T <: ObjectInspector](
   def this(oi: T, name: String, clz: String, order: Int) {
     this(oi, name, clz, clz, order)
   }
+  var typeInfo: TypeInfo = TIF.voidTypeInfo
+  var writable = clazz
   
   lazy val maskBitName = CGField.getMaskBitVariableName(name)
   lazy val fieldValidity = CGField.getFieldValidity(name)
+  // name is the escaped variable name
   lazy val name = CGUtil.makeCGFieldName(oiName)
   lazy val constant = oi.isInstanceOf[ConstantObjectInspector]
   lazy val constantValue = oi.asInstanceOf[ConstantObjectInspector].getWritableConstantValue()
@@ -537,12 +542,20 @@ abstract class CGField[+T <: ObjectInspector](
   
   def setFieldValidity(validity: Boolean) = CGField.setFieldValidity(this, validity)
 
-  protected[this] def dataOI2Java(obj: Any): Any
+  protected def dataOI2Java(obj: Any): Any
 
   /*
    * The serialized constant object in string format, to be used in the generated java source.
    */
   lazy val constantBytesInString: String = CGUtil.serialize(dataConstantOI2Java(constantValue))
+  
+  override def equals(obj: Any) = if(obj == null) 
+    false 
+  else if(!obj.isInstanceOf[CGField[_]]) {
+    false
+  } else {
+    obj.asInstanceOf[CGField[_]].typeInfo == this.typeInfo
+  }
 }
 
 abstract class CGPrimitive[+T <: PrimitiveObjectInspector](oi: T,
@@ -551,49 +564,77 @@ abstract class CGPrimitive[+T <: PrimitiveObjectInspector](oi: T,
     primitive: String,
     order: Int) extends CGField(oi, name, clazz, primitive, order) {
   
-  protected[this] override def dataOI2Java(data: Any) = oi.getPrimitiveJavaObject(data)
+  protected override def dataOI2Java(data: Any) = oi.getPrimitiveJavaObject(data)
+}
+
+class CGNull(oi: VoidObjectInspector, name: String, order: Int)
+  extends CGField(oi, name, null, null, order) {
+  typeInfo = TIF.voidTypeInfo
+  writable = null
+  
+  protected override def dataOI2Java(data: Any) = null
 }
 
 class CGPrimitiveBinary(oi: BinaryObjectInspector, name: String, order: Int)
   extends CGPrimitive(oi, name, "byte[]", "byte[]", order) {
-  
-  protected[this] override def dataOI2Java(data: Any) = oi.getPrimitiveJavaObject(data)
+  typeInfo = TIF.binaryTypeInfo
+  writable = classOf[BytesWritable].getCanonicalName()
+
+  protected override def dataOI2Java(data: Any) = oi.getPrimitiveJavaObject(data)
 }
 
 class CGPrimitiveBoolean(oi: BooleanObjectInspector, name: String, order: Int)
   extends CGPrimitive(oi, name, "Boolean", "boolean", order) {
+  typeInfo = TIF.booleanTypeInfo
+  writable = classOf[BooleanWritable].getCanonicalName()
 }
 
 class CGPrimitiveByte(oi: ByteObjectInspector, name: String, order: Int)
   extends CGPrimitive(oi, name, "Byte", "byte", order) {
+  typeInfo = TIF.byteTypeInfo
+  writable = classOf[ByteWritable].getCanonicalName()
 }
 
 class CGPrimitiveDouble(oi: DoubleObjectInspector, name: String, order: Int)
   extends CGPrimitive(oi, name, "Double", "double", order) {
+  typeInfo = TIF.doubleTypeInfo
+  writable = classOf[DoubleWritable].getCanonicalName()
 }
 
 class CGPrimitiveFloat(oi: FloatObjectInspector, name: String, order: Int)
   extends CGPrimitive(oi, name, "Float", "float", order) {
+  typeInfo = TIF.floatTypeInfo
+  writable = classOf[FloatWritable].getCanonicalName()
 }
 
 class CGPrimitiveInt(oi: IntObjectInspector, name: String, order: Int)
   extends CGPrimitive(oi, name, "Integer", "int", order) {
+  typeInfo = TIF.intTypeInfo
+  writable = classOf[IntWritable].getCanonicalName()
 }
 
 class CGPrimitiveLong(oi: LongObjectInspector, name: String, order: Int)
   extends CGPrimitive(oi, name, "Long", "long", order) {
+  typeInfo = TIF.longTypeInfo
+  writable = classOf[LongWritable].getCanonicalName()
 }
 
 class CGPrimitiveShort(oi: ShortObjectInspector, name: String, order: Int)
   extends CGPrimitive(oi, name, "Short", "short", order) {
+  typeInfo = TIF.shortTypeInfo
+  writable = classOf[ShortWritable].getCanonicalName()
 }
 
 class CGPrimitiveString(oi: StringObjectInspector, name: String, order: Int)
   extends CGPrimitive(oi, name, "String", "String", order) {
+  typeInfo = TIF.stringTypeInfo
+  writable = classOf[Text].getCanonicalName()
 }
 
 class CGPrimitiveTimestamp(oi: TimestampObjectInspector, name: String, order: Int)
   extends CGPrimitive(oi, name, "java.sql.Timestamp", "java.sql.Timestamp", order) {
+  typeInfo = TIF.timestampTypeInfo
+  writable = classOf[TimestampWritable].getCanonicalName()
 }
 
 class CGMap(oi: MapObjectInspector,
@@ -602,6 +643,7 @@ class CGMap(oi: MapObjectInspector,
     val value: CGField[_ <: ObjectInspector],
     order: Int)
   extends CGField(oi, name, "java.util.HashMap<%s,%s>".format(key.clazz, value.clazz), order) {
+  typeInfo = TIF.getMapTypeInfo(key.typeInfo, value.typeInfo)
 
   {
     key.parent = this
@@ -609,7 +651,7 @@ class CGMap(oi: MapObjectInspector,
   }
 
   /* to array[k,v, k,v....]*/
-  protected[this] override def dataOI2Java(data: Any): Any = {
+  protected override def dataOI2Java(data: Any): Any = {
     val map = data.asInstanceOf[java.util.Map[_, _]]
     val array = ArrayBuffer[Any]()
     val it = map.entrySet().iterator
@@ -627,11 +669,12 @@ class CGList(oi: ListObjectInspector,
              val field: CGField[_ <: ObjectInspector],
              order: Int)
   extends CGField(oi, name, "java.util.ArrayList<%s>".format(field.clazz), order) {
+  typeInfo = TIF.getListTypeInfo(field.typeInfo)
 
   { field.parent = this }
 
   /* to array[v,v,v..]*/
-  protected[this] override def dataOI2Java(data: Any): Any = {
+  protected override def dataOI2Java(data: Any): Any = {
     val list = data.asInstanceOf[java.util.List[_]]
     val array = ArrayBuffer[Any]()
     val it = list.iterator()
@@ -647,8 +690,21 @@ class CGList(oi: ListObjectInspector,
  * Can not be constant or constant null, cause there is no constant object inspector for Struct, and
  * not necessary
  */
-class CGStruct(oi: StructObjectInspector, name: String, val fields: Array[CGField[_]], order: Int)
+class CGStruct(oi: StructObjectInspector, name: String, 
+    val fields: Array[CGField[_<:ObjectInspector]], order: Int)
   extends CGField(oi, name, CGUtil.randStructClassName(), order) {
+  import scala.collection.JavaConversions._
+  
+  def getField(fieldName: String) = {
+    fields.find(_.oiName == fieldName) match {
+      case Some(x) => x
+      case None => throw new CGAssertRuntimeException("Cannot find the field name[" + fieldName +"]")
+    }
+  }
+  
+  typeInfo = TIF.getStructTypeInfo(
+    mutableSeqAsJavaList(fields.map(_.oiName)), 
+    mutableSeqAsJavaList(fields.map(_.typeInfo)))
 
   { fields.foreach(_.parent = this) }
 
@@ -666,7 +722,7 @@ class CGStruct(oi: StructObjectInspector, name: String, val fields: Array[CGFiel
     CGField.setFieldValidity(this, data, idx, result)
 
   /* to array[v,v,v...] */
-  protected[this] override def dataOI2Java(data: Any): Any = {
+  protected override def dataOI2Java(data: Any): Any = {
     val array = ArrayBuffer[Any]()
     for (f <- fields) {
       array += f.dataConstantOI2Java(oi.getStructFieldData(data, oi.getStructFieldRef(f.oiName)))
@@ -682,6 +738,9 @@ class CGStruct(oi: StructObjectInspector, name: String, val fields: Array[CGFiel
  */
 class CGUnion(oi: UnionObjectInspector, name: String, val fields: Array[CGField[_]], order: Int)
   extends CGField(oi, name, CGUtil.randUnionClassName(), order) {
+  import scala.collection.JavaConversions._
+
+  typeInfo = TIF.getUnionTypeInfo(asJavaList(fields.map(_.typeInfo)))
 
   { fields.foreach(_.parent = this) }
 
@@ -702,7 +761,7 @@ class CGUnion(oi: UnionObjectInspector, name: String, val fields: Array[CGField[
   def getFieldValidity() = CGField.getFieldValidity(this)
 
   /* [tag, object] */
-  protected[this] override def dataOI2Java(data: Any): Any = {
+  protected override def dataOI2Java(data: Any): Any = {
     val tag = oi.getTag(data)
     val obj = fields(tag).dataConstantOI2Java(oi.getField(data))
     if (obj != null) {
@@ -721,23 +780,23 @@ object CGField {
   val STRUCT_MASK_VARIABLE_NAME = "mask"
   val UNION_TAG_VARIABLE_NAME = "tag"
 
-  private[this] val ORDER_P_BINARY = 0
-  private[this] val ORDER_P_BOOLEAN = 1
-  private[this] val ORDER_P_BYTE = 2
-  private[this] val ORDER_P_DATE = 3
-  private[this] val ORDER_P_DOUBLE = 4
-  private[this] val ORDER_P_FLOAT = 5
-  private[this] val ORDER_P_INT = 6
-  private[this] val ORDER_P_LONG = 7
-  private[this] val ORDER_P_SHORT = 8
-  private[this] val ORDER_P_STRING = 9
-  private[this] val ORDER_P_TIMESTAMP = 10
-  private[this] val ORDER_MAP = 11
-  private[this] val ORDER_LIST = 12
-  private[this] val ORDER_STRUCT = 13
-  private[this] val ORDER_UNION = 14
+  private val ORDER_P_BINARY = 0
+  private val ORDER_P_BOOLEAN = 1
+  private val ORDER_P_BYTE = 2
+  private val ORDER_P_DATE = 3
+  private val ORDER_P_DOUBLE = 4
+  private val ORDER_P_FLOAT = 5
+  private val ORDER_P_INT = 6
+  private val ORDER_P_LONG = 7
+  private val ORDER_P_SHORT = 8
+  private val ORDER_P_STRING = 9
+  private val ORDER_P_TIMESTAMP = 10
+  private val ORDER_MAP = 11
+  private val ORDER_LIST = 12
+  private val ORDER_STRUCT = 13
+  private val ORDER_UNION = 14
 
-  private[this] val READS = Array(
+  private val READS = Array(
     "%s = input.readBytes(input.readInt());",
     "%s = input.readBoolean();",
     "%s = input.readByte();",
@@ -754,7 +813,7 @@ object CGField {
     "%s = kryo.readObject(input, %s.class);",
     "%s = kryo.readObject(input, %s.class);"
   )
-  private[this] val DEF_READS = Array[(CGField[_]) => String](
+  private val DEF_READS = Array[(CGField[_]) => String](
     (f) => { READS(ORDER_P_BINARY).format(f.name) },
     (f) => { READS(ORDER_P_BOOLEAN).format(f.name) },
     (f) => { READS(ORDER_P_BYTE).format(f.name) },
@@ -772,7 +831,7 @@ object CGField {
     (f) => { READS(ORDER_UNION).format(f.name, f.clazz) }
   )
 
-  private[this] val WRITES = Array(
+  private val WRITES = Array(
     "output.writeInt(%s.length); output.writeBytes(%s);",
     "output.writeBoolean(%s);",
     "output.writeByte(%s);",
@@ -790,7 +849,7 @@ object CGField {
     "kryo.writeObjectOrNull(output, %s, %s.class);"
   )
 
-  private[this] val DEF_WRITES = Array[(CGField[_]) => String](
+  private val DEF_WRITES = Array[(CGField[_]) => String](
     (f) => { WRITES(ORDER_P_BINARY).format(f.name, f.name) },
     (f) => { WRITES(ORDER_P_BOOLEAN).format(f.name) },
     (f) => { WRITES(ORDER_P_BYTE).format(f.name) },
@@ -808,7 +867,7 @@ object CGField {
     (f) => { WRITES(ORDER_UNION).format(f.name, f.clazz) }
   )
 
-  private[this] val HASHCODES = Array(
+  private val HASHCODES = Array(
     "org.apache.commons.lang.ArrayUtils.hashCode(%s)",
     "org.apache.commons.lang.ObjectUtils.hashCode(%s)",
     "org.apache.commons.lang.ObjectUtils.hashCode(%s)",
@@ -826,7 +885,7 @@ object CGField {
     "(%s.hashCode())"
   )
 
-  private[this] val EQUALS = Array(
+  private val EQUALS = Array(
     "org.apache.commons.lang.ArrayUtils.isEquals(%s, %s.%s)",
     "org.apache.commons.lang.ObjectUtils.equals(%s, %s.%s)",
     "org.apache.commons.lang.ObjectUtils.equals(%s, %s.%s)",
@@ -844,7 +903,7 @@ object CGField {
     "(%s.equals(%s.%s))"
   )
 
-  private[this] val DEF_ASSIGN_VALUES = Array[(String, String, CGField[_]) => String](
+  private val DEF_ASSIGN_VALUES = Array[(String, String, CGField[_]) => String](
     (obj, data, f) => { "%s = (byte[])%s;".format(obj, data) },
     (obj, data, f) => { "%s = (Boolean)%s;".format(obj, data) },
     (obj, data, f) => { "%s = (Byte)%s;".format(obj, data) },
@@ -862,7 +921,7 @@ object CGField {
     (obj, data, f) => { "%s = %s.INITIAL(%s);".format(obj, f.fullClassName, data) }
   )
 
-  private[this] val DEF_EXTRACT_VALUE_VIA_OI = 
+  private val DEF_EXTRACT_VALUE_VIA_OI = 
     Array[(String, String, String, CGField[_]) => String](
     (obj, varoi, data, f) => { ("%s = ((org.apache.hadoop.hive.serde2.objectinspector.primitive." +
       "BinaryObjectInspector)%s).getPrimitiveJavaObject(%s).getData();").format(obj, varoi, data) },
@@ -896,11 +955,11 @@ object CGField {
       "%s = %s.BUILD(%s, %s);".format(obj, f.fullClassName, varoi, data) }
   )
 
-  private[this] val FIELD_DEF_STATIC_NULL = "public static final transient %s %s;"
-  private[this] val FIELD_DEF_STATIC_VALUE = "public static final transient %s %s = %s;"
-  private[this] val FIELD_DEF = "public %s %s;"
+  private val FIELD_DEF_STATIC_NULL = "public static final transient %s %s;"
+  private val FIELD_DEF_STATIC_VALUE = "public static final transient %s %s = %s;"
+  private val FIELD_DEF = "public %s %s;"
 
-  private[this] val DEF_FIELD_VALUES = Array[(CGField[_]) => String](
+  private val DEF_FIELD_VALUES = Array[(CGField[_]) => String](
     (f) => { f.oi.asInstanceOf[WritableConstantBinaryObjectInspector].getWritableConstantValue() },
     (f) => { f.oi.asInstanceOf[WritableConstantBooleanObjectInspector].getWritableConstantValue() },
     (f) => { f.oi.asInstanceOf[WritableConstantByteObjectInspector].getWritableConstantValue() },
@@ -917,7 +976,7 @@ object CGField {
     (f) => { "INITIAL_%s()".format(f.name) }
   )
 
-  private[this] val DEF_STATIC_BLOCK = Array[(AnyRef) => String](
+  private val DEF_STATIC_BLOCK = Array[(AnyRef) => String](
     (f) => null,
     (f) => null,
     (f) => null,
@@ -1007,13 +1066,13 @@ object CGField {
   def getFieldVariableName(struct: CGStruct, idx: Int) = 
     "%s.%s".format(struct.name, struct.fields(idx).name)
 
-  private def create(oi: ObjectInspector, name: String): CGField[_ <: ObjectInspector] = {
+  def create(oi: ObjectInspector, name: String): CGField[_ <: ObjectInspector] = {
     import collection.JavaConversions._
     oi match {
       case a: StructObjectInspector =>
         new CGStruct(a,
           name,
-          Array.tabulate[CGField[_]](a.getAllStructFieldRefs().size()) { i =>
+          Array.tabulate[CGField[_ <: ObjectInspector]](a.getAllStructFieldRefs().size()) { i =>
             var foi = a.getAllStructFieldRefs()(i)
             create(foi.getFieldObjectInspector(), foi.getFieldName())
           },

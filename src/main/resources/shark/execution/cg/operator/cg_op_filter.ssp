@@ -2,11 +2,11 @@
 #import(shark.execution.CGOperator)
 #import(shark.execution.cg.row.CGStruct)
 #import(shark.execution.CGObjectOperator)
-#import(shark.execution.SelectOperator)
+#import(shark.execution.FilterOperator)
 #import(shark.execution.cg.row.CGExprContext)
 
 <%@ import val cgo: CGOperator %>
-<%@ import val op: SelectOperator %>
+<%@ import val op: FilterOperator %>
 <%@ import val ctx: CGExprContext %>
 <%@ import val cs: shark.execution.cg.row.ExecuteOrderedExprNode %>
 
@@ -44,9 +44,9 @@ ${init.toString}
   
   @Override
   public Object evaluate(Object obj) throws Exception {
-    ${ctx.inputRow.expr.struct.clazz} ${ctx.inputRow.exprName} = transform(obj);
-
-    ${ctx.outputObjectName}.reset();
+  // FilterOperator should call this.transform(), to be sure the output object is the CGRow object
+    ${ctx.inputRow.expr.struct.clazz} ${ctx.inputRow.exprName} = (${ctx.inputRow.expr.struct.clazz})obj;
+    ${ctx.outputObjectName} = false;
     ${cs.code(ctx)}
     
     return ${ctx.outputObjectName};

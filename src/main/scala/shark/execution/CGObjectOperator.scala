@@ -39,6 +39,7 @@ trait CGObjectOperator {
   @transient protected var cgexec: OperatorExecutor = _
   @transient private var soi: StructObjectInspector = _
   @transient lazy val outputObjectInspector = soi
+  @transient var cginputrows: Array[CGStruct] = _
   
   @BeanProperty var useCG: Boolean = true
   @BeanProperty var operatorClassName: String = _
@@ -57,10 +58,26 @@ trait CGObjectOperator {
     
     if(operator == null) {
       // if not CGOperator created
+      useCG = false
       return
     }
     
     cgrow = CGField.create(soi)
+    cginputrows = self.parentOperators.toArray.map(op => {
+      if(op.cgrow != null) {
+        op.cgrow
+      } else {
+        // TODO we may need some kind of cache mechanism (oi => cgrow)
+        if(soi == op.outputObjectInspector) {
+          cgrow
+        } else {
+          val row = CGField.create(op.outputObjectInspector)
+          cc.add(List((row.fullClassName, CGRow.generate(row, true))))
+        
+          row
+        }
+      }
+    })
     
     var oiStruct = CGOIField.create(cgrow).asInstanceOf[CGOIStruct]
     
@@ -76,14 +93,17 @@ trait CGObjectOperator {
 
     // Put the CG Operator Compilation Unit into context, all of the CG operators 
     // will be compiled together later on  
-    cc.add(this, List((operatorClassName, CGOperator.generate(operator))))
+    cc.add(List((operatorClassName, CGOperator.generate(operator))))
   }
   
   // every code generation operator have to call cgOnSlave() within the initializeOnSlave explicitly
   // There is no real code gen in slave, but instantiating the CGed object.
   protected def cgOnSlave() {
     if(useCG) {
-      cgexec = instance[OperatorExecutor](operatorClassName, Array[Object](this))
+//      cgexec = instance[OperatorExecutor](operatorClassName, Array[Object](this))
+      cgexec = instance[OperatorExecutor](operatorClassName)
+      
+      cgexec.init(objectInspectors.toArray)
     }
   }
 
