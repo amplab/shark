@@ -136,7 +136,7 @@ trait CompressedColumnBuilder[T] extends ColumnBuilder[T] with LogHelper {
       }
 
     logInfo("Compression scheme chosen for [%s] is %s with ratio %f".format(
-      columnName, scheme.compressionType, scheme.compressionRatio))
+      columnName, scheme.compressionType.getClass.getSimpleName, scheme.compressionRatio))
 
     scheme.compress(b, t)
   }
