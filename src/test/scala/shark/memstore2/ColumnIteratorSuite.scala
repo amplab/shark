@@ -76,7 +76,7 @@ class ColumnIteratorSuite extends FunSuite {
     assert(builder.stats.max === true)
 
     builder = new BooleanColumnBuilder
-    builder.compressionSchemes = Seq(new RLE())
+    builder.setCompressionSchemes(new RLE)
     val a = Array.ofDim[java.lang.Boolean](100)
     Range(0,100).foreach { i =>
       a(i) = if (i < 10) true else if (i <80) false else null
@@ -113,7 +113,7 @@ class ColumnIteratorSuite extends FunSuite {
     assert(builder.stats.max === 15.toByte)
 
     builder = new ByteColumnBuilder
-    builder.compressionSchemes = Seq(new RLE())
+    builder.setCompressionSchemes(new RLE)
     testColumn(
       Array[java.lang.Byte](null, 2.toByte, 2.toByte, null, 4.toByte, 4.toByte,4.toByte,5.toByte),
       builder,
@@ -177,7 +177,7 @@ class ColumnIteratorSuite extends FunSuite {
     assert(builder.stats.max === 134)
 
     builder = new IntColumnBuilder
-    builder.compressionSchemes = Seq(new RLE())
+    builder.setCompressionSchemes(new RLE)
     val a = Array.ofDim[java.lang.Integer](100)
     Range(0,100).foreach { i =>
       a(i) = if (i < 10) 10 else if (i <80) 11 else null
@@ -214,7 +214,7 @@ class ColumnIteratorSuite extends FunSuite {
     assert(builder.stats.max === 15L)
 
     builder = new LongColumnBuilder
-    builder.compressionSchemes = Seq(new RLE())
+    builder.setCompressionSchemes(new RLE)
     val a = Array.ofDim[java.lang.Long](100)
     Range(0,100).foreach { i =>
       a(i) = if (i < 10) 10 else if (i <80) 11 else null
@@ -300,7 +300,7 @@ class ColumnIteratorSuite extends FunSuite {
     assert(builder.stats.max.toString === "b")
 
     builder = new StringColumnBuilder
-    builder.compressionSchemes = Seq(new RLE())
+    builder.setCompressionSchemes(new RLE)
     testColumn(
       Array[Text](new Text("a"), new Text("a"), null, new Text("b"), new Text("b"), new Text("Abcdz")),
       builder,
