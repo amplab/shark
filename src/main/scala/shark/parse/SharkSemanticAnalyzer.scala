@@ -466,7 +466,7 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         createTableProperties.get(SharkTblProperties.CACHE_FLAG.varname))
       if (checkTableName) {
         if (tableName.endsWith("_cached")) {
-          cacheMode = CacheType.MEMORY
+          cacheMode = CacheType.MEMORY_ONLY
         } else if (tableName.endsWith("_tachyon")) {
           cacheMode = CacheType.TACHYON
         }
