@@ -26,20 +26,6 @@ if [ ! -f "$SCALA_HOME/lib/scala-library.jar" ] ; then
   exit 1
 fi
 
-# Hive related section.
-if [ "x$HIVE_HOME" == "x" ] ; then
-    echo "No HIVE_HOME specified. Please set HIVE_HOME."
-    exit 1
-fi
-
-if [ ! -f $HIVE_HOME/lib/hive-exec-0*.jar ] ; then
-  echo "Cannot find $HIVE_HOME/lib/hive-exec-0.9.0.jar."
-  echo "Are you sure your HIVE_HOME is set correctly?"
-  echo "HIVE_HOME = $HIVE_HOME"
-  exit 1
-fi
-
-
 if [ -n "$MASTER" ] ; then
   if [ -z $SPARK_HOME ] ; then
     echo "No SPARK_HOME specified. Please set SPARK_HOME for cluster mode."
@@ -69,7 +55,7 @@ fi
 
 # Check for optionally specified configuration file path
 if [ "x$HIVE_CONF_DIR" == "x" ] ; then
-    HIVE_CONF_DIR="$HIVE_HOME/conf"
+    HIVE_CONF_DIR="$SHARK_HOME/conf"
 fi
 
 if [ -f "${HIVE_CONF_DIR}/hive-env.sh" ]; then
@@ -85,14 +71,6 @@ for jar in `find $SHARK_HOME/lib_managed/jars -name '*jar'`; do
 done
 for jar in `find $SHARK_HOME/lib_managed/bundles -name '*jar'`; do
   SPARK_CLASSPATH+=:$jar
-done
-
-# Add Hive jars.
-for jar in `find $HIVE_HOME/lib -name '*jar'`; do
-  # Ignore the logging library since it has already been included with the Spark jar.
-  if [[ "$jar" != *slf4j* ]]; then
-    SPARK_CLASSPATH+=:$jar
-  fi
 done
 
 SPARK_CLASSPATH+=:$HIVE_CONF_DIR
