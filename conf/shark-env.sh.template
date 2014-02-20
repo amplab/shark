@@ -52,5 +52,5 @@ SPARK_JAVA_OPTS+="-verbose:gc -XX:-PrintGCDetails -XX:+PrintGCTimeStamps "
 export SPARK_JAVA_OPTS
 
 # (Optional) Tachyon Related Configuration
-#export TACHYON_MASTER=""
-#export TACHYON_WAREHOUSE_PATH=/sharktables
+#export TACHYON_MASTER=""                     # e.g. "localhost:19998"
+#export TACHYON_WAREHOUSE_PATH=/sharktables   # Could be any valid path name
