@@ -29,11 +29,11 @@ import sbtassembly.Plugin.AssemblyKeys._
 object SharkBuild extends Build {
 
   // Shark version
-  val SHARK_VERSION = "0.9.0-SNAPSHOT"
+  val SHARK_VERSION = "0.9.1"
 
   val SHARK_ORGANIZATION = "edu.berkeley.cs.shark"
 
-  val HIVE_VERSION = "0.11.0-shark-SNAPSHOT"
+  val HIVE_VERSION = "0.11.0-shark-0.9.1"
 
   val SPARK_VERSION = "0.9.0-incubating"
 
@@ -124,6 +124,7 @@ object SharkBuild extends Build {
       "Cloudera Repository" at "https://repository.cloudera.com/artifactory/cloudera-repos/",
       "Sonatype Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/",
       "Sonatype Staging" at "https://oss.sonatype.org/service/local/staging/deploy/maven2/",
+      "Sonatype Testing" at "https://oss.sonatype.org/content/repositories/eduberkeleycs-1016",
       "Local Maven" at Path.userHome.asFile.toURI.toURL + ".m2/repository"
     ),
  
