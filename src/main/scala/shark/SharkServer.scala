@@ -82,6 +82,8 @@ object SharkServer extends LogHelper {
     // any log specific settings via hiveconf will be ignored.
     val hiveconf: Properties = cliOptions.addHiveconfToSystemProperties()
 
+    SharkEnv.fixUncompatibleConf(new HiveConf())
+
     // From Hive: It is critical to do this here so that log4j is reinitialized
     // before any of the other core hive classes are loaded
     LogUtils.initHiveLog4j()
