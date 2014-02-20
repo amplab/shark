@@ -1025,7 +1025,7 @@ class SQLSuite extends FunSuite {
   //////////////////////////////////////////////////////////////////////////////
   // Cached table persistence
   //////////////////////////////////////////////////////////////////////////////
-  test ("Cached tables persist across Shark metastore shutdowns.") {
+  ignore ("Cached tables persist across Shark metastore shutdowns.") {
     val globalCachedTableNames = Seq("test_cached", "test_null_cached", "clicks_cached",
       "users_cached", "test1_cached")
 
