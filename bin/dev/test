@@ -57,7 +57,6 @@ fi
 
 
 SPARK_CLASSPATH+=":${HIVE_DEV_HOME}/build/ql/test/classes"
-SPARK_CLASSPATH+=":${HIVE_DEV_HOME}/build/ivy/lib/test/hadoop-test-0.20.2.jar"
 SPARK_CLASSPATH+=":${HIVE_DEV_HOME}/data/conf"
 export SPARK_CLASSPATH
 
