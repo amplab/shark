@@ -36,11 +36,11 @@ class CompressionAlgorithmSuite extends FunSuite {
 
     class TestColumnBuilder(val stats: ColumnStats[Int], val t: ColumnType[Int,_])
       extends CompressedColumnBuilder[Int] {
-      compressionSchemes = Seq(new RLE())
       override def shouldApply(scheme: CompressionAlgorithm) = true
     }
 
     val b = new TestColumnBuilder(new NoOpStats, INT)
+    b.setCompressionSchemes(new RLE)
     b.initialize(100)
     val oi = PrimitiveObjectInspectorFactory.javaIntObjectInspector
     b.append(123.asInstanceOf[Object], oi)

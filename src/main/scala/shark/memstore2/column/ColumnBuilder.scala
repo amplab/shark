@@ -96,19 +96,30 @@ class DefaultColumnBuilder[T](val stats: ColumnStats[T], val t: ColumnType[T, _]
 
 trait CompressedColumnBuilder[T] extends ColumnBuilder[T] with LogHelper {
 
-  var compressionSchemes: Seq[CompressionAlgorithm] = Seq()
-  // Can be set in tests to ensure chosen compression
-  var scheme: CompressionAlgorithm = new NoCompression
+  private var compressionSchemes = Array.empty[CompressionAlgorithm]
 
+  /**
+   * Set the compression schemes to be used for this column. Only schemes that support
+   * the column's data type will be kept in the list.
+   */
+  def setCompressionSchemes(schemes: CompressionAlgorithm*) {
+    compressionSchemes = schemes.filter(_.supportsType(t)).toArray
+  }
+
+  /**
+   * Determines whether a particular compression algorithm should apply given the compression
+   * ratio. Test code can override this to force specific compression even if the compression
+   * ratio is not ideal.
+   */
   def shouldApply(scheme: CompressionAlgorithm): Boolean = {
     scheme.compressionRatio < 0.8
   }
 
-  override protected def gatherStats(v: T) = {
-    compressionSchemes.foreach { scheme =>
-      if (scheme.supportsType(t)) {
-        scheme.gatherStatsForCompressibility(v, t)
-      }
+  override protected def gatherStats(v: T) {
+    var i = 0
+    while (i < compressionSchemes.length) {
+      compressionSchemes(i).gatherStatsForCompressibility(v, t)
+      i += 1
     }
     super.gatherStats(v)
   }
@@ -116,27 +127,18 @@ trait CompressedColumnBuilder[T] extends ColumnBuilder[T] with LogHelper {
   override def build() = {
     val b = super.build()
 
-    import shark.memstore2.column.Implicits._
-
-    if (compressionSchemes.isEmpty) {
-      val strType: String = scheme.compressionType
-      logInfo(s"Compression scheme chosen for [$columnName] is $strType - no compression")
-      new NoCompression().compress(b, t)
-    } else {
-      val candidateScheme = scheme.compressionType match {
-        case DefaultCompressionType => compressionSchemes.minBy(_.compressionRatio)
-        case _ => scheme
-      }
-
-      val strType: String = candidateScheme.compressionType
-      logInfo(s"Compression scheme chosen for [$columnName] is $strType with ratio " +
-        candidateScheme.compressionRatio)
-      if (shouldApply(candidateScheme)) {
-        candidateScheme.compress(b, t)
+    val scheme: CompressionAlgorithm =
+      if (compressionSchemes.length == 0) {
+        new NoCompression
       } else {
-        new NoCompression().compress(b, t)
+        val scheme = compressionSchemes.minBy(_.compressionRatio)
+        if (shouldApply(scheme)) scheme else new NoCompression
       }
-    }
+
+    logInfo("Compression scheme chosen for [%s] is %s with ratio %f".format(
+      columnName, scheme.compressionType.getClass.getSimpleName, scheme.compressionRatio))
+
+    scheme.compress(b, t)
   }
 }
 
@@ -168,7 +170,7 @@ object ColumnBuilder {
       case _ => new GenericColumnBuilder(columnOi)
     }
     if (shouldCompress) {
-      v.compressionSchemes = Seq(
+      v.setCompressionSchemes(
         new NoCompression,
         new RLE,
         new BooleanBitSetCompression,
