@@ -135,7 +135,6 @@ exit
 }
 
 # Initialize control flow vars.
-SKIP_SPARK=false
 SKIP_HIVE=false
 SKIP_HADOOP=false
 SKIP_TESTS=false
@@ -144,10 +143,6 @@ while getopts "hsedt" opt; do
   case $opt in
     h)
       usage
-      ;;
-    s)
-      echo SKIP SPARK
-      SKIP_SPARK=true
       ;;
     e)
       echo SKIP HIVE
@@ -238,31 +233,6 @@ if [ "x$SCALA_HOME" == "x" ] ; then
   export SCALA_HOME="$WORKSPACE/scala-$SCALA_VERSION"
 fi
 echo "SCALA_HOME is $SCALA_HOME"
-
-####################################################################
-# Download and build Spark.
-####################################################################
-if $SKIP_SPARK ; then
-  if [ ! -e "spark" ] ; then
-    echo "spark dir must exist when skipping Spark download and build stage."
-    exit -1
-  fi
-else
-  # Clean up past Spark artifacts published locally.
-  rm -rf ./spark
-  rm -rf ~/.ivy2/local/org.apache.spark*
-  rm -rf ~/.ivy2/cache/org.apache.spark*
-  # Download and build Spark.
-  git clone $SPARK_GIT_URL
-  pushd spark
-  export SPARK_HADOOP_VERSION=$SPARK_HADOOP_VERSION
-  export SPARK_WITH_YARN=$SPARK_WITH_YARN
-  # Build spark and push the jars to local Ivy/Maven caches.
-  wget -nc http://typesafe.artifactoryonline.com/typesafe/ivy-releases/org.scala-sbt/sbt-launch/0.13.0/sbt-launch.jar
-  java $SBT_OPTS -jar sbt-launch.jar clean publish-local
-  popd
-fi
-export SPARK_HOME="$WORKSPACE/spark"
 
 if $SKIP_HADOOP ; then
   if [ ! -e "hadoop-${SPARK_HADOOP_VERSION}" ] ; then
