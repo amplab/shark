@@ -29,11 +29,11 @@ import sbtassembly.Plugin.AssemblyKeys._
 object SharkBuild extends Build {
 
   // Shark version
-  val SHARK_VERSION = "0.9.0"
+  val SHARK_VERSION = "0.9.1"
 
   val SHARK_ORGANIZATION = "edu.berkeley.cs.shark"
 
-  val HIVE_VERSION = "0.11.0-shark"
+  val HIVE_VERSION = "0.11.0-shark-0.9.1"
 
   val SPARK_VERSION = "0.9.0-incubating"
 
