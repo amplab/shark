@@ -19,8 +19,10 @@ package shark
 
 import scala.collection.mutable.{HashMap, HashSet}
 
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.hive.shims.ShimLoader
 import org.apache.spark.rdd.RDD
+import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.scheduler.StatsReportListener
 
 import shark.api.JavaSharkContext
@@ -39,6 +41,33 @@ object SharkEnv extends LogHelper {
       initWithSharkContext(jobName, master)
     }
     sc
+  }
+
+  def fixUncompatibleConf(conf: Configuration) {
+    if (sc == null) {
+      init()
+    }
+
+    val hiveIslocal = ShimLoader.getHadoopShims.isLocalMode(conf)
+    if (!sc.isLocal && hiveIslocal) {
+      val warnMessage = "Hive Hadoop shims detected local mode, but Shark is not running locally."
+      logWarning(warnMessage)
+
+      // Try to fix this without bothering user
+      val newValue = "Spark_%s".format(System.currentTimeMillis())
+      for (k <- Seq("mapred.job.tracker", "mapreduce.framework.name")) {
+        val v = conf.get(k)
+        if (v == null || v == "" || v == "local") {
+          conf.set(k, newValue)
+          logWarning("Setting %s to '%s' (was '%s')".format(k, newValue, v))
+        }
+      }
+
+      // If still not fixed, bail out
+      if (ShimLoader.getHadoopShims.isLocalMode(conf)) {
+        throw new Exception(warnMessage)
+      }
+    }
   }
 
   def initWithSharkContext(
