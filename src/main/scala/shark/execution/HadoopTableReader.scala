@@ -85,6 +85,10 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
     assert(!hiveTable.isPartitioned, """makeRDDForTable() cannot be called on a partitioned table,
       since input formats may differ across partitions. Use makeRDDForTablePartitions() instead.""")
 
+    val fs = hiveTable.getPath().getFileSystem(hiveConf)
+    if (!fs.exists(hiveTable.getPath()))
+      return new EmptyRDD(SharkEnv.sc)
+
     // Create local references to member variables, so that the entire `this` object won't be
     // serialized in the closure below.
     val tableDesc = _tableDesc
@@ -139,6 +143,11 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
     val hivePartitionRDDs = partitionToDeserializer.map { case (partition, _partSerDeClass) =>
       val partDesc = Utilities.getPartitionDesc(partition)
       val partPath = partition.getPartitionPath
+
+      val fs = partPath.getFileSystem(hiveConf)
+      if (!fs.exists(partPath))
+        return new EmptyRDD(SharkEnv.sc)
+
       val inputPathStr = applyFilterIfNeeded(partPath, filterOpt)
       val ifc = partDesc.getInputFileFormatClass
         .asInstanceOf[java.lang.Class[InputFormat[Writable, Writable]]]
