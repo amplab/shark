@@ -95,9 +95,9 @@ abstract class CommonJoinOperator[T <: JoinDesc] extends NaryOperator[T] {
   
   // copied from the org.apache.hadoop.hive.ql.exec.CommonJoinOperator
   override def outputObjectInspector() = {
-    var structFieldObjectInspectors = new JavaArrayList[ObjectInspector]()
+    val structFieldObjectInspectors = new JavaArrayList[ObjectInspector]()
     for (alias <- order) {
-      var oiList = joinValuesStandardObjectInspectors(alias.intValue)
+      val oiList = joinValuesStandardObjectInspectors(alias.intValue)
       structFieldObjectInspectors.addAll(oiList)
     }
 
@@ -122,57 +122,54 @@ class CartesianProduct[T >: Null : ClassTag](val numTables: Int) {
 
     // This can be done with a foldLeft, but it will be too confusing if we
     // need to zip the bufs with a list of join descriptors...
-    var partial: Iterator[Array[T]] = createBase(bufs(joinConditions.head.getLeft), 0)
+    val partial: Iterator[Array[T]] = createBase(bufs(joinConditions.head.getLeft), 0)
     var i = 0
     while (i < joinConditions.length) {
       val joinCondition = joinConditions(i)
       i += 1
+      val joinType = joinCondition.getType
+      if (joinType == CommonJoinOperator.INNER_JOIN) {
+        if (bufs(joinCondition.getLeft).size == 0 || bufs(joinCondition.getRight).size == 0) {
+          createBase(EMPTY_LIST, i)
+        } else {
+          product2(partial, bufs(joinCondition.getRight), i)
+        }
+      } else if (joinType == CommonJoinOperator.FULL_OUTER_JOIN) {
+        if (bufs(joinCondition.getLeft()).size == 0 || !partial.hasNext) {
+          // If both right/left are empty, then the right side returns an empty
+          // iterator and product2 also returns an empty iterator.
+          product2(createBase(SINGLE_NULL_LIST, i - 1), bufs(joinCondition.getRight), i)
+        } else if (bufs(joinCondition.getRight).size == 0) {
+          product2(partial, SINGLE_NULL_LIST, i)
+        } else {
+          product2(partial, bufs(joinCondition.getRight), i)
+        }
+      } else if (joinType == CommonJoinOperator.LEFT_OUTER_JOIN) {
+        if (bufs(joinCondition.getLeft()).size == 0) {
+          createBase(EMPTY_LIST, i)
+        } else if (bufs(joinCondition.getRight).size == 0) {
+          product2(partial, SINGLE_NULL_LIST, i)
+        } else {
+          product2(partial, bufs(joinCondition.getRight), i)
+        }
 
-      partial = joinCondition.getType() match {
-        case CommonJoinOperator.INNER_JOIN =>
-          if (bufs(joinCondition.getLeft).size == 0 || bufs(joinCondition.getRight).size == 0) {
-            createBase(EMPTY_LIST, i)
-          } else {
-            product2(partial, bufs(joinCondition.getRight), i)
-          }
+      } else if (joinType == CommonJoinOperator.RIGHT_OUTER_JOIN) {
+        if (bufs(joinCondition.getRight).size == 0) {
+          createBase(EMPTY_LIST, i)
+        } else if (bufs(joinCondition.getLeft).size == 0 || !partial.hasNext) {
+          product2(createBase(SINGLE_NULL_LIST, i - 1), bufs(joinCondition.getRight), i)
+        } else {
+          product2(partial, bufs(joinCondition.getRight), i)
+        }
 
-        case CommonJoinOperator.FULL_OUTER_JOIN =>
-          if (bufs(joinCondition.getLeft()).size == 0 || !partial.hasNext) {
-            // If both right/left are empty, then the right side returns an empty
-            // iterator and product2 also returns an empty iterator.
-            product2(createBase(SINGLE_NULL_LIST, i - 1), bufs(joinCondition.getRight), i)
-          } else if (bufs(joinCondition.getRight).size == 0) {
-            product2(partial, SINGLE_NULL_LIST, i)
-          } else {
-            product2(partial, bufs(joinCondition.getRight), i)
-          }
-
-        case CommonJoinOperator.LEFT_OUTER_JOIN =>
-          if (bufs(joinCondition.getLeft()).size == 0) {
-            createBase(EMPTY_LIST, i)
-          } else if (bufs(joinCondition.getRight).size == 0) {
-            product2(partial, SINGLE_NULL_LIST, i)
-          } else {
-            product2(partial, bufs(joinCondition.getRight), i)
-          }
-
-        case CommonJoinOperator.RIGHT_OUTER_JOIN =>
-          if (bufs(joinCondition.getRight).size == 0) {
-            createBase(EMPTY_LIST, i)
-          } else if (bufs(joinCondition.getLeft).size == 0 || !partial.hasNext) {
-            product2(createBase(SINGLE_NULL_LIST, i - 1), bufs(joinCondition.getRight), i)
-          } else {
-            product2(partial, bufs(joinCondition.getRight), i)
-          }
-
-        case CommonJoinOperator.LEFT_SEMI_JOIN =>
-          // For semi join, we only need one element from the table on the right
-          // to verify an row exists.
-          if (bufs(joinCondition.getLeft).size == 0 || bufs(joinCondition.getRight).size == 0) {
-            createBase(EMPTY_LIST, i)
-          } else {
-            product2(partial, SINGLE_NULL_LIST, i)
-          }
+      } else if (joinType == CommonJoinOperator.LEFT_SEMI_JOIN) {
+        // For semi join, we only need one element from the table on the right
+        // to verify an row exists.
+        if (bufs(joinCondition.getLeft).size == 0 || bufs(joinCondition.getRight).size == 0) {
+          createBase(EMPTY_LIST, i)
+        } else {
+          product2(partial, SINGLE_NULL_LIST, i)
+        }
       }
     }
     partial
