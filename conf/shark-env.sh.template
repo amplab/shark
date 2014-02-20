@@ -34,7 +34,7 @@ export SCALA_HOME=""
 #export SPARK_HOME=""
 #export MASTER=""
 # Only required if using Mesos:
-#export MESOS_NATIVE_LIBRARY=/usr/local/lib/libmesos.so 
+#export MESOS_NATIVE_LIBRARY=/usr/local/lib/libmesos.so
 
 # Only required if run shark with spark on yarn
 #export SHARK_EXEC_MODE=yarn
@@ -50,3 +50,7 @@ SPARK_JAVA_OPTS=" -Dspark.local.dir=/tmp "
 SPARK_JAVA_OPTS+="-Dspark.kryoserializer.buffer.mb=10 "
 SPARK_JAVA_OPTS+="-verbose:gc -XX:-PrintGCDetails -XX:+PrintGCTimeStamps "
 export SPARK_JAVA_OPTS
+
+# (Optional) Tachyon Related Configuration
+#export TACHYON_MASTER=""
+#export TACHYON_WAREHOUSE_PATH=/sharktables
