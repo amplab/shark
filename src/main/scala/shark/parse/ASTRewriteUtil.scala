@@ -24,6 +24,7 @@ import scala.collection.JavaConversions._
 
 import org.apache.hadoop.hive.ql.lib.Node
 import org.apache.hadoop.hive.ql.parse.{ASTNode, HiveParser}
+import org.apache.hadoop.util.StringUtils
 
 import shark.LogHelper
 import shark.parse.ASTNodeFactory._
@@ -134,9 +135,15 @@ object ASTRewriteUtil extends LogHelper {
   def countDistinctToGroupBy(rootAstNode: ASTNode): ASTNode = {
     // Find all TOK_QUERY nodes and transform any count-distincts subtree into a one with a
     // distinct/hash partition.
-    val queryNodes = findQueryNodes(rootAstNode)
-    for ((queryNode, queryId) <- queryNodes.zipWithIndex) {
-      countDistinctQueryToGroupBy(queryNode, queryId)
+    try {
+      val queryNodes = findQueryNodes(rootAstNode)
+      for ((queryNode, queryId) <- queryNodes.zipWithIndex) {
+        countDistinctQueryToGroupBy(queryNode, queryId)
+      }
+    } catch {
+      case e: Exception => {
+        logError("Attempt to rewrite query failed.\n" + StringUtils.stringifyException(e))
+      } 
     }
     rootAstNode
   }
