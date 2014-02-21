@@ -29,6 +29,16 @@ abstract class ExecuteOrderedExprNode(val nested: ExecuteOrderedExprNode = null)
 }
 
 case class EENDeclare(ten: TypedExprNode, expr: ExecuteOrderedExprNode = null) extends ExecuteOrderedExprNode(expr) {
+  private def define(clazz: String, variable: String): String = {
+    val template = clazz match {
+      case "boolean" | "byte" | "short" | "int" | "float" | "long" | "double" => {
+        "%s %s;".format(clazz, variable)
+      }
+      case _ => "%s %s = null;"
+      }
+    template.format(clazz, variable)
+  }
+  
   override def currCode(ctx: CGExprContext): String = {
   	val variableType = ctx.exprType(ten)
   	val variableName = ctx.exprName(ten)
@@ -37,13 +47,7 @@ case class EENDeclare(ten: TypedExprNode, expr: ExecuteOrderedExprNode = null) e
   	val code = new StringBuffer()
   	
   	if(variableType != null) {
-  	  if(ten.outputDT == TypeUtil.StringType || 
-  	     ten.outputDT == TypeUtil.BinaryType || 
-  	     ten.outputDT == TypeUtil.TimestampType) {
-  	    code.append("%s %s = null;".format(variableType, variableName))
-  	  } else {
-  		code.append("%s %s;".format(variableType, variableName))
-  	  }
+  	  code.append(define(variableType, variableName))
   	}
   	if(nullIndicatorName != null) code.append("boolean %s = false;".format(nullIndicatorName))
   	

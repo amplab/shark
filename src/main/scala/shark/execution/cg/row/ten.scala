@@ -109,14 +109,14 @@ class TENFactory {
 				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 				TENFactory.isnotnull(children(0)) // IS NOT NULL
 			}
-			case x: GenericUDFCase => {
-				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
-				TENFactory.branch_case(children)
-			}
-			case x: GenericUDFWhen => {
-				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
-				TENFactory.branch_when(children)
-			}
+//			case x: GenericUDFCase => {
+//				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
+//				TENFactory.branch_case(children)
+//			}
+//			case x: GenericUDFWhen => {
+//				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
+//				TENFactory.branch_when(children)
+//			}
 			case x: GenericUDFIf => {
 				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 				TENFactory.branch_if(children)
@@ -503,7 +503,7 @@ object TENFactory {
 	 * "CASE WHEN a THEN b WHEN c THEN d [ELSE f] END"
 	 * a and c should be boolean
 	 */
-	def branch_when(children: Seq[TypedExprNode]) = children match {
+	def branch_case(children: Seq[TypedExprNode]) = children match {
 		case When(a, b, c) => branch(b.map(p => { TENFactory.builtin("==", Seq(a, p._1)) }), b.map(_._2), c)
 		case _ => throw new CGAssertRuntimeException("wrong number of parameters in When")
 	}
@@ -513,7 +513,7 @@ object TENFactory {
 	 * case value when A then a [when B then b] else c end
 	 * if value == null then the value would be "c", if any, other wise null
 	 */
-	def branch_case(children: Seq[TypedExprNode]) = children match {
+	def branch_when(children: Seq[TypedExprNode]) = children match {
 		case Case(b, c) => branch(b.map(_._1), b.map(_._2), c)
 		case _ => throw new CGAssertRuntimeException("wrong number of parameters in Case")
 	}
