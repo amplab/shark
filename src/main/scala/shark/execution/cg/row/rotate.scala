@@ -95,28 +95,25 @@ class RuleValueGuard {
 	      	if(nullCheck) {
 	      		rotate(
 	      			branchIf, 
-		        	EENSequence(
 		        	  	EENDeclare(
 		        	  	  x, 
 		        	  	  EENCondition(
 		        	  	  	EENAlias(branchIf), 
 		        			rotate(branchThen, EENAssignment(x, create(branchThen)), true), 
 		        			rotate(branchElse, EENAssignment(x, create(branchElse)), true), 
-		        			x)), 
-		        		sibling), 
+		        			x, sibling)), 
 		        	true)
 	      	} else {
 		        EENDeclare(x, 
-		          EENSequence(
 		          	rotate(
 		          	  branchIf, 
 		              EENCondition(
 		              	  EENAlias(branchIf), 
 		        		  rotate(branchThen, EENAssignment(x, create(branchThen)), true), 
 		        		  rotate(branchElse, EENAssignment(x, create(branchElse)), true), 
-		        		  x), 
-		        	  true), 
-		            sibling))
+		        		  x, sibling), 
+		        	  true)
+		        )
 	      	}
 	      }
 	      case x @ TENBuiltin(op, children, dt, true) => {
@@ -253,28 +250,23 @@ class RuleValueGuard {
 	    	EENAssignment(ten, cse(een, ctx + ten, null))
 	      }
 	    }
-	    case x @ EENCondition(predict, branchThen, branchElse, branch) => {
-		  ctx + branch + predict.ten
-          if(ctx.count(predict.ten) > 1) {
-              if(ctx.count(branch) > 1) {
-	    		EENCondition(EENAlias(predict.ten), 
-	    		    cse(branchThen, ctx.clone, EENAlias(branch)), 
-	    		    cse(branchElse, ctx.clone, EENAlias(branch)), 
-	    		    branch)
-              } else {
-                EENCondition(EENAlias(predict.ten), 
-	    		    cse(branchThen, ctx.clone, null), 
-	    		    cse(branchElse, ctx.clone, null), 
-	    		    branch)
-              }
+	    case x @ EENCondition(predict, branchThen, branchElse, branch, sibling) => {
+	      if(ctx.count(branch) > 0) {
+	        cse(sibling, ctx, EENAlias(branch))
 	      } else {
-	    		// always need temporal variable for storing the branch result
-	    		EENAssignment(branch, 
-	    		    EENCondition(EENAlias(predict.ten), 
-	    		        cse(branchThen, ctx.clone, null), 
-	    		        cse(branchElse, ctx.clone, null), 
-	    		        branch))
-	    	}
+		    ctx + predict.ten
+		    
+            val eenPredict = if(ctx.count(predict.ten) > 1) {
+	    	  EENAlias(predict.ten)
+	        } else {
+	    	  create(predict.ten)
+	        }
+
+		    EENCondition(eenPredict, 
+	    		cse(branchThen, ctx.clone, null), 
+	    		cse(branchElse, ctx.clone, null), 
+	    		branch, cse(sibling, ctx + branch, EENAlias(branch)))
+	      }
 	    }
 	    case x @ EENAlias(ten, sibling) => if(sibling == null) {
 	      x
@@ -291,7 +283,9 @@ class RuleValueGuard {
 		case x @ EENOutputRow(row, seq) => {
 			EENOutputRow(row, cse(seq, ctx, null))
 		}
-		case x @ EENLiteral(expr, sibling) => EENLiteral(expr, cse(sibling, ctx, x))
+		case x @ EENLiteral(expr, sibling) => {
+		  EENLiteral(expr, cse(sibling, ctx + TENGuardNullHolder(expr), EENAlias(expr)))
+		}
 		case x @ EENAttribute(expr, sibling) => 
 		ctx + expr
 		if(ctx.count(expr) > 1) {

@@ -66,15 +66,15 @@ case class EENInputRow(expr: TENInputRow) extends EENExpr(expr) {
 	override def exprCode(ctx: CGExprContext): String = exprName
 }
 
-case class EENCondition(predict: EENExpr, t: ExecuteOrderedExprNode, f: ExecuteOrderedExprNode, branch: TENBranch) extends EENExpr(branch) {
-  override def code(ctx: CGExprContext): String = {
+case class EENCondition(predict: EENExpr, t: ExecuteOrderedExprNode, f: ExecuteOrderedExprNode, branch: TENBranch, sibling: ExecuteOrderedExprNode) extends EENExpr(branch, sibling) {
+  override def currCode(ctx: CGExprContext): String = {
   	val pc = predict.code(ctx)
   	val tc = t.code(ctx)
   	val fc = f.code(ctx)
   	"if(%s) \n{%s\n} else {%s\n}".format(pc, tc, fc)
   }
   
-  override def children = (predict :: t :: f :: Nil).filter(_ != null)
+  override def children = (predict :: t :: f :: sibling :: Nil).filter(_ != null)
 }
 
 case class EENOutputField(output: TENOutputField, outter: ExecuteOrderedExprNode = null) extends EENExpr(output)  {

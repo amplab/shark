@@ -200,8 +200,8 @@ case class TENGUDF(clazz: Class[_ <: GenericUDF], exprs: Seq[TypedExprNode]) ext
 case class TENBuiltin(op: String, exprs: Seq[TypedExprNode], dt: DataType, nullCheckRequired: Boolean = true) extends TypedExprNode {
 	self: Product =>
 	outputDT = dt
-	override val isDeterministic = true
-	override val isStateful = false
+	override val isDeterministic = children.foldLeft(true)((a, b) => { a && b.isDeterministic })
+	
 	def children = exprs
 }
 
@@ -212,6 +212,4 @@ case class TENBranch(branchIf: TypedExprNode, branchThen: TypedExprNode, branchE
 	override def children = (branchIf :: branchThen :: branchElse :: Nil).filter(_ != null)
 
 	override val isDeterministic = children.foldLeft(true)((a, b) => { a && b.isDeterministic })
-
-	override val isStateful = children.foldLeft(false)((a, b) => { a || b.isDeterministic })
 }
