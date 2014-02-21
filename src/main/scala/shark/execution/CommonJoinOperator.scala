@@ -244,15 +244,15 @@ class CartesianProduct[T >: Null : ClassTag](val numTables: Int) {
   
   def product2RightOuterJoin(left: Iterator[Array[T]], right: Seq[T], pos: Int)
   : Iterator[Array[T]] = {
-    right.iterator.flatMap(entry => {
+
+    right.filter(CommonJoinOperator.filterEval(_)).iterator.map(entry => {
+      outputBuffer(pos - 1) = null
       outputBuffer(pos) = entry
-      if(CommonJoinOperator.filterEval(entry)) {
-        outputBuffer(pos - 1) = null
-        Iterator(outputBuffer)
-      } else {
-        filter(left, (e: Array[T]) => {CommonJoinOperator.filterEval(e(pos - 1))})
-      }
-    })
+      
+      outputBuffer
+    }) ++ 
+    filter(product2(left, right.filter(!CommonJoinOperator.filterEval(_)), pos), 
+      (e: Array[T]) => {CommonJoinOperator.filterEval(e(pos - 1))})
   }
 
   def createBase(left: Seq[T], pos: Int): Iterator[Array[T]] = {
