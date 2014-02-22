@@ -200,7 +200,8 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc] {
         joinValuesObjectInspectors(posByte),
         joinFilters(posByte),
         joinFilterObjectInspectors(posByte),
-        (filterMap == null))
+        (filterMap == null),
+        true)
       // If we've seen the key before, just add it to the row container wrapped by
       // corresponding MapJoinObjectValue.
       val objValue = valueMap.get(key)
@@ -234,17 +235,13 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc] {
         row,
         joinKeyEval,
         joinKeysObjectInspectors(bigTableAlias))
-      val v: Array[AnyRef] = JoinUtil.computeJoinValues(
+      val value: Array[AnyRef] = JoinUtil.computeJoinValues(
         row,
         joinValueEval,
         joinValuesObjectInspectors(bigTableAlias),
         joinFilters(bigTableAlias),
         joinFilterObjectInspectors(bigTableAlias),
         (filterMap == null))
-
-      val value = new Array[AnyRef](v.size)
-      Range(0, v.size).foreach(i => 
-        value(i) = v(i).asInstanceOf[SerializableWritable[_<:Writable]].value)
 
       if (nullCheck && JoinUtil.joinKeyHasAnyNulls(key, nullSafes)) {
         val bufsNull = Array.fill[Seq[Array[Object]]](numTables)(Seq())

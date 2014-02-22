@@ -51,7 +51,7 @@ class SerializableWritable[T <: Writable](@transient var t: T) extends Serializa
     }
   }
 
-  override def hashCode(): Int = value.hashCode
+  override def hashCode(): Int = if(t == null) 0 else t.hashCode
 
   override def equals(other: Any) = {
     if(other.isInstanceOf[SerializableWritable[_]].unary_!) {

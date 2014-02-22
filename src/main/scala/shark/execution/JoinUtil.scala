@@ -55,7 +55,7 @@ object JoinUtil {
       valueFieldsOI: JavaList[OI],
       filters: JavaList[ExprNodeEvaluator],
       filtersOI: JavaList[OI],
-      noOuterJoin: Boolean): Array[AnyRef] = {
+      noOuterJoin: Boolean, serializable: Boolean = false): Array[AnyRef] = {
 
     // isFiltered = true means failed in the join filter testing
     val isFiltered: Boolean = {
@@ -86,13 +86,19 @@ object JoinUtil {
       i += 1
     }
 
-    if (noOuterJoin) {
+    val result = if (noOuterJoin) {
       a
     } else {
       val n = new Array[AnyRef](size + 1)
       Array.copy(a, 0, n, 0, size)
       n(size) = new BooleanWritable(isFiltered)
       n
+    }
+    
+    if(serializable) {
+      result.map(e => new SerializableWritable(e.asInstanceOf[Writable]))
+    } else {
+      result
     }
   }
 
