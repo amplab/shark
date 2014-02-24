@@ -50,3 +50,5 @@ test_warehouses
 # Ensime files for emacs
 .ensime
 .ensime_lucene
+/eclipse_bin
+/.scala_dependencies
