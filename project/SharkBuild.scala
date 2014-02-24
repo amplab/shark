@@ -33,7 +33,7 @@ object SharkBuild extends Build {
 
   val SHARK_ORGANIZATION = "edu.berkeley.cs.shark"
 
-  val HIVE_VERSION = "0.11.0-shark-0.9.1"
+  val HIVE_VERSION = "0.11.0-shark-0.9.1-SNAPSHOT"
 
   val SPARK_VERSION = "0.9.0-incubating"
 
