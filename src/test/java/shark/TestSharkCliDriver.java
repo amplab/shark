@@ -28,7 +28,7 @@ import java.util.Iterator;
  * TEST are invoked. Note that this test is ignored so we don't run it in our
  * normal unit tests. This should only be launched with the explicit test script.
  */
-public class TestSharkCliDriver extends TestCliDriver {
+@Ignore public class TestSharkCliDriver extends TestCliDriver {
 
   static {
     // Replace qt in Hive's TestCliDriver with SharkQTestUtil.
