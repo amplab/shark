@@ -19,15 +19,12 @@ package shark.api
 
 import net.razorvine.pickle.Pickler
 
-import java.util.Map
-
 import scala.collection.JavaConversions._
 
 import org.apache.spark.api.java.JavaRDD
 
 class PythonTableRDD(tableRDD: JavaTableRDD)
-extends JavaRDD[Array[Byte]](tableRDD.rdd.map(PythonTableRDD.pickle)) {
-  val pickle = new Pickler
+extends JavaRDD[Array[Byte]](tableRDD.rdd.mapPartitions(PythonTableRDD.pickle)) {
   val schema: java.util.Map[String, Int] = tableRDD.first.colname2indexMap
 }
 
@@ -37,8 +34,11 @@ object PythonTableRDD {
     new PythonTableRDD(sc.sql2rdd(cmd))
   }
 
-  def pickle(r: Row): Array[Byte] = {
+  def pickle(rows: Iterator[Row]): Iterator[Array[Byte]] = {
+    // Pickler is not threadsafe, so we use 1 per partition
     val pickle = new Pickler
-    pickle.dumps(r.toSeq.toArray)
+    rows.map { r =>
+      pickle.dumps(r.toSeq.toArray)
+    }
   }
 }
