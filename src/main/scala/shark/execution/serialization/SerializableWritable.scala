@@ -29,13 +29,13 @@ object SerializableWritable {
 
 
 class SerializableWritable[T <: Writable](@transient var t: T) extends Serializable {
-  def value = if (t == null) NullWritable.get else t
+  def value = t
 
-  override def toString = t.toString
+  override def toString = if(null == t) "null" else t.toString
 
   private def writeObject(out: ObjectOutputStream) {
     out.defaultWriteObject()
-    new ObjectWritable(t).write(out)
+    new ObjectWritable(if (t == null) NullWritable.get() else t).write(out)
   }
 
   private def readObject(in: ObjectInputStream) {
@@ -44,12 +44,14 @@ class SerializableWritable[T <: Writable](@transient var t: T) extends Serializa
     ow.setConf(SerializableWritable.conf)
     ow.readFields(in)
     val s = ow.get
-    if (s != null) {
+    if (s == null || s.isInstanceOf[NullWritable]) {
+      t = null.asInstanceOf[T]
+    } else {
       t = s.asInstanceOf[T]
     }
   }
 
-  override def hashCode(): Int = value.hashCode
+  override def hashCode(): Int = if(t == null) 0 else t.hashCode
 
   override def equals(other: Any) = {
     if(other.isInstanceOf[SerializableWritable[_]].unary_!) {
