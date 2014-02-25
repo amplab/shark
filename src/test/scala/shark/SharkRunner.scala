@@ -72,7 +72,7 @@ object SharkRunner {
     sc.runSql("CREATE TABLE test (key INT, val STRING)")
     sc.runSql("LOAD DATA LOCAL INPATH '${hiveconf:shark.test.data.path}/kv1.txt' INTO TABLE test")
     sc.runSql("drop table if exists test_cached")
-    sc.runSql("CREATE TABLE test_cached AS SELECT * FROM test")
+    sc.runSql("CREATE TABLE test_cached tblproperties('shark.cache'='memory') AS SELECT * FROM test")
 
     // test_null
     sc.runSql("drop table if exists test_null")
@@ -80,7 +80,7 @@ object SharkRunner {
     sc.runSql("""LOAD DATA LOCAL INPATH '${hiveconf:shark.test.data.path}/kv3.txt'
       INTO TABLE test_null""")
     sc.runSql("drop table if exists test_null_cached")
-    sc.runSql("CREATE TABLE test_null_cached AS SELECT * FROM test_null")
+    sc.runSql("CREATE TABLE test_null_cached tblproperties('shark.cache'='memory') AS SELECT * FROM test_null")
 
     // clicks
     sc.runSql("drop table if exists clicks")
@@ -89,7 +89,7 @@ object SharkRunner {
     sc.runSql("""load data local inpath '${hiveconf:shark.test.data.path}/clicks.txt'
       OVERWRITE INTO TABLE clicks""")
     sc.runSql("drop table if exists clicks_cached")
-    sc.runSql("create table clicks_cached as select * from clicks")
+    sc.runSql("create table clicks_cached tblproperties('shark.cache'='memory') as select * from clicks")
 
     // users
     sc.runSql("drop table if exists users")
@@ -98,7 +98,7 @@ object SharkRunner {
     sc.runSql("""load data local inpath '${hiveconf:shark.test.data.path}/users.txt'
       OVERWRITE INTO TABLE users""")
     sc.runSql("drop table if exists users_cached")
-    sc.runSql("create table users_cached as select * from users")
+    sc.runSql("create table users_cached tblproperties('shark.cache'='memory') as select * from users")
 
     // test1
     sc.sql("drop table if exists test1")
@@ -106,7 +106,7 @@ object SharkRunner {
       row format delimited fields terminated by '\t'""")
     sc.sql("LOAD DATA LOCAL INPATH '${hiveconf:shark.test.data.path}/test1.txt' INTO TABLE test1")
     sc.sql("drop table if exists test1_cached")
-    sc.sql("CREATE TABLE test1_cached AS SELECT * FROM test1")
+    sc.sql("CREATE TABLE test1_cached tblproperties('shark.cache'='memory') AS SELECT * FROM test1")
     Unit
   }
 
