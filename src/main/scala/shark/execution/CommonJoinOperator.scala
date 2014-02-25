@@ -17,7 +17,7 @@
 
 package shark.execution
 
-import java.util.{HashMap => JavaHashMap, List => JavaList, ArrayList =>JavaArrayList}
+import java.util.{List => JavaList, ArrayList =>JavaArrayList}
 
 import scala.beans.BeanProperty
 import scala.reflect.ClassTag
@@ -25,13 +25,12 @@ import scala.reflect.ClassTag
 import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator
 import org.apache.hadoop.hive.ql.exec.{JoinUtil => HiveJoinUtil}
 import org.apache.hadoop.hive.ql.plan.{JoinCondDesc, JoinDesc}
-import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, PrimitiveObjectInspector}
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
+import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorFactory}
 
 import shark.SharkConfVars
 
 
-abstract class CommonJoinOperator[T <: JoinDesc] extends NaryOperator[T] {
+abstract class CommonJoinOperator[T <: JoinDesc] extends NaryOperator[T] with JoinFilter[T] {
 
   @BeanProperty var conf: T = _
   // Order in which the results should be output.
@@ -56,11 +55,12 @@ abstract class CommonJoinOperator[T <: JoinDesc] extends NaryOperator[T] {
 
   @transient var noOuterJoin: Boolean = _
   @transient var filterMap: Array[Array[Int]] = _
+  
+  @transient var rowBuffer: Array[AnyRef] = _
 
   override def initializeOnMaster() {
     super.initializeOnMaster()
     conf = desc
-    //conf.getFilters()
     
     order = conf.getTagOrder()
     joinConditions = conf.getConds()
@@ -91,19 +91,25 @@ abstract class CommonJoinOperator[T <: JoinDesc] extends NaryOperator[T] {
       joinFilters, objectInspectors.toArray, CommonJoinOperator.NOTSKIPBIGTABLE, tagLen)
     joinValuesStandardObjectInspectors = HiveJoinUtil.getStandardObjectInspectors(
       joinValuesObjectInspectors, CommonJoinOperator.NOTSKIPBIGTABLE, tagLen)
+      
+    rowBuffer = new Array[AnyRef](resultRowSize)
   }
   
   // copied from the org.apache.hadoop.hive.ql.exec.CommonJoinOperator
   override def outputObjectInspector() = {
-    var structFieldObjectInspectors = new JavaArrayList[ObjectInspector]()
+    val structFieldObjectInspectors = new JavaArrayList[ObjectInspector]()
     for (alias <- order) {
-      var oiList = joinValuesStandardObjectInspectors(alias.intValue)
+      val oiList = joinValuesStandardObjectInspectors(alias.intValue)
       structFieldObjectInspectors.addAll(oiList)
     }
 
     ObjectInspectorFactory.getStandardStructObjectInspector(
       conf.getOutputColumnNames(),
       structFieldObjectInspectors)
+  }
+  
+  @inline def filterEval(data: AnyRef): Boolean = {
+    if (noOuterJoin) false else CommonJoinOperator.filterEval(data)
   }
 }
 
@@ -144,16 +150,15 @@ class CartesianProduct[T >: Null : ClassTag](val numTables: Int) {
           } else if (bufs(joinCondition.getRight).size == 0) {
             product2(partial, SINGLE_NULL_LIST, i)
           } else {
-            product2(partial, bufs(joinCondition.getRight), i)
+            product2FullOuterJoin(partial, bufs(joinCondition.getRight), i)
           }
-
         case CommonJoinOperator.LEFT_OUTER_JOIN =>
           if (bufs(joinCondition.getLeft()).size == 0) {
             createBase(EMPTY_LIST, i)
           } else if (bufs(joinCondition.getRight).size == 0) {
             product2(partial, SINGLE_NULL_LIST, i)
           } else {
-            product2(partial, bufs(joinCondition.getRight), i)
+            product2LeftOuterJoin(partial, bufs(joinCondition.getRight), i)
           }
 
         case CommonJoinOperator.RIGHT_OUTER_JOIN =>
@@ -162,7 +167,7 @@ class CartesianProduct[T >: Null : ClassTag](val numTables: Int) {
           } else if (bufs(joinCondition.getLeft).size == 0 || !partial.hasNext) {
             product2(createBase(SINGLE_NULL_LIST, i - 1), bufs(joinCondition.getRight), i)
           } else {
-            product2(partial, bufs(joinCondition.getRight), i)
+            product2RightOuterJoin(partial, bufs(joinCondition.getRight), i)
           }
 
         case CommonJoinOperator.LEFT_SEMI_JOIN =>
@@ -177,12 +182,71 @@ class CartesianProduct[T >: Null : ClassTag](val numTables: Int) {
     }
     partial
   }
-
+  
+  @inline
+  private def filter[B](iter: Iterator[B], eval: (B) => Boolean = CommonJoinOperator.filterEval _)
+  : Iterator[B] = {
+    var occurs = 1
+    iter.filter { e =>
+      // Per outer join semantic, on more than 1 null table value allowed, we need to filter out
+      // the entries from the iterator if it's failed in join filter testing (just keep 1)
+      val discard = eval(e)
+      if (discard) {
+        occurs = occurs - 1
+        // if first appearance
+        occurs >= 0
+      } else {
+        true
+      }
+    }
+  }
+  
   def product2(left: Iterator[Array[T]], right: Seq[T], pos: Int): Iterator[Array[T]] = {
     for (l <- left; r <- right.iterator) yield {
       outputBuffer(pos) = r
       outputBuffer
     }
+  }
+  
+  def product2FullOuterJoin(left: Iterator[Array[T]], right: Seq[T], pos: Int): Iterator[Array[T]] =
+  {
+    left.flatMap { e =>
+      if (CommonJoinOperator.filterEval(e(pos - 1))) {
+        outputBuffer(pos) = null
+        Iterator(outputBuffer)
+      } else {
+        right.filter(!CommonJoinOperator.filterEval(_)).iterator.map(entry => {
+          outputBuffer(pos) = entry
+          outputBuffer
+        })
+      } 
+    } ++ right.filter(CommonJoinOperator.filterEval(_)).iterator.flatMap { entry =>
+      outputBuffer(pos) = entry
+      outputBuffer(pos - 1) = null
+
+      Iterator(outputBuffer)
+	  }
+  }
+  
+  def product2LeftOuterJoin(left: Iterator[Array[T]], right: Seq[T], pos: Int)
+  : Iterator[Array[T]] = {
+    for (lt <- left;
+      rt <- filter((if(CommonJoinOperator.filterEval(lt(pos - 1)))
+        SINGLE_NULL_LIST else right).iterator)) yield {
+      outputBuffer(pos) = rt
+      outputBuffer
+    }
+  }
+  
+  def product2RightOuterJoin(left: Iterator[Array[T]], right: Seq[T], pos: Int)
+  : Iterator[Array[T]] = {
+
+    right.filter(CommonJoinOperator.filterEval(_)).iterator.map { entry =>
+      outputBuffer(pos - 1) = null
+      outputBuffer(pos) = entry
+      outputBuffer
+    } ++ filter(product2(left, right.filter(!CommonJoinOperator.filterEval(_)), pos),
+      (e: Array[T]) => CommonJoinOperator.filterEval(e(pos - 1)))
   }
 
   def createBase(left: Seq[T], pos: Int): Iterator[Array[T]] = {
@@ -198,7 +262,6 @@ class CartesianProduct[T >: Null : ClassTag](val numTables: Int) {
   }
 }
 
-
 object CommonJoinOperator {
 
   val NOTSKIPBIGTABLE = -1
@@ -211,49 +274,15 @@ object CommonJoinOperator {
   val UNIQUE_JOIN = JoinDesc.UNIQUE_JOIN // We don't support UNIQUE JOIN.
   val LEFT_SEMI_JOIN = JoinDesc.LEFT_SEMI_JOIN
 
-  /**
-   * Handles join filters in Hive
-   */
-  def isFiltered(row: Any, filters: JavaList[ExprNodeEvaluator], ois: JavaList[ObjectInspector])
-  : Boolean = {
-    // if no filter, then will not be filtered
-    if (filters == null || ois == null) return false
-    if (row == null) return true
-    
-    var ret: java.lang.Boolean = false
-    var j = 0
-    while (j < filters.size) {
-      val condition: java.lang.Object = filters.get(j).evaluate(row)
-      ret = ois.get(j).asInstanceOf[PrimitiveObjectInspector].getPrimitiveJavaObject(
-        condition).asInstanceOf[java.lang.Boolean]
-      if (ret == null || !ret) {
-        return true
-      }
-      j += 1
+  // get the evaluated value(boolean) from the table data (the last element in the array)
+  // true means failed in the join filter testing, we may need to skip it
+  @inline final def filterEval[B](data: B): Boolean = {
+    if (data == null) {
+      true
+    } else {
+      val fields = data.asInstanceOf[Array[AnyRef]]
+      fields(fields.length - 1).asInstanceOf[org.apache.hadoop.io.BooleanWritable].get
     }
-    false
-  }
-
-  /**
-   * Determines the order in which the tables should be joined (i.e. the order
-   * in which we produce the Cartesian products).
-   */
-  def computeTupleOrder(joinConditions: Array[JoinCondDesc]): Array[Int] = {
-    val tupleOrder = new Array[Int](joinConditions.size + 1)
-    var pos = 0
-
-    def addIfNew(table: Int) {
-      if (!tupleOrder.contains(table)) {
-        tupleOrder(pos) = table
-        pos += 1
-      }
-    }
-
-    joinConditions.foreach { joinCond =>
-      addIfNew(joinCond.getLeft())
-      addIfNew(joinCond.getRight())
-    }
-    tupleOrder
   }
 }
 

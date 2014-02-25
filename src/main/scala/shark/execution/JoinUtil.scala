@@ -23,7 +23,8 @@ import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector => OI}
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspectorUtils => OIUtils}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.{ObjectInspectorCopyOption => CopyOption}
-import org.apache.hadoop.hive.serde2.objectinspector.{PrimitiveObjectInspector => PrimitiveOI}
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.BooleanObjectInspector
+
 import org.apache.hadoop.io.BooleanWritable
 import org.apache.hadoop.io.NullWritable
 import org.apache.hadoop.io.Writable
@@ -33,10 +34,8 @@ import shark.execution.serialization.SerializableWritable
 
 object JoinUtil {
 
-  def computeJoinKey(
-      row: Any,
-      keyFields: JavaList[ExprNodeEvaluator],
-      keyFieldsOI: JavaList[OI]): Seq[SerializableWritable[_]] = {
+  def computeJoinKey(row: Any, keyFields: JavaList[ExprNodeEvaluator], keyFieldsOI: JavaList[OI])
+  : Seq[SerializableWritable[_]] = {
     Range(0, keyFields.size).map { i =>
       val c = copy(row, keyFields.get(i), keyFieldsOI.get(i), CopyOption.WRITABLE)
       val s = if (c == null) NullWritable.get else c
@@ -55,39 +54,51 @@ object JoinUtil {
       valueFieldsOI: JavaList[OI],
       filters: JavaList[ExprNodeEvaluator],
       filtersOI: JavaList[OI],
-      noOuterJoin: Boolean): Array[AnyRef] = {
+      noOuterJoin: Boolean,
+      serializable: Boolean = false)
+    : Array[AnyRef] = {
 
+    // isFiltered = true means failed in the join filter testing
     val isFiltered: Boolean = {
       if (filters == null) {
         false
       } else {
-        Range(0, filters.size()).exists { x =>
+        var x = 0
+        var exists = false
+        while (x < filters.size() && !exists) {
           val cond = filters.get(x).evaluate(row)
-          val result = Option[AnyRef](
-            filtersOI.get(x).asInstanceOf[PrimitiveOI].getPrimitiveJavaObject(cond))
-          result match {
-            case Some(u) => u.asInstanceOf[Boolean].unary_!
-            case None => true
+          if (cond == null) {
+            exists = true
+          } else {
+            exists = !filtersOI.get(x).asInstanceOf[BooleanObjectInspector].get(cond)
           }
+          x += 1
         }
+        
+        exists
       }
     }
     val size = valueFields.size
     val a = new Array[AnyRef](size)
-    Range(0, size).foreach { i =>
-      val c = copy(row, valueFields.get(i), valueFieldsOI.get(i), CopyOption.WRITABLE)
-      val s = if (c == null) NullWritable.get else c
-
-      a(i) = new SerializableWritable(s.asInstanceOf[Writable])
+    var i = 0
+    while (i < size) {
+      a(i) = copy(row, valueFields.get(i), valueFieldsOI.get(i), CopyOption.WRITABLE)
+      i += 1
     }
 
-    if (noOuterJoin) {
+    val result = if (noOuterJoin) {
       a
     } else {
       val n = new Array[AnyRef](size + 1)
       Array.copy(a, 0, n, 0, size)
-      n(size) = new SerializableWritable(new BooleanWritable(isFiltered))
+      n(size) = new BooleanWritable(isFiltered)
       n
+    }
+    
+    if (serializable) {
+      result.map(e => new SerializableWritable(e.asInstanceOf[Writable]))
+    } else {
+      result
     }
   }
 
