@@ -23,7 +23,6 @@ import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector => OI}
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspectorUtils => OIUtils}
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.{ObjectInspectorCopyOption => CopyOption}
-import org.apache.hadoop.hive.serde2.objectinspector.{PrimitiveObjectInspector => PrimitiveOI}
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.BooleanObjectInspector
 
 import org.apache.hadoop.io.BooleanWritable
@@ -55,7 +54,9 @@ object JoinUtil {
       valueFieldsOI: JavaList[OI],
       filters: JavaList[ExprNodeEvaluator],
       filtersOI: JavaList[OI],
-      noOuterJoin: Boolean, serializable: Boolean = false): Array[AnyRef] = {
+      noOuterJoin: Boolean,
+      serializable: Boolean = false)
+    : Array[AnyRef] = {
 
     // isFiltered = true means failed in the join filter testing
     val isFiltered: Boolean = {
@@ -64,7 +65,7 @@ object JoinUtil {
       } else {
         var x = 0
         var exists = false
-        while(x < filters.size() && !exists) {
+        while (x < filters.size() && !exists) {
           val cond = filters.get(x).evaluate(row)
           if (cond == null) {
             exists = true
@@ -80,9 +81,8 @@ object JoinUtil {
     val size = valueFields.size
     val a = new Array[AnyRef](size)
     var i = 0
-    while(i < size) {
+    while (i < size) {
       a(i) = copy(row, valueFields.get(i), valueFieldsOI.get(i), CopyOption.WRITABLE)
-      
       i += 1
     }
 
@@ -95,7 +95,7 @@ object JoinUtil {
       n
     }
     
-    if(serializable) {
+    if (serializable) {
       result.map(e => new SerializableWritable(e.asInstanceOf[Writable]))
     } else {
       result

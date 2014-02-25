@@ -17,19 +17,14 @@
 
 package shark.execution
 
-import java.util.{HashMap => JHashMap, List => JList, ArrayList => JArrayList}
+import java.util.{HashMap => JHashMap, List => JList}
 
-import scala.collection.mutable.Queue
-import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.plan.{JoinDesc, TableDesc}
-import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator
-import org.apache.hadoop.hive.ql.exec.{JoinUtil => HiveJoinUtil}
 import org.apache.hadoop.hive.serde2.{Deserializer, SerDeUtils}
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils
 import org.apache.hadoop.hive.serde2.objectinspector.StandardStructObjectInspector
 import org.apache.hadoop.io.BytesWritable
 
@@ -37,7 +32,7 @@ import org.apache.spark.{CoGroupedRDD, HashPartitioner}
 import org.apache.spark.rdd.RDD
 
 import shark.execution.serialization.OperatorSerializationWrapper
-import shark.io.MutableBytesWritable
+
 
 class JoinOperator extends CommonJoinOperator[JoinDesc] with ReduceSinkTableDesc {
 
@@ -132,29 +127,30 @@ class JoinOperator extends CommonJoinOperator[JoinDesc] with ReduceSinkTableDesc
         @inline
         def fillTableEntry(entries: Seq[Array[Byte]], tblIdx: Int): Seq[Array[AnyRef]] = {
           // actually it's a do while
-          entries.map(bytes => {
+          entries.map { bytes =>
             writable.set(bytes, 0, bytes.length)
             op.computeJoinValues(tblIdx, writable, objs)
-          })
+          }
         }
         
-        /* Within the same join key, the values in tables may look like:
-           * (key1, key2.., filtered)  (filtered = true means will output as null), AND no more than
-           * one filtered=true entry per outer join semantic. 
-           *   table1                      table2                       table3 ...
-           *  a1(col1, col2.., false)   b1(cola, colb.., true)   c1(colx, coly.., false)
-           *  a2(col1, col2.., true)                             c2(colx, coly.., false)
-           *                                                     c3(colx, coly.., true)
-           * The CartesianProduct result normally may looks like
-           * a1, b1, c1
-           * a1, b1, c2
-           * a1, b1, c3
-           * a2, b1, c1
-           * a2, b1, c2
-           * a2, b1, c3
-           * 
-           * And the "op.generateTuples" iterates above entries, and then feed into the join filters
-           */
+        /*
+         * Within the same join key, the values in tables may look like:
+         * (key1, key2.., filtered)  (filtered = true means will output as null), AND no more than
+         * one filtered=true entry per outer join semantic.
+         *   table1                      table2                       table3 ...
+         *  a1(col1, col2.., false)   b1(cola, colb.., true)   c1(colx, coly.., false)
+         *  a2(col1, col2.., true)                             c2(colx, coly.., false)
+         *                                                     c3(colx, coly.., true)
+         * The CartesianProduct result normally may looks like
+         * a1, b1, c1
+         * a1, b1, c2
+         * a1, b1, c3
+         * a2, b1, c1
+         * a2, b1, c2
+         * a2, b1, c3
+         *
+         * And the "op.generateTuples" iterates above entries, and then feed into the join filters
+         */
         if (op.nullCheck &&
             SerDeUtils.hasAnyNullObject(
               objs(0).asInstanceOf[JList[_]],
@@ -163,16 +159,14 @@ class JoinOperator extends CommonJoinOperator[JoinDesc] with ReduceSinkTableDesc
           // if null key is acceptable and the join key contains null
           bufs.iterator.zipWithIndex.flatMap { case (buf, label) =>
             val bufsNull = Array.fill(op.numTables)(Seq[Array[AnyRef]]())
-            
             bufsNull(label) = fillTableEntry(buf.asInstanceOf[Seq[Array[Byte]]], label)
-
-            cp.product(bufsNull, op.joinConditions).map(elems => {op.generate(elems)})
+            cp.product(bufsNull, op.joinConditions).map(elems => op.generate(elems))
           }
         } else {
            val inputs = bufs.zipWithIndex.map { case (tblSeq: Any, tblIdx: Int) =>
              fillTableEntry(tblSeq.asInstanceOf[Seq[Array[Byte]]], tblIdx)
            }
-           cp.product(inputs, op.joinConditions).map(elems => {op.generate(elems)})
+           cp.product(inputs, op.joinConditions).map(elems => op.generate(elems))
         }
       }
     }
@@ -181,8 +175,7 @@ class JoinOperator extends CommonJoinOperator[JoinDesc] with ReduceSinkTableDesc
   override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] =
     throw new UnsupportedOperationException("JoinOperator.processPartition()")
   
-  def computeJoinValues(tblIdx: Int, bytes: BytesWritable, objs: Array[AnyRef])
-  : Array[AnyRef] = {
+  def computeJoinValues(tblIdx: Int, bytes: BytesWritable, objs: Array[AnyRef]): Array[AnyRef] = {
     val deser = tagToValueSer.get(tblIdx)
     val evaluators = joinVals(tblIdx)
     val ois = joinValuesObjectInspectors(tblIdx)

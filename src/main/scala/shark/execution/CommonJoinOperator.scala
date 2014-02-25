@@ -17,7 +17,7 @@
 
 package shark.execution
 
-import java.util.{HashMap => JavaHashMap, List => JavaList, ArrayList =>JavaArrayList}
+import java.util.{List => JavaList, ArrayList =>JavaArrayList}
 
 import scala.beans.BeanProperty
 import scala.reflect.ClassTag
@@ -25,8 +25,7 @@ import scala.reflect.ClassTag
 import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator
 import org.apache.hadoop.hive.ql.exec.{JoinUtil => HiveJoinUtil}
 import org.apache.hadoop.hive.ql.plan.{JoinCondDesc, JoinDesc}
-import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, PrimitiveObjectInspector}
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
+import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspector, ObjectInspectorFactory}
 
 import shark.SharkConfVars
 
@@ -98,9 +97,9 @@ abstract class CommonJoinOperator[T <: JoinDesc] extends NaryOperator[T] with Jo
   
   // copied from the org.apache.hadoop.hive.ql.exec.CommonJoinOperator
   override def outputObjectInspector() = {
-    var structFieldObjectInspectors = new JavaArrayList[ObjectInspector]()
+    val structFieldObjectInspectors = new JavaArrayList[ObjectInspector]()
     for (alias <- order) {
-      var oiList = joinValuesStandardObjectInspectors(alias.intValue)
+      val oiList = joinValuesStandardObjectInspectors(alias.intValue)
       structFieldObjectInspectors.addAll(oiList)
     }
 
@@ -110,7 +109,7 @@ abstract class CommonJoinOperator[T <: JoinDesc] extends NaryOperator[T] with Jo
   }
   
   @inline def filterEval(data: AnyRef): Boolean = {
-    if(noOuterJoin) false else CommonJoinOperator.filterEval(data)
+    if (noOuterJoin) false else CommonJoinOperator.filterEval(data)
   }
 }
 
@@ -185,37 +184,34 @@ class CartesianProduct[T >: Null : ClassTag](val numTables: Int) {
   }
   
   @inline
-  private def filter[B](iter: Iterator[B], 
-    eval: (B)=>Boolean = CommonJoinOperator.filterEval _): Iterator[B] = {
-    
+  private def filter[B](iter: Iterator[B], eval: (B) => Boolean = CommonJoinOperator.filterEval _)
+  : Iterator[B] = {
     var occurs = 1
-	    
-	iter.filter(e => {
-	  // Per outer join semantic, on more than 1 null table value allowed, we need to filter out 
-	  // the entries from the iterator if it's failed in join filter testing (just keep 1) 
-	  val discard = eval(e)
-	  if(discard) {
-	    occurs = occurs - 1
-	    // if first appearance
-	    (occurs >= 0)
-	  } else {
-	    true
-	  }
-	})
+    iter.filter { e =>
+      // Per outer join semantic, on more than 1 null table value allowed, we need to filter out
+      // the entries from the iterator if it's failed in join filter testing (just keep 1)
+      val discard = eval(e)
+      if (discard) {
+        occurs = occurs - 1
+        // if first appearance
+        occurs >= 0
+      } else {
+        true
+      }
+    }
   }
   
-  def product2(left: Iterator[Array[T]], right: Seq[T], pos: Int)
-  : Iterator[Array[T]] = {
+  def product2(left: Iterator[Array[T]], right: Seq[T], pos: Int): Iterator[Array[T]] = {
     for (l <- left; r <- right.iterator) yield {
       outputBuffer(pos) = r
       outputBuffer
     }
   }
   
-  def product2FullOuterJoin(left: Iterator[Array[T]], right: Seq[T], pos: Int)
-  : Iterator[Array[T]] = {
-    left.flatMap(e => {
-      if(CommonJoinOperator.filterEval(e(pos - 1))) {
+  def product2FullOuterJoin(left: Iterator[Array[T]], right: Seq[T], pos: Int): Iterator[Array[T]] =
+  {
+    left.flatMap { e =>
+      if (CommonJoinOperator.filterEval(e(pos - 1))) {
         outputBuffer(pos) = null
         Iterator(outputBuffer)
       } else {
@@ -224,18 +220,18 @@ class CartesianProduct[T >: Null : ClassTag](val numTables: Int) {
           outputBuffer
         })
       } 
-    }) ++ right.filter(CommonJoinOperator.filterEval(_)).iterator.flatMap(entry => {  
-          outputBuffer(pos) = entry
-          outputBuffer(pos - 1) = null
-          
-          Iterator(outputBuffer)
-	  })
+    } ++ right.filter(CommonJoinOperator.filterEval(_)).iterator.flatMap { entry =>
+      outputBuffer(pos) = entry
+      outputBuffer(pos - 1) = null
+
+      Iterator(outputBuffer)
+	  }
   }
   
   def product2LeftOuterJoin(left: Iterator[Array[T]], right: Seq[T], pos: Int)
   : Iterator[Array[T]] = {
-    for (lt <- left; 
-      rt <- filter((if(CommonJoinOperator.filterEval(lt(pos - 1))) 
+    for (lt <- left;
+      rt <- filter((if(CommonJoinOperator.filterEval(lt(pos - 1)))
         SINGLE_NULL_LIST else right).iterator)) yield {
       outputBuffer(pos) = rt
       outputBuffer
@@ -245,14 +241,12 @@ class CartesianProduct[T >: Null : ClassTag](val numTables: Int) {
   def product2RightOuterJoin(left: Iterator[Array[T]], right: Seq[T], pos: Int)
   : Iterator[Array[T]] = {
 
-    right.filter(CommonJoinOperator.filterEval(_)).iterator.map(entry => {
+    right.filter(CommonJoinOperator.filterEval(_)).iterator.map { entry =>
       outputBuffer(pos - 1) = null
       outputBuffer(pos) = entry
-      
       outputBuffer
-    }) ++ 
-    filter(product2(left, right.filter(!CommonJoinOperator.filterEval(_)), pos), 
-      (e: Array[T]) => {CommonJoinOperator.filterEval(e(pos - 1))})
+    } ++ filter(product2(left, right.filter(!CommonJoinOperator.filterEval(_)), pos),
+      (e: Array[T]) => CommonJoinOperator.filterEval(e(pos - 1)))
   }
 
   def createBase(left: Seq[T], pos: Int): Iterator[Array[T]] = {
@@ -282,13 +276,12 @@ object CommonJoinOperator {
 
   // get the evaluated value(boolean) from the table data (the last element in the array)
   // true means failed in the join filter testing, we may need to skip it
-  @inline
-  def filterEval[B](data: B): Boolean = {
+  @inline final def filterEval[B](data: B): Boolean = {
     if(data == null) {
       true      
     } else {
       val fields = data.asInstanceOf[Array[AnyRef]]
-	  fields(fields.length - 1).asInstanceOf[org.apache.hadoop.io.BooleanWritable].get
+	    fields(fields.length - 1).asInstanceOf[org.apache.hadoop.io.BooleanWritable].get
     }
   }
 }
