@@ -34,17 +34,15 @@ import org.apache.hadoop.hive.ql.exec.MoveTask
 import org.apache.hadoop.hive.ql.exec.{Operator => HiveOperator}
 import org.apache.hadoop.hive.ql.exec.TaskFactory
 import org.apache.hadoop.hive.ql.metadata.{Hive, HiveException}
-import org.apache.hadoop.hive.ql.optimizer.Optimizer
 import org.apache.hadoop.hive.ql.parse._
 import org.apache.hadoop.hive.ql.plan._
 import org.apache.hadoop.hive.ql.session.SessionState
 
-import shark.{LogHelper, SharkConfVars, SharkEnv, SharkOptimizer, Utils}
-import shark.execution.{HiveDesc, Operator, OperatorFactory, RDDUtils, ReduceSinkOperator}
+import shark.{LogHelper, SharkConfVars, SharkOptimizer}
+import shark.execution.{HiveDesc, Operator, OperatorFactory, ReduceSinkOperator}
 import shark.execution.{SharkDDLWork, SparkLoadWork, SparkWork, TerminalOperator}
-import shark.memstore2.{CacheType, ColumnarSerDe, LazySimpleSerDeWrapper, MemoryMetadataManager}
-import shark.memstore2.{MemoryTable, PartitionedMemoryTable, SharkTblProperties, TableRecovery}
-import org.apache.spark.storage.StorageLevel
+import shark.memstore2.{CacheType, LazySimpleSerDeWrapper, MemoryMetadataManager}
+import shark.memstore2.SharkTblProperties
 
 
 /**
@@ -465,8 +463,9 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
       var cacheMode = CacheType.fromString(
         createTableProperties.get(SharkTblProperties.CACHE_FLAG.varname))
       if (checkTableName) {
-        if (tableName.endsWith("_cached")) {
-          cacheMode = CacheType.MEMORY
+        // Use memory only mode for _cached tables, unless the mode is already specified.
+        if (tableName.endsWith("_cached") && cacheMode == CacheType.NONE) {
+          cacheMode = CacheType.MEMORY_ONLY
         } else if (tableName.endsWith("_tachyon")) {
           cacheMode = CacheType.TACHYON
         }
