@@ -108,7 +108,10 @@ class ReduceKeyMapSide(var bytesWritable: BytesWritable) extends ReduceKey
 }
 
 
-class ReduceKeyReduceSide(private val _byteArray: Array[Byte]) extends ReduceKey {
+class ReduceKeyReduceSide(private val _byteArray: Array[Byte])
+  extends ReduceKey
+  with Serializable {
+  // This is serializable because of the possible external spill.
 
   def this() = this(null)
 
