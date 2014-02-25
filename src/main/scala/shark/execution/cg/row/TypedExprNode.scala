@@ -171,6 +171,23 @@ case class TENUDF(bridge: GenericUDFBridge, exprs: Seq[TypedExprNode]) extends T
 		FunctionRegistry.isDeterministic(bridge))(_ && _.isDeterministic)
 
 	override val isStateful = FunctionRegistry.isStateful(bridge)
+	
+	override def equals(ref: Any) = if (this eq ref.asInstanceOf[AnyRef]) {
+		true
+	} else if (ref == null || ref.getClass() != this.getClass()) {
+		false
+	} else {
+		// if it's the non-deterministic node, then will fail in equality comparison, unless 
+		// exactly the same instance
+		if(isDeterministic && hashCode == ref.hashCode()) {
+		  val that = ref.asInstanceOf[TENUDF]
+		  bridge.getUdfClass().getCanonicalName().equals(that.bridge.getUdfClass().getCanonicalName()) && {
+		    exprs == that.exprs
+		  }
+		} else {
+		  false
+		} 
+	}
 }
 
 case class TENGUDF(clazz: Class[_ <: GenericUDF], exprs: Seq[TypedExprNode]) extends TypedExprNode {
@@ -193,6 +210,23 @@ case class TENGUDF(clazz: Class[_ <: GenericUDF], exprs: Seq[TypedExprNode]) ext
 		FunctionRegistry.isDeterministic(gudf))(_ && _.isDeterministic)
 
 	override val isStateful = FunctionRegistry.isStateful(gudf)
+	
+	override def equals(ref: Any) = if (this eq ref.asInstanceOf[AnyRef]) {
+		true
+	} else if (ref == null || ref.getClass() != this.getClass()) {
+		false
+	} else {
+		// if it's the non-deterministic node, then will fail in equality comparison, unless 
+		// exactly the same instance
+		if(isDeterministic && hashCode == ref.hashCode()) {
+		  val that = ref.asInstanceOf[TENGUDF]
+		  clazz.getCanonicalName().equals(that.clazz.getCanonicalName()) && {
+		    exprs == that.exprs
+		  }
+		} else {
+		  false
+		} 
+	}	
 }
 
 // TODO replace the nullCheckRequired with type Seq[Boolean] for indicating each of the child node if it's the require null check
