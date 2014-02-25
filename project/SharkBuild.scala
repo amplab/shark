@@ -129,6 +129,9 @@ object SharkBuild extends Build {
     // Download managed jars into lib_managed.
     retrieveManaged := true,
     resolvers ++= Seq(
+      "MvnRepo" at "http://mvnrepository.com/artifact/",
+      "Maven2" at "http://repo1.maven.org/maven2/",
+      "Local Maven" at Path.userHome.asFile.toURI.toURL + ".m2/repository",
       "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
       "Cloudera Repository" at "https://repository.cloudera.com/artifactory/cloudera-repos/",
       "Sonatype Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/",
