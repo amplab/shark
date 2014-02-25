@@ -42,7 +42,6 @@ class JoinOperator extends CommonJoinOperator[JoinDesc] with ReduceSinkTableDesc
   @transient var tagToValueSer: JHashMap[Int, Deserializer] = _
   @transient var keyDeserializer: Deserializer = _
   @transient var keyObjectInspector: StandardStructObjectInspector = _
-//  @transient val tupleIterator = new this.TupleIterator[Array[AnyRef]]()
 
   override def initializeOnMaster() {
     super.initializeOnMaster()

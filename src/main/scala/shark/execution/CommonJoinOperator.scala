@@ -277,11 +277,11 @@ object CommonJoinOperator {
   // get the evaluated value(boolean) from the table data (the last element in the array)
   // true means failed in the join filter testing, we may need to skip it
   @inline final def filterEval[B](data: B): Boolean = {
-    if(data == null) {
-      true      
+    if (data == null) {
+      true
     } else {
       val fields = data.asInstanceOf[Array[AnyRef]]
-	    fields(fields.length - 1).asInstanceOf[org.apache.hadoop.io.BooleanWritable].get
+      fields(fields.length - 1).asInstanceOf[org.apache.hadoop.io.BooleanWritable].get
     }
   }
 }

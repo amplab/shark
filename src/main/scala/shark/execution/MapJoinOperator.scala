@@ -57,7 +57,6 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc] {
 
   @transient val metadataKeyTag = -1
   @transient var joinValues: Array[JList[ExprNodeEvaluator]] = _
-//  @transient val tupleIterator = new this.TupleIterator[Array[Object]]()
 
   override def initializeOnMaster() {
     super.initializeOnMaster()
@@ -90,22 +89,20 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc] {
   // copied from the org.apache.hadoop.hive.ql.exec.AbstractMapJoinOperator
   override def outputObjectInspector() = {
     var outputObjInspector = super.outputObjectInspector()
-    val structFields = outputObjInspector.asInstanceOf[StructObjectInspector]
-      .getAllStructFieldRefs()
+    val structFields = outputObjInspector.asInstanceOf[StructObjectInspector].getAllStructFieldRefs
     if (conf.getOutputColumnNames().size() < structFields.size()) {
-      var structFieldObjectInspectors = new ArrayList[ObjectInspector]()
+      val structFieldObjectInspectors = new ArrayList[ObjectInspector]
       for (alias <- order) {
-        var sz = conf.getExprs().get(alias).size()
-        var retained = conf.getRetainList().get(alias)
+        val sz = conf.getExprs().get(alias).size()
+        val retained = conf.getRetainList().get(alias)
         for (i <- 0 to sz - 1) {
-          var pos = retained.get(i)
+          val pos = retained.get(i)
           structFieldObjectInspectors.add(structFields.get(pos).getFieldObjectInspector())
         }
       }
-      outputObjInspector = ObjectInspectorFactory
-        .getStandardStructObjectInspector(
-          conf.getOutputColumnNames(),
-          structFieldObjectInspectors)
+      outputObjInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
+        conf.getOutputColumnNames(),
+        structFieldObjectInspectors)
     }
     
     outputObjInspector
@@ -117,7 +114,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc] {
   }
 
   override def executeParents(): Seq[(Int, RDD[_])] = {
-    order.zip(parentOperators).map(x => (x._1.toInt, x._2.execute))
+    order.zip(parentOperators).map(x => (x._1.toInt, x._2.execute()))
   }
 
   override def combineMultipleRdds(rdds: Seq[(Int, RDD[_])]): RDD[_] = {
@@ -200,8 +197,8 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc] {
         joinValuesObjectInspectors(posByte),
         joinFilters(posByte),
         joinFilterObjectInspectors(posByte),
-        (filterMap == null),
-        true)
+        filterMap == null,
+        serializable = true)
       // If we've seen the key before, just add it to the row container wrapped by
       // corresponding MapJoinObjectValue.
       val objValue = valueMap.get(key)
@@ -241,7 +238,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc] {
         joinValuesObjectInspectors(bigTableAlias),
         joinFilters(bigTableAlias),
         joinFilterObjectInspectors(bigTableAlias),
-        (filterMap == null))
+        filterMap == null)
 
       if (nullCheck && JoinUtil.joinKeyHasAnyNulls(key, nullSafes)) {
         val bufsNull = Array.fill[Seq[Array[Object]]](numTables)(Seq())
