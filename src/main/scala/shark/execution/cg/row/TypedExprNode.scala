@@ -51,7 +51,7 @@ object TypedExprNode {
 	def randomName(prefix: String) = prefix + incr.getAndIncrement()
 }
 
-case class TENLiteral(obj: Any = null, dt: DataType = null) extends TypedExprNode with LeafNode[TypedExprNode] {
+case class TENLiteral(obj: Any = null, dt: DataType = null, writable: Boolean = true) extends TypedExprNode with LeafNode[TypedExprNode] {
 	self: Product =>
 
 	outputDT = dt
