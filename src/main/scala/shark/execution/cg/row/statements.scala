@@ -1,15 +1,6 @@
 package shark.execution.cg.row
 
-trait InitTEN {
-	def imports(ctx: CGExprContext, dt: DataType) {
-		dt match {
-			case TypeUtil.TimestampType => ctx.defineImport(dt.clazz)
-			case _ => // do nothing
-		}
-	}
-}
-
-abstract class ExecuteOrderedExprNode(val nested: ExecuteOrderedExprNode = null) extends ExprNode[ExecuteOrderedExprNode] with InitTEN {
+abstract class ExecuteOrderedExprNode(val nested: ExecuteOrderedExprNode = null) extends ExprNode[ExecuteOrderedExprNode] {
   self: Product =>
   def children = (nested :: Nil).filter(_ != null)	
   

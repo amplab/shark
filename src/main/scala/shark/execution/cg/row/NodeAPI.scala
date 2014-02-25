@@ -64,6 +64,7 @@ object TypeUtil {
 
 	def getSetWritableClass(): Class[_] = classOf[SetWritable]
 	def getDeferredObjectClass(): Class[_] = classOf[SetDeferred]
+	def getSetRawClass(): Class[_] = classOf[SetRaw]
 
 	def getDataType(ti: TypeInfo): DataType = map.get(ti) match {
 		case Some(x) => x

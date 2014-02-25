@@ -924,7 +924,7 @@ object CGField {
   private val DEF_EXTRACT_VALUE_VIA_OI = 
     Array[(String, String, String, CGField[_]) => String](
     (obj, varoi, data, f) => { ("%s = ((org.apache.hadoop.hive.serde2.objectinspector.primitive." +
-      "BinaryObjectInspector)%s).getPrimitiveJavaObject(%s).getData();").format(obj, varoi, data) },
+      "BinaryObjectInspector)%s).getPrimitiveJavaObject(%s);").format(obj, varoi, data) },
     (obj, varoi, data, f) => { ("%s = ((org.apache.hadoop.hive.serde2.objectinspector.primitive." +
       "BooleanObjectInspector)%s).get(%s);").format(obj, varoi, data) },
     (obj, varoi, data, f) => { ("%s = ((org.apache.hadoop.hive.serde2.objectinspector.primitive." +

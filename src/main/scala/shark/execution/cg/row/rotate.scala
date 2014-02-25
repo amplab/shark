@@ -191,10 +191,10 @@ class RuleValueGuard {
 	      	val fieldSeq = fields.map(rotate(_, null, false))
 	      	EENOutputRow(x, mergeSeq(fieldSeq))
 	      }
-	      case x @ TENLiteral(obj, dt) => if(nullCheck) {
+	      case x : TENLiteral => if(nullCheck) {
 	      	EENGuardNull(create(x), sibling)
 	      } else {
-	      	sibling
+	      	create(x, sibling)
 	      }
 	    }
   }
@@ -221,18 +221,21 @@ class RuleValueGuard {
 		case x @ EENDeclare(ten, een) => {
 	    	val placeholder = TENDeclareHolder(ten)
 	    	ctx + placeholder
-	    	if(ten.isInstanceOf[TENLiteral] || ctx.count(ten) > 0 || ctx.count(placeholder) > 1) {
+	    	val output = if(ten.isInstanceOf[TENLiteral] || ctx.count(ten) > 0 || ctx.count(placeholder) > 1) {
 	    		// the node exists in the previous list
 	    		cse(een, ctx, null)
 	    	} else {
 	    		EENDeclare(ten, cse(een, ctx, null))
 	    	}
+	    	ctx + ten
+	    	
+	    	output
 	    }
 		case x @ EENGuardNull(een, inner) => {
 		  val ten = een.essential
 		  val placeholder = TENGuardNullHolder(ten)
 			
-			if(ctx.count(placeholder) > 0) {
+		  if(ctx.count(placeholder) > 0) {
 				// we don't need the guard any more
 				cse(inner, ctx, een)
 			} else {
@@ -241,7 +244,9 @@ class RuleValueGuard {
 	    }
 		case x @ EENSequence(expr, next) => {
 		  val ten = if(expr != null) expr.essential else null
-		  EENSequence(cse(expr, ctx, previous), cse(next, ctx + ten, EENAlias(ten)))
+		  val output = EENSequence(cse(expr, ctx, previous), cse(next, ctx + ten, EENAlias(ten)))
+		  if(next != null) ctx + next.essential
+		  output
 		} 
 	    case x @ EENAssignment(ten, een) => {
 	      if(ctx.count(ten) > 0) {

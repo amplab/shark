@@ -38,7 +38,9 @@ package object row {
         w.map(b => "(byte)0x" + Integer.toHexString(0xFF & b)).reduce(_ + "," + _) +
         "})"
     else
-      "null"      
+      "null"
+
+  def string2Text(name: String) = "new Text(%s)".format(name)
 
   /**
    * Generate source code for initializing the constant byte array
@@ -61,6 +63,8 @@ package object row {
         "}"
     else
       "null"
+  
+  def bytes2Writable(name: String) = "new BytesWritable(%s)".format(name)
 
   implicit def timestampConvert2ByteArrayInHex(w: java.sql.Timestamp): String =
     if (w != null)
@@ -71,7 +75,9 @@ package object row {
     if (writable != null)
       timestampConvert2ByteArrayInHex(writable.getTimestamp())
     else
-      "null"      
+      "null" 
+  
+  def timestamp2Writable(name: String) = "new TimestampWritable(%s)".format(name)
 
   implicit def booleanConvert2(w: java.lang.Boolean): String = 
     if(w != null) 
@@ -83,7 +89,8 @@ package object row {
       booleanConvert2(writable.get())
     else
       "false"
-  
+  def boolean2Writable(name: String) = "new BooleanWritable(%s)".format(name)
+      
   implicit def byteConvert2(w: java.lang.Byte): String = 
     if(w != null) 
       "(byte)%s".format(w)
@@ -94,6 +101,7 @@ package object row {
       byteConvert2(writable.get())
     else
       "(byte)0"      
+  def byte2Writable(name: String) = "new ByteWritable(%s)".format(name)
   
   implicit def doubleConvert2(w: java.lang.Double): String = 
     if(w != null) 
@@ -104,7 +112,8 @@ package object row {
     if(writable != null) 
       doubleConvert2(writable.get())
     else
-      "0.0d"      
+      "0.0d"  
+  def double2Writable(name: String) = "new DoubleWritable(%s)".format(name)
   
   implicit def floatConvert2(w: java.lang.Float): String = 
     if(w != null) 
@@ -116,6 +125,8 @@ package object row {
       floatConvert2(writable.get())
     else
       "0.0f"      
+  
+  def float2Writable(name: String) = "new FloatWritable(%s)".format(name)
   
   implicit def intConvert2(w: java.lang.Integer): String = 
     if(w != null) 
@@ -129,6 +140,8 @@ package object row {
     else
       "0"      
   
+  def int2Writable(name: String) = "new IntWritable(%s)".format(name)
+  
   implicit def longConvert2(w: java.lang.Long): String = 
     if(w != null) 
       "%sl".format(w)
@@ -139,7 +152,8 @@ package object row {
       longConvert2(writable.get())
     else
       "0l"      
-
+  def long2Writable(name: String) = "new LongWritable(%s)".format(name)
+  
   implicit def shortConvert2(w: java.lang.Short): String = 
     if(w != null) 
       "(short)%s".format(w)
@@ -151,4 +165,6 @@ package object row {
       shortConvert2(writable.get())
     else
       "(short)0"
+  
+  def short2Writable(name: String) = "new ShortWritable(%s)".format(name)
 }

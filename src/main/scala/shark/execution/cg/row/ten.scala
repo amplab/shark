@@ -213,17 +213,17 @@ class TENFactory {
 					}
 				}
 			}
-			case x: ExprNodeFieldDesc => TENFactory.attribute(x.getFieldName(), create(x.getDesc(), input, false))
+			case x: ExprNodeFieldDesc => TENFactory.attribute(x.getFieldName(), create(x.getDesc(), input, requireWritable))
 			case x: ExprNodeColumnDesc => TENFactory.attribute(x.getColumn(), new TENInputRow(input.struct, x.getColumn())) // TODO should iterate every sub node
-			case x: ExprNodeConstantDesc => TENFactory.literal(x.getValue(), TypeUtil.getDataType(x.getWritableObjectInspector()))
-			case x: ExprNodeNullDesc => TENFactory.literal(null, null)
+			case x: ExprNodeConstantDesc => TENFactory.literal(x.getValue(), TypeUtil.getDataType(x.getWritableObjectInspector()), requireWritable)
+			case x: ExprNodeNullDesc => TENFactory.literal(null, null, requireWritable)
 		}
 	}
 }
 
-object constantTrue extends TENLiteral(true, TypeUtil.BooleanType)
-object constantFalse extends TENLiteral(false, TypeUtil.BooleanType)
-object constantNull extends TENLiteral(null, TypeUtil.NullType)
+object constantTrue extends TENLiteral(true, TypeUtil.BooleanType, false)
+object constantFalse extends TENLiteral(false, TypeUtil.BooleanType, false)
+object constantNull extends TENLiteral(null, TypeUtil.NullType, false)
 
 object TENFactory {
 	import java.lang.reflect.Type
@@ -414,7 +414,7 @@ object TENFactory {
 		}
 	}
 
-	def literal(obj: AnyRef, dt: DataType) = TENLiteral(obj, dt)
+	def literal(obj: AnyRef, dt: DataType, writable: Boolean) = TENLiteral(obj, dt, writable)
 
 	def attribute(attr: String, child: TypedExprNode) = TENAttribute(attr, child)
 
@@ -424,10 +424,10 @@ object TENFactory {
 		if (ObjectInspectorUtils.isConstantObjectInspector(outputType.oi.asInstanceOf[OI]) &&
 			n.isDeterministic && !n.isStateful) {
 			val value = outputType.asInstanceOf[ConstantObjectInspector].getWritableConstantValue()
-			literal(value, outputType)
+			literal(value, outputType, true)
 		} else {
 			TENGUDF(clazz, children.map(node => (node match {
-				case _ @ (TENGUDF(_, _) | TENUDF(_, _)) => TENConvertW2D(node)
+				case _ @ (_: TENGUDF | _: TENUDF | _: TENLiteral) => TENConvertW2D(node)
 				case _ => TENConvertW2D(TENConvertR2W(node))
 			}).asInstanceOf[TypedExprNode]))
 		}
@@ -439,13 +439,13 @@ object TENFactory {
 		if (ObjectInspectorUtils.isConstantObjectInspector(outputType.oi.asInstanceOf[OI]) &&
 			n.isDeterministic && !n.isStateful) {
 			val value = outputType.asInstanceOf[ConstantObjectInspector].getWritableConstantValue()
-			literal(value, outputType)
+			literal(value, outputType, true)
 		} else {
 			val inputDT = udfParamTypes(bridge.getUdfClass(), children.map(_.outputDT))._2
 			
 			TENUDF(bridge, children.zip(inputDT).map(node => (node match {
-				case _ @ (x @ (TENGUDF(_, _) | TENUDF(_, _)), toDT) => if(toDT == x.outputDT) {
-					node
+				case _ @ (x @ (_: TENGUDF | _: TENUDF | _: TENLiteral), toDT) => if(toDT == x.outputDT) {
+					node._1
 				} else {
 					TENConvertR2W(TENConvertR2R(TENConvertW2R(x), toDT))
 				}
@@ -464,7 +464,7 @@ object TENFactory {
 		val rewriteChildren = if (expectType != null)
 			Seq.tabulate[TypedExprNode](children.length)(i => convert(expectType, children(i)))
 		else
-			Seq.tabulate[TypedExprNode](children.length)(i => literal(null, null))
+			Seq.tabulate[TypedExprNode](children.length)(i => literal(null, null, false))
 
 		TENBuiltin(op, rewriteChildren, if (dt == null) expectType else dt)
 	}

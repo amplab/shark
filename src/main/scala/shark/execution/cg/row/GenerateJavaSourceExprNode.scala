@@ -145,9 +145,9 @@ class CGExprContext extends ExprSymbolLookUp {
 		initials += (entry)
 	}
 
-	def propertyC(defType: Class[_], isCreate: Boolean = true, isFinal: Boolean = false, initString: String = null, isStatic: Boolean = false): String = {
-	  property(defType.getCanonicalName(), isCreate, isFinal, initString, isStatic)
-	}
+//	def propertyC(defType: Class[_], isCreate: Boolean = true, isFinal: Boolean = false, initString: String = null, isStatic: Boolean = false): String = {
+//	  property(defType.getCanonicalName(), isCreate, isFinal, initString, isStatic)
+//	}
 
 	def property(defType: String, isCreate: Boolean = true, isFinal: Boolean = false, initString: String = null, isStatic: Boolean = false): String = {
 		val pd = new PropertyDefinition(defType, isCreate, isFinal, isStatic, initString)
@@ -159,40 +159,131 @@ class CGExprContext extends ExprSymbolLookUp {
 }
 
 case class EENAttribute(expr: TENAttribute, sibling: ExecuteOrderedExprNode) extends EENExpr(expr, sibling) {
-	override def initial(ctx: CGExprContext) {
-		imports(ctx, expr.outputDT)
-	}
-
 	override def exprCode(ctx: CGExprContext) = """%s.%s""".format(ctx.exprName(expr.child), expr.escapedName)
 }
 
 case class EENLiteral(expr: TENLiteral, sibling: ExecuteOrderedExprNode) extends EENExpr(expr, sibling) {
-	override def initialEssential(ctx: CGExprContext) {
+	override def initial(ctx: CGExprContext) {
 		val variableName = expr.obj match {
-			case null => ctx.property(expr.dt.primitive, false, true, null, true)
+			case null => if(expr.writable) {
+			  ctx.property(expr.dt.writable, false, true, null, true)
+			} else {
+			  ctx.property(expr.dt.primitive, false, true, null, true)
+			}
 			case x: NullWritable => "null"
-			case x: Text => ctx.property("String", true, true, x, true)
-			case x: String => ctx.property("String", true, true, textConvert2ByteArrayInHex(x), true)
-			case x: BytesWritable => ctx.property("byte[]", true, true, x, true)
-			case x: IntWritable => ctx.property("int", true, true, x, true)
-			case x: java.lang.Integer => ctx.property("int", true, true, x, true)
-			case x: BooleanWritable => ctx.property("boolean", true, true, x, true)
-			case x: java.lang.Boolean => ctx.property("boolean", true, true, x, true)
-			case x: FloatWritable => ctx.property("float", true, true, x, true)
-			case x: java.lang.Float => ctx.property("float", true, true, x, true)
-			case x: DoubleWritable => ctx.property("double", true, true, x, true)
-			case x: java.lang.Double => ctx.property("double", true, true, x, true)
-			case x: LongWritable => ctx.property("long", true, true, x, true)
-			case x: java.lang.Long => ctx.property("long", true, true, x, true)
-			case x: ByteWritable => ctx.property("byte", true, true, x, true)
-			case x: java.lang.Byte => ctx.property("byte", true, true, x, true)
-			case x: ShortWritable => ctx.property("short", true, true, x, true)
-			case x: java.lang.Short => ctx.property("short", true, true, x, true)
-			case x: TimestampWritable => ctx.propertyC(classOf[java.sql.Timestamp], true, true, x, true)
-			case x: java.sql.Timestamp => ctx.propertyC(classOf[java.sql.Timestamp], true, true, x, true)
+			case x: Text => {
+			  val t = if(expr.writable) classOf[Text].getCanonicalName() else "String"
+			  val v: String = if(expr.writable) string2Text(x) else x
+			  
+			  ctx.property(t, true, true, v, true)
+			}
+			case x: String => {
+			  val t = if(expr.writable) classOf[Text].getCanonicalName() else "String"
+			  val v: String = if(expr.writable) { 
+			    string2Text(textConvert2ByteArrayInHex(x)) 
+			  } else {
+			    textConvert2ByteArrayInHex(x)
+			  }
+			  ctx.property(t, true, true, v, true)
+			}
+			case x: BytesWritable => {
+			  val t = if(expr.writable) classOf[BytesWritable].getCanonicalName() else "byte[]"
+			  val v: String = if(expr.writable) bytes2Writable(x) else x
+			  ctx.property(t, true, true, v, true)
+			}
+			case x: IntWritable => {
+			  val t = if(expr.writable) classOf[IntWritable].getCanonicalName() else "int"
+			  val v: String = if(expr.writable) int2Writable(x) else x
+			  ctx.property(t, true, true, v, true)
+			}
+			case x: java.lang.Integer => {
+			  val t = if(expr.writable) classOf[IntWritable].getCanonicalName() else "int"
+			  val v: String = if(expr.writable) int2Writable(x) else x
+			  ctx.property(t, true, true, v, true)
+			}
+			case x: BooleanWritable => {
+			  val t = if(expr.writable) classOf[BooleanWritable].getCanonicalName() else "boolean"
+			  val v: String = if(expr.writable) boolean2Writable(x) else x
+			  ctx.property(t, true, true, v, true)
+			}
+			case x: java.lang.Boolean => {
+			  val t = if(expr.writable) classOf[BooleanWritable].getCanonicalName() else "boolean"
+			  val v: String = if(expr.writable) boolean2Writable(x) else x
+			  ctx.property(t, true, true, v, true)
+			}
+			case x: FloatWritable => {
+			  val t = if(expr.writable) classOf[FloatWritable].getCanonicalName() else "float"
+			  val v: String = if(expr.writable) float2Writable(x) else x
+			  ctx.property(t, true, true, v, true)
+			}
+			case x: java.lang.Float => {
+			  val t = if(expr.writable) classOf[FloatWritable].getCanonicalName() else "float"
+			  val v: String = if(expr.writable) float2Writable(x) else x
+			  ctx.property(t, true, true, v, true)
+			}
+			case x: DoubleWritable => {
+			  val t = if(expr.writable) classOf[DoubleWritable].getCanonicalName() else "double"
+			  val v: String = if(expr.writable) double2Writable(x) else x
+			  ctx.property(t, true, true, v, true)
+			}
+			case x: java.lang.Double => {
+			  val t = if(expr.writable) classOf[DoubleWritable].getCanonicalName() else "double"
+			  val v: String = if(expr.writable) double2Writable(x) else x
+			  ctx.property(t, true, true, v, true)
+			}
+			case x: LongWritable => {
+			  val t = if(expr.writable) classOf[LongWritable].getCanonicalName() else "long"
+			  val v: String = if(expr.writable) long2Writable(x) else x
+			  ctx.property(t, true, true, v, true)
+			}
+			case x: java.lang.Long => {
+			  val t = if(expr.writable) classOf[LongWritable].getCanonicalName() else "long"
+			  val v: String = if(expr.writable) long2Writable(x) else x
+			  ctx.property(t, true, true, v, true)
+			}
+			case x: ByteWritable => {
+			  val t = if(expr.writable) classOf[ByteWritable].getCanonicalName() else "byte"
+			  val v: String = if(expr.writable) byte2Writable(x) else x
+			  ctx.property(t, true, true, v, true)
+			}
+			case x: java.lang.Byte => {
+			  val t = if(expr.writable) classOf[ByteWritable].getCanonicalName() else "byte"
+			  val v: String = if(expr.writable) byte2Writable(x) else x
+			  ctx.property(t, true, true, v, true)
+			}
+			case x: ShortWritable => {
+			  val t = if(expr.writable) classOf[ShortWritable].getCanonicalName() else "short"
+			  val v: String = if(expr.writable) short2Writable(x) else x
+			  ctx.property(t, true, true, v, true)
+			}
+			case x: java.lang.Short => {
+			  val t = if(expr.writable) classOf[ShortWritable].getCanonicalName() else "short"
+			  val v: String = if(expr.writable) short2Writable(x) else x
+			  ctx.property(t, true, true, v, true)
+			}
+			case x: TimestampWritable => {
+			  val t = if(expr.writable) {
+			    classOf[TimestampWritable].getCanonicalName() 
+			  } else {
+			    classOf[java.sql.Timestamp].getCanonicalName()
+			  }
+			  val v: String = if(expr.writable) timestamp2Writable(x) else x
+			  ctx.property(t, true, true, v, true)
+			}
+			case x: java.sql.Timestamp => {
+			  val t = if(expr.writable) {
+			    classOf[TimestampWritable].getCanonicalName() 
+			  } else {
+			    classOf[java.sql.Timestamp].getCanonicalName()
+			  }
+			  val v: String = if(expr.writable) timestamp2Writable(x) else x
+			  ctx.property(t, true, true, v, true)
+			}
 			case _ => throw new CGAssertRuntimeException("TODO")
 		}
 
+		if(expr.writable) ctx.defineImport(expr.outputDT.writable)
+		
 		ctx.register(expr, ctx.EXPR_VARIABLE_TYPE, null)
 		ctx.register(expr, ctx.EXPR_NULL_INDICATOR_NAME, null)
 		ctx.register(expr, ctx.EXPR_VARIABLE_NAME, variableName)
@@ -208,9 +299,7 @@ case class EENUDF(expr: TENUDF, sibling: ExecuteOrderedExprNode) extends EENExpr
 	private var udf: String = _
 
 	override def initial(ctx: CGExprContext) {
-		ctx.defineImport(expr.bridge.getUdfClass().getCanonicalName())
-
-		udf = ctx.propertyC(expr.bridge.getUdfClass())
+		udf = ctx.property(expr.bridge.getUdfClass().getCanonicalName())
 
 		ctx.register(expr, ctx.EXPR_NULL_INDICATOR_NAME, null)
 		ctx.register(expr, ctx.CODE_IS_VALID, "%s != null".format(ctx.exprName(expr)))
@@ -238,7 +327,7 @@ case class EENGUDF(expr: TENGUDF, sibling: ExecuteOrderedExprNode) extends EENEx
 		ctx.defineImport(classOf[DeferredObject])
 		ctx.defineImport(classOf[SetDeferred])
 
-		gudf = ctx.propertyC(expr.clazz)
+		gudf = ctx.property(expr.clazz.getCanonicalName())
 
 		// TODO
 		val inits = "%s.initialize(new ObjectInspector[]{%s});".format(
@@ -276,7 +365,51 @@ case class EENBuiltin(expr: TENBuiltin, sibling: ExecuteOrderedExprNode) extends
 			case _ => "%s%s".format(expr.op, ctx.codeValueRepl(expr.children(0)))
 		}
 	} else {
-		expr.exprs.map(ctx.codeValueRepl(_)).reduce((a, b) => { "%s%s%s".format(a, expr.op, b) })
+	  expr.op match {
+	    case ">" => expr.children(0).outputDT match {
+	      case TypeUtil.StringType => "%s.compareTo(%s) > 0".format(ctx.exprName(expr.children(0)), ctx.exprName(expr.children(1)))
+	      case TypeUtil.BinaryType => {
+	        "org.apache.hadoop.io.WritableComparator.compareBytes(%1$s, 0, %1$s.length, %2$s, 0, %2$s.length) > 0".format(ctx.exprName(expr.children(0)), ctx.exprName(expr.children(1)))
+	      }
+	      case TypeUtil.TimestampType => "%s.compareTo(%s) > 0".format(ctx.exprName(expr.children(0)), ctx.exprName(expr.children(1)))
+	      case _ => defaultExpr(ctx)
+	    }
+		case ">=" => expr.children(0).outputDT match {
+	      case TypeUtil.StringType => "%s.compareTo(%s) >= 0".format(ctx.exprName(expr.children(0)), ctx.exprName(expr.children(1)))
+	      case TypeUtil.BinaryType =>"org.apache.hadoop.io.WritableComparator.compareBytes(%1$s, 0, %1$s.length, %2$s, 0, %2$s.length) >= 0".format(ctx.exprName(expr.children(0)), ctx.exprName(expr.children(1)))
+	      case TypeUtil.TimestampType =>"%s.compareTo(%s) >= 0".format(ctx.exprName(expr.children(0)), ctx.exprName(expr.children(1)))
+	      case _ => defaultExpr(ctx)
+	    }
+		case "=" => expr.children(0).outputDT match {
+	      case TypeUtil.StringType =>"%s.equals(%s)".format(ctx.exprName(expr.children(0)), ctx.exprName(expr.children(1)))
+	      case TypeUtil.BinaryType =>"org.apache.hadoop.io.WritableComparator.compareBytes(%1$s, 0, %1$s.length, %2$s, 0, %2$s.length).compareTo(%s) == 0".format(ctx.exprName(expr.children(0)), ctx.exprName(expr.children(1)))
+	      case TypeUtil.TimestampType =>"%s.equals(%s)".format(ctx.exprName(expr.children(0)), ctx.exprName(expr.children(1)))
+	      case _ => defaultExpr(ctx)
+	    }
+		case "!=" => expr.children(0).outputDT match {
+	      case TypeUtil.StringType =>"!%s.equals(%s)".format(ctx.exprName(expr.children(0)), ctx.exprName(expr.children(1)))
+	      case TypeUtil.BinaryType =>"org.apache.hadoop.io.WritableComparator.compareBytes(%1$s, 0, %1$s.length, %2$s, 0, %2$s.length).compareTo(%s) != 0".format(ctx.exprName(expr.children(0)), ctx.exprName(expr.children(1)))
+	      case TypeUtil.TimestampType =>"!%s.equals(%s)".format(ctx.exprName(expr.children(0)), ctx.exprName(expr.children(1)))
+	      case _ => defaultExpr(ctx)
+	    }
+		case "<=" => expr.children(0).outputDT match {
+	      case TypeUtil.StringType =>"%s.compareTo(%s) <= 0".format(ctx.exprName(expr.children(0)), ctx.exprName(expr.children(1)))
+	      case TypeUtil.BinaryType =>"org.apache.hadoop.io.WritableComparator.compareBytes(%1$s, 0, %1$s.length, %2$s, 0, %2$s.length) <= 0".format(ctx.exprName(expr.children(0)), ctx.exprName(expr.children(1)))
+	      case TypeUtil.TimestampType =>"%s.compareTo(%s) <= 0".format(ctx.exprName(expr.children(0)), ctx.exprName(expr.children(1)))
+	      case _ => defaultExpr(ctx)
+	    }
+		case "<" => expr.children(0).outputDT match {
+	      case TypeUtil.StringType =>"%s.compareTo(%s) < 0".format(ctx.exprName(expr.children(0)), ctx.exprName(expr.children(1)))
+	      case TypeUtil.BinaryType =>"org.apache.hadoop.io.WritableComparator.compareBytes(%1$s, 0, %1$s.length, %2$s, 0, %2$s.length) < 0".format(ctx.exprName(expr.children(0)), ctx.exprName(expr.children(1)))
+	      case TypeUtil.TimestampType =>"%s.compareTo(%s) < 0".format(ctx.exprName(expr.children(0)), ctx.exprName(expr.children(1)))
+	      case _ => defaultExpr(ctx)
+	    }
+		case _ => defaultExpr(ctx)
+	  }
+	}
+	
+	private def defaultExpr(ctx: CGExprContext): String = {
+	  expr.exprs.map(ctx.exprName(_)).reduce((a, b) => { "%s%s%s".format(a, expr.op, b) })
 	}
 }
 
@@ -337,8 +470,8 @@ case class EENConvertR2R(expr: TENConvertR2R, sibling: ExecuteOrderedExprNode) e
 			case TypeUtil.FloatType => "((int)%s)".format(fromExprName)
 			case TypeUtil.DoubleType => "((int)%s)".format(fromExprName)
 			case TypeUtil.LongType => "((int)%s)".format(fromExprName)
-			case TypeUtil.ByteType => "((int)%)".format(fromExprName)
-			case TypeUtil.ShortType => "((int)%)".format(fromExprName)
+			case TypeUtil.ByteType => "((int)%s)".format(fromExprName)
+			case TypeUtil.ShortType => "((int)%s)".format(fromExprName)
 			case TypeUtil.TimestampType => "(int)(%s.getSeconds())".format(fromExprName)
 			case _ => throw new CGAssertRuntimeException(dtFrom + "can not convert to Int")
 		}
@@ -486,13 +619,13 @@ case class EENConvertR2W(expr: TENConvertR2W, sibling: ExecuteOrderedExprNode) e
 
 case class EENConvertW2R(expr: TENConvertW2R, sibling: ExecuteOrderedExprNode) extends EENExpr(expr, sibling) {
 	override def initial(ctx: CGExprContext) {
-		imports(ctx, expr.from.outputDT)
-		
 		ctx.register(expr, ctx.EXPR_VARIABLE_TYPE, expr.from.outputDT.primitive)
 	}
 	override def exprCode(ctx: CGExprContext) = expr.from.outputDT match {
 		case TypeUtil.StringType => "%s.toString()".format(ctx.exprName(expr.from))
-		case TypeUtil.BinaryType => "SetRaw.getBytes(%s)".format(ctx.exprName(expr.from))
+		case TypeUtil.BinaryType => "%s.getBytes(%s)".format(TypeUtil.getSetRawClass().getCanonicalName(), ctx.exprName(expr.from))
+		case TypeUtil.TimestampType => "%s.getTimestamp()".format(ctx.exprName(expr.from))
+		
 		case _ => "%s.get()".format(ctx.exprName(expr.from))
 	}
 }
@@ -502,7 +635,7 @@ case class EENConvertW2D(expr: TENConvertW2D, sibling: ExecuteOrderedExprNode) e
 
 	override def initial(ctx: CGExprContext) {
 		ctx.defineImport(TypeUtil.getDeferredObjectClass())
-		deferredName = ctx.propertyC(TypeUtil.getDeferredObjectClass())
+		deferredName = ctx.property(TypeUtil.getDeferredObjectClass().getCanonicalName())
 		
 		ctx.register(expr, ctx.EXPR_VARIABLE_TYPE, TypeUtil.getDeferredObjectClass().getCanonicalName())
 		ctx.register(expr, ctx.EXPR_NULL_INDICATOR_NAME, null)
