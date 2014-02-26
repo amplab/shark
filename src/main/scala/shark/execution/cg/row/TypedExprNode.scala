@@ -58,7 +58,7 @@ case class TENLiteral(obj: Any = null, dt: DataType = null, writable: Boolean = 
 	override val possibleNullValue = (obj == null)
 }
 
-case class TENInputRow(struct: CGStruct, attr: String = null) extends TypedExprNode with LeafNode[TypedExprNode] {
+case class TENInputRow(struct: CGStruct, attr: String) extends TypedExprNode with LeafNode[TypedExprNode] {
 	self: Product =>
 	outputDT = struct
 	override val possibleNullValue = false

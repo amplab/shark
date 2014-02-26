@@ -59,6 +59,7 @@ case class EENInputRow(expr: TENInputRow) extends EENExpr(expr) {
 		ctx.register(expr, ctx.CODE_IS_VALID, "%s.mask.get(%s.%s)".format(exprName, expr.struct.clazz, expr.maskBitName))
 		ctx.register(expr, ctx.CODE_VALUE_REPL, exprName)
 		ctx.register(expr, ctx.CODE_INVALIDATE, null)
+		ctx.register(expr, ctx.CODE_VALIDATE, null)
 	}
 
 	val exprName: String = Constant.CG_EXPR_NAME_INPUT
@@ -66,7 +67,7 @@ case class EENInputRow(expr: TENInputRow) extends EENExpr(expr) {
 	override def exprCode(ctx: CGExprContext): String = exprName
 }
 
-case class EENCondition(predict: EENExpr, t: ExecuteOrderedExprNode, f: ExecuteOrderedExprNode, branch: TENBranch, sibling: ExecuteOrderedExprNode) extends EENExpr(branch, sibling) {
+case class EENCondition(predict: ExecuteOrderedExprNode, t: ExecuteOrderedExprNode, f: ExecuteOrderedExprNode, branch: TENBranch, sibling: ExecuteOrderedExprNode) extends EENExpr(branch, sibling) {
   override def currCode(ctx: CGExprContext): String = {
   	val pc = predict.code(ctx)
   	val tc = t.code(ctx)
@@ -82,7 +83,7 @@ case class EENOutputField(output: TENOutputField, outter: ExecuteOrderedExprNode
 
   override def initial(ctx: CGExprContext) {
 	  ctx.register(output.expr)
-	  ctx.register(output, ctx.CODE_VALIDATE, "%s.mask.set(%s.%s, true);".format(Constant.CG_EXPR_NAME_OUTPUT, Constant.CG_EXPR_NAME_OUTPUT, output.maskBitName))
+	  ctx.register(output, ctx.CODE_VALIDATE, "%s.mask.set(%s.%s, true);".format(Constant.CG_EXPR_NAME_OUTPUT, ctx.row.output.clazz, output.maskBitName))
 	  ctx.register(output, ctx.EXPR_VARIABLE_NAME, "%s.%s".format(Constant.CG_EXPR_NAME_OUTPUT, output.escapedName))
 	  ctx.register(output, ctx.CODE_VALUE_REPL, "%s.%s".format(Constant.CG_EXPR_NAME_OUTPUT, output.escapedName))
   }
@@ -106,6 +107,7 @@ case class EENOutputExpr(output: TENOutputExpr, een: ExecuteOrderedExprNode) ext
 case class EENOutputRow(expr: TENOutputRow, een: ExecuteOrderedExprNode) extends ExecuteOrderedExprNode(een) {
   override def initialEssential(ctx: CGExprContext) {
 	ctx.register(expr, ctx.CODE_INVALIDATE, null)
+	ctx.row = expr
   }
 
   override def code(ctx: CGExprContext): String = een.code(ctx)

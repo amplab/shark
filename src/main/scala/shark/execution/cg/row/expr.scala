@@ -7,7 +7,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.{ ObjectInspectorFactory =>
 object TENInstance {
   def create(names: Seq[String], exprs: Seq[ExprNodeDesc], input: CGStruct, output: CGStruct = null): TypedExprNode = {
     val factory = new TENFactory
-    val rowInput = TENInputRow(input)
+    val rowInput = TENInputRow(input, null)
 
     val fields: Seq[TENOutputField] = if (output != null) {
       // sweep the constant expression in the root
@@ -38,7 +38,7 @@ object TENInstance {
   
   def create(filter: ExprNodeDesc, expectedDT: DataType, input: CGStruct): TENOutputExpr = {
     val factory = new TENFactory
-    val rowInput = TENInputRow(input)
+    val rowInput = TENInputRow(input, null)
 
     factory.create(filter, expectedDT, rowInput)
   }  
