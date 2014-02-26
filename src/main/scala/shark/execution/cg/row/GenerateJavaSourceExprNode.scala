@@ -94,6 +94,8 @@ trait ExprSymbolLookUp {
 	val EXPR_NULL_INDICATOR_NAME = "expr_null_indicator"
 
 	private val table = Map[TypedExprNode, Map[String, String]]()
+	var row: TENOutputRow = _
+	
 	private def name(expr: TypedExprNode, prefix: String): String = prefix + expr.exprId
 
 	def getExprCode(expr: TypedExprNode, key: String) = table.getOrElse(expr, {
@@ -118,7 +120,7 @@ trait ExprSymbolLookUp {
 		entry += (EXPR_VARIABLE_NAME -> name(node, "__expr_"))
 		entry += (EXPR_NULL_INDICATOR_NAME -> name(node, "__indicator_"))
 	}
-
+	
 	def codeIsValid(expr: TypedExprNode): String = getExprCode(expr, CODE_IS_VALID)
 	def codeValueRepl(expr: TypedExprNode): String = getExprCode(expr, CODE_VALUE_REPL)
 	def codeInvalidate(expr: TypedExprNode): String = getExprCode(expr, CODE_INVALIDATE)

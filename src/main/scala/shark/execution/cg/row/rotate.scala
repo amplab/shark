@@ -1,24 +1,25 @@
 package shark.execution.cg.row
 
-class PathNodeContext(table: scala.collection.mutable.Map[TypedExprNode, Int] = scala.collection.mutable.Map[TypedExprNode, Int]()) {
-		def + (ten: TypedExprNode) = {
-		  if(ten != null) { 
-		    val c = count(ten)
-			table.update(ten, c + 1)
-		  }
-		  
-		  this
-		}
-		
-	    def ++ (tens: Seq[TypedExprNode]) = {
-	    	tens.foreach(this + _)
-	    	
-	    	this
-		}
-	    
-		def count(ten: TypedExprNode): Int = if(ten == null) 0 else table.getOrElse(ten, 0)
-		
-		override def clone = new PathNodeContext(table.clone)
+class PathNodeContext(table: scala.collection.mutable.Map[TypedExprNode, TypedExprNode] = 
+  scala.collection.mutable.Map[TypedExprNode, TypedExprNode]()) {
+  
+  def update(ten: TypedExprNode): PathNodeContext = {
+    if(ten != null) { 
+      table.getOrElseUpdate(ten, ten)
+    }
+
+    this
+  }
+
+  def update(tens: Seq[TypedExprNode]): PathNodeContext = {
+    tens.foreach(this update _)
+
+    this
+  }
+
+  def get(ten: TypedExprNode): TypedExprNode = if(ten == null) null else table.getOrElse(ten, null)
+
+  override def clone = new PathNodeContext(table.clone)
 }
 
 class RuleValueGuard {
@@ -81,7 +82,7 @@ class RuleValueGuard {
   private def transform(ten: TypedExprNode, sibling: ExecuteOrderedExprNode, nullCheck: Boolean): ExecuteOrderedExprNode = {
   	  ten match {
   		  case x : TENInputRow => {
-  		  	sibling
+  		  	EENGuardNull(create(x), sibling)
   		  }
 	      case x @ TENAttribute(attr, outter) => {
 	      	if(nullCheck) {
@@ -220,68 +221,103 @@ class RuleValueGuard {
 		case null => null
 		case x @ EENDeclare(ten, een) => {
 	    	val placeholder = TENDeclareHolder(ten)
-	    	ctx + placeholder
-	    	val output = if(ten.isInstanceOf[TENLiteral] || ctx.count(ten) > 0 || ctx.count(placeholder) > 1) {
+	    	
+	    	val output = if(ten.isInstanceOf[TENLiteral] || ctx.get(ten) != null || ctx.get(placeholder) != null) {
 	    		// the node exists in the previous list
 	    		cse(een, ctx, null)
 	    	} else {
-	    		EENDeclare(ten, cse(een, ctx, null))
+	    	  ctx.update(placeholder)
+	    	  val nested = cse(een, ctx, null)
+	    	  if(nested != null) EENDeclare(ten, nested) else null
 	    	}
-	    	ctx + ten
+	    	ctx.update(ten)
 	    	
 	    	output
 	    }
 		case x @ EENGuardNull(een, inner) => {
 		  val ten = een.essential
+		  
+		  val value = ctx.get(ten)
+		  val guard = if(value != null) {
+		    EENAlias(value)
+		  } else {
+		    ctx.update(ten)
+		    een
+		  }
+		  
 		  val placeholder = TENGuardNullHolder(ten)
-			
-		  if(ctx.count(placeholder) > 0) {
-				// we don't need the guard any more
-				cse(inner, ctx, een)
-			} else {
-				EENGuardNull(een, cse(inner, ctx.clone + placeholder, een))
-			}
+		  val output = if(ctx.get(placeholder) != null) {
+		    // we don't need the guard any more
+		    cse(inner, ctx, guard)
+		  } else {
+		    val nested = cse(inner, ctx.clone.update(placeholder), guard)
+		    if(nested != null) EENGuardNull(guard, nested) else null
+		  }
+		  
+		  output
 	    }
 		case x @ EENSequence(expr, next) => {
 		  val ten = if(expr != null) expr.essential else null
-		  val output = EENSequence(cse(expr, ctx, previous), cse(next, ctx + ten, EENAlias(ten)))
-		  if(next != null) ctx + next.essential
-		  output
+		  val p = if(ten != null) {
+		    cse(expr, ctx, previous)
+		  } else {
+		    null
+		  }
+		  
+		  val n = if(next != null) {
+		    val prev = ctx.get(ten)
+		    
+		    val t = cse(next, ctx.update(ten), if(prev == null) null else EENAlias(prev))
+		    ctx.update(next.essential)
+		    
+		    t
+		  } else {
+		    null
+		  }
+		  if(p != null || n != null) EENSequence(p, n) else null
 		} 
 	    case x @ EENAssignment(ten, een) => {
-	      if(ctx.count(ten) > 0) {
-	        cse(een, ctx + ten, null)
+	      if(ctx.get(ten) != null) {
+	        cse(een, ctx, null)
 	      } else {
-	    	EENAssignment(ten, cse(een, ctx + ten, null))
+	    	EENAssignment(ten, cse(een, ctx.update(ten), null))
 	      }
 	    }
 	    case x @ EENCondition(predict, branchThen, branchElse, branch, sibling) => {
-	      if(ctx.count(branch) > 0) {
-	        cse(sibling, ctx, EENAlias(branch))
+	      val bvalue = ctx.get(branch)
+	      if(bvalue != null) {
+	        cse(sibling, ctx, EENAlias(bvalue))
 	      } else {
-		    ctx + predict.ten
-		    
-            val eenPredict = if(ctx.count(predict.ten) > 1) {
-	    	  EENAlias(predict.ten)
+	        val pvalue = ctx.get(predict.essential)
+            val eenPredict = if(pvalue != null) {
+	    	  EENAlias(pvalue)
 	        } else {
-	    	  create(predict.ten)
+	    	  cse(predict, ctx, previous)
 	        }
+	        ctx.update(predict.essential)
 
-		    EENCondition(eenPredict, 
+          EENCondition(eenPredict, 
 	    		cse(branchThen, ctx.clone, null), 
 	    		cse(branchElse, ctx.clone, null), 
-	    		branch, cse(sibling, ctx + branch, EENAlias(branch)))
+	    		branch, cse(sibling, ctx.update(branch), EENAlias(ctx.get(branch))))
 	      }
 	    }
-	    case x @ EENAlias(ten, sibling) => if(sibling == null) {
-	      x
-	    } else {
-	      EENAlias(ten, cse(sibling, ctx + ten, null))
-	    }
-		case x @ EENInputRow(expr) => if(ctx.count(expr) > 0) EENAlias(expr) else x
-		case x @ EENOutputField(field, _) => if(ctx.count(field) > 0) {
-		  EENAlias(field)
+	    case x @ EENAlias(ten, sibling) => EENAlias(ctx.get(ten), cse(sibling, ctx, null))
+		case x @ EENInputRow(expr) => {
+		  val value = ctx.get(expr)
+		  if(value != null) {
+		    EENAlias(value) 
+		  } else {
+		    ctx.update(expr)
+		    x
+		  }
+		}
+		case x @ EENOutputField(field, _) => 
+		val value = ctx.get(field)
+		if(value != null) {
+		  EENAlias(value)
 		} else {
+		  ctx.update(field)
 		  EENOutputField(field, previous)
 		}
 		case x @ EENOutputExpr(ten, _) => EENOutputExpr(ten, previous)
@@ -289,63 +325,77 @@ class RuleValueGuard {
 			EENOutputRow(row, cse(seq, ctx, null))
 		}
 		case x @ EENLiteral(expr, sibling) => {
-		  EENLiteral(expr, cse(sibling, ctx + TENGuardNullHolder(expr), EENAlias(expr)))
+		  val value = ctx.get(expr)
+		  if(value != null) {
+		    cse(sibling, ctx, EENAlias(value))
+		  } else {
+		    ctx.update(expr)
+		    EENLiteral(expr, cse(sibling, ctx.update(TENGuardNullHolder(expr)), EENAlias(expr)))
+		  }
 		}
 		case x @ EENAttribute(expr, sibling) => 
-		ctx + expr
-		if(ctx.count(expr) > 1) {
-			cse(sibling, ctx, EENAlias(expr))
+		val value = ctx.get(expr)
+		if(value != null) {
+			cse(sibling, ctx, EENAlias(value))
 		} else {
-			EENAttribute(expr, cse(sibling, ctx + TENGuardNullHolder(expr), EENAlias(expr)))
+		  ctx.update(expr)
+		  EENAttribute(expr, cse(sibling, ctx.update(TENGuardNullHolder(expr)), EENAlias(expr)))
 		}
 		case x @ EENBuiltin(expr, sibling) => 
-		ctx + expr
-		if(ctx.count(expr) > 1) {
+		val value = ctx.get(expr)
+		if(value != null) {
 			// not need to re-compute the builtin
-			cse(sibling, ctx, EENAlias(expr))
+			cse(sibling, ctx, EENAlias(value))
 		} else {
-			EENBuiltin(expr, cse(sibling, ctx + TENGuardNullHolder(expr), EENAlias(expr)))
+		  ctx.update(expr)
+		  EENBuiltin(expr, cse(sibling, ctx.update(TENGuardNullHolder(expr)), EENAlias(expr)))
 		}
 		case x @ EENConvertR2R(expr, sibling) => 
-		ctx + expr
-		if(ctx.count(expr) > 1) {
-			cse(sibling, ctx, EENAlias(expr))
+		val value = ctx.get(expr)
+		if(value != null) {
+			cse(sibling, ctx, EENAlias(value))
 		} else {
+		  ctx.update(expr)
 			EENConvertR2R(expr, cse(sibling, ctx, EENAlias(expr)))
 		}
 		case x @ EENConvertR2W(expr, sibling) => 
-		ctx + expr
-		if(ctx.count(expr) > 1) {
-			cse(sibling, ctx, EENAlias(expr))
+		val value = ctx.get(expr)
+		if(value != null) {
+			cse(sibling, ctx, EENAlias(value))
 		} else {
+		  ctx.update(expr)
 			EENConvertR2W(expr, cse(sibling, ctx, EENAlias(expr)))
 		}
 		case x @ EENConvertW2R(expr, sibling) => 
-		ctx + expr
-		if(ctx.count(expr) > 1) {
-			cse(sibling, ctx, EENAlias(expr))
+		val value = ctx.get(expr)
+		if(value != null) {
+			cse(sibling, ctx, EENAlias(value))
 		} else {
+		  ctx.update(expr)
 			EENConvertW2R(expr, cse(sibling, ctx, EENAlias(expr)))
 		}
 		case x @ EENConvertW2D(expr, sibling) => 
-		ctx + expr
-		if(ctx.count(expr) > 1) {
-			cse(sibling, ctx, EENAlias(expr))
+		val value = ctx.get(expr)
+		if(value != null) {
+			cse(sibling, ctx, EENAlias(value))
 		} else {
+		  ctx.update(expr)
 			EENConvertW2D(expr, cse(sibling, ctx, EENAlias(expr)))
 		}
 		case x @ EENGUDF(expr, sibling) => 
-		ctx + expr
-		if(ctx.count(expr) > 1) {
-			cse(sibling, ctx, EENAlias(expr))
+		val value = ctx.get(expr)
+		if(value != null) {
+			cse(sibling, ctx, EENAlias(value))
 		} else {
+		  ctx.update(expr)
 			EENGUDF(expr, cse(sibling, ctx, EENAlias(expr)))
 		}
 		case x @ EENUDF(expr, sibling) => 
-		ctx + expr
-		if(ctx.count(expr) > 1) {
-			cse(sibling, ctx, EENAlias(expr))
+		val value = ctx.get(expr)
+		if(value != null) {
+			cse(sibling, ctx, EENAlias(value))
 		} else {
+		  ctx.update(expr)
 			EENUDF(expr, cse(sibling, ctx, EENAlias(expr)))
 		}
 	}

@@ -85,10 +85,15 @@ case class EENGuardNull(een: EENExpr, inner: ExecuteOrderedExprNode) extends Exe
   	    	code.append(een.code(ctx))
   	    }
   		val cond = ctx.codeIsValid(een.ten)
-  		if (cond != null) {
-  			code.append("if(%s) {\n%s\n}".format(cond, inner.code(ctx))) 
+  		val innerCode = inner.code(ctx)
+  		if(innerCode == null || innerCode.isEmpty()) {
+  		  code.append("")
   		} else {
-  			code.append(inner.code(ctx))
+	  		if (cond != null) {
+	  			code.append("if(%s) {\n%s\n}".format(cond, innerCode)) 
+	  		} else {
+	  			code.append(innerCode)
+	  		}
   		}
   		
   		code.toString
