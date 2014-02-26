@@ -304,8 +304,15 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
     if (work.cacheMode != CacheType.TACHYON) {
       val memoryTable = getOrCreateMemoryTable(hiveTable)
       work.commandType match {
-        case (SparkLoadWork.CommandTypes.OVERWRITE | SparkLoadWork.CommandTypes.NEW_ENTRY) =>
-          memoryTable.put(tablePartitionRDD, tableStats.toMap)
+        case (SparkLoadWork.CommandTypes.OVERWRITE | SparkLoadWork.CommandTypes.NEW_ENTRY) => {
+          val prevRDDandStatsOpt = memoryTable.put(tablePartitionRDD, tableStats.toMap)
+          if (prevRDDandStatsOpt.isDefined){
+            // Prevent memory leaks when partition is overwritten
+            val (prevRdd, prevStats) = (prevRDDandStatsOpt.get._1, prevRDDandStatsOpt.get._2)
+            RDDUtils.unpersistRDD(prevRdd)
+          }
+
+        }
         case SparkLoadWork.CommandTypes.INSERT => {
           memoryTable.update(tablePartitionRDD, tableStats)
         }
@@ -398,7 +405,13 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
             (work.commandType == SparkLoadWork.CommandTypes.INSERT)) {
           partitionedTable.updatePartition(partitionKey, tablePartitionRDD, tableStats)
         } else {
-          partitionedTable.putPartition(partitionKey, tablePartitionRDD, tableStats.toMap)
+          val prevRDDandStatsOpt = partitionedTable.putPartition(partitionKey, tablePartitionRDD, tableStats.toMap)
+          if (prevRDDandStatsOpt.isDefined){
+            // Prevent memory leaks when partition is overwritten
+            val (prevRdd, prevStats) = (prevRDDandStatsOpt.get._1, prevRDDandStatsOpt.get._2)
+            RDDUtils.unpersistRDD(prevRdd)
+          }
+          
         }
       }
     }
