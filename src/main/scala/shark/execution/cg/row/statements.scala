@@ -75,16 +75,13 @@ case class EENSequence(expr: ExecuteOrderedExprNode, next: ExecuteOrderedExprNod
   override def children = (expr :: next :: Nil).filter(_ != null)	
 }
 
-case class EENGuardNull(een: EENExpr, inner: ExecuteOrderedExprNode) extends ExecuteOrderedExprNode(inner) {
+case class EENGuardNull(ten: TypedExprNode, inner: ExecuteOrderedExprNode) extends ExecuteOrderedExprNode(inner) {
   override def code(ctx: CGExprContext): String = {
-  	if(een.ten == constantNull) {
+  	if(ten == constantNull) {
   		"" 
   	} else {
   		val code = new StringBuffer()
-  	    if(!een.isInstanceOf[EENAlias] && !een.isInstanceOf[EENInputRow]) {
-  	    	code.append(een.code(ctx))
-  	    }
-  		val cond = ctx.codeIsValid(een.ten)
+  		val cond = ctx.codeIsValid(ten)
   		val innerCode = inner.code(ctx)
   		if(innerCode == null || innerCode.isEmpty()) {
   		  code.append("")
@@ -100,5 +97,5 @@ case class EENGuardNull(een: EENExpr, inner: ExecuteOrderedExprNode) extends Exe
   	}
   }
   
-  override def children = (een :: inner :: Nil).filter(_ != null)
+  override def children = (inner :: Nil).filter(_ != null)
 }

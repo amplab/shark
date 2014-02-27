@@ -180,6 +180,38 @@ class TENFactory {
 				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 				TENFactory.builtin("~", children) 
 			}
+			case x: UDFToBoolean => {
+			  val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
+			  TENFactory.convert(TypeUtil.BooleanType, children(0))
+			}
+			case x: UDFToByte => {
+			  val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
+			  TENFactory.convert(TypeUtil.ByteType, children(0))
+			}
+			case x: UDFToDouble => {
+			  val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
+			  TENFactory.convert(TypeUtil.DoubleType, children(0))
+			}
+			case x: UDFToFloat => {
+			  val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
+			  TENFactory.convert(TypeUtil.FloatType, children(0))
+			}
+			case x: UDFToInteger => {
+			  val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
+			  TENFactory.convert(TypeUtil.IntegerType, children(0))
+			}
+			case x: UDFToLong => {
+			  val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
+			  TENFactory.convert(TypeUtil.LongType, children(0))
+			}
+			case x: UDFToShort => {
+			  val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
+			  TENFactory.convert(TypeUtil.ShortType, children(0))
+			}
+			case x: UDFToString => {
+			  val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
+			  TENFactory.convert(TypeUtil.StringType, children(0))
+			}
 			// un-recognized UDF will resort to the TENUDF, which generates code for UDF invoking 
 			case _ => {
 				val children = node.getChildren().map(create(_, input, true)).toArray.toSeq
@@ -404,7 +436,7 @@ object TENFactory {
 	/**
 	 * Helper function to convert object to specified primitive type. 
 	 */
-	protected def convert(expectedType: DataType, node: TypedExprNode): TypedExprNode = {
+	def convert(expectedType: DataType, node: TypedExprNode): TypedExprNode = {
 		val inputType = node.outputDT
 		
 		if (inputType == expectedType) {
