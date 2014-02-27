@@ -40,7 +40,9 @@ case class EENDeclare(ten: TypedExprNode, expr: ExecuteOrderedExprNode = null) e
   	if(variableType != null) {
   	  code.append(define(variableType, variableName))
   	}
-  	if(nullIndicatorName != null) code.append("boolean %s = false;".format(nullIndicatorName))
+  	if(nullIndicatorName != null) {
+  	  code.append("boolean %s = %s;".format(nullIndicatorName, ctx.indicatorDefaultValue(ten)))
+  	}
   	
   	code.toString()
   }

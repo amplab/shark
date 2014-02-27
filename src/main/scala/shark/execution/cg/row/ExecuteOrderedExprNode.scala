@@ -34,6 +34,7 @@ abstract class EENExpr(val ten: TypedExprNode, nested: ExecuteOrderedExprNode = 
 		    ctx.exprName(ten),
 			"%s = false;".format(ctx.indicatorName(ten)),
 			"%s = true;".format(ctx.indicatorName(ten)))
+	      ctx.register(ten, ctx.EXPR_NULL_INDICATOR_DEFAULT_VALUE, "false")
 		}
 	}
   
@@ -54,18 +55,18 @@ case class EENAlias(expr: TypedExprNode, sibling: ExecuteOrderedExprNode = null)
 
 case class EENInputRow(expr: TENInputRow, sibling: ExecuteOrderedExprNode) extends EENExpr(expr, sibling) {
 	override def initial(ctx: CGExprContext) {
-	    ctx.register(expr, ctx.EXPR_VARIABLE_TYPE, null)
-		ctx.register(expr, ctx.EXPR_NULL_INDICATOR_NAME, null)
-		ctx.register(expr, ctx.EXPR_VARIABLE_NAME, exprName)
-		ctx.register(expr, ctx.CODE_IS_VALID, "%s.mask.get(%s.%s)".format(exprName, expr.struct.clazz, expr.maskBitName))
-		ctx.register(expr, ctx.CODE_VALUE_REPL, exprName)
+	    ctx.register(expr, ctx.EXPR_VARIABLE_TYPE, expr.outputDT.primitive)
+		ctx.register(expr, ctx.EXPR_NULL_INDICATOR_DEFAULT_VALUE, 
+		    "%s.mask.get(%s.%s)".format(Constant.CG_EXPR_NAME_INPUT, 
+		        expr.struct.clazz, expr.maskBitName))
+//		ctx.register(expr, ctx.EXPR_VARIABLE_NAME, exprName)
+//		ctx.register(expr, ctx.CODE_IS_VALID, )
+//		ctx.register(expr, ctx.CODE_VALUE_REPL, exprName)
 		ctx.register(expr, ctx.CODE_INVALIDATE, null)
 		ctx.register(expr, ctx.CODE_VALIDATE, null)
 	}
 
-	val exprName: String = Constant.CG_EXPR_NAME_INPUT
-		
-	override def exprCode(ctx: CGExprContext): String = null
+	override def exprCode(ctx: CGExprContext): String = "%s.%s".format(Constant.CG_EXPR_NAME_INPUT, expr.escapedName)
 }
 
 case class EENCondition(predict: ExecuteOrderedExprNode, t: ExecuteOrderedExprNode, f: ExecuteOrderedExprNode, branch: TENBranch, sibling: ExecuteOrderedExprNode) extends EENExpr(branch, sibling) {

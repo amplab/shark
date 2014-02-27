@@ -85,14 +85,14 @@ class RuleValueGuard {
   		    if(nullCheck) {
   		  	  EENDeclare(x, create(x, EENGuardNull(x, sibling)))
   		    } else {
-  		      create(x, EENGuardNull(x, sibling))
+  		      EENDeclare(x, create(x, sibling))
   		    }
   		  }
 	      case x @ TENAttribute(attr, outter) => {
 	      	if(nullCheck) {
-	      	  EENDeclare(x, rotate(outter, create(x, EENGuardNull(x, sibling)), true))
+	      	  rotate(outter, EENDeclare(x, create(x, EENGuardNull(x, sibling))), true)
 	      	} else {
-	      	  EENDeclare(x, rotate(outter, create(x, sibling), false))
+	      	  EENDeclare(x, rotate(outter, EENGuardNull(outter, create(x, sibling)), false))
 	      	}
 	      }
 	      case x @ TENBranch(branchIf, branchThen, branchElse) => {
@@ -122,7 +122,7 @@ class RuleValueGuard {
 	      }
 	      case x @ TENBuiltin(op, children, dt, true) => {
             if(nullCheck) {
-	           children.foldRight[ExecuteOrderedExprNode](EENDeclare(x, EENSequence(create(x), sibling)))((e1, e2) => {
+	           children.foldRight[ExecuteOrderedExprNode](EENDeclare(x, create(x, sibling)))((e1, e2) => {
 	             rotate(e1, e2, true)
 	           })
 	      	} else {
@@ -132,7 +132,7 @@ class RuleValueGuard {
 	      	}
 	      }
 	      case x @ TENBuiltin(op, children, dt, false) => {
-	         children.foldRight[ExecuteOrderedExprNode](EENDeclare(x, EENSequence(create(x), sibling)))((e1, e2) => {
+	         children.foldRight[ExecuteOrderedExprNode](EENDeclare(x, create(x, sibling)))((e1, e2) => {
 	           rotate(e1, e2, false)
 	         })
 	      }
@@ -140,14 +140,14 @@ class RuleValueGuard {
 	      	if(nullCheck) {
 	      	  rotate(expr, EENDeclare(x, create(x, EENGuardNull(x, sibling))), true)
 	      	} else {
-	      	  EENDeclare(x, rotate(expr, create(x, sibling), true))
+	      	  EENDeclare(x, rotate(expr, EENGuardNull(expr, create(x, sibling)), false))
 	      	}
 	      }
 	      case x @ TENConvertR2W(expr) => {
 	      	if(nullCheck) {
 	      	  rotate(expr, EENDeclare(x, create(x, EENGuardNull(x, sibling))), true)
 	      	} else {
-	      	  EENDeclare(x, rotate(expr, create(x, sibling), true))
+	      	  EENDeclare(x, rotate(expr, EENGuardNull(expr, create(x, sibling)), false))
 	      	}
 	      }
 	      case x @ TENConvertW2D(expr) => {
@@ -157,7 +157,7 @@ class RuleValueGuard {
 	      	if(nullCheck) {
 	      	  rotate(expr, EENDeclare(x, create(x, EENGuardNull(x, sibling))), true)
 	      	} else {
-	      	  EENDeclare(x, rotate(expr, create(x, sibling), true))
+	      	  EENDeclare(x, rotate(expr, EENGuardNull(expr, create(x, sibling)), false))
 	      	}
 	      }
 	      case x @ TENGUDF(clazz, children) => {
@@ -183,7 +183,7 @@ class RuleValueGuard {
 	      	}
 	      }
 	      case x @ TENOutputField(name, expr, dt) => {
-	      	rotate(expr, EENOutputField(x), false)
+	      	rotate(expr, EENOutputField(x), true)
 	      }
 	      case x @ TENOutputExpr(expr) => {
 	        // rotate the fields first, and in the mean time, will collect the stateful UDF node

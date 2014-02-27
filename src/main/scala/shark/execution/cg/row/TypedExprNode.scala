@@ -22,7 +22,7 @@ abstract class TypedExprNode extends ExprNode[TypedExprNode] {
 	val isStateful = false
 
 	// output data type
-	var outputDT: DataType = _
+	def outputDT: DataType = null
 
 	val possibleNullValue = true
 
@@ -54,15 +54,15 @@ object TypedExprNode {
 case class TENLiteral(obj: Any = null, dt: DataType = null, writable: Boolean = true) extends TypedExprNode with LeafNode[TypedExprNode] {
 	self: Product =>
 
-	outputDT = dt
+	override def outputDT = dt
 	override val possibleNullValue = (obj == null)
 }
 
 case class TENInputRow(struct: CGStruct, attr: String) extends TypedExprNode with LeafNode[TypedExprNode] {
 	self: Product =>
-	outputDT = struct
+	override def outputDT = field
 	override val possibleNullValue = false
-	override val exprId = "__input__"
+//	override val exprId = "__input__"
 
 	lazy val field = struct.getField(attr)
 	
@@ -72,7 +72,7 @@ case class TENInputRow(struct: CGStruct, attr: String) extends TypedExprNode wit
 
 case class TENOutputField(attr: String, expr: TypedExprNode, dt: DataType) extends TypedExprNode with UnaryNode[TypedExprNode] {
 	self: Product =>
-	outputDT = dt
+	override def outputDT = dt
 
 	def child = expr
 	override val exprId = "__output__"
@@ -83,7 +83,7 @@ case class TENOutputField(attr: String, expr: TypedExprNode, dt: DataType) exten
 
 case class TENOutputExpr(expr: TypedExprNode) extends TypedExprNode with UnaryNode[TypedExprNode] {
 	self: Product =>
-	outputDT = expr.outputDT
+	override def outputDT = expr.outputDT
 
 	def child = expr
 	override val exprId = "__filter__"
@@ -91,7 +91,7 @@ case class TENOutputExpr(expr: TypedExprNode) extends TypedExprNode with UnaryNo
 
 case class TENOutputRow(fields: Seq[TypedExprNode], output: CGStruct) extends TypedExprNode {
 	self: Product =>
-	outputDT = output
+	override def outputDT = output
 
 	def children = fields
 
@@ -102,7 +102,7 @@ abstract class TENConvert(from: TypedExprNode, to: DataType) extends TypedExprNo
 	self: Product =>
 
 	override def child = from
-	outputDT = to
+	override def outputDT = to
 
 	override val isDeterministic = from.isDeterministic
 }
@@ -130,7 +130,7 @@ case class TENConvertW2R(from: TypedExprNode) extends TENConvert(from, from.outp
 // TODO need to consider about the union
 case class TENAttribute(attr: String, expr: TypedExprNode) extends TypedExprNode with UnaryNode[TypedExprNode] {
 	self: Product =>
-	outputDT = expr.outputDT.asInstanceOf[CGStruct].getField(attr)
+	override def outputDT = expr.outputDT.asInstanceOf[CGStruct].getField(attr)
 	override def child = expr
 	
     def escapedName = CGUtil.makeCGFieldName(attr)
@@ -154,7 +154,7 @@ case class TENAttribute(attr: String, expr: TypedExprNode) extends TypedExprNode
 
 case class TENUDF(bridge: GenericUDFBridge, exprs: Seq[TypedExprNode]) extends TypedExprNode {
 	self: Product =>
-	outputDT = {
+	override def outputDT = {
 		import org.apache.hadoop.util.ReflectionUtils
 
 		// TODO need to think about how to convert the Struct / map / union / list to DataType
@@ -192,7 +192,7 @@ case class TENUDF(bridge: GenericUDFBridge, exprs: Seq[TypedExprNode]) extends T
 
 case class TENGUDF(clazz: Class[_ <: GenericUDF], exprs: Seq[TypedExprNode]) extends TypedExprNode {
 	self: Product =>
-	outputDT = {
+	override def outputDT = {
 		import org.apache.hadoop.util.ReflectionUtils
 
 		val genericUDF = ReflectionUtils.newInstance(clazz, null).asInstanceOf[GenericUDF]
@@ -233,7 +233,7 @@ case class TENGUDF(clazz: Class[_ <: GenericUDF], exprs: Seq[TypedExprNode]) ext
 // just in case of the rewrite the GenericUDF like printf()
 case class TENBuiltin(op: String, exprs: Seq[TypedExprNode], dt: DataType, nullCheckRequired: Boolean = true) extends TypedExprNode {
 	self: Product =>
-	outputDT = dt
+	override def outputDT = dt
 	override val isDeterministic = children.foldLeft(true)((a, b) => { a && b.isDeterministic })
 	
 	def children = exprs
@@ -241,7 +241,7 @@ case class TENBuiltin(op: String, exprs: Seq[TypedExprNode], dt: DataType, nullC
 
 case class TENBranch(branchIf: TypedExprNode, branchThen: TypedExprNode, branchElse: TypedExprNode) extends TypedExprNode {
 	self: Product =>
-	outputDT = branchThen.outputDT
+	override def outputDT = branchThen.outputDT
 
 	override def children = (branchIf :: branchThen :: branchElse :: Nil).filter(_ != null)
 
