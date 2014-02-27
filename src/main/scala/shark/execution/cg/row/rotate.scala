@@ -306,7 +306,7 @@ class RuleValueGuard {
 		  if(value != null) {
 		    cse(sibling, ctx, EENAlias(value)) 
 		  } else {
-		    val output = EENInputRow(expr, cse(sibling, ctx, null))
+		    val output = EENInputRow(expr, cse(sibling, ctx.update(expr).update(TENGuardNullHolder(expr)), EENAlias(expr)))
 		    ctx.update(expr)
 		    
 		    output
