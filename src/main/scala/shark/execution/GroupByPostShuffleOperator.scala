@@ -494,5 +494,5 @@ class GroupByPostShuffleOperator extends GroupByPreShuffleOperator
 object GroupByAggregator {
   def createCombiner(v: Any) = ArrayBuffer(v)
   def mergeValue(buf: ArrayBuffer[Any], v: Any) = buf += v
-  def mergeCombiners(c1: ArrayBuffer[V], c2: ArrayBuffer[V]) = c1 ++ c2
+  def mergeCombiners(c1: ArrayBuffer[Any], c2: ArrayBuffer[Any]) = c1 ++ c2
 }
