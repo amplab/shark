@@ -92,6 +92,7 @@ trait ExprSymbolLookUp {
 	val EXPR_VARIABLE_NAME = "expr_variable_name"
     val EXPR_VARIABLE_TYPE = "expr_varialbe_type"
 	val EXPR_NULL_INDICATOR_NAME = "expr_null_indicator"
+	val EXPR_NULL_INDICATOR_DEFAULT_VALUE = "expr_null_indicator_default_val"
 
 	private val table = Map[TypedExprNode, Map[String, String]]()
 	var row: TENOutputRow = _
@@ -132,6 +133,7 @@ trait ExprSymbolLookUp {
 	def exprName(expr: TypedExprNode): String = getExprCode(expr, EXPR_VARIABLE_NAME)
 	def exprType(expr: TypedExprNode): String = getExprCode(expr, EXPR_VARIABLE_TYPE)
 	def indicatorName(expr: TypedExprNode): String = getExprCode(expr, EXPR_NULL_INDICATOR_NAME)
+	def indicatorDefaultValue(expr: TypedExprNode): String = getExprCode(expr, EXPR_NULL_INDICATOR_DEFAULT_VALUE)
 }
 
 class CGExprContext extends ExprSymbolLookUp {

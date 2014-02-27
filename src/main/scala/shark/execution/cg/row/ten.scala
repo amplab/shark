@@ -246,7 +246,7 @@ class TENFactory {
 				}
 			}
 			case x: ExprNodeFieldDesc => TENFactory.attribute(x.getFieldName(), create(x.getDesc(), input, requireWritable))
-			case x: ExprNodeColumnDesc => TENFactory.attribute(x.getColumn(), new TENInputRow(input.struct, x.getColumn())) // TODO should iterate every sub node
+			case x: ExprNodeColumnDesc => TENInputRow(input.struct, x.getColumn()) // TODO should iterate every sub node
 			case x: ExprNodeConstantDesc => TENFactory.literal(x.getValue(), TypeUtil.getDataType(x.getWritableObjectInspector()), requireWritable)
 			case x: ExprNodeNullDesc => TENFactory.literal(null, null, requireWritable)
 		}
