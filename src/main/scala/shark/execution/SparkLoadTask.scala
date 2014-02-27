@@ -440,7 +440,7 @@ object SparkLoadTask {
     val columnTypePropertiesOpt = Option(serDeProps.getProperty(Constants.LIST_COLUMN_TYPES))
     columnTypePropertiesOpt.foreach { columnTypeProperties =>
       serDeProps.setProperty(Constants.LIST_COLUMN_TYPES,
-        columnTypeProperties + (":" + Constants.STRING_TYPE_NAME * partCols.size))
+        columnTypeProperties + ((":" + Constants.STRING_TYPE_NAME) * partCols.size))
     }
     serDeProps
   }
