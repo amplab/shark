@@ -117,8 +117,12 @@ trait ExprSymbolLookUp {
 
 	def register(node: TypedExprNode) {
 		val entry = table.getOrElseUpdate(node, Map[String, String]())
-		entry += (EXPR_VARIABLE_NAME -> name(node, "__expr_"))
-		entry += (EXPR_NULL_INDICATOR_NAME -> name(node, "__indicator_"))
+		if(!entry.contains(EXPR_VARIABLE_NAME)) {
+		  entry += (EXPR_VARIABLE_NAME -> name(node, "__expr_"))
+		}
+		if(!entry.contains(EXPR_NULL_INDICATOR_NAME)) {
+		  entry += (EXPR_NULL_INDICATOR_NAME -> name(node, "__indicator_"))
+		}
 	}
 	
 	def codeIsValid(expr: TypedExprNode): String = getExprCode(expr, CODE_IS_VALID)

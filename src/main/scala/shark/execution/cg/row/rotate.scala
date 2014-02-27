@@ -55,7 +55,7 @@ class RuleValueGuard {
 	case x: TENConvertW2R => EENConvertW2R(x, sibling)
 	case x: TENConvertW2D => EENConvertW2D(x, sibling)
 	case x: TENLiteral => EENLiteral(x, sibling)
-	case x: TENInputRow => EENInputRow(x)
+	case x: TENInputRow => EENInputRow(x, sibling)
 	case x: TENOutputExpr => EENOutputExpr(x, sibling)
 	case _ => EENAlias(ten, sibling)
   }
@@ -69,7 +69,7 @@ class RuleValueGuard {
   			statefulUDFs.put(ten, transform(ten, null, false))
   		}
   		if(nullCheck) {
-  		  EENGuardNull(EENAlias(ten), sibling)	
+  		  EENGuardNull(ten, sibling)	
   		} else {
   		  EENAlias(ten, sibling)	
   		}
@@ -82,14 +82,17 @@ class RuleValueGuard {
   private def transform(ten: TypedExprNode, sibling: ExecuteOrderedExprNode, nullCheck: Boolean): ExecuteOrderedExprNode = {
   	  ten match {
   		  case x : TENInputRow => {
-  		  	EENGuardNull(create(x), sibling)
+  		    if(nullCheck) {
+  		  	  EENDeclare(x, create(x, EENGuardNull(x, sibling)))
+  		    } else {
+  		      create(x, EENGuardNull(x, sibling))
+  		    }
   		  }
 	      case x @ TENAttribute(attr, outter) => {
 	      	if(nullCheck) {
-     	        // rotate(outter, EENDeclare(x, EENGuardNull(create(outter), EENGuardNull(EENAttribute(x, null), sibling))), true)
-	      		rotate(outter, EENDeclare(x, EENGuardNull(create(outter), EENGuardNull(create(x), sibling))), true)
+	      	  EENDeclare(x, rotate(outter, create(x, EENGuardNull(x, sibling)), true))
 	      	} else {
-	      		EENDeclare(x, rotate(outter, EENSequence(EENGuardNull(create(outter), create(x)), sibling), true))
+	      	  EENDeclare(x, rotate(outter, create(x, sibling), false))
 	      	}
 	      }
 	      case x @ TENBranch(branchIf, branchThen, branchElse) => {
@@ -135,16 +138,16 @@ class RuleValueGuard {
 	      }
 	      case x @ TENConvertR2R(expr, _) => {
 	      	if(nullCheck) {
-	      	  rotate(expr, EENDeclare(x, EENGuardNull(create(x), sibling)), true)
+	      	  rotate(expr, EENDeclare(x, create(x, EENGuardNull(x, sibling))), true)
 	      	} else {
-	      	  EENDeclare(x, rotate(expr, EENSequence(create(x), sibling), true))
+	      	  EENDeclare(x, rotate(expr, create(x, sibling), true))
 	      	}
 	      }
 	      case x @ TENConvertR2W(expr) => {
 	      	if(nullCheck) {
-	      	  rotate(expr, EENDeclare(x, EENGuardNull(create(x), sibling)), true)
+	      	  rotate(expr, EENDeclare(x, create(x, EENGuardNull(x, sibling))), true)
 	      	} else {
-	      	  EENDeclare(x, rotate(expr, EENSequence(create(x), sibling), true))
+	      	  EENDeclare(x, rotate(expr, create(x, sibling), true))
 	      	}
 	      }
 	      case x @ TENConvertW2D(expr) => {
@@ -152,14 +155,14 @@ class RuleValueGuard {
 	      }
 	      case x @ TENConvertW2R(expr) => {
 	      	if(nullCheck) {
-	      	  rotate(expr, EENDeclare(x, EENGuardNull(create(x), sibling)), true)
+	      	  rotate(expr, EENDeclare(x, create(x, EENGuardNull(x, sibling))), true)
 	      	} else {
-	      	  EENDeclare(x, rotate(expr, EENSequence(create(x), sibling), true))
+	      	  EENDeclare(x, rotate(expr, create(x, sibling), true))
 	      	}
 	      }
 	      case x @ TENGUDF(clazz, children) => {
 	      	if(nullCheck) {
-	          children.foldRight[ExecuteOrderedExprNode](EENDeclare(x, EENGuardNull(create(x), sibling)))((e1, e2) => {
+	          children.foldRight[ExecuteOrderedExprNode](EENDeclare(x, create(x, EENGuardNull(x, sibling))))((e1, e2) => {
 	            EENSequence(rotate(e1, null, false), e2)
 	          })
 	      	} else {
@@ -170,7 +173,7 @@ class RuleValueGuard {
 	      }
 	      case x @ TENUDF(bridge, children) => {
 	      	if(nullCheck) {
-	          children.foldRight[ExecuteOrderedExprNode](EENDeclare(x, EENGuardNull(create(x), sibling)))((e1, e2) => {
+	          children.foldRight[ExecuteOrderedExprNode](EENDeclare(x, create(x, EENGuardNull(x, sibling))))((e1, e2) => {
 	            EENSequence(rotate(e1, null, false), e2)
 	          })
 	      	} else {
@@ -180,7 +183,7 @@ class RuleValueGuard {
 	      	}
 	      }
 	      case x @ TENOutputField(name, expr, dt) => {
-	      	rotate(expr, EENOutputField(x), true)
+	      	rotate(expr, EENOutputField(x), false)
 	      }
 	      case x @ TENOutputExpr(expr) => {
 	        // rotate the fields first, and in the mean time, will collect the stateful UDF node
@@ -193,7 +196,7 @@ class RuleValueGuard {
 	      	EENOutputRow(x, mergeSeq(fieldSeq))
 	      }
 	      case x : TENLiteral => if(nullCheck) {
-	      	EENGuardNull(create(x), sibling)
+	      	create(x, EENGuardNull(x, sibling))
 	      } else {
 	      	create(x, sibling)
 	      }
@@ -234,24 +237,16 @@ class RuleValueGuard {
 	    	
 	    	output
 	    }
-		case x @ EENGuardNull(een, inner) => {
-		  val ten = een.essential
-		  
+		case x @ EENGuardNull(ten, inner) => {
 		  val value = ctx.get(ten)
-		  val guard = if(value != null) {
-		    EENAlias(value)
-		  } else {
-		    ctx.update(ten)
-		    een
-		  }
-		  
+
 		  val placeholder = TENGuardNullHolder(ten)
 		  val output = if(ctx.get(placeholder) != null) {
 		    // we don't need the guard any more
-		    cse(inner, ctx, guard)
+		    cse(inner, ctx, if(value == null) null else EENAlias(value))
 		  } else {
-		    val nested = cse(inner, ctx.clone.update(placeholder), guard)
-		    if(nested != null) EENGuardNull(guard, nested) else null
+		    val nested = cse(inner, ctx.clone.update(placeholder), if(value == null) null else EENAlias(value))
+		    if(nested != null) EENGuardNull(ten, nested) else null
 		  }
 		  
 		  output
@@ -280,7 +275,10 @@ class RuleValueGuard {
 	      if(ctx.get(ten) != null) {
 	        cse(een, ctx, null)
 	      } else {
-	    	EENAssignment(ten, cse(een, ctx.update(ten), null))
+	    	val output = EENAssignment(ten, cse(een, ctx, null))
+	    	ctx.update(ten)
+	    	
+	    	output
 	      }
 	    }
 	    case x @ EENCondition(predict, branchThen, branchElse, branch, sibling) => {
@@ -303,13 +301,15 @@ class RuleValueGuard {
 	      }
 	    }
 	    case x @ EENAlias(ten, sibling) => EENAlias(ctx.get(ten), cse(sibling, ctx, null))
-		case x @ EENInputRow(expr) => {
+		case x @ EENInputRow(expr, sibling) => {
 		  val value = ctx.get(expr)
 		  if(value != null) {
-		    EENAlias(value) 
+		    cse(sibling, ctx, EENAlias(value)) 
 		  } else {
+		    val output = EENInputRow(expr, cse(sibling, ctx, null))
 		    ctx.update(expr)
-		    x
+		    
+		    output
 		  }
 		}
 		case x @ EENOutputField(field, _) => 
@@ -329,8 +329,7 @@ class RuleValueGuard {
 		  if(value != null) {
 		    cse(sibling, ctx, EENAlias(value))
 		  } else {
-		    ctx.update(expr)
-		    EENLiteral(expr, cse(sibling, ctx.update(TENGuardNullHolder(expr)), EENAlias(expr)))
+		    EENLiteral(expr, cse(sibling, ctx.update(expr).update(TENGuardNullHolder(expr)), EENAlias(expr)))
 		  }
 		}
 		case x @ EENAttribute(expr, sibling) => 
@@ -338,8 +337,7 @@ class RuleValueGuard {
 		if(value != null) {
 			cse(sibling, ctx, EENAlias(value))
 		} else {
-		  ctx.update(expr)
-		  EENAttribute(expr, cse(sibling, ctx.update(TENGuardNullHolder(expr)), EENAlias(expr)))
+		  EENAttribute(expr, cse(sibling, ctx.update(expr).update(TENGuardNullHolder(expr)), EENAlias(expr)))
 		}
 		case x @ EENBuiltin(expr, sibling) => 
 		val value = ctx.get(expr)
@@ -347,56 +345,49 @@ class RuleValueGuard {
 			// not need to re-compute the builtin
 			cse(sibling, ctx, EENAlias(value))
 		} else {
-		  ctx.update(expr)
-		  EENBuiltin(expr, cse(sibling, ctx.update(TENGuardNullHolder(expr)), EENAlias(expr)))
+		  EENBuiltin(expr, cse(sibling, ctx.update(expr).update(TENGuardNullHolder(expr)), EENAlias(expr)))
 		}
 		case x @ EENConvertR2R(expr, sibling) => 
 		val value = ctx.get(expr)
 		if(value != null) {
 			cse(sibling, ctx, EENAlias(value))
 		} else {
-		  ctx.update(expr)
-			EENConvertR2R(expr, cse(sibling, ctx, EENAlias(expr)))
+			EENConvertR2R(expr, cse(sibling, ctx.update(expr), EENAlias(expr)))
 		}
 		case x @ EENConvertR2W(expr, sibling) => 
 		val value = ctx.get(expr)
 		if(value != null) {
 			cse(sibling, ctx, EENAlias(value))
 		} else {
-		  ctx.update(expr)
-			EENConvertR2W(expr, cse(sibling, ctx, EENAlias(expr)))
+			EENConvertR2W(expr, cse(sibling, ctx.update(expr), EENAlias(expr)))
 		}
 		case x @ EENConvertW2R(expr, sibling) => 
 		val value = ctx.get(expr)
 		if(value != null) {
 			cse(sibling, ctx, EENAlias(value))
 		} else {
-		  ctx.update(expr)
-			EENConvertW2R(expr, cse(sibling, ctx, EENAlias(expr)))
+			EENConvertW2R(expr, cse(sibling, ctx.update(expr), EENAlias(expr)))
 		}
 		case x @ EENConvertW2D(expr, sibling) => 
 		val value = ctx.get(expr)
 		if(value != null) {
 			cse(sibling, ctx, EENAlias(value))
 		} else {
-		  ctx.update(expr)
-			EENConvertW2D(expr, cse(sibling, ctx, EENAlias(expr)))
+			EENConvertW2D(expr, cse(sibling, ctx.update(expr), EENAlias(expr)))
 		}
 		case x @ EENGUDF(expr, sibling) => 
 		val value = ctx.get(expr)
 		if(value != null) {
 			cse(sibling, ctx, EENAlias(value))
 		} else {
-		  ctx.update(expr)
-			EENGUDF(expr, cse(sibling, ctx, EENAlias(expr)))
+			EENGUDF(expr, cse(sibling, ctx.update(expr), EENAlias(expr)))
 		}
 		case x @ EENUDF(expr, sibling) => 
 		val value = ctx.get(expr)
 		if(value != null) {
 			cse(sibling, ctx, EENAlias(value))
 		} else {
-		  ctx.update(expr)
-			EENUDF(expr, cse(sibling, ctx, EENAlias(expr)))
+			EENUDF(expr, cse(sibling, ctx.update(expr), EENAlias(expr)))
 		}
 	}
 	}
