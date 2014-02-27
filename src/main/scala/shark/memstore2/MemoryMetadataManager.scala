@@ -54,10 +54,16 @@ class MemoryMetadataManager extends LogHelper {
       databaseName: String,
       tableName: String,
       cacheMode: CacheType.CacheType): MemoryTable = {
-    val tableKey = MemoryMetadataManager.makeTableKey(databaseName, tableName)
-    val newTable = new MemoryTable(databaseName, tableName, cacheMode)
-    _tables.put(tableKey, newTable)
-    newTable
+	val tableKey = MemoryMetadataManager.makeTableKey(databaseName, tableName)
+    // Clear out any existing tables with the same key; prevent memory leak
+    if (containsTable(databaseName, tableName)) {
+      logInfo("Attempt to create new table when one already exists - " + tableKey)
+      _tables.get(tableKey).get.asInstanceOf[MemoryTable]
+    } else {
+      val newTable = new MemoryTable(databaseName, tableName, cacheMode)
+      _tables.put(tableKey, newTable)
+      newTable
+    }
   }
 
   def createPartitionedMemoryTable(
@@ -67,16 +73,21 @@ class MemoryMetadataManager extends LogHelper {
       tblProps: JavaMap[String, String]
     ): PartitionedMemoryTable = {
     val tableKey = MemoryMetadataManager.makeTableKey(databaseName, tableName)
-    val newTable = new PartitionedMemoryTable(databaseName, tableName, cacheMode)
-    // Determine the cache policy to use and read any user-specified cache settings.
-    val cachePolicyStr = tblProps.getOrElse(SharkTblProperties.CACHE_POLICY.varname,
-      SharkTblProperties.CACHE_POLICY.defaultVal)
-    val maxCacheSize = tblProps.getOrElse(SharkTblProperties.MAX_PARTITION_CACHE_SIZE.varname,
-      SharkTblProperties.MAX_PARTITION_CACHE_SIZE.defaultVal).toInt
-    newTable.setPartitionCachePolicy(cachePolicyStr, maxCacheSize)
-
-    _tables.put(tableKey, newTable)
-    newTable
+    // Clear out any existing tables with the same key; prevent memory leak
+    if (containsTable(databaseName, tableName)) {
+      logInfo("Attempt to create new table when one already exists - " + tableKey)
+      _tables.get(tableKey).get.asInstanceOf[PartitionedMemoryTable]
+    } else {
+      val newTable = new PartitionedMemoryTable(databaseName, tableName, cacheMode)
+      // Determine the cache policy to use and read any user-specified cache settings.
+      val cachePolicyStr = tblProps.getOrElse(SharkTblProperties.CACHE_POLICY.varname,
+        SharkTblProperties.CACHE_POLICY.defaultVal)
+      val maxCacheSize = tblProps.getOrElse(SharkTblProperties.MAX_PARTITION_CACHE_SIZE.varname,
+        SharkTblProperties.MAX_PARTITION_CACHE_SIZE.defaultVal).toInt
+      newTable.setPartitionCachePolicy(cachePolicyStr, maxCacheSize)
+      _tables.put(tableKey, newTable)
+      newTable
+    }
   }
 
   def getTable(databaseName: String, tableName: String): Option[Table] = {
