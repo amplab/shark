@@ -220,7 +220,7 @@ class GroupByPostShuffleOperator extends GroupByPreShuffleOperator
     } else {
       // No distinct keys.
       val aggregator = new Aggregator[Any, Any, ArrayBuffer[Any]](
-        GroupByAggregator.createCombiner _, GroupByAggregator.mergeValue _, null)
+        GroupByAggregator.createCombiner _, GroupByAggregator.mergeValue _, GroupByAggregator.mergeCombiners _)
       val hashedRdd = repartitionedRDD.mapPartitionsWithContext(
         (context, iter) => aggregator.combineValuesByKey(iter, context),
         preservesPartitioning = true)
@@ -494,4 +494,5 @@ class GroupByPostShuffleOperator extends GroupByPreShuffleOperator
 object GroupByAggregator {
   def createCombiner(v: Any) = ArrayBuffer(v)
   def mergeValue(buf: ArrayBuffer[Any], v: Any) = buf += v
+  def mergeCombiners(c1: ArrayBuffer[Any], c2: ArrayBuffer[Any]) = c1 ++ c2
 }
