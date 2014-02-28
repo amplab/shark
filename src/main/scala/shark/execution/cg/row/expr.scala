@@ -5,7 +5,10 @@ import org.apache.hadoop.hive.serde2.objectinspector.{ ObjectInspector => OI }
 import org.apache.hadoop.hive.serde2.objectinspector.{ ObjectInspectorFactory => OIF }
 
 object TENInstance {
-  def create(names: Seq[String], exprs: Seq[ExprNodeDesc], input: CGStruct, output: CGStruct = null): TypedExprNode = {
+  def create(names: Seq[String], 
+      exprs: Seq[ExprNodeDesc], 
+      input: CGStruct, 
+      output: CGStruct = null): TypedExprNode = {
     val factory = new TENFactory
     val rowInput = TENInputRow(input, null)
 
@@ -36,7 +39,8 @@ object TENInstance {
     TENOutputRow(fields, dt)
   }
   
-  def create(filter: ExprNodeDesc, expectedDT: DataType, input: CGStruct): TENOutputExpr = {
+  def create(filter: ExprNodeDesc, expectedDT: DataType, input: CGStruct)
+  : TENOutputExpr = {
     val factory = new TENFactory
     val rowInput = TENInputRow(input, null)
 

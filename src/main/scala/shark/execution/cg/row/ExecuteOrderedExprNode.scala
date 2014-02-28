@@ -7,7 +7,7 @@ abstract class EENExpr(val ten: TypedExprNode, nested: ExecuteOrderedExprNode = 
   	val codeCompute = exprCode(ctx)
   	
   	val code = new StringBuffer()
-  	if(codeCompute != null) {
+  	if(codeCompute != null && !codeCompute.isEmpty()) {
   		code.append("%s = %s;".format(ctx.exprName(ten), codeCompute))
   	}
   	
@@ -54,19 +54,38 @@ case class EENAlias(expr: TypedExprNode, sibling: ExecuteOrderedExprNode = null)
 }
 
 case class EENInputRow(expr: TENInputRow, sibling: ExecuteOrderedExprNode) extends EENExpr(expr, sibling) {
+	private var oiName: String = _
+    private var sfName: String = _
+    
 	override def initial(ctx: CGExprContext) {
-	    ctx.register(expr, ctx.EXPR_VARIABLE_TYPE, expr.outputDT.primitive)
-		ctx.register(expr, ctx.EXPR_NULL_INDICATOR_DEFAULT_VALUE, 
-		    "%s.mask.get(%s.%s)".format(Constant.CG_EXPR_NAME_INPUT, 
-		        expr.struct.clazz, expr.maskBitName))
-//		ctx.register(expr, ctx.EXPR_VARIABLE_NAME, exprName)
-//		ctx.register(expr, ctx.CODE_IS_VALID, )
-//		ctx.register(expr, ctx.CODE_VALUE_REPL, exprName)
-		ctx.register(expr, ctx.CODE_INVALIDATE, null)
-		ctx.register(expr, ctx.CODE_VALIDATE, null)
+	  import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
+	  import org.apache.hadoop.hive.serde2.objectinspector.StructField
+	  
+	  ctx.defineImport(classOf[StructObjectInspector])
+	  val oiType = TypeUtil.dtToTypeOIString(expr.outputDT)
+	  
+	  oiName = ctx.property(oiType, false, false, null, false)
+	  sfName = ctx.property(classOf[StructField].getCanonicalName(), false, false, null, false)
+	  
+	  ctx.addInitials("%s = %s.getStructFieldRef(\"%s\");".format(sfName, 
+	    Constant.CG_EXPR_NAME_INPUT_SOI, expr.attr))
+	  ctx.addInitials("%s = (%s)(%s.getFieldObjectInspector());".format(oiName, oiType, sfName))
+	  
+	  ctx.register(expr, ctx.EXPR_VARIABLE_TYPE, expr.outputDT.writable)
+	  ctx.register(expr, ctx.EXPR_NULL_INDICATOR_NAME, null)
+      ctx.register(expr, ctx.CODE_IS_VALID, "%s != null".format(ctx.exprName(expr)))
+	  ctx.register(expr, ctx.CODE_VALUE_REPL, ctx.exprName(expr))
+	  ctx.register(expr, ctx.CODE_INVALIDATE, null)
+	  ctx.register(expr, ctx.CODE_VALIDATE, null)
+	  // TODO need to thing about the union / map / array / structure type 
+	  ctx.register(expr, ctx.EXPR_DEFAULT_VALUE, 
+	  "(%s)%s.getPrimitiveWritableObject(%s.getStructFieldData(%s, %s))".format(
+	      expr.outputDT.writable,
+	      oiName,
+	      Constant.CG_EXPR_NAME_INPUT_SOI, 
+	      Constant.CG_EXPR_NAME_INPUT, 
+	      sfName))
 	}
-
-	override def exprCode(ctx: CGExprContext): String = "%s.%s".format(Constant.CG_EXPR_NAME_INPUT, expr.escapedName)
 }
 
 case class EENCondition(predict: ExecuteOrderedExprNode, t: ExecuteOrderedExprNode, f: ExecuteOrderedExprNode, branch: TENBranch, sibling: ExecuteOrderedExprNode) extends EENExpr(branch, sibling) {
@@ -116,14 +135,4 @@ case class EENOutputRow(expr: TENOutputRow, een: ExecuteOrderedExprNode) extends
   
   override def essential: TypedExprNode = expr
 }
-
-/**
- * exprs is Seq of (isUDF, Node)
- */
-//case class EENSource(expr: EENOutput) extends ExecuteOrderedExprNode {
-//  override def code(ctx: CGExprContext): String = {
-//	CGTE.layout("shark/execution/cg/operator/cg_op_select.ssp", 
-//	scala.collection.immutable.Map("ctx"-> ctx, "cs" -> this))
-//  }
-//}
 

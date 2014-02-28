@@ -34,12 +34,14 @@ import shark.execution.cg.row.CGField
 trait CGObjectOperator {
   self: Operator[HiveDesc] =>
 
-  // for describing the output data
+  // schema of the output / input tuples (table)
   @transient var cgrow: CGStruct = _
-  @transient protected var cgexec: OperatorExecutor = _
-  @transient private var soi: StructObjectInspector = _
-  @transient lazy val outputObjectInspector = soi
   @transient var cginputrows: Array[CGStruct] = _
+  
+  @transient protected var cgexec: OperatorExecutor = _
+  @transient protected var soi: StructObjectInspector = _
+  
+  @transient lazy val outputObjectInspector = soi
   
   @BeanProperty var useCG: Boolean = true
   @BeanProperty var operatorClassName: String = _
@@ -61,36 +63,32 @@ trait CGObjectOperator {
       useCG = false
       return
     }
-    
-    cgrow = CGField.create(soi)
+
+    // collect all of the input table schema
     cginputrows = self.parentOperators.toArray.map(op => {
       if(op.cgrow != null) {
         op.cgrow
       } else {
-        // TODO we may need some kind of cache mechanism (oi => cgrow)
-        if(soi == op.outputObjectInspector) {
-          cgrow
-        } else {
-          val row = CGField.create(op.outputObjectInspector)
-          cc.add(List((row.fullClassName, CGRow.generate(row, true))))
-        
-          row
-        }
+        CGField.create(op.outputObjectInspector)
       }
     })
     
-    var oiStruct = CGOIField.create(cgrow).asInstanceOf[CGOIStruct]
-    
-    operatorClassName = operator.fullClassName
-    soiClassName      = oiStruct.fullClassName
-    
-    // compile the row and oi object, which will be used while initiliazeOnMaster() 
-    cc.compile(List(
+    cgrow = createOutputRow()
+    if(cgrow != null) {
+      // if current operator will create the new schema as output
+      var oiStruct = CGOIField.create(cgrow).asInstanceOf[CGOIStruct]
+      soiClassName      = oiStruct.fullClassName
+      
+      // compile the row and its OI object, which will be used in initializing the child Operators 
+      cc.compile(List(
         (cgrow.fullClassName, CGRow.generate(cgrow, true)), 
         (soiClassName, CGOI.generateOI(oiStruct, true))))
     
-    soi = instance[StructObjectInspector](oiStruct.fullClassName)
-
+      // override the existed output object inspector (StructObjectInspector)
+      soi = instance[StructObjectInspector](oiStruct.fullClassName)
+    }
+    
+    operatorClassName = operator.fullClassName
     // Put the CG Operator Compilation Unit into context, all of the CG operators 
     // will be compiled together later on  
     cc.add(List((operatorClassName, CGOperator.generate(operator))))
@@ -100,15 +98,14 @@ trait CGObjectOperator {
   // There is no real code gen in slave, but instantiating the CGed object.
   protected def cgOnSlave() {
     if(useCG) {
-//      cgexec = instance[OperatorExecutor](operatorClassName, Array[Object](this))
       cgexec = instance[OperatorExecutor](operatorClassName)
-      
       cgexec.init(objectInspectors.toArray)
     }
   }
 
   // every operator need to codegen its dynamic execution have to override this function
   protected def createCGOperator(): CGOperator = null
+  protected def createOutputRow(): CGStruct = null
   
   private def instance[T](clz: String, args: Array[Object]): T = 
     Thread.currentThread().getContextClassLoader().loadClass(clz)

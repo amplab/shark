@@ -246,7 +246,15 @@ class TENFactory {
 				}
 			}
 			case x: ExprNodeFieldDesc => TENFactory.attribute(x.getFieldName(), create(x.getDesc(), input, requireWritable))
-			case x: ExprNodeColumnDesc => TENInputRow(input.struct, x.getColumn()) // TODO should iterate every sub node
+			case x: ExprNodeColumnDesc => {
+			  // TODO should iterate every sub node
+			  val inputRow = TENInputRow(input.struct, x.getColumn())
+			  if(requireWritable) {
+			      inputRow
+			  } else {
+			      TENConvertW2R(inputRow)
+			  }
+			}
 			case x: ExprNodeConstantDesc => TENFactory.literal(x.getValue(), TypeUtil.getDataType(x.getWritableObjectInspector()), requireWritable)
 			case x: ExprNodeNullDesc => TENFactory.literal(null, null, requireWritable)
 		}

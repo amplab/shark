@@ -15,8 +15,6 @@ package ${packageName};
 
 import shark.execution.cg.OperatorExecutor;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
-import ${cginputrows(0).fullClassName};
-import ${cgrow.fullClassName};
 
 #for(clazz <- ctx.imports)
 import ${clazz};
@@ -24,32 +22,23 @@ import ${clazz};
 
 public class ${className} extends OperatorExecutor {
   private boolean ${Constant.CG_EXPR_NAME_OUTPUT} = false;
+  private StructObjectInspector ${Constant.CG_EXPR_NAME_INPUT_SOI} = null;
   
 #for(property <- ctx.properties)
 ${property.toString}
 #end
 
-    @Override
-    public ${cgrow.clazz} transform(Object input) {
-#if(parentOperators(0).useCG)
-    return (${cginputrows(0).clazz})input;
-#else
-    return ${cgrow.clazz}.BUILD(this.inputOI, input);
-#end
-    }
-    
    @Override
    public void init(ObjectInspector[] inputOIs) throws Exception {
    super.init(inputOIs);
+   this.${Constant.CG_EXPR_NAME_INPUT_SOI} = (StructObjectInspector)inputOIs[0];
 #for(init <- ctx.initials)
 ${init.toString}
 #end   
    } 
-  
+
   @Override
-  public Object evaluate(Object obj) throws Exception {
-  // FilterOperator should call this.transform(), to be sure the output object is the CGRow object
-    ${cginputrows(0).clazz} ${Constant.CG_EXPR_NAME_INPUT} = (${cginputrows(0).clazz})obj;
+  public Object evaluate(Object ${Constant.CG_EXPR_NAME_INPUT}) throws Exception {
     ${Constant.CG_EXPR_NAME_OUTPUT} = false;
     ${cs.code(ctx)}
     

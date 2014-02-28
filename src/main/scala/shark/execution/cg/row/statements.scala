@@ -19,15 +19,14 @@ abstract class ExecuteOrderedExprNode(val nested: ExecuteOrderedExprNode = null)
   }
 }
 
-case class EENDeclare(ten: TypedExprNode, expr: ExecuteOrderedExprNode = null) extends ExecuteOrderedExprNode(expr) {
-  private def define(clazz: String, variable: String): String = {
-    val template = clazz match {
-      case "boolean" | "byte" | "short" | "int" | "float" | "long" | "double" => {
-        "%s %s;".format(clazz, variable)
-      }
-      case _ => "%s %s = null;"
-      }
-    template.format(clazz, variable)
+case class EENDeclare(ten: TypedExprNode, expr: ExecuteOrderedExprNode) 
+    extends ExecuteOrderedExprNode(expr) {
+  private def define(ctx: CGExprContext, clazz: String, variable: String): String = clazz match {
+    case "boolean" => "%s %s = %s;".format(clazz, variable, ctx.exprDefaultValue(ten, "false"))
+    case "byte" | "short" | "int" | "float" | "long" | "double" => {
+      "%s %s = %s;".format(clazz, variable, ctx.exprDefaultValue(ten, "0"))
+    }
+    case _ => "%s %s = %s;".format(clazz, variable, ctx.exprDefaultValue(ten, "null"))
   }
   
   override def currCode(ctx: CGExprContext): String = {
@@ -38,7 +37,7 @@ case class EENDeclare(ten: TypedExprNode, expr: ExecuteOrderedExprNode = null) e
   	val code = new StringBuffer()
   	
   	if(variableType != null) {
-  	  code.append(define(variableType, variableName))
+  	  code.append(define(ctx, variableType, variableName))
   	}
   	if(nullIndicatorName != null) {
   	  code.append("boolean %s = %s;".format(nullIndicatorName, ctx.indicatorDefaultValue(ten)))
@@ -50,7 +49,8 @@ case class EENDeclare(ten: TypedExprNode, expr: ExecuteOrderedExprNode = null) e
   override def essential: TypedExprNode = ten
 }
 
-case class EENAssignment(ten: TypedExprNode, expr: ExecuteOrderedExprNode) extends ExecuteOrderedExprNode(expr) {
+case class EENAssignment(ten: TypedExprNode, expr: ExecuteOrderedExprNode) 
+    extends ExecuteOrderedExprNode(expr) {
   override def code(ctx: CGExprContext): String = {
   	val e = expr.essential
   	
