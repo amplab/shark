@@ -35,7 +35,6 @@ class UDTFOperator extends UnaryOperator[UDTFDesc] {
   @BeanProperty var conf: UDTFDesc = _
 
   @transient var objToSendToUDTF: Array[java.lang.Object] = _
-  @transient var soi: StandardStructObjectInspector = _
   @transient var inputFields: JavaList[_ <: StructField] = _
   @transient var collector: UDTFCollector = _
   @transient var outputObjInspector: ObjectInspector = _

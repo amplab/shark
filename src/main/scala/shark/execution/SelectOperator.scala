@@ -25,6 +25,9 @@ import org.apache.hadoop.hive.ql.plan.SelectDesc
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 
+import shark.execution.cg.row.CGField
+import shark.execution.cg.row.CGStruct
+
 
 /**
  * An operator that does projection, i.e. selecting certain columns and
@@ -96,5 +99,6 @@ class SelectOperator extends UnaryOperator[SelectDesc] {
   }
   
   protected override def createCGOperator(): CGOperator = new CGSelectOperator(this)
+  protected override def createOutputRow(): CGStruct = CGField.create(soi)
 }
 

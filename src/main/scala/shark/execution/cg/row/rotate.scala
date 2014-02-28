@@ -122,13 +122,13 @@ class RuleValueGuard {
 	      }
 	      case x @ TENBuiltin(op, children, dt, true) => {
             if(nullCheck) {
-	           children.foldRight[ExecuteOrderedExprNode](EENDeclare(x, create(x, sibling)))((e1, e2) => {
+	           children.foldRight[ExecuteOrderedExprNode](EENDeclare(x, create(x, EENGuardNull(x, sibling))))((e1, e2) => {
 	             rotate(e1, e2, true)
 	           })
 	      	} else {
 	      	  EENDeclare(x, EENSequence(children.foldRight[ExecuteOrderedExprNode](create(x))((e1, e2) => {
 	            rotate(e1, e2, true)
-	          }), sibling))
+	          }), EENGuardNull(x, sibling)))
 	      	}
 	      }
 	      case x @ TENBuiltin(op, children, dt, false) => {
@@ -187,7 +187,7 @@ class RuleValueGuard {
 	      }
 	      case x @ TENOutputExpr(expr) => {
 	        // rotate the fields first, and in the mean time, will collect the stateful UDF node
-	      	val value = rotate(expr, create(x), true)
+	      	val value = rotate(expr, EENGuardNull(expr, create(x)), true)
 	      	mergeSeq(value :: Nil)
 	      }
 	      case x @ TENOutputRow(fields, dt) => {
@@ -221,7 +221,7 @@ class RuleValueGuard {
     // cause we don't get the common sub expression from branches / sequences
 	def cse(tree: ExecuteOrderedExprNode, ctx: PathNodeContext, previous: ExecuteOrderedExprNode): ExecuteOrderedExprNode = {
 		tree match {
-		case null => null
+		case null => previous
 		case x @ EENDeclare(ten, een) => {
 	    	val placeholder = TENDeclareHolder(ten)
 	    	
@@ -306,10 +306,7 @@ class RuleValueGuard {
 		  if(value != null) {
 		    cse(sibling, ctx, EENAlias(value)) 
 		  } else {
-		    val output = EENInputRow(expr, cse(sibling, ctx.update(expr).update(TENGuardNullHolder(expr)), EENAlias(expr)))
-		    ctx.update(expr)
-		    
-		    output
+		    EENInputRow(expr, cse(sibling, ctx.update(expr), EENAlias(expr)))
 		  }
 		}
 		case x @ EENOutputField(field, _) => 
@@ -329,7 +326,7 @@ class RuleValueGuard {
 		  if(value != null) {
 		    cse(sibling, ctx, EENAlias(value))
 		  } else {
-		    EENLiteral(expr, cse(sibling, ctx.update(expr).update(TENGuardNullHolder(expr)), EENAlias(expr)))
+		    EENLiteral(expr, cse(sibling, ctx.update(expr), EENAlias(expr)))
 		  }
 		}
 		case x @ EENAttribute(expr, sibling) => 
@@ -337,7 +334,7 @@ class RuleValueGuard {
 		if(value != null) {
 			cse(sibling, ctx, EENAlias(value))
 		} else {
-		  EENAttribute(expr, cse(sibling, ctx.update(expr).update(TENGuardNullHolder(expr)), EENAlias(expr)))
+		  EENAttribute(expr, cse(sibling, ctx.update(expr), EENAlias(expr)))
 		}
 		case x @ EENBuiltin(expr, sibling) => 
 		val value = ctx.get(expr)
@@ -345,7 +342,7 @@ class RuleValueGuard {
 			// not need to re-compute the builtin
 			cse(sibling, ctx, EENAlias(value))
 		} else {
-		  EENBuiltin(expr, cse(sibling, ctx.update(expr).update(TENGuardNullHolder(expr)), EENAlias(expr)))
+		  EENBuiltin(expr, cse(sibling, ctx.update(expr), EENAlias(expr)))
 		}
 		case x @ EENConvertR2R(expr, sibling) => 
 		val value = ctx.get(expr)

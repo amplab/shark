@@ -62,7 +62,6 @@ case class TENInputRow(struct: CGStruct, attr: String) extends TypedExprNode wit
 	self: Product =>
 	override def outputDT = field
 	override val possibleNullValue = false
-//	override val exprId = "__input__"
 
 	lazy val field = struct.getField(attr)
 	

@@ -26,9 +26,5 @@ public abstract class OperatorExecutor {
 		inputOI = inputOIs[0];
 	}
 	
-	public Object transform(Object input) {
-		return input;
-	}
-	
     abstract public Object evaluate(Object obj) throws Exception;
 }

@@ -58,9 +58,7 @@ class FilterOperator extends UnaryOperator[FilterDesc] {
     if(useCG) {
       // we have updated the outputobject inspector already, hence we have to transform
       // the output object accordingly (as CGRow object)
-      iter.map{ row => 
-        cgexec.transform(row) 
-      }.filter { row => 
+      iter.filter { row => 
         cgexec.evaluate(row).asInstanceOf[Boolean]
        }
     } else {
