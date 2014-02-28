@@ -65,7 +65,7 @@ class CoGroupAggregator
   extends Aggregator[Any, Any, ArrayBuffer[Any]](
     { x => ArrayBuffer(x) },
     { (b, x) => b += x },
-    null)
+    {(c1, c2) => c1++c2 })
   with Serializable
 
 // Disable map-side combine during aggregation.
