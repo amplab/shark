@@ -101,23 +101,29 @@ class RuleValueGuard {
 	      			branchIf, 
 		        	  	EENDeclare(
 		        	  	  x, 
-		        	  	  EENCondition(
-		        	  	  	EENAlias(branchIf), 
-		        			rotate(branchThen, EENAssignment(x, create(branchThen)), true), 
-		        			rotate(branchElse, EENAssignment(x, create(branchElse)), true), 
-		        			x, sibling)), 
+		        	  	  EENSequence(
+		        	  	    EENGuardNull(branchIf,
+		        	  	      EENCondition(
+		        	  	  	    EENAlias(branchIf), 
+		        			    rotate(branchThen, EENAssignment(x, create(branchThen)), true), 
+		        			    rotate(branchElse, EENAssignment(x, create(branchElse)), true), 
+		        			  x, null)
+		        		    ), 
+		        		    sibling)
+		        		), 
 		        	true)
 	      	} else {
-		        EENDeclare(x, 
-		          	rotate(
-		          	  branchIf, 
-		              EENCondition(
-		              	  EENAlias(branchIf), 
-		        		  rotate(branchThen, EENAssignment(x, create(branchThen)), true), 
-		        		  rotate(branchElse, EENAssignment(x, create(branchElse)), true), 
-		        		  x, sibling), 
-		        	  true)
-		        )
+		        EENSequence(EENDeclare(x, 
+		          rotate(
+		            branchIf, 
+		              EENGuardNull(branchIf,
+		                EENCondition(
+		                  EENAlias(branchIf), 
+		        		    rotate(branchThen, EENAssignment(x, create(branchThen)), true), 
+		        		    rotate(branchElse, EENAssignment(x, create(branchElse)), true), 
+		        		    x, null)), 
+		              true)), 
+		        sibling)
 	      	}
 	      }
 	      case x @ TENBuiltin(op, children, dt, true) => {
@@ -160,7 +166,7 @@ class RuleValueGuard {
 	      	  EENDeclare(x, rotate(expr, EENGuardNull(expr, create(x, sibling)), false))
 	      	}
 	      }
-	      case x @ TENGUDF(clazz, children) => {
+	      case x @ TENGUDF(_, children) => {
 	      	if(nullCheck) {
 	          children.foldRight[ExecuteOrderedExprNode](EENDeclare(x, create(x, EENGuardNull(x, sibling))))((e1, e2) => {
 	            EENSequence(rotate(e1, null, false), e2)
@@ -230,8 +236,7 @@ class RuleValueGuard {
 	    		cse(een, ctx, null)
 	    	} else {
 	    	  ctx.update(placeholder)
-	    	  val nested = cse(een, ctx, null)
-	    	  if(nested != null) EENDeclare(ten, nested) else null
+	    	  EENDeclare(ten, cse(een, ctx, null))
 	    	}
 	    	ctx.update(ten)
 	    	
@@ -239,14 +244,13 @@ class RuleValueGuard {
 	    }
 		case x @ EENGuardNull(ten, inner) => {
 		  val value = ctx.get(ten)
-
 		  val placeholder = TENGuardNullHolder(ten)
 		  val output = if(ctx.get(placeholder) != null) {
 		    // we don't need the guard any more
-		    cse(inner, ctx, if(value == null) null else EENAlias(value))
+		    cse(inner, ctx, EENAlias(value))
 		  } else {
-		    val nested = cse(inner, ctx.clone.update(placeholder), if(value == null) null else EENAlias(value))
-		    if(nested != null) EENGuardNull(ten, nested) else null
+		    val nested = cse(inner, ctx.clone.update(placeholder), EENAlias(value))
+		    EENGuardNull(ten, nested)
 		  }
 		  
 		  output
@@ -269,7 +273,7 @@ class RuleValueGuard {
 		  } else {
 		    null
 		  }
-		  if(p != null || n != null) EENSequence(p, n) else null
+		  EENSequence(p, n)
 		} 
 	    case x @ EENAssignment(ten, een) => {
 	      if(ctx.get(ten) != null) {
@@ -290,7 +294,7 @@ class RuleValueGuard {
             val eenPredict = if(pvalue != null) {
 	    	  EENAlias(pvalue)
 	        } else {
-	    	  cse(predict, ctx, previous)
+	    	  cse(predict, ctx, null)
 	        }
 	        ctx.update(predict.essential)
 
@@ -300,7 +304,15 @@ class RuleValueGuard {
 	    		branch, cse(sibling, ctx.update(branch), EENAlias(ctx.get(branch))))
 	      }
 	    }
-	    case x @ EENAlias(ten, sibling) => EENAlias(ctx.get(ten), cse(sibling, ctx, null))
+	    case x @ EENAlias(ten, sibling) => {
+	      var first = ctx.get(ten)
+	      if(first == null) {
+	        first = ten
+	        ctx.update(ten)
+	      }
+	      
+	      EENAlias(first, cse(sibling, ctx, EENAlias(first)))
+	    }
 		case x @ EENInputRow(expr, sibling) => {
 		  val value = ctx.get(expr)
 		  if(value != null) {

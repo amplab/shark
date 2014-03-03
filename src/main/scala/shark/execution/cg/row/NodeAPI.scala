@@ -73,11 +73,14 @@ object TypeUtil {
 
 	def getTypeInfo(oi: OI): TypeInfo = TypeInfoUtils.getTypeInfoFromObjectInspector(oi)
 
-	def getDataType(oi: OI): DataType = if (oi.isInstanceOf[PrimitiveObjectInspector])
+	def getDataType(oi: OI): DataType = if (oi.isInstanceOf[PrimitiveObjectInspector] && 
+	  !oi.isInstanceOf[ConstantObjectInspector])
 		getDataType(getTypeInfo(oi))
 	else
 		CGField.create(oi, null)
 		
+	def standardize(dt: DataType) = getDataType(getTypeInfo(dt.oi))
+    
 	def dtToString(dt: DataType): String = {
 		dt match {
 			case TypeUtil.BinaryType => "PrimitiveObjectInspectorFactory.writableBinaryObjectInspector"

@@ -45,7 +45,7 @@ import shark.execution.cg.CGAssertRuntimeException
 
 class TENFactory {
 	def create(name: String, desc: ExprNodeDesc, outputDT: DataType, input: TENInputRow): TENOutputField = {
-		val expr = create(desc, input, false)
+		val expr = create(desc, input).toR
 		// TODO need to think about how to identify the CGStruct / CGUnion etc.
 		if (outputDT == null || outputDT == expr.outputDT) {
 			TENOutputField(name, expr, expr.outputDT)
@@ -55,7 +55,7 @@ class TENFactory {
 	}
 	
     def create(desc: ExprNodeDesc, expectedDT: DataType, input: TENInputRow): TENOutputExpr = {
-		val expr = create(desc, input, false)
+		val expr = create(desc, input).toR
 		if(expr.outputDT == expectedDT) {
 		  TENOutputExpr(expr)
 		} else {
@@ -64,158 +64,141 @@ class TENFactory {
 	}
 
 	private def create(node: ExprNodeGenericFuncDesc, input: TENInputRow): TypedExprNode = {
-		node.getGenericUDF() match {
+	  val inputs = node.getChildren().map(create(_, input)).toArray.toSeq
+	  val genericUDF = node.getGenericUDF()
+	  val folded = TENFactory.constantFolding(genericUDF, inputs)
+	  val children = TENFactory.w2r(inputs)
+	  
+	  if(folded != null) {
+	    folded
+	  } else {
+		genericUDF match {
 			case x: GenericUDFOPAnd => {
-				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 				TENFactory.and(children(0), children(1)) // AND (&&)
 			}
 			case x: GenericUDFOPOr => {
-				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 				TENFactory.or(children(0), children(1)) // OR  (||)
 			}
 			case x: GenericUDFOPEqual => {
-				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 				TENFactory.builtin("==", children, TypeUtil.BooleanType) // =
 			}
 			case x: GenericUDFOPNotEqual => {
-				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 				TENFactory.builtin("!=", children, TypeUtil.BooleanType) // <> (!=)
 			}
 			case x: GenericUDFOPLessThan => {
-				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 				TENFactory.builtin("<", children, TypeUtil.BooleanType) // <
 			}
 			case x: GenericUDFOPEqualOrLessThan => {
-				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 				TENFactory.builtin("<=", children, TypeUtil.BooleanType) // <=
 			}
 			case x: GenericUDFOPGreaterThan => {
-				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 				TENFactory.builtin(">", children, TypeUtil.BooleanType) // >
 			}
 			case x: GenericUDFOPEqualOrGreaterThan => {
-				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 				TENFactory.builtin(">=", children, TypeUtil.BooleanType) // >=
 			}
 			case x: GenericUDFBetween => {
-				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 				TENFactory.between(children) // between 
 			}
 			case x: GenericUDFOPNull => {
-				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 				TENFactory.isnull(children(0)) // between // IS NULL
 			}
 			case x: GenericUDFOPNotNull => {
-				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 				TENFactory.isnotnull(children(0)) // IS NOT NULL
 			}
 //			case x: GenericUDFCase => {
-//				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 //				TENFactory.branch_case(children)
 //			}
 //			case x: GenericUDFWhen => {
-//				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
+//				val children = node.getChildren().map(create(_, input)).toArray.toSeq
 //				TENFactory.branch_when(children)
 //			}
 			case x: GenericUDFIf => {
-				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 				TENFactory.branch_if(children)
 			}
 			case x: GenericUDFBridge => {
-				create(node, x, input) // bridge
+				createUDF(node, x, input, inputs) // bridge
 			}
 			case x: GenericUDF => {
-				val children = node.getChildren().map(create(_, input, true)).toArray.toSeq
-				TENFactory.gudf(x.getClass(), children) // call to the Generic UDF function
+				TENFactory.gudf(x, TENFactory.r2w(inputs)) // call to the Generic UDF function
 			}
 		}
+	  }
 	}
 
-	private def create(node: ExprNodeGenericFuncDesc, x: GenericUDFBridge, input: TENInputRow): TypedExprNode = {
+	private def createUDF(node: ExprNodeGenericFuncDesc, x: GenericUDFBridge, input: TENInputRow, inputs: Seq[TypedExprNode]): TypedExprNode = {
 		val udf = x.getUdfClass().newInstance()
+		val children = TENFactory.w2r(inputs)
 		udf match {
 			case x: UDFOPPlus => {// +
-				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 				TENFactory.builtin("+", children) 
 			}
 			case x: UDFOPMinus => {// -
-				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 				TENFactory.builtin("-", children) 
 			}
 			case x: UDFOPMultiply => {// *
-				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 				TENFactory.builtin("*", children) 
 			}
 			case x: UDFOPDivide => {// /
-				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 				TENFactory.builtin("/", children) 
 			}
 			case x: UDFOPLongDivide => {// / to the long integer
-				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 				TENFactory.builtin("/", children) 
 			}
 			case x: UDFOPMod => {// %
-				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 				TENFactory.builtin("%", children) 
 			}
 			case x: UDFPosMod => {// pmod ((a % b) + b) % b
-				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 				TENFactory.builtin("%", 
 					Seq(TENFactory.builtin("+", 
 						Seq(TENFactory.builtin("%", children), children(1))), children(1))) 
 			}
 			case x: UDFOPBitAnd => {// &
-				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 				TENFactory.builtin("&", children) 
 			}
 			case x: UDFOPBitOr => {// |
-				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 				TENFactory.builtin("|", children) 
 			}
 			case x: UDFOPBitXor => {// ^
-				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 				TENFactory.builtin("^", children) 
 			}
 			case x: UDFOPBitNot => {// ~
-				val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 				TENFactory.builtin("~", children) 
 			}
 			case x: UDFToBoolean => {
-			  val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 			  TENFactory.convert(TypeUtil.BooleanType, children(0))
 			}
 			case x: UDFToByte => {
-			  val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 			  TENFactory.convert(TypeUtil.ByteType, children(0))
 			}
 			case x: UDFToDouble => {
-			  val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 			  TENFactory.convert(TypeUtil.DoubleType, children(0))
 			}
 			case x: UDFToFloat => {
-			  val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 			  TENFactory.convert(TypeUtil.FloatType, children(0))
 			}
 			case x: UDFToInteger => {
-			  val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 			  TENFactory.convert(TypeUtil.IntegerType, children(0))
 			}
 			case x: UDFToLong => {
-			  val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 			  TENFactory.convert(TypeUtil.LongType, children(0))
 			}
 			case x: UDFToShort => {
-			  val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 			  TENFactory.convert(TypeUtil.ShortType, children(0))
 			}
 			case x: UDFToString => {
-			  val children = node.getChildren().map(create(_, input, false)).toArray.toSeq
 			  TENFactory.convert(TypeUtil.StringType, children(0))
 			}
 			// un-recognized UDF will resort to the TENUDF, which generates code for UDF invoking 
 			case _ => {
-				val children = node.getChildren().map(create(_, input, true)).toArray.toSeq
-				TENFactory.udf(x, children) // still reusing the GenericUDF
+			  val standardTypes = TENFactory.expectedDataType(x, inputs).zip(inputs).map(pair => {
+			    (if(pair._1 == pair._2.outputDT) {
+			      pair._2
+			    } else {
+			      TENConvertR2R(pair._2.toR, pair._1)
+			    }).toW
+			  })
+			  TENFactory.udf(x, standardTypes) // still reusing the GenericUDF
 			}
 		}
 	}
@@ -227,43 +210,20 @@ class TENFactory {
 	 * ExprNodeGenericFuncDesc and deterministic-less
 	 * (e.g. UDF rand() may always returns different value for each invokings)
 	 */
-	private def create(desc: ExprNodeDesc, input: TENInputRow, requireWritable: Boolean): TypedExprNode = {
+	private def create(desc: ExprNodeDesc, input: TENInputRow): TypedExprNode = {
 		desc match {
-			case x: ExprNodeGenericFuncDesc => {
-				val f = create(x, input)
-				if(requireWritable) {
-					f match {
-						case x: TENUDF => x
-						case x: TENGUDF => x
-						case _ => TENConvertR2W(f)
-					}
-				} else {
-					f match {
-						case x: TENUDF => TENConvertW2R(x)
-						case x: TENGUDF => TENConvertW2R(x)
-						case _ => f
-					}
-				}
-			}
-			case x: ExprNodeFieldDesc => TENFactory.attribute(x.getFieldName(), create(x.getDesc(), input, requireWritable))
-			case x: ExprNodeColumnDesc => {
-			  // TODO should iterate every sub node
-			  val inputRow = TENInputRow(input.struct, x.getColumn())
-			  if(requireWritable) {
-			      inputRow
-			  } else {
-			      TENConvertW2R(inputRow)
-			  }
-			}
-			case x: ExprNodeConstantDesc => TENFactory.literal(x.getValue(), TypeUtil.getDataType(x.getWritableObjectInspector()), requireWritable)
-			case x: ExprNodeNullDesc => TENFactory.literal(null, null, requireWritable)
+			case x: ExprNodeGenericFuncDesc => create(x, input)
+			case x: ExprNodeFieldDesc => TENFactory.attribute(x.getFieldName(), create(x.getDesc(), input))
+			// TODO should iterate every nested type, currently only support the outer attribute
+			case x: ExprNodeColumnDesc => TENInputRow(input.struct, x.getColumn())
+			case x: ExprNodeConstantDesc => TENFactory.literal(x.getValue(), TypeUtil.getDataType(x.getTypeInfo()), false)
+			case x: ExprNodeNullDesc => TENFactory.literal(null, TypeUtil.getDataType(x.getTypeInfo()), false)
 		}
 	}
 }
 
 object constantTrue extends TENLiteral(true, TypeUtil.BooleanType, false)
 object constantFalse extends TENLiteral(false, TypeUtil.BooleanType, false)
-object constantNull extends TENLiteral(null, TypeUtil.NullType, false)
 
 object TENFactory {
 	import java.lang.reflect.Type
@@ -342,6 +302,13 @@ object TENFactory {
 		    }
 	}
 
+	def w2r(children: Seq[TypedExprNode]): Seq[TypedExprNode] = {
+	  children.map(_.toR)
+	}
+	def r2w(children: Seq[TypedExprNode]): Seq[TypedExprNode] = {
+	  children.map(_.toW)
+	}
+	
 	protected def udfParamTypes(clazz: Class[_ <: UDF], children: Seq[DataType]) = {
 		/*please refs org.apache.hadoop.hive.ql.udf.generic.GenericUDFBridge
      * We need to figure out which UDF function(which may has several versions of "evaluate" method) 
@@ -458,44 +425,26 @@ object TENFactory {
 
 	def attribute(attr: String, child: TypedExprNode) = TENAttribute(attr, child)
 
-	def gudf(clazz: Class[_ <: GenericUDF], children: Seq[TypedExprNode]) = {
-		val n = TENGUDF(clazz, children)
-		val outputType = n.outputDT
-		if (ObjectInspectorUtils.isConstantObjectInspector(outputType.oi.asInstanceOf[OI]) &&
-			n.isDeterministic && !n.isStateful) {
-			val value = outputType.asInstanceOf[ConstantObjectInspector].getWritableConstantValue()
-			literal(value, outputType, true)
+	def constantFolding(genericUDF: GenericUDF, children: Seq[TypedExprNode]): TENLiteral = {
+	  val n = TENGUDF(genericUDF, r2w(children))
+	  val outputType = n.outputDT
+	  if (outputType.constant && n.isDeterministic && !n.isStateful) {
+			literal(outputType.constantValue, TypeUtil.standardize(outputType), true)
 		} else {
-			TENGUDF(clazz, children.map(node => (node match {
-				case _ @ (_: TENGUDF | _: TENUDF | _: TENLiteral) => TENConvertW2D(node)
-				case _ => TENConvertW2D(TENConvertR2W(node))
-			}).asInstanceOf[TypedExprNode]))
+			null
 		}
 	}
 	
+	def gudf(expr: GenericUDF, children: Seq[TypedExprNode]) = {
+	  TENGUDF(expr, children.map(node => TENConvertW2D(node)))
+	}
+	
+	def expectedDataType(bridge: GenericUDFBridge, children: Seq[TypedExprNode]): Seq[DataType] = {
+	  udfParamTypes(bridge.getUdfClass(), children.map(_.outputDT))._2
+	}
+	
 	def udf(bridge: GenericUDFBridge, children: Seq[TypedExprNode]) = {
-		val n = TENUDF(bridge, children)
-		val outputType = n.outputDT
-		if (ObjectInspectorUtils.isConstantObjectInspector(outputType.oi.asInstanceOf[OI]) &&
-			n.isDeterministic && !n.isStateful) {
-			val value = outputType.asInstanceOf[ConstantObjectInspector].getWritableConstantValue()
-			literal(value, outputType, true)
-		} else {
-			val inputDT = udfParamTypes(bridge.getUdfClass(), children.map(_.outputDT))._2
-			
-			TENUDF(bridge, children.zip(inputDT).map(node => (node match {
-				case _ @ (x @ (_: TENGUDF | _: TENUDF | _: TENLiteral), toDT) => if(toDT == x.outputDT) {
-					node._1
-				} else {
-					TENConvertR2W(TENConvertR2R(TENConvertW2R(x), toDT))
-				}
-				case _ @ (x, toDT) => if(toDT == x.outputDT) {
-					TENConvertR2W(x)
-				} else {
-					TENConvertR2W(TENConvertR2R(x, toDT))
-				}
-			}).asInstanceOf[TypedExprNode]))
-		}
+		TENUDF(bridge, children)
 	}
 
 	def builtin(op: String, children: Seq[TypedExprNode], dt: DataType = null): TypedExprNode = {
@@ -561,6 +510,6 @@ object TENFactory {
 	def branch_if(children: Seq[TypedExprNode]) = if (children.length > 2) {
 		branch(children(0), children(1), children(2))
 	} else {
-		branch(children(0), children(1), constantNull)
+		branch(children(0), children(1), null)
 	}
 }
