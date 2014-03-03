@@ -422,7 +422,12 @@ case class EENBuiltin(expr: TENBuiltin, sibling: ExecuteOrderedExprNode) extends
 	}
 	
 	private def defaultExpr(ctx: CGExprContext): String = {
-	  expr.exprs.map(ctx.exprName(_)).reduce((a, b) => { "%s%s%s".format(a, expr.op, b) })
+	  val snippet = expr.exprs.map(ctx.exprName(_)).reduce((a, b) => { "%s%s%s".format(a, expr.op, b) })
+	  expr.outputDT match {
+	    case TypeUtil.ByteType => "(byte)(%s)".format(snippet)
+	    case TypeUtil.ShortType => "(short)(%s)".format(snippet)
+	    case _ => snippet
+	  }
 	}
 }
 
