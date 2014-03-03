@@ -334,13 +334,13 @@ case class EENGUDF(expr: TENGUDF, sibling: ExecuteOrderedExprNode) extends EENEx
 	private var gudf: String = _
 
 	override def initial(ctx: CGExprContext) {
-		ctx.defineImport(expr.clazz)
+		ctx.defineImport(expr.genericUDF.getClass())
 		ctx.defineImport(classOf[PrimitiveObjectInspectorFactory])
 		ctx.defineImport(classOf[ObjectInspector])
 		ctx.defineImport(classOf[DeferredObject])
 		ctx.defineImport(classOf[SetDeferred])
 
-		gudf = ctx.property(expr.clazz.getCanonicalName())
+		gudf = ctx.property(expr.genericUDF.getClass().getCanonicalName())
 
 		// TODO
 		val inits = "%s.initialize(new ObjectInspector[]{%s});".format(

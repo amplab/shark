@@ -79,7 +79,7 @@ case class EENSequence(expr: ExecuteOrderedExprNode, next: ExecuteOrderedExprNod
 
 case class EENGuardNull(ten: TypedExprNode, inner: ExecuteOrderedExprNode) extends ExecuteOrderedExprNode(inner) {
   override def code(ctx: CGExprContext): String = {
-  	if(ten == constantNull) {
+  	if((ten.isInstanceOf[TENLiteral] && ten.asInstanceOf[TENLiteral].obj == null) || inner == null) {
   		"" 
   	} else {
   		val code = new StringBuffer()

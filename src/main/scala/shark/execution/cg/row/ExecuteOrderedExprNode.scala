@@ -50,7 +50,7 @@ case class EENAlias(expr: TypedExprNode, sibling: ExecuteOrderedExprNode = null)
   	// do nothing rather than its default initialization.
   }
   
-  override def currCode(ctx: CGExprContext): String = ctx.exprName(expr)
+  override def currCode(ctx: CGExprContext): String = ""
 }
 
 case class EENInputRow(expr: TENInputRow, sibling: ExecuteOrderedExprNode) extends EENExpr(expr, sibling) {
@@ -58,10 +58,8 @@ case class EENInputRow(expr: TENInputRow, sibling: ExecuteOrderedExprNode) exten
     private var sfName: String = _
     
 	override def initial(ctx: CGExprContext) {
-	  import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 	  import org.apache.hadoop.hive.serde2.objectinspector.StructField
 	  
-	  ctx.defineImport(classOf[StructObjectInspector])
 	  val oiType = TypeUtil.dtToTypeOIString(expr.outputDT)
 	  
 	  oiName = ctx.property(oiType, false, false, null, false)
@@ -90,7 +88,7 @@ case class EENInputRow(expr: TENInputRow, sibling: ExecuteOrderedExprNode) exten
 
 case class EENCondition(predict: ExecuteOrderedExprNode, t: ExecuteOrderedExprNode, f: ExecuteOrderedExprNode, branch: TENBranch, sibling: ExecuteOrderedExprNode) extends EENExpr(branch, sibling) {
   override def currCode(ctx: CGExprContext): String = {
-  	val pc = predict.code(ctx)
+  	val pc = ctx.exprName(predict.essential)
   	val tc = t.code(ctx)
   	val fc = f.code(ctx)
   	"if(%s) \n{%s\n} else {%s\n}".format(pc, tc, fc)

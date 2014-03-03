@@ -15,6 +15,7 @@ package ${packageName};
 
 import shark.execution.cg.OperatorExecutor;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import ${cgrow.fullClassName};
 
 #for(clazz <- ctx.imports)

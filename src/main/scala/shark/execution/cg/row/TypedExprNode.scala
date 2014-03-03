@@ -5,7 +5,23 @@ import java.util.concurrent.atomic.AtomicInteger
 import org.apache.hadoop.hive.ql.udf.generic._
 import org.apache.hadoop.hive.ql.udf._
 import org.apache.hadoop.hive.ql.exec.FunctionRegistry
+
 import org.apache.hadoop.hive.serde2.objectinspector.{ ObjectInspector => OI }
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.{ PrimitiveObjectInspectorFactory => POIF }
+import org.apache.hadoop.hive.serde2.objectinspector.{ PrimitiveObjectInspector => POI }
+import org.apache.hadoop.hive.serde2.objectinspector.{ ConstantObjectInspector }
+import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
+import org.apache.hadoop.hive.serde2.io.TimestampWritable
+import org.apache.hadoop.hive.serde2.io.ByteWritable
+import org.apache.hadoop.hive.serde2.io.DoubleWritable
+import org.apache.hadoop.hive.serde2.io.ShortWritable
+import org.apache.hadoop.io.Writable
+import org.apache.hadoop.io.BooleanWritable
+import org.apache.hadoop.io.FloatWritable
+import org.apache.hadoop.io.IntWritable
+import org.apache.hadoop.io.LongWritable
+import org.apache.hadoop.io.Text
+import org.apache.hadoop.io.BytesWritable
 
 import org.apache.spark.Logging
 
@@ -23,8 +39,6 @@ abstract class TypedExprNode extends ExprNode[TypedExprNode] {
 
 	// output data type
 	def outputDT: DataType = null
-
-	val possibleNullValue = true
 
 	val exprId = TypedExprNode.randomName("__expr_")
 
@@ -44,6 +58,9 @@ abstract class TypedExprNode extends ExprNode[TypedExprNode] {
 		  that == thiz
 		})
 	}
+	
+	def toR: TypedExprNode = TENConvertW2R(this)
+	def toW: TypedExprNode = TENConvertR2W(this)
 }
 
 object TypedExprNode {
@@ -51,22 +68,77 @@ object TypedExprNode {
 	def randomName(prefix: String) = prefix + incr.getAndIncrement()
 }
 
-case class TENLiteral(obj: Any = null, dt: DataType = null, writable: Boolean = true) extends TypedExprNode with LeafNode[TypedExprNode] {
+case class TENLiteral(obj: Any, dt: DataType, writable: Boolean) extends TypedExprNode with LeafNode[TypedExprNode] {
 	self: Product =>
+  override def outputDT = dt
 
-	override def outputDT = dt
-	override val possibleNullValue = (obj == null)
+  // TODO need to think about the array/map/list/struct type
+  def constantOI: ConstantObjectInspector = {
+    val pc = dt.oi.asInstanceOf[POI].getPrimitiveCategory()
+    if (writable || obj == null) {
+      POIF.getPrimitiveWritableConstantObjectInspector(pc, obj)
+    } else {
+      POIF.getPrimitiveWritableConstantObjectInspector(pc, pc match {
+        case PrimitiveCategory.BOOLEAN => POIF.writableBooleanObjectInspector.create(obj.asInstanceOf[Boolean])
+        case PrimitiveCategory.BYTE => POIF.writableByteObjectInspector.create(obj.asInstanceOf[Byte])
+        case PrimitiveCategory.SHORT => POIF.writableShortObjectInspector.create(obj.asInstanceOf[Short])
+        case PrimitiveCategory.INT => POIF.writableIntObjectInspector.create(obj.asInstanceOf[Int])
+        case PrimitiveCategory.LONG => POIF.writableLongObjectInspector.create(obj.asInstanceOf[Long])
+        case PrimitiveCategory.FLOAT => POIF.writableFloatObjectInspector.create(obj.asInstanceOf[Float])
+        case PrimitiveCategory.DOUBLE => POIF.writableDoubleObjectInspector.create(obj.asInstanceOf[Double])
+        case PrimitiveCategory.STRING => POIF.writableStringObjectInspector.create(obj.asInstanceOf[String])
+        case PrimitiveCategory.TIMESTAMP => POIF.writableTimestampObjectInspector.create(obj.asInstanceOf[java.sql.Timestamp])
+        case PrimitiveCategory.BINARY => POIF.writableBinaryObjectInspector.create(obj.asInstanceOf[Array[Byte]])
+      })
+    }
+  }
+  
+  override def toR: TypedExprNode = if(writable) convert else this
+  override def toW: TypedExprNode = if(writable) this else convert
+  
+  // TODO need to think about the array/map/list/struct type
+  private def convert = if(obj == null) TENLiteral(null, dt, !writable) else {
+    val pc = dt.oi.asInstanceOf[POI].getPrimitiveCategory()
+    TENLiteral(if (writable) {
+      pc match {
+        case PrimitiveCategory.BOOLEAN => obj.asInstanceOf[BooleanWritable].get()
+        case PrimitiveCategory.BYTE => obj.asInstanceOf[ByteWritable].get()
+        case PrimitiveCategory.SHORT => obj.asInstanceOf[ShortWritable].get()
+        case PrimitiveCategory.INT => obj.asInstanceOf[IntWritable].get()
+        case PrimitiveCategory.LONG => obj.asInstanceOf[LongWritable].get()
+        case PrimitiveCategory.FLOAT => obj.asInstanceOf[FloatWritable].get()
+        case PrimitiveCategory.DOUBLE => obj.asInstanceOf[DoubleWritable].get()
+        case PrimitiveCategory.STRING => obj.asInstanceOf[Text].toString
+        case PrimitiveCategory.TIMESTAMP => obj.asInstanceOf[TimestampWritable].getTimestamp()
+        case PrimitiveCategory.BINARY => obj.asInstanceOf[BytesWritable].get()
+      }
+    } else {
+      pc match {
+        case PrimitiveCategory.BOOLEAN => new BooleanWritable(obj.asInstanceOf[Boolean])
+        case PrimitiveCategory.BYTE => new ByteWritable(obj.asInstanceOf[Byte])
+        case PrimitiveCategory.SHORT => new ShortWritable(obj.asInstanceOf[Short])
+        case PrimitiveCategory.INT => new IntWritable(obj.asInstanceOf[Int])
+        case PrimitiveCategory.LONG => new LongWritable(obj.asInstanceOf[Long])
+        case PrimitiveCategory.FLOAT => new FloatWritable(obj.asInstanceOf[Float])
+        case PrimitiveCategory.DOUBLE => new DoubleWritable(obj.asInstanceOf[Double])
+        case PrimitiveCategory.STRING => new Text(obj.asInstanceOf[String])
+        case PrimitiveCategory.TIMESTAMP => new TimestampWritable(obj.asInstanceOf[java.sql.Timestamp])
+        case PrimitiveCategory.BINARY => new BytesWritable(obj.asInstanceOf[Array[Byte]])
+      }
+    }, dt, !writable)
+  }
 }
 
 case class TENInputRow(struct: CGStruct, attr: String) extends TypedExprNode with LeafNode[TypedExprNode] {
 	self: Product =>
 	override def outputDT = field
-	override val possibleNullValue = false
 
 	lazy val field = struct.getField(attr)
 	
 	def escapedName = CGUtil.makeCGFieldName(attr)
 	def maskBitName = CGField.getMaskBitVariableName(escapedName)
+	
+	override def toW: TypedExprNode = this
 }
 
 case class TENOutputField(attr: String, expr: TypedExprNode, dt: DataType) extends TypedExprNode with UnaryNode[TypedExprNode] {
@@ -93,8 +165,6 @@ case class TENOutputRow(fields: Seq[TypedExprNode], output: CGStruct) extends Ty
 	override def outputDT = output
 
 	def children = fields
-
-	override val possibleNullValue = false
 }
 
 abstract class TENConvert(from: TypedExprNode, to: DataType) extends TypedExprNode with UnaryNode[TypedExprNode] {
@@ -109,22 +179,32 @@ abstract class TENConvert(from: TypedExprNode, to: DataType) extends TypedExprNo
 /**
  * Raw type to Raw type
  */
-case class TENConvertR2R(from: TypedExprNode, to: DataType) extends TENConvert(from, to)
+case class TENConvertR2R(from: TypedExprNode, to: DataType) extends TENConvert(from, to) {
+  	override def toR: TypedExprNode = this
+	override def toW: TypedExprNode = TENConvertR2W(this)
+}
 
 /**
  * Raw type to Writable
  */
-case class TENConvertR2W(from: TypedExprNode) extends TENConvert(from, from.outputDT)
+case class TENConvertR2W(from: TypedExprNode) extends TENConvert(from, from.outputDT) {
+	override def toW: TypedExprNode = this
+}
 
 /**
  * Raw type to DeferredObject
  */
-case class TENConvertW2D(from: TypedExprNode) extends TENConvert(from, from.outputDT)
+case class TENConvertW2D(from: TypedExprNode) extends TENConvert(from, from.outputDT) {
+  override def toR: TypedExprNode = throw new CGAssertRuntimeException("shouldn't be called TENConvertW2D")
+  override def toW: TypedExprNode = throw new CGAssertRuntimeException("shouldn't be called TENConvertW2D")
+}
 
 /**
  * Writable to Raw 
  */
-case class TENConvertW2R(from: TypedExprNode) extends TENConvert(from, from.outputDT)
+case class TENConvertW2R(from: TypedExprNode) extends TENConvert(from, from.outputDT) {
+  override def toR: TypedExprNode = this
+}
 
 // TODO need to consider about the union
 case class TENAttribute(attr: String, expr: TypedExprNode) extends TypedExprNode with UnaryNode[TypedExprNode] {
@@ -134,6 +214,8 @@ case class TENAttribute(attr: String, expr: TypedExprNode) extends TypedExprNode
 	
     def escapedName = CGUtil.makeCGFieldName(attr)
 	def maskBitName = CGField.getMaskBitVariableName(escapedName)
+	
+	override def toR: TypedExprNode = this
 }
 
 //case class TENAlias(expr: TypedExprNode) extends TypedExprNode with UnaryNode[TypedExprNode] {
@@ -154,10 +236,13 @@ case class TENAttribute(attr: String, expr: TypedExprNode) extends TypedExprNode
 case class TENUDF(bridge: GenericUDFBridge, exprs: Seq[TypedExprNode]) extends TypedExprNode {
 	self: Product =>
 	override def outputDT = {
-		import org.apache.hadoop.util.ReflectionUtils
-
 		// TODO need to think about how to convert the Struct / map / union / list to DataType
-		val output = bridge.initializeAndFoldConstants(exprs.map(_.outputDT.oi.asInstanceOf[OI]).toArray)
+		val output = bridge.initializeAndFoldConstants(exprs.map(node => {
+		  node match {
+		    case x: TENLiteral => x.constantOI
+		    case _ => node.outputDT.oi.asInstanceOf[OI]
+		  }
+		}).toArray)
 
 		TypeUtil.getDataType(output)
 	}
@@ -187,28 +272,32 @@ case class TENUDF(bridge: GenericUDFBridge, exprs: Seq[TypedExprNode]) extends T
 		  false
 		} 
 	}
+	
+	override def toW: TypedExprNode = this
 }
 
-case class TENGUDF(clazz: Class[_ <: GenericUDF], exprs: Seq[TypedExprNode]) extends TypedExprNode {
+case class TENGUDF(genericUDF: GenericUDF, exprs: Seq[TypedExprNode]) extends TypedExprNode {
 	self: Product =>
 	override def outputDT = {
 		import org.apache.hadoop.util.ReflectionUtils
 
-		val genericUDF = ReflectionUtils.newInstance(clazz, null).asInstanceOf[GenericUDF]
 		// TODO need to think about how to convert the Struct / map / union / list to DataType
-		val output = genericUDF.initializeAndFoldConstants(exprs.map(_.outputDT.oi.asInstanceOf[OI]).toArray)
+		val output = genericUDF.initializeAndFoldConstants(exprs.map(node => {
+		  node match {
+		    case x: TENLiteral => x.constantOI
+		    case _ => node.outputDT.oi.asInstanceOf[OI]
+		  }
+		}).toArray)
 
 		TypeUtil.getDataType(output)
 	}
 
-	private lazy val gudf = clazz.newInstance()
-
 	def children = exprs
 
 	override val isDeterministic = exprs.foldLeft(
-		FunctionRegistry.isDeterministic(gudf))(_ && _.isDeterministic)
+		FunctionRegistry.isDeterministic(genericUDF))(_ && _.isDeterministic)
 
-	override val isStateful = FunctionRegistry.isStateful(gudf)
+	override val isStateful = FunctionRegistry.isStateful(genericUDF)
 	
 	override def equals(ref: Any) = if (this eq ref.asInstanceOf[AnyRef]) {
 		true
@@ -219,13 +308,15 @@ case class TENGUDF(clazz: Class[_ <: GenericUDF], exprs: Seq[TypedExprNode]) ext
 		// exactly the same instance
 		if(isDeterministic && hashCode == ref.hashCode()) {
 		  val that = ref.asInstanceOf[TENGUDF]
-		  clazz.getCanonicalName().equals(that.clazz.getCanonicalName()) && {
+		  genericUDF.getClass().equals(that.genericUDF.getClass()) && {
 		    exprs == that.exprs
 		  }
 		} else {
 		  false
 		} 
 	}	
+	
+	override def toW: TypedExprNode = this
 }
 
 // TODO replace the nullCheckRequired with type Seq[Boolean] for indicating each of the child node if it's the require null check
@@ -236,6 +327,8 @@ case class TENBuiltin(op: String, exprs: Seq[TypedExprNode], dt: DataType, nullC
 	override val isDeterministic = children.foldLeft(true)((a, b) => { a && b.isDeterministic })
 	
 	def children = exprs
+	
+	override def toR: TypedExprNode = this
 }
 
 case class TENBranch(branchIf: TypedExprNode, branchThen: TypedExprNode, branchElse: TypedExprNode) extends TypedExprNode {
@@ -245,4 +338,7 @@ case class TENBranch(branchIf: TypedExprNode, branchThen: TypedExprNode, branchE
 	override def children = (branchIf :: branchThen :: branchElse :: Nil).filter(_ != null)
 
 	override val isDeterministic = children.foldLeft(true)((a, b) => { a && b.isDeterministic })
+	
+	override def toR: TypedExprNode = this
 }
+
