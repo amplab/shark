@@ -213,6 +213,7 @@ class PartitionTableFunctionOperator extends UnaryOperator[PTFDesc] {
   class LazyPTFIterator(iter: Iterator[_]) extends Iterator[Any] {
     var curIter: Iterator[Any] = _
     var curRow: Any = _
+    var complete: Boolean = false
 
     def hasNext: Boolean = {
       if (curIter == null || !curIter.hasNext) {
@@ -239,7 +240,9 @@ class PartitionTableFunctionOperator extends UnaryOperator[PTFDesc] {
      */
     def getNextPTFPartition(): PTFPartition = {
       if (!iter.hasNext) {
-        return null
+        if(complete) {
+           return null
+        }
       }
 
       if (curRow != null) {
@@ -287,6 +290,7 @@ class PartitionTableFunctionOperator extends UnaryOperator[PTFDesc] {
         inputPart.append(row)
       }
 
+      complete = true
       if (conf.isMapSide) processMapFunction() else processInputPartition()
     }
   }
