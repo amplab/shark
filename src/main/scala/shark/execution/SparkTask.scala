@@ -89,7 +89,7 @@ class SparkTask extends HiveTask[SparkWork] with Serializable with LogHelper {
     terminalOp.initializeMasterOnAll()
 
     // Set Spark's job description to be this query.
-    SharkEnv.sc.setJobGroup("shark.job", work.pctx.getContext.getCmd)
+    SharkEnv.sc.setJobDescription(work.pctx.getContext.getCmd)
 
     // Set the fair scheduler's pool using mapred.fairscheduler.pool if it is defined.
     Option(conf.get("mapred.fairscheduler.pool")).foreach { pool =>
