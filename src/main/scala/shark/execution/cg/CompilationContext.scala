@@ -46,4 +46,5 @@ class CompilationContext() {
     if(entries.length > 0) compiler.compile(entries.toList)
   }
   
+  def count() = entries.length
 }
