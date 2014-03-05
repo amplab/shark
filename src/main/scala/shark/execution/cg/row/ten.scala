@@ -39,7 +39,6 @@ import org.apache.hadoop.io.BytesWritable
 import org.apache.hadoop.io.NullWritable
 
 import scala.collection.mutable.ArrayBuffer
-import scala.collection.JavaConversions._
 
 import shark.execution.cg.CGAssertRuntimeException
 
@@ -64,7 +63,8 @@ class TENFactory {
 	}
 
 	private def create(node: ExprNodeGenericFuncDesc, input: TENInputRow): TypedExprNode = {
-	  val inputs = node.getChildren().map(create(_, input)).toArray.toSeq
+	  import scala.collection.JavaConverters._
+	  val inputs = node.getChildren().asScala.map(create(_, input))
 	  val genericUDF = node.getGenericUDF()
 	  val folded = TENFactory.constantFolding(genericUDF, inputs)
 	  val children = TENFactory.w2r(inputs)
@@ -106,13 +106,13 @@ class TENFactory {
 			case x: GenericUDFOPNotNull => {
 				TENFactory.isnotnull(children(0)) // IS NOT NULL
 			}
-//			case x: GenericUDFCase => {
-//				TENFactory.branch_case(children)
-//			}
-//			case x: GenericUDFWhen => {
-//				val children = node.getChildren().map(create(_, input)).toArray.toSeq
-//				TENFactory.branch_when(children)
-//			}
+			case x: GenericUDFCase => {
+				TENFactory.branch_case(children)
+			}
+			case x: GenericUDFWhen => {
+				val children = node.getChildren().asScala.map(create(_, input))
+				TENFactory.branch_when(children)
+			}
 			case x: GenericUDFIf => {
 				TENFactory.branch_if(children)
 			}
@@ -239,15 +239,15 @@ object TENFactory {
 		        None
 		      else {
 		        l match {
-		          case e1 :: tail => {
+		          case Seq(e1, tail @ _*) => {
 		            val buffer = new collection.mutable.ArrayBuffer[(A, A)]()
 		            def remains(rest: Seq[A]): Option[A] = {
 		              rest match {
-		                case a :: b :: tail => {
+		                case Seq(a, b, tail @ _*) => {
 		                  buffer += ((a, b))
 		                  remains(tail)
 		                }
-		                case a :: Nil => Some(a)
+		                case Seq(a) => Some(a)
 		                case _ => None
 		              }
 		            }
@@ -276,15 +276,15 @@ object TENFactory {
 		        None
 		      else {
 		        l match {
-		          case e1 :: tail => {
+		          case Seq(e1, tail @ _*) => {
 		            val buffer = new collection.mutable.ArrayBuffer[(A, A)]()
 		            def remains(rest: Seq[A]): Option[A] = {
 		              rest match {
-		                case a :: b :: tail => {
+		                case Seq(a, b, tail @ _*) => {
 		                  buffer += ((a, b))
 		                  remains(tail)
 		                }
-		                case a :: Nil => Some(a)
+		                case Seq(a) => Some(a)
 		                case _ => None
 		              }
 		            }
@@ -319,7 +319,7 @@ object TENFactory {
 
 		val udf = ReflectionUtils.newInstance(clazz, null).asInstanceOf[UDF]
 
-		val udfMethod = udf.getResolver().getEvalMethod(children.map(_.typeInfo))
+		val udfMethod = udf.getResolver().getEvalMethod(children.map(_.typeInfo).asJava)
 		udfMethod.setAccessible(true);
 
 		// Create parameter converters
@@ -412,6 +412,9 @@ object TENFactory {
 	 * Helper function to convert object to specified primitive type. 
 	 */
 	def convert(expectedType: DataType, node: TypedExprNode): TypedExprNode = {
+	  if(node == null) {
+	    null
+	  } else {
 		val inputType = node.outputDT
 		
 		if (inputType == expectedType) {
@@ -419,6 +422,7 @@ object TENFactory {
 		} else {
 			TENConvertR2R(node, expectedType)
 		}
+	  }
 	}
 
 	def literal(obj: AnyRef, dt: DataType, writable: Boolean) = TENLiteral(obj, dt, writable)
@@ -479,12 +483,14 @@ object TENFactory {
 		assert(branchIfs.length == branchThens.length)
 
 		val convertedIfs = branchIfs.map(convert(TypeUtil.BooleanType, _))
-		val expectType = commonType((branchThens :+ branchElse).map(_.outputDT))
+		
+		val expectType = commonType((branchThens :+ branchElse).filter(_!=null).map(_.outputDT))
 
 		val convertedBranchThens = branchThens.map(n => { convert(expectType, n) })
-		val convertedBranchElse = convert(expectType, branchElse)
 
-		convertedIfs.zip(convertedBranchThens).foldRight(branchElse)((a, b) => { branch(a._1, a._2, b) })
+		val convertedBranchElse = if(branchElse == null) literal(null, expectType, false) else convert(expectType, branchElse)
+
+		convertedIfs.zip(convertedBranchThens).foldRight(convertedBranchElse)((a, b) => { branch(a._1, a._2, b) })
 	}
 
 	/**
