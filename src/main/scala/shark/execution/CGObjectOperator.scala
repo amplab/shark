@@ -21,7 +21,7 @@ import scala.reflect.BeanProperty
 
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 
-import shark.SharkConfVars
+import shark.{ SharkConfVars, LogHelper }
 import shark.execution.cg.OperatorExecutor
 import shark.execution.cg.CompilationContext
 import shark.execution.cg.row.CGOIField
@@ -31,7 +31,7 @@ import shark.execution.cg.row.CGRow
 import shark.execution.cg.row.CGStruct
 import shark.execution.cg.row.CGField
 
-trait CGObjectOperator {
+trait CGObjectOperator extends LogHelper {
   self: Operator[HiveDesc] =>
 
   // schema of the output / input tuples (table)
@@ -64,6 +64,7 @@ trait CGObjectOperator {
       return
     }
 
+    val s = System.currentTimeMillis()
     // collect all of the input table schema
     cginputrows = self.parentOperators.toArray.map(op => {
       if(op.cgrow != null) {
@@ -87,6 +88,8 @@ trait CGObjectOperator {
       // override the existed output object inspector (StructObjectInspector)
       soi = instance[StructObjectInspector](oiStruct.fullClassName)
     }
+    val e = System.currentTimeMillis()
+    logInfo("CodeGen CGRow/OI + Compiling takes %s ms".format(e - s))
     
     operatorClassName = operator.fullClassName
     // Put the CG Operator Compilation Unit into context, all of the CG operators 
