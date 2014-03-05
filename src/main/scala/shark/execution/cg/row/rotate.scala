@@ -105,8 +105,8 @@ class RuleValueGuard {
 		        	  	    EENGuardNull(branchIf,
 		        	  	      EENCondition(
 		        	  	  	    EENAlias(branchIf), 
-		        			    rotate(branchThen, EENAssignment(x, create(branchThen)), true), 
-		        			    rotate(branchElse, EENAssignment(x, create(branchElse)), true), 
+		        			    rotate(branchThen, EENGuardNull(branchThen, EENAssignment(x, create(branchThen))), true), 
+		        			    rotate(branchElse, EENGuardNull(branchElse, EENAssignment(x, create(branchElse))), true), 
 		        			  x, null)
 		        		    ), 
 		        		    sibling)
@@ -119,8 +119,8 @@ class RuleValueGuard {
 		              EENGuardNull(branchIf,
 		                EENCondition(
 		                  EENAlias(branchIf), 
-		        		    rotate(branchThen, EENAssignment(x, create(branchThen)), true), 
-		        		    rotate(branchElse, EENAssignment(x, create(branchElse)), true), 
+		        		    rotate(branchThen, EENGuardNull(branchThen, EENAssignment(x, create(branchThen))), true), 
+		        		    rotate(branchElse, EENGuardNull(branchElse, EENAssignment(x, create(branchElse))), true), 
 		        		    x, null)), 
 		              true)), 
 		        sibling)
@@ -189,7 +189,7 @@ class RuleValueGuard {
 	      	}
 	      }
 	      case x @ TENOutputField(name, expr, dt) => {
-	      	rotate(expr, EENOutputField(x), true)
+	      	rotate(expr, EENGuardNull(expr, EENOutputField(x)), true)
 	      }
 	      case x @ TENOutputExpr(expr) => {
 	        // rotate the fields first, and in the mean time, will collect the stateful UDF node
