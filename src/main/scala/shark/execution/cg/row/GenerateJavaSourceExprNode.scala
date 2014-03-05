@@ -302,7 +302,7 @@ case class EENLiteral(expr: TENLiteral, sibling: ExecuteOrderedExprNode) extends
 		ctx.register(expr, ctx.EXPR_VARIABLE_NAME, variableName)
 		ctx.register(expr, ctx.CODE_VALUE_REPL, variableName)
 		ctx.register(expr, ctx.CODE_VALIDATE, "")
-		ctx.register(expr, ctx.CODE_IS_VALID, if (null == expr.obj) "false" else "true")
+		ctx.register(expr, ctx.CODE_IS_VALID, null)
 	}
 
 	override def exprCode(ctx: CGExprContext) = null
@@ -615,6 +615,28 @@ case class EENConvertR2R(expr: TENConvertR2R, sibling: ExecuteOrderedExprNode) e
 			case TypeUtil.ShortType => "new java.sql.Timestamp(%s)".format(fromExprName)
 			case _ => throw new CGAssertRuntimeException(dtFrom + "can not convert to Timestamp")
 		}
+	}
+	
+	override def initial(ctx: CGExprContext) {
+	  if(expr.from.isInstanceOf[TENLiteral]) {
+	    val from = expr.from.asInstanceOf[TENLiteral]
+	    if(from.obj != null) {
+	      from.outputDT match {
+	        case TypeUtil.StringType =>
+	        case TypeUtil.TimestampType =>
+	        case TypeUtil.BinaryType =>
+	        // TODO add more non-java primitive type here.
+	        case _ => resetNullIndicator(ctx)
+	      }
+	    }
+	  } 
+	}
+	
+	private def resetNullIndicator(ctx: CGExprContext) {
+	  ctx.register(expr, ctx.EXPR_NULL_INDICATOR_NAME, null)
+	  ctx.register(expr, ctx.CODE_IS_VALID, null)
+	  ctx.register(expr, ctx.CODE_INVALIDATE, null)
+	  ctx.register(expr, ctx.CODE_VALIDATE, null)
 	}
 }
 
