@@ -4,7 +4,7 @@
 <%@ import val obj: CGOIPrimitive[_<:CGField[_]] %>
   public static final class ${structFieldClassName} extends CGStructField<${dataContainerClassName}, ${dataWritableClass}> {
     public CGStructField${delegate.name}(int idx) {
-      super("${delegate.name}", ${defCreateOI}, null, idx);
+      super("${delegate.oiName}", ${defCreateOI}, null, idx);
       cache = new ${dataWritableClass}();
     }
     #{val transform = java2Writable("data." + delegate.name, "cache")}#

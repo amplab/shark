@@ -27,7 +27,7 @@ import org.apache.hadoop.hive.ql.exec.FunctionRegistry
 import shark.execution.cg.SetDeferred
 import shark.execution.cg.SetRaw
 import shark.execution.cg.SetWritable
-import shark.execution.cg.CGAssertRuntimeException
+import shark.execution.cg.CGNotSupportDataTypeRuntimeException
 
 object TypeUtil {
 	private val map = scala.collection.mutable.Map[TypeInfo, DataType]()
@@ -68,7 +68,7 @@ object TypeUtil {
 
 	def getDataType(ti: TypeInfo): DataType = map.get(ti) match {
 		case Some(x) => x
-		case None => throw new CGAssertRuntimeException("Cannot mapping to the Datatype")
+		case None => throw new CGNotSupportDataTypeRuntimeException(ti)
 	}
 
 	def getTypeInfo(oi: OI): TypeInfo = TypeInfoUtils.getTypeInfoFromObjectInspector(oi)
@@ -93,7 +93,7 @@ object TypeUtil {
 			case TypeUtil.ShortType => "PrimitiveObjectInspectorFactory.writableShortObjectInspector"
 			case TypeUtil.StringType => "PrimitiveObjectInspectorFactory.writableStringObjectInspector"
 			case TypeUtil.TimestampType => "PrimitiveObjectInspectorFactory.writableTimestampObjectInspector"
-			case _ => throw new CGAssertRuntimeException("couldn't support the data type:" + dt.clazz)
+			case _ => throw new CGNotSupportDataTypeRuntimeException(dt)
 		}
 	}
 	
@@ -109,7 +109,16 @@ object TypeUtil {
 			case TypeUtil.ShortType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.ShortObjectInspector"
 			case TypeUtil.StringType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector"
 			case TypeUtil.TimestampType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector"
-			case _ => throw new CGAssertRuntimeException("couldn't support the data type:" + dt.clazz)
+			case _ => throw new CGNotSupportDataTypeRuntimeException(dt)
+		}
+	}
+	
+	def assertDataType(dt: DataType) {
+	  if(dt.isInstanceOf[CGUnion] || 
+		    dt.isInstanceOf[CGStruct] || 
+		    dt.isInstanceOf[CGMap] || 
+		    dt.isInstanceOf[CGList]) {
+		  throw new CGNotSupportDataTypeRuntimeException(dt)
 		}
 	}
 }

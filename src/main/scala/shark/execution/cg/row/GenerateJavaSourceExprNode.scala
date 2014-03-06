@@ -46,7 +46,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectIn
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.BooleanObjectInspector
 
 import shark.execution.cg.CGUtil
-import shark.execution.cg.CGAssertRuntimeException
+import shark.execution.cg.{ CGAssertRuntimeException, CGNotSupportDataTypeRuntimeException }
 import shark.execution.cg.SetDeferred
 
 /**
@@ -177,6 +177,7 @@ case class EENAttribute(expr: TENAttribute, sibling: ExecuteOrderedExprNode) ext
 
 case class EENLiteral(expr: TENLiteral, sibling: ExecuteOrderedExprNode) extends EENExpr(expr, sibling) {
 	override def initial(ctx: CGExprContext) {
+	  TypeUtil.assertDataType(expr.outputDT)
 		val variableName = expr.obj match {
 			case null => if(expr.writable) {
 			  ctx.property(expr.dt.writable, false, true, null, true)
@@ -312,6 +313,7 @@ case class EENUDF(expr: TENUDF, sibling: ExecuteOrderedExprNode) extends EENExpr
 	private var udf: String = _
 
 	override def initial(ctx: CGExprContext) {
+	  TypeUtil.assertDataType(expr.outputDT)
 		udf = ctx.property(expr.bridge.getUdfClass().getCanonicalName())
 
 		ctx.register(expr, ctx.EXPR_NULL_INDICATOR_NAME, null)
@@ -334,6 +336,7 @@ case class EENGUDF(expr: TENGUDF, sibling: ExecuteOrderedExprNode) extends EENEx
 	private var gudf: String = _
 
 	override def initial(ctx: CGExprContext) {
+	  TypeUtil.assertDataType(expr.outputDT)
 		ctx.defineImport(expr.genericUDF.getClass())
 		ctx.defineImport(classOf[PrimitiveObjectInspectorFactory])
 		ctx.defineImport(classOf[ObjectInspector])
