@@ -110,7 +110,7 @@ class SparkTask extends HiveTask[SparkWork] with Serializable with LogHelper {
         val s = System.currentTimeMillis()
         cc.compile()
         val e = System.currentTimeMillis()
-        logInfo("Compiling %s takes % ms".format(cc.count, (e - s)))
+        logWarning("Compiling %s takes %s ms".format(cc.count, (e - s)))
       } finally {
         Thread.currentThread().setContextClassLoader(oldCurrentClassLoader)
       }

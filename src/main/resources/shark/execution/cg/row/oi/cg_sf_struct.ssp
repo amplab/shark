@@ -3,7 +3,7 @@
 #import(shark.execution.cg.row.CGField)
 <%@ import val obj: CGOIStruct %>
   public static final class ${structFieldClassName} extends CGStructField<${dataContainerClassName}, ${dataWritableClass}> {
-    public CGStructField${delegate.name}(int idx) {
+    public CGStructField${delegate.oiName}(int idx) {
       super("${delegate.name}", ${defCreateOI}, null, idx);
     }
     #{val transform = java2Writable("data." + delegate.name, null)}#

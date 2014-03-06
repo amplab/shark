@@ -20,3 +20,17 @@ package shark.execution.cg
 
 class CGAssertRuntimeException(message: String = null, cause: Throwable = null) 
   extends RuntimeException(message, cause)
+
+import shark.execution.cg.row.CGField
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo
+class CGNotSupportDataTypeRuntimeException(message: String = null) 
+  extends RuntimeException(message, null) {
+  
+  def this(t: CGField[_]) {
+    this("Not support the data type:" + t.oi)
+  }
+  
+  def this(t: TypeInfo) {
+    this("Not support the data type:" + t.getTypeName())
+  }
+}

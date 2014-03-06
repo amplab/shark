@@ -52,7 +52,7 @@ public static class ${clazz} extends StructObjectInspector {
     
     #for(i <- 0 until fields.length)
     {
-      CGStructField sf = new ${fields(i).structFieldClassName}(${i});
+      ${fields(i).structFieldClassName} sf = new ${fields(i).structFieldClassName}(${i});
       SF_MAP.put("${fields(i).delegate.oiName}".toLowerCase(), sf);
       fields.add(sf);
     }

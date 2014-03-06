@@ -233,7 +233,7 @@ object TENFactory {
 	import scala.collection.JavaConverters._
 
 	/* Extract "CASE value (WHEN A==value THEN a)* ELSE c END */
-	object When {
+	object Case {
 		    def unapply[A <: TreeNode[A]](l: Seq[A]): Option[(A, Seq[(A, A)], A)] = {
 		      if (l.length < 3)
 		        None
@@ -266,7 +266,7 @@ object TENFactory {
 	}
 
 	/* Extract "CASE (WHEN a THEN b)* [ELSE f] END"*/
-	object Case {
+	object When {
 		// TODO need to figure how to pattern matching with Array
 		def unapply[A <: TreeNode[A]](l: Array[A]): Option[(Seq[(A, A)], A)] = {
 			None
@@ -494,23 +494,23 @@ object TENFactory {
 	}
 
 	/**
-	 * when
-	 * "CASE WHEN a THEN b WHEN c THEN d [ELSE f] END"
+	 * case
+	 * CASE value WHEN A THEN a [WHEN B THEN b] ELSE c END
 	 * a and c should be boolean
 	 */
 	def branch_case(children: Seq[TypedExprNode]) = children match {
-		case When(a, b, c) => branch(b.map(p => { TENFactory.builtin("==", Seq(a, p._1)) }), b.map(_._2), c)
-		case _ => throw new CGAssertRuntimeException("wrong number of parameters in When")
+		case Case(a, b, c) => branch(b.map(p => { TENFactory.builtin("==", Seq(a, p._1)) }), b.map(_._2), c)
+		case _ => throw new CGAssertRuntimeException("wrong number of parameters in Case")
 	}
 
 	/**
-	 * case
-	 * case value when A then a [when B then b] else c end
+	 * when
+	 * CASE WHEN a THEN b WHEN c THEN d [ELSE f] END
 	 * if value == null then the value would be "c", if any, other wise null
 	 */
 	def branch_when(children: Seq[TypedExprNode]) = children match {
-		case Case(b, c) => branch(b.map(_._1), b.map(_._2), c)
-		case _ => throw new CGAssertRuntimeException("wrong number of parameters in Case")
+		case When(b, c) => branch(b.map(_._1), b.map(_._2), c)
+		case _ => throw new CGAssertRuntimeException("wrong number of parameters in When")
 	}
 
 	def branch_if(children: Seq[TypedExprNode]) = if (children.length > 2) {

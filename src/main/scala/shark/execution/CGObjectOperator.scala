@@ -75,7 +75,7 @@ trait CGObjectOperator extends LogHelper {
     })
     
     cgrow = createOutputRow()
-    if(cgrow != null) {
+    val oi: StructObjectInspector = if(cgrow != null) {
       // if current operator will create the new schema as output
       var oiStruct = CGOIField.create(cgrow).asInstanceOf[CGOIStruct]
       soiClassName      = oiStruct.fullClassName
@@ -86,15 +86,27 @@ trait CGObjectOperator extends LogHelper {
         (soiClassName, CGOI.generateOI(oiStruct, true))))
     
       // override the existed output object inspector (StructObjectInspector)
-      soi = instance[StructObjectInspector](oiStruct.fullClassName)
+      instance[StructObjectInspector](oiStruct.fullClassName)
+    } else {
+      soi
     }
+    
     val e = System.currentTimeMillis()
-    logInfo("CodeGen CGRow/OI + Compiling takes %s ms".format(e - s))
+    logWarning("CodeGen CGRow/OI + Compiling takes %s ms".format(e - s))
     
     operatorClassName = operator.fullClassName
     // Put the CG Operator Compilation Unit into context, all of the CG operators 
     // will be compiled together later on  
-    cc.add(List((operatorClassName, CGOperator.generate(operator))))
+    try {
+      cc.add(List((operatorClassName, CGOperator.generate(operator))))
+      soi = oi
+    } catch {
+      case e: Throwable => {
+        logError("Exception threw, will switch to Hive Evaluator, Msg:", e.getMessage())
+        logDebug("Exception Detail:", e)
+        useCG = false
+      }
+    }
   }
   
   // every code generation operator have to call cgOnSlave() within the initializeOnSlave explicitly
