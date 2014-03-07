@@ -144,7 +144,10 @@ object JavaCompilerHelper {
  * multiple "read" in Workers
  */
 class OperatorClassLoader(parent: ClassLoader) 
-  extends SecureClassLoader(parent) with LogHelper with KryoSerializable {
+  extends SecureClassLoader(parent) 
+  with LogHelper 
+  with KryoSerializable 
+  with java.io.Externalizable {
   
   def this() = this(Thread.currentThread.getContextClassLoader())
   
@@ -165,7 +168,7 @@ class OperatorClassLoader(parent: ClassLoader)
 
   override def read(kryo: Kryo, input: Input) {
     clazzCache = new HashMap[String, Array[Byte]] with SynchronizedMap[String, Array[Byte]]
-    var size = input.read()
+    val size = input.read()
     for(i <- 0 until size) {
       var name = input.readString()
       var bytes = new Array[Byte](input.readInt())
@@ -174,6 +177,27 @@ class OperatorClassLoader(parent: ClassLoader)
     }
   }
 
+  def writeExternal(output: java.io.ObjectOutput) {
+    output.writeInt(clazzCache.size)
+    clazzCache.foreach { case (name, bytes) => {
+        output.writeUTF(name)
+        output.writeInt(bytes.length)
+        output.write(bytes, 0, bytes.length)
+      }
+    }
+  }
+  
+  def readExternal(input: java.io.ObjectInput) {
+    clazzCache = new HashMap[String, Array[Byte]] with SynchronizedMap[String, Array[Byte]]
+    val size = input.readInt()
+    for(i <- 0 until size) {
+      var name = input.readUTF()
+      var bytes = new Array[Byte](input.readInt())
+      input.readFully(bytes)
+      flushClass(name, bytes)
+    }
+  }
+  
   override def write(kryo: Kryo, output: Output) {
     output.write(clazzCache.size)
     clazzCache.foreach { case (name, bytes) => {

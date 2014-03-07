@@ -34,7 +34,6 @@ import org.apache.spark.rdd.RDD
 import shark.LogHelper
 import shark.execution.serialization.OperatorSerializationWrapper
 import shark.execution.cg.CompilationContext
-import shark.execution.cg.OperatorClassLoader
 
 
 abstract class Operator[+T <: HiveDesc] extends LogHelper with CGObjectOperator with Serializable {
@@ -327,7 +326,6 @@ object Operator extends LogHelper {
 
   /** A reference to HiveConf for convenience. */
   @transient var hconf: HiveConf = _
-  @transient var operatorClassLoader: OperatorClassLoader = _
 
   /**
    * Calls the code to process the partitions. It is placed here because we want

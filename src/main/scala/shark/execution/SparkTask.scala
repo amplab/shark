@@ -88,13 +88,11 @@ class SparkTask extends HiveTask[SparkWork] with Serializable with LogHelper {
     val useCG = SharkConfVars.getBoolVar(conf, SharkConfVars.QUERY_CG)
     
     Operator.hconf = conf
-    Operator.operatorClassLoader = null
     
     initializeTableScanTableDesc(tableScanOps)
     
     if (useCG) {
       val cc = new CompilationContext()
-      Operator.operatorClassLoader = cc.preCompiledClassLoader
   
       val oldCurrentClassLoader = Thread.currentThread().getContextClassLoader()
       try {
@@ -111,6 +109,11 @@ class SparkTask extends HiveTask[SparkWork] with Serializable with LogHelper {
         cc.compile()
         val e = System.currentTimeMillis()
         logWarning("Compiling %s takes %s ms".format(cc.count, (e - s)))
+        
+        // sync up the classloader of generated classes across cluster 
+        terminalOp.broadcastClassloader(SharkEnv.sc.broadcast(cc.preCompiledClassLoader))
+      } catch {
+        case e: Throwable => logError("Exception in SparkTask:", e)
       } finally {
         Thread.currentThread().setContextClassLoader(oldCurrentClassLoader)
       }
