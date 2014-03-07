@@ -620,6 +620,27 @@ class SQLSuite extends FunSuite {
       "StorageLevel for partition(keypart=2) should be NONE, but got: " + keypart2StorageLevel)
   }
 
+  test("FIFO: get() does not reload an RDD previously unpersist()'d.") {
+    val tableName = "dont_reload_evicted_partition"
+    val partitionedTable = createCachedPartitionedTable(
+      tableName,
+      3 /* numPartitionsToCreate */,
+      3 /* maxCacheSize */,
+      "shark.memstore2.FIFOCachePolicy")
+    assert(SharkEnv.memoryMetadataManager.containsTable(DEFAULT_DB_NAME, tableName))
+    val keypart1RDD = partitionedTable.keyToPartitions.get("keypart=1")
+    val lvl = TestUtils.getStorageLevelOfRDD(keypart1RDD.get)
+    assert(lvl == StorageLevel.MEMORY_AND_DISK, "got: " + lvl)
+    sc.runSql("""insert into table dont_reload_evicted_partition partition(keypart = 4)
+      select * from test""")
+    assert(TestUtils.getStorageLevelOfRDD(keypart1RDD.get) == StorageLevel.NONE)
+
+    // Scanning partition (keypart = 1) should reload the corresponding RDD into the cache, and
+    // cause eviction of the RDD for partition (keypart = 2).
+    sc.runSql("select count(1) from dont_reload_evicted_partition where keypart = 1")
+    assert(keypart1RDD.get.getStorageLevel == StorageLevel.NONE, "got: " +  keypart1RDD.get.getStorageLevel)
+  }
+
   ///////////////////////////////////////////////////////////////////////////////////////
   // Prevent nested UnionRDDs - those should be "flattened" in MemoryStoreSinkOperator.
   ///////////////////////////////////////////////////////////////////////////////////////
