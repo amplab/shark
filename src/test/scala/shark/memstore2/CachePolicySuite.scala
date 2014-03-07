@@ -82,16 +82,16 @@ class CachePolicySuite extends FunSuite {
     fifo.initialize(Array.empty[String], cacheSize, kvGen.loadFunc _, kvGen.evictionFunc _)
 
     // Load KVs 0-4.
-    (0 to 4).map(fifo.notifyGet(_))
+    (0 to 4).map(fifo.notifyPut(_, TestValue(-1, true)))
     assert(fifo.keysOfCachedEntries.equals(Seq(0, 1, 2, 3, 4)))
 
     // Get 0-8, which should evict 0-3.
-    (0 to 8).map(fifo.notifyGet(_))
+    (0 to 8).map(fifo.notifyPut(_, TestValue(-1, true)))
     assert(fifo.keysOfCachedEntries.equals(Seq(4, 5, 6, 7, 8)))
 
     // Remove 4, 6 and add 9-12. 5 and 7 should be evicted.
     fifo.notifyRemove(4); fifo.notifyRemove(6)
-    (9 to 12).map(fifo.notifyGet(_))
+    (9 to 12).map(fifo.notifyPut(_, TestValue(-1, true)))
     assert(fifo.keysOfCachedEntries.equals(Seq(8, 9, 10, 11, 12)))
   }
 

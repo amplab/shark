@@ -128,6 +128,7 @@ class LRUCachePolicy[K, V] extends LinkedMapBasedPolicy[K, V] {
       evictionFunc: (K, V) => Unit) {
     super.initialize(strArgs, fallbackMaxSize, loadFunc, evictionFunc)
     _cache = new LinkedMapCache(true /* evictUsingAccessOrder */)
+    _evictUsingAccessOrder = true
   }
 
 }
@@ -145,7 +146,6 @@ class FIFOCachePolicy[K, V] extends LinkedMapBasedPolicy[K, V] {
   }
 
 }
-
 
 sealed abstract class LinkedMapBasedPolicy[K, V] extends CachePolicy[K, V] {
 
@@ -167,6 +167,7 @@ sealed abstract class LinkedMapBasedPolicy[K, V] extends CachePolicy[K, V] {
   protected var _hitCount: Long = 0L
   protected var _missCount: Long = 0L
   protected var _evictionCount: Long = 0L
+  protected var _evictUsingAccessOrder = false
 
   override def initialize(
       strArgs: Array[String],
@@ -199,9 +200,11 @@ sealed abstract class LinkedMapBasedPolicy[K, V] extends CachePolicy[K, V] {
       if (_cache.contains(key)) {
         _cache.get(key)
         _hitCount += 1L
-      } else {
+      } else if (_evictUsingAccessOrder) {
         val loadedValue = _loadFunc(key)
         _cache.put(key, loadedValue)
+        _missCount += 1L
+      } else {
         _missCount += 1L
       }
     }
