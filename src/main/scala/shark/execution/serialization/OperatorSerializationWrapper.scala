@@ -19,7 +19,6 @@ package shark.execution.serialization
 
 import shark.execution.HiveDesc
 import shark.execution.Operator
-import shark.execution.cg.OperatorClassLoader
 
 
 /**
@@ -41,10 +40,9 @@ class OperatorSerializationWrapper[T <: Operator[_ <: HiveDesc]]
   /** The object inspectors, serialized by Kryo. */
   var objectInspectorsSerialized: Array[Byte] = _
   
-  /** The generated classes byte code, serialized by Kryo. */
-  var classSerialized: Array[Byte] = _
-
-
+  /** classloader in broad casted */
+  var classloaderBDSerialized: Array[Byte]  = _
+  
   def value: T = {
     if (_value == null) {
       assert(opSerialized != null)
@@ -52,17 +50,17 @@ class OperatorSerializationWrapper[T <: Operator[_ <: HiveDesc]]
       assert(objectInspectorsSerialized != null)
       assert(objectInspectorsSerialized.length > 0)
       _value = XmlSerializer.deserialize[T](opSerialized)
-
-      if (classSerialized != null) {
-        assert(classSerialized.length > 0)
-        // TODO this is in very low efficiency, which creates class loader per task
-        val classloader: OperatorClassLoader = KryoSerializer.deserialize(classSerialized)
-        
-        // No need to worry about setting back the class loader, cause in TaskRunner.scala(Spark)
-        // will set back to the replClassLoader every time when new task assigned.
-        Thread.currentThread().setContextClassLoader(classloader)
+      
+      if(classloaderBDSerialized != null) {
+        _value.classloaderBD = JavaSerializer.deserialize(classloaderBDSerialized)
+        val cl = _value.classloaderBD.value
+        if(Thread.currentThread().getContextClassLoader() != cl) {
+          Thread.currentThread().setContextClassLoader(cl)
+        }
+      } else {
+        null
       }
-
+      
       _value.objectInspectors = KryoSerializer.deserialize(objectInspectorsSerialized)
     }
     _value
@@ -71,12 +69,13 @@ class OperatorSerializationWrapper[T <: Operator[_ <: HiveDesc]]
   def value_= (v: T):Unit = {
     _value = v
     
-    if(Operator.operatorClassLoader != null){
-      classSerialized = KryoSerializer.serialize(Operator.operatorClassLoader)
-    }
-
     opSerialized = XmlSerializer.serialize(value, v.hconf)
     objectInspectorsSerialized = KryoSerializer.serialize(value.objectInspectors)
+    classloaderBDSerialized = if(value.classloaderBD != null) {
+      JavaSerializer.serialize(value.classloaderBD)
+    } else {
+      null
+    }
   }
 
   override def toString(): String = {

@@ -21,6 +21,9 @@ import scala.reflect.BeanProperty
 
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 
+import org.apache.spark.broadcast.Broadcast
+import shark.execution.cg.OperatorClassLoader
+
 import shark.{ SharkConfVars, LogHelper }
 import shark.execution.cg.OperatorExecutor
 import shark.execution.cg.CompilationContext
@@ -40,6 +43,7 @@ trait CGObjectOperator extends LogHelper {
   
   @transient protected var cgexec: OperatorExecutor = _
   @transient protected var soi: StructObjectInspector = _
+  @transient var classloaderBD: Broadcast[OperatorClassLoader] = _
   
   @transient lazy val outputObjectInspector = soi
   
@@ -47,6 +51,10 @@ trait CGObjectOperator extends LogHelper {
   @BeanProperty var operatorClassName: String = _
   @BeanProperty var soiClassName: String = _
   
+  def broadcastClassloader(classloaderBD: Broadcast[OperatorClassLoader]) {
+    self.parentOperators.map(_.broadcastClassloader(classloaderBD))
+    this.classloaderBD = classloaderBD
+  }
   def cgOnMaster(cc: CompilationContext) {
     soi   = self.createOutputObjectInspector().asInstanceOf[StructObjectInspector]
     useCG = useCG && SharkConfVars.getBoolVar(Operator.hconf, SharkConfVars.QUERY_CG)
@@ -122,11 +130,13 @@ trait CGObjectOperator extends LogHelper {
   protected def createCGOperator(): CGOperator = null
   protected def createOutputRow(): CGStruct = null
   
-  private def instance[T](clz: String, args: Array[Object]): T = 
-    Thread.currentThread().getContextClassLoader().loadClass(clz)
-      .getDeclaredConstructors()(0).newInstance(args: _*).asInstanceOf[T]
+  private def instance[T](clz: String, args: Array[Object]): T = {
+    val cl = Thread.currentThread().getContextClassLoader()
+    cl.loadClass(clz).getDeclaredConstructors()(0).newInstance(args: _*).asInstanceOf[T]
+  }
   
-  private def instance[T](clz: String): T = 
-    Thread.currentThread().getContextClassLoader()
-      .loadClass(clz).newInstance().asInstanceOf[T]
+  private def instance[T](clz: String): T = { 
+    val cl = Thread.currentThread().getContextClassLoader()
+    cl.loadClass(clz).newInstance().asInstanceOf[T]
+  }
 }
