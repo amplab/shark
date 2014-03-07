@@ -3,7 +3,7 @@
 #import(shark.execution.cg.row.CGField)
 <%@ import val obj: CGOIMap %>
   public static final class ${structFieldClassName} extends CGStructField<${dataContainerClassName}, ${dataWritableClass}> {
-    public CGStructField${delegate.oiName}(int idx) {
+    public ${structFieldClassName}(int idx) {
       super("${delegate.name}", ${defCreateOI}, null, idx);
     }
 

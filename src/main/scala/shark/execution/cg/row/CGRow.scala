@@ -783,24 +783,23 @@ object CGField {
   private val ORDER_P_BINARY = 0
   private val ORDER_P_BOOLEAN = 1
   private val ORDER_P_BYTE = 2
-  private val ORDER_P_DATE = 3
-  private val ORDER_P_DOUBLE = 4
-  private val ORDER_P_FLOAT = 5
-  private val ORDER_P_INT = 6
-  private val ORDER_P_LONG = 7
-  private val ORDER_P_SHORT = 8
-  private val ORDER_P_STRING = 9
-  private val ORDER_P_TIMESTAMP = 10
-  private val ORDER_MAP = 11
-  private val ORDER_LIST = 12
-  private val ORDER_STRUCT = 13
-  private val ORDER_UNION = 14
+  private val ORDER_P_DOUBLE = 3
+  private val ORDER_P_FLOAT = 4
+  private val ORDER_P_INT = 5
+  private val ORDER_P_LONG = 6
+  private val ORDER_P_SHORT = 7
+  private val ORDER_P_STRING = 8
+  private val ORDER_P_TIMESTAMP = 9
+  private val ORDER_MAP = 10
+  private val ORDER_LIST = 11
+  private val ORDER_STRUCT = 12
+  private val ORDER_UNION = 13
 
   private val READS = Array(
     "%s = input.readBytes(input.readInt());",
     "%s = input.readBoolean();",
     "%s = input.readByte();",
-    "%s = new java.sql.Date(input.readLong());",
+//    "%s = new java.sql.Date(input.readLong());",
     "%s = input.readDouble();",
     "%s = input.readFloat();",
     "%s = input.readInt();",
@@ -817,7 +816,7 @@ object CGField {
     (f) => { READS(ORDER_P_BINARY).format(f.name) },
     (f) => { READS(ORDER_P_BOOLEAN).format(f.name) },
     (f) => { READS(ORDER_P_BYTE).format(f.name) },
-    (f) => { READS(ORDER_P_DATE).format(f.name) },
+//    (f) => { READS(ORDER_P_DATE).format(f.name) },
     (f) => { READS(ORDER_P_DOUBLE).format(f.name) },
     (f) => { READS(ORDER_P_FLOAT).format(f.name) },
     (f) => { READS(ORDER_P_INT).format(f.name) },
@@ -835,7 +834,7 @@ object CGField {
     "output.writeInt(%s.length); output.writeBytes(%s);",
     "output.writeBoolean(%s);",
     "output.writeByte(%s);",
-    "output.writeLong(%s.getTime());",
+//    "output.writeLong(%s.getTime());",
     "output.writeDouble(%s);",
     "output.writeFloat(%s);",
     "output.writeInt(%s);",
@@ -853,7 +852,7 @@ object CGField {
     (f) => { WRITES(ORDER_P_BINARY).format(f.name, f.name) },
     (f) => { WRITES(ORDER_P_BOOLEAN).format(f.name) },
     (f) => { WRITES(ORDER_P_BYTE).format(f.name) },
-    (f) => { WRITES(ORDER_P_DATE).format(f.name) },
+//    (f) => { WRITES(ORDER_P_DATE).format(f.name) },
     (f) => { WRITES(ORDER_P_DOUBLE).format(f.name) },
     (f) => { WRITES(ORDER_P_FLOAT).format(f.name) },
     (f) => { WRITES(ORDER_P_INT).format(f.name) },
@@ -871,7 +870,7 @@ object CGField {
     "org.apache.commons.lang.ArrayUtils.hashCode(%s)",
     "org.apache.commons.lang.ObjectUtils.hashCode(%s)",
     "org.apache.commons.lang.ObjectUtils.hashCode(%s)",
-    "org.apache.commons.lang.ObjectUtils.hashCode(%s)",
+//    "org.apache.commons.lang.ObjectUtils.hashCode(%s)",
     "org.apache.commons.lang.ObjectUtils.hashCode(%s)",
     "org.apache.commons.lang.ObjectUtils.hashCode(%s)",
     "org.apache.commons.lang.ObjectUtils.hashCode(%s)",
@@ -889,7 +888,7 @@ object CGField {
     "org.apache.commons.lang.ArrayUtils.isEquals(%s, %s.%s)",
     "org.apache.commons.lang.ObjectUtils.equals(%s, %s.%s)",
     "org.apache.commons.lang.ObjectUtils.equals(%s, %s.%s)",
-    "org.apache.commons.lang.ObjectUtils.equals(%s, %s.%s)",
+//    "org.apache.commons.lang.ObjectUtils.equals(%s, %s.%s)",
     "org.apache.commons.lang.ObjectUtils.equals(%s, %s.%s)",
     "org.apache.commons.lang.ObjectUtils.equals(%s, %s.%s)",
     "org.apache.commons.lang.ObjectUtils.equals(%s, %s.%s)",
@@ -907,7 +906,7 @@ object CGField {
     (obj, data, f) => { "%s = (byte[])%s;".format(obj, data) },
     (obj, data, f) => { "%s = (Boolean)%s;".format(obj, data) },
     (obj, data, f) => { "%s = (Byte)%s;".format(obj, data) },
-    (obj, data, f) => { "%s = (java.sql.Date)%s;".format(obj, data) },
+//    (obj, data, f) => { "%s = (java.sql.Date)%s;".format(obj, data) },
     (obj, data, f) => { "%s = (Double)%s;".format(obj, data) },
     (obj, data, f) => { "%s = (Float)%s;".format(obj, data) },
     (obj, data, f) => { "%s = (Integer)%s;".format(obj, data) },
@@ -929,8 +928,8 @@ object CGField {
       "BooleanObjectInspector)%s).get(%s);").format(obj, varoi, data) },
     (obj, varoi, data, f) => { ("%s = ((org.apache.hadoop.hive.serde2.objectinspector.primitive." +
       "ByteObjectInspector)%s).get(%s);").format(obj, varoi, data) },
-    (obj, varoi, data, f) => { ("%s = ((org.apache.hadoop.hive.serde2.objectinspector.primitive." +
-      "DateObjectInspector)%s).getPrimitiveJavaObject(%s);").format(obj, varoi, data) },
+//    (obj, varoi, data, f) => { ("%s = ((org.apache.hadoop.hive.serde2.objectinspector.primitive." +
+//      "DateObjectInspector)%s).getPrimitiveJavaObject(%s);").format(obj, varoi, data) },
     (obj, varoi, data, f) => { ("%s = ((org.apache.hadoop.hive.serde2.objectinspector.primitive." +
       "DoubleObjectInspector)%s).get(%s);").format(obj, varoi, data) },
     (obj, varoi, data, f) => { ("%s = ((org.apache.hadoop.hive.serde2.objectinspector.primitive." +
@@ -964,7 +963,7 @@ object CGField {
     (f) => { f.oi.asInstanceOf[WritableConstantBooleanObjectInspector].getWritableConstantValue() },
     (f) => { f.oi.asInstanceOf[WritableConstantByteObjectInspector].getWritableConstantValue() },
     // TODO keep the placeholder for date type
-    (f) => {null/*f.oi.asInstanceOf[WritableConstantDateObjectInspector].getWritableConstantValue() */},
+//    (f) => {f.oi.asInstanceOf[WritableConstantDateObjectInspector].getWritableConstantValue() },
     (f) => { f.oi.asInstanceOf[WritableConstantDoubleObjectInspector].getWritableConstantValue() },
     (f) => { f.oi.asInstanceOf[WritableConstantFloatObjectInspector].getWritableConstantValue() },
     (f) => { f.oi.asInstanceOf[WritableConstantIntObjectInspector].getWritableConstantValue() },
@@ -982,7 +981,7 @@ object CGField {
     (f) => null,
     (f) => null,
     (f) => null,
-    (f) => null,
+//    (f) => null,
     (f) => null,
     (f) => null,
     (f) => null,
