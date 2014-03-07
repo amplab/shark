@@ -18,11 +18,11 @@
 package shark.execution
 
 import scala.reflect.BeanProperty
+import scala.collection.mutable.ArrayBuffer
 
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 
 import org.apache.spark.broadcast.Broadcast
-import shark.execution.cg.OperatorClassLoader
 
 import shark.{ SharkConfVars, LogHelper }
 import shark.execution.cg.OperatorExecutor
@@ -33,6 +33,7 @@ import shark.execution.cg.row.CGOIStruct
 import shark.execution.cg.row.CGRow
 import shark.execution.cg.row.CGStruct
 import shark.execution.cg.row.CGField
+import shark.execution.cg.OperatorClassLoader
 
 trait CGObjectOperator extends LogHelper {
   self: Operator[HiveDesc] =>
@@ -55,6 +56,7 @@ trait CGObjectOperator extends LogHelper {
     self.parentOperators.map(_.broadcastClassloader(classloaderBD))
     this.classloaderBD = classloaderBD
   }
+  
   def cgOnMaster(cc: CompilationContext) {
     soi   = self.createOutputObjectInspector().asInstanceOf[StructObjectInspector]
     useCG = useCG && SharkConfVars.getBoolVar(Operator.hconf, SharkConfVars.QUERY_CG)
@@ -72,49 +74,61 @@ trait CGObjectOperator extends LogHelper {
       return
     }
 
-    val s = System.currentTimeMillis()
-    // collect all of the input table schema
-    cginputrows = self.parentOperators.toArray.map(op => {
-      if(op.cgrow != null) {
-        op.cgrow
-      } else {
-        CGField.create(op.outputObjectInspector)
-      }
-    })
-    
-    cgrow = createOutputRow()
-    val oi: StructObjectInspector = if(cgrow != null) {
-      // if current operator will create the new schema as output
-      var oiStruct = CGOIField.create(cgrow).asInstanceOf[CGOIStruct]
-      soiClassName      = oiStruct.fullClassName
-      
-      // compile the row and its OI object, which will be used in initializing the child Operators 
-      cc.compile(List(
-        (cgrow.fullClassName, CGRow.generate(cgrow, true)), 
-        (soiClassName, CGOI.generateOI(oiStruct, true))))
-    
-      // override the existed output object inspector (StructObjectInspector)
-      instance[StructObjectInspector](oiStruct.fullClassName)
-    } else {
-      soi
-    }
-    
-    val e = System.currentTimeMillis()
-    logWarning("CodeGen CGRow/OI + Compiling takes %s ms".format(e - s))
-    
-    operatorClassName = operator.fullClassName
-    // Put the CG Operator Compilation Unit into context, all of the CG operators 
-    // will be compiled together later on  
+    val compileUnits = new ArrayBuffer[(String, String)]()
     try {
-      cc.add(List((operatorClassName, CGOperator.generate(operator))))
+      // collect all of the input table schema
+      cginputrows = self.parentOperators.toArray.map(op => {
+        if(op.cgrow != null) {
+          op.cgrow
+        } else {
+          CGField.create(op.outputObjectInspector)
+        }
+      })
+    
+      cgrow = createOutputRow()
+      val oi: StructObjectInspector = if(cgrow != null) {
+        // if current operator will create the new schema as output
+        var oiStruct = CGOIField.create(cgrow).asInstanceOf[CGOIStruct]
+        soiClassName      = oiStruct.fullClassName
+      
+        // compile the row and its OI object, which will be used in initializing the child Operators
+        val objrow = time(()=>List(
+          (cgrow.fullClassName, CGRow.generate(cgrow, true)), 
+          (soiClassName, CGOI.generateOI(oiStruct, true))), "Generate CGOI/Row")
+        compileUnits ++= objrow
+
+        time(()=>cc.compile(objrow), "Compiling CGRow/OI")
+
+        // override the existed output object inspector (StructObjectInspector)
+        instance[StructObjectInspector](oiStruct.fullClassName)
+      } else {
+        soi
+      }
+      operatorClassName = operator.fullClassName
+      // Put the CG Operator Compilation Unit into context, all of the CG operators 
+      // will be compiled together later on  
+      time(()=>cc.add(List((operatorClassName, CGOperator.generate(operator)))), 
+        "Compiling Operator")
       soi = oi
     } catch {
       case e: Throwable => {
-        logError("Exception threw, will switch to Hive Evaluator, Msg:", e.getMessage())
-        logDebug("Exception Detail:", e)
+        logWarning("Exception threw, will switch to Hive Evaluator, Msg:" + e.getMessage())
+        logInfo("Exception Detail:", e)
+        
+        cc.remove(compileUnits.toList)
         useCG = false
       }
     }
+  }
+  
+  private def time[T](func: () => T, msg: String) = {
+    val s = System.currentTimeMillis()
+    val result = func()
+    
+    val e = System.currentTimeMillis()
+    logWarning("%s takes %s ms".format(msg, e - s))
+    
+    result
   }
   
   // every code generation operator have to call cgOnSlave() within the initializeOnSlave explicitly
