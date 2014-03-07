@@ -36,6 +36,10 @@ class CompilationContext() {
   def add(units: List[(String, String)]) {
     entries ++= units
   }
+  
+  def remove(units: List[(String, String)]) {
+    entries --= units
+  }
 
   def compile(units: List[(String, String)]) {
     entries ++= units
