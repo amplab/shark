@@ -435,6 +435,29 @@ case class EENBuiltin(expr: TENBuiltin, sibling: ExecuteOrderedExprNode) extends
 }
 
 case class EENConvertR2R(expr: TENConvertR2R, sibling: ExecuteOrderedExprNode) extends EENExpr(expr, sibling) {
+    override def currCode(ctx: CGExprContext): String = {
+  	val codeCompute = exprCode(ctx)
+  	
+  	val code = new StringBuffer()
+  	val dt = expr.from.outputDT
+  	// TODO should add one more EEN (throw catch)
+  	if(dt == TypeUtil.StringType) {
+  	  code.append("try{");
+  	}
+  	code.append("%s = %s;".format(ctx.exprName(ten), codeCompute))
+  	
+    val validate = ctx.codeValidate(ten)
+    if(validate != null) {
+      code.append(validate)
+    }
+  	
+    if(dt == TypeUtil.StringType) {
+      code.append("} catch (Throwable ignore){}".format(ctx.exprName(ten), codeCompute))
+    }
+
+  	code.toString()
+  }
+    
 	override def exprCode(ctx: CGExprContext) = {
 	  val dtFrom = expr.from.outputDT
 	  val dtTo = expr.to
