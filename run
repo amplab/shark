@@ -148,4 +148,4 @@ if [ "x$RUNNER" == "x" ] ; then
   EXTRA_ARGS="$JAVA_OPTS"
 fi
 
-exec $RUNNER $EXTRA_ARGS "$@"
+exec $RUNNER -cp $CLASSPATH $EXTRA_ARGS "$@"
