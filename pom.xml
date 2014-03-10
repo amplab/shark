@@ -17,7 +17,7 @@
     <scala.version>2.9.3</scala.version>
     <scala.binary.version>${scala.version}</scala.binary.version>
     <hive.version>0.9.0-csd-22</hive.version>
-    <spark.version>0.8.2-candidate-csd-1</spark.version>
+    <spark.version>0.8.2-candidate-csd-2</spark.version>
     <cdh.version>4.1.2</cdh.version>
     <java.version>1.5</java.version>
     <hbase.version>0.94.5-csd-30</hbase.version>
