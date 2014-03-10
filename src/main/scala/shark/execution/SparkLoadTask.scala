@@ -41,6 +41,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 
 import shark.{LogHelper, SharkEnv, Utils}
+import shark.api.QueryExecutionException
 import shark.execution.serialization.{KryoSerializer, JavaSerializer}
 import shark.memstore2._
 import shark.tachyon.TachyonTableWriter
@@ -264,10 +265,11 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
       case _ => {
         // This is an existing entry (e.g. we are handling an INSERT or INSERT OVERWRITE).
         // Get the MemoryTable object from the Shark metastore.
-        val tableOpt = SharkEnv.memoryMetadataManager.getTable(databaseName, tableName)
-        assert(tableOpt.exists(_.isInstanceOf[MemoryTable]),
-          "Memory table being updated cannot be found in the Shark metastore.")
-        tableOpt.get.asInstanceOf[MemoryTable]
+        SharkEnv.memoryMetadataManager.getTable(databaseName, tableName) match {
+          case Some(table: MemoryTable) => table
+          case None => throw new QueryExecutionException(
+            "Memory table being updated cannot be found in the Shark metastore.")
+        }
       }
     }
   }
@@ -328,21 +330,22 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
     val tableName = hiveTable.getTableName
     work.commandType match {
       case SparkLoadWork.CommandTypes.NEW_ENTRY => {
-        SharkEnv.memoryMetadataManager.createPartitionedMemoryTable(
-          databaseName,
-          tableName,
-          work.cacheMode,
-          hiveTable.getParameters)
+        SharkEnv.memoryMetadataManager.getTable(databaseName, tableName) match {
+          case Some(table: PartitionedMemoryTable) => table
+          case None => {
+            SharkEnv.memoryMetadataManager.createPartitionedMemoryTable(
+              databaseName,
+              tableName,
+              work.cacheMode,
+              hiveTable.getParameters)
+          }
+        }
       }
       case _ => {
         SharkEnv.memoryMetadataManager.getTable(databaseName, tableName) match {
           case Some(table: PartitionedMemoryTable) => table
-          case _ => {
-            val tableOpt = SharkEnv.memoryMetadataManager.getTable(databaseName, tableName)
-            assert(tableOpt.exists(_.isInstanceOf[PartitionedMemoryTable]),
-              "Partitioned memory table being updated cannot be found in the Shark metastore.")
-            tableOpt.get.asInstanceOf[PartitionedMemoryTable]
-          }
+          case None => throw new QueryExecutionException(
+            "Partitioned memory table being updated cannot be found in the Shark metastore.")
         }
       }
     }
