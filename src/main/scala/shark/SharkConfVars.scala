@@ -54,6 +54,9 @@ object SharkConfVars {
   // If true, then query plans are compressed before being sent
   val COMPRESS_QUERY_PLAN = new ConfVar("shark.queryPlan.compress", true)
 
+  // Number of mappers to force for table scan jobs
+  val NUM_MAPPERS = new ConfVar("shark.map.tasks", -1)
+  
   // Add Shark configuration variables and their default values to the given conf,
   // so default values show up in 'set'.
   def initializeWithDefaults(conf: Configuration) {

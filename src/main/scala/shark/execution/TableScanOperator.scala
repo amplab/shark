@@ -120,6 +120,19 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
   }
 
   override def execute(): RDD[_] = {
+
+    val numMappers = SharkConfVars.getIntVar(localHConf, SharkConfVars.NUM_MAPPERS)
+
+    // Try the use of given number of mappers for a job
+    if (numMappers > 0) {
+      logInfo("Setting the number of mappers to " + numMappers)
+      getBaseRDD.coalesce(numMappers, false)
+    } else {
+      getBaseRDD
+    }
+  }
+  
+  def getBaseRDD(): RDD[_] = {
     assert(parentOperators.size == 0)
 
     val tableNameSplit = tableDesc.getTableName.split('.') // Split from 'databaseName.tableName'
