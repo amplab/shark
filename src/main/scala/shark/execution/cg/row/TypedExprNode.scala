@@ -152,6 +152,14 @@ case class TENOutputField(attr: String, expr: TypedExprNode, dt: DataType) exten
 	def maskBitName = CGField.getMaskBitVariableName(escapedName)
 }
 
+case class TENOutputWritableField(fieldIdx: Int, expr: TypedExprNode, dt: DataType) extends TypedExprNode with UnaryNode[TypedExprNode] {
+	self: Product =>
+	override def outputDT = dt
+
+	def child = expr
+	override val exprId = "__output__"
+}
+
 case class TENOutputExpr(expr: TypedExprNode) extends TypedExprNode with UnaryNode[TypedExprNode] {
 	self: Product =>
 	override def outputDT = expr.outputDT

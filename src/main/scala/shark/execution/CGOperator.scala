@@ -48,6 +48,19 @@ class CGSelectOperator(override val op: SelectOperator)
   }
 }
 
+class CGSelectOperator2(override val op: SelectOperator) 
+  extends CGOperator(CGOperator.CG_OPERATOR_SELECT2, op) {
+  override def initial: Map[String, Any] = {
+    import scala.collection.JavaConversions._
+    
+    val ctx = new CGExprContext()
+    val ten = TENInstance.create(op.conf.getColList(), op.cginputrows(0), op.cgrow)
+    val een = TENInstance.transform(ten, ctx)
+    
+    Map("ctx" -> ctx, "cs" -> een)
+  }
+}
+
 class CGFilterOperator(override val op: FilterOperator) 
   extends CGOperator(CGOperator.CG_OPERATOR_FILTER, op) {
   override def initial: Map[String, Any] = {
@@ -63,6 +76,7 @@ class CGFilterOperator(override val op: FilterOperator)
 
 object CGOperator {
   val CG_OPERATOR_SELECT = "shark/execution/cg/operator/cg_op_select.ssp"
+  val CG_OPERATOR_SELECT2 = "shark/execution/cg/operator/cg_op_select2.ssp"
   val CG_OPERATOR_FILTER = "shark/execution/cg/operator/cg_op_filter.ssp"
   
   def generate(cgo: CGOperator): String = {

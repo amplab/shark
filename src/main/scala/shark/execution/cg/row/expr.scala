@@ -8,7 +8,7 @@ object TENInstance {
   def create(names: Seq[String], 
       exprs: Seq[ExprNodeDesc], 
       input: CGStruct, 
-      output: CGStruct = null): TypedExprNode = {
+      output: CGStruct = null): TENOutputRow = {
     val factory = new TENFactory
     val rowInput = TENInputRow(input, null)
 
@@ -37,6 +37,17 @@ object TENInstance {
     }
 
     TENOutputRow(fields, dt)
+  }
+
+  def create(exprs: Seq[ExprNodeDesc], input: CGStruct, output: CGStruct): TENOutputRow = {
+    val factory = new TENFactory
+    val rowInput = TENInputRow(input, null)
+
+    val fields = exprs.zipWithIndex.map((entry) => {
+        factory.create(entry._2, entry._1, output.fields(entry._2), rowInput)
+      })
+
+    TENOutputRow(fields, null)
   }
   
   def create(filter: ExprNodeDesc, expectedDT: DataType, input: CGStruct)

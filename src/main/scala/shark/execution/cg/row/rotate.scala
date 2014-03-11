@@ -138,9 +138,9 @@ class RuleValueGuard {
 	      	}
 	      }
 	      case x @ TENBuiltin(op, children, dt, false) => {
-	         children.foldRight[ExecuteOrderedExprNode](EENDeclare(x, create(x, sibling)))((e1, e2) => {
-	           rotate(e1, e2, false)
-	         })
+	         EENDeclare(x, EENSequence(children.foldRight[ExecuteOrderedExprNode](create(x))((e1, e2) => {
+	           EENSequence(rotate(e1, null, false), e2)
+	         }), sibling))
 	      }
 	      case x @ TENConvertR2R(expr, _) => {
 	      	if(nullCheck) {
@@ -190,6 +190,9 @@ class RuleValueGuard {
 	      }
 	      case x @ TENOutputField(name, expr, dt) => {
 	      	rotate(expr, EENGuardNull(expr, EENOutputField(x)), true)
+	      }
+	      case x @ TENOutputWritableField(name, expr, dt) => {
+	      	rotate(expr, EENGuardNull(expr, EENOutputWritableField(x)), true)
 	      }
 	      case x @ TENOutputExpr(expr) => {
 	        // rotate the fields first, and in the mean time, will collect the stateful UDF node
@@ -328,6 +331,14 @@ class RuleValueGuard {
 		} else {
 		  ctx.update(field)
 		  EENOutputField(field, previous)
+		}
+		case x @ EENOutputWritableField(field, _) => 
+		val value = ctx.get(field)
+		if(value != null) {
+		  EENAlias(value)
+		} else {
+		  ctx.update(field)
+		  EENOutputWritableField(field, previous)
 		}
 		case x @ EENOutputExpr(ten, _) => EENOutputExpr(ten, previous)
 		case x @ EENOutputRow(row, seq) => {

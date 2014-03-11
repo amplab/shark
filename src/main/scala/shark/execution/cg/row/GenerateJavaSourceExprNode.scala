@@ -372,6 +372,15 @@ case class EENGUDF(expr: TENGUDF, sibling: ExecuteOrderedExprNode) extends EENEx
 }
 
 case class EENBuiltin(expr: TENBuiltin, sibling: ExecuteOrderedExprNode) extends EENExpr(expr, sibling) {
+  	override def initial(ctx: CGExprContext) {
+	  if(expr.nullCheckRequired == false) {
+	    ctx.register(expr, ctx.EXPR_NULL_INDICATOR_NAME, null)
+		ctx.register(expr, ctx.CODE_IS_VALID, null)
+		ctx.register(expr, ctx.CODE_INVALIDATE, null)
+		ctx.register(expr, ctx.CODE_VALIDATE, "")
+	  } 
+	}
+  	
 	override def exprCode(ctx: CGExprContext): String = if (expr.exprs.length == 1) {
 		expr.op match {
 			case "isnull" => "!(%s)".format(ctx.codeIsValid(expr.children(0)))

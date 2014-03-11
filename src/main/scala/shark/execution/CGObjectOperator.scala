@@ -86,30 +86,38 @@ trait CGObjectOperator extends LogHelper {
       })
     
       cgrow = createOutputRow()
-      val oi: StructObjectInspector = if(cgrow != null) {
-        // if current operator will create the new schema as output
-        var oiStruct = CGOIField.create(cgrow).asInstanceOf[CGOIStruct]
-        soiClassName      = oiStruct.fullClassName
-      
-        // compile the row and its OI object, which will be used in initializing the child Operators
-        val objrow = time(()=>List(
-          (cgrow.fullClassName, CGRow.generate(cgrow, true)), 
-          (soiClassName, CGOI.generateOI(oiStruct, true))), "Generate CGOI/Row")
-        compileUnits ++= objrow
-
-        time(()=>cc.compile(objrow), "Compiling CGRow/OI")
-
-        // override the existed output object inspector (StructObjectInspector)
-        instance[StructObjectInspector](oiStruct.fullClassName)
-      } else {
-        soi
-      }
+//      val oi: StructObjectInspector = if(cgrow != null) {
+//        // if current operator will create the new schema as output
+//        var oiStruct = CGOIField.create(cgrow).asInstanceOf[CGOIStruct]
+//        soiClassName      = oiStruct.fullClassName
+//      
+//        // compile the row and its OI object, which will be used in initializing the child Operators
+//        val objrow = time(()=>List(
+//          (cgrow.fullClassName, CGRow.generate(cgrow, true)), 
+//          (soiClassName, CGOI.generateOI(oiStruct, true))), "Generate CGOI/Row")
+//        compileUnits ++= objrow
+//
+//        time(()=>cc.compile(objrow), "Compiling CGRow/OI")
+//
+//        // override the existed output object inspector (StructObjectInspector)
+//        instance[StructObjectInspector](oiStruct.fullClassName)
+//      } else {
+//        soi
+//      }
       operatorClassName = operator.fullClassName
       // Put the CG Operator Compilation Unit into context, all of the CG operators 
       // will be compiled together later on  
       time(()=>cc.add(List((operatorClassName, CGOperator.generate(operator)))), 
         "Compiling Operator")
-      soi = oi
+//      soi = oi
+      import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
+      import scala.collection.JavaConversions._
+      import shark.execution.cg.row.TypeUtil
+      if(cgrow != null) {
+        soi = ObjectInspectorFactory.getStandardStructObjectInspector(
+          asJavaList(cgrow.fields.map(_.oiName)), 
+          asJavaList(cgrow.fields.map(f => TypeUtil.getDataType(f.typeInfo).oi)))
+      }
     } catch {
       case e: Throwable => {
         logWarning("Exception threw, will switch to Hive Evaluator, Msg:" + e.getMessage())
