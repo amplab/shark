@@ -53,6 +53,16 @@ class TENFactory {
 		}
 	}
 	
+	def create(idx: Int, desc: ExprNodeDesc, outputDT: DataType, input: TENInputRow): TENOutputWritableField = {
+		val expr = create(desc, input)
+		// TODO need to think about how to identify the CGStruct / CGUnion etc.
+		if(outputDT == expr.outputDT) {
+			TENOutputWritableField(idx, expr.toW, expr.outputDT)
+		} else {
+		    TENOutputWritableField(idx, TENConvertR2R(expr.toR, outputDT).toW, expr.outputDT)
+		}
+	}	
+	
     def create(desc: ExprNodeDesc, expectedDT: DataType, input: TENInputRow): TENOutputExpr = {
 		val expr = create(desc, input).toR
 		if(expr.outputDT == expectedDT) {

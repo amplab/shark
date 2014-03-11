@@ -110,6 +110,19 @@ case class EENOutputField(output: TENOutputField, outter: ExecuteOrderedExprNode
   override def exprCode(ctx: CGExprContext): String = ctx.exprName(outter.essential)
 }
 
+case class EENOutputWritableField(output: TENOutputWritableField, outter: ExecuteOrderedExprNode = null) extends EENExpr(output)  {
+	self: Product =>
+
+  override def initial(ctx: CGExprContext) {
+	  ctx.register(output.expr)
+	  ctx.register(output, ctx.CODE_VALIDATE, null)
+	  ctx.register(output, ctx.EXPR_VARIABLE_NAME, "%s[%s]".format(Constant.CG_EXPR_NAME_OUTPUT, output.fieldIdx))
+	  ctx.register(output, ctx.CODE_VALUE_REPL, "%s[%s]".format(Constant.CG_EXPR_NAME_OUTPUT, output.fieldIdx))
+  }
+  
+  override def exprCode(ctx: CGExprContext): String = ctx.exprName(outter.essential)
+}
+
 case class EENOutputExpr(output: TENOutputExpr, een: ExecuteOrderedExprNode) extends EENExpr(output) {
   override def initial(ctx: CGExprContext) {
     ctx.register(output, ctx.EXPR_VARIABLE_NAME, Constant.CG_EXPR_NAME_OUTPUT)

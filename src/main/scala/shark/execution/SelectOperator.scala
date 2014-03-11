@@ -98,7 +98,7 @@ class SelectOperator extends UnaryOperator[SelectDesc] {
     }
   }
   
-  protected override def createCGOperator(): CGOperator = new CGSelectOperator(this)
+  protected override def createCGOperator(): CGOperator = new CGSelectOperator2(this)
   protected override def createOutputRow(): CGStruct = CGField.create(soi)
 }
 
