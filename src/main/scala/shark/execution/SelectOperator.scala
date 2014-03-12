@@ -98,7 +98,14 @@ class SelectOperator extends UnaryOperator[SelectDesc] {
     }
   }
   
-  protected override def createCGOperator(): CGOperator = new CGSelectOperator2(this)
+  protected override def createCGOperator(): CGOperator = if(useCGObjectInspector) {
+    new CGSelectOperator(this)
+  } else {
+    new CGSelectOperator2(this)
+  }
+  
   protected override def createOutputRow(): CGStruct = CGField.create(soi)
+  protected override def useCGObjectInspector = 
+    shark.SharkConfVars.getBoolVar(Operator.hconf, shark.SharkConfVars.QUERY_CG_OI)
 }
 
