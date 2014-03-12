@@ -85,54 +85,47 @@ class SparkTask extends HiveTask[SparkWork] with Serializable with LogHelper {
 
     //ExplainTaskHelper.outputPlan(terminalOp, Console.out, true, 2)
     //ExplainTaskHelper.outputPlan(hiveTopOps.head, Console.out, true, 2)
-    val useCG = SharkConfVars.getBoolVar(conf, SharkConfVars.QUERY_CG)
-    
     Operator.hconf = conf
     
     initializeTableScanTableDesc(tableScanOps)
-    
-    if (useCG) {
+    val oldCurrentClassLoader = Thread.currentThread().getContextClassLoader()
+    try {
       val cc = new CompilationContext()
+      
+      Thread.currentThread().setContextClassLoader(cc.preCompiledClassLoader)
+      
+      terminalOp.initializeMasterOnAll(cc)
   
-      val oldCurrentClassLoader = Thread.currentThread().getContextClassLoader()
-      try {
-        Thread.currentThread().setContextClassLoader(cc.preCompiledClassLoader)
-        
-        terminalOp.initializeMasterOnAll(cc)
-
-        val s = System.currentTimeMillis()
-        cc.compile()
-        val e = System.currentTimeMillis()
-        logWarning("Compiling %s takes %s ms".format(cc.count, (e - s)))
-        
-        // sync up the classloader of generated classes across cluster 
-        terminalOp.broadcastClassloader(SharkEnv.sc.broadcast(cc.preCompiledClassLoader))
-      } catch {
-        case e: Throwable => logError("Exception in SparkTask:", e)
-      } finally {
-        Thread.currentThread().setContextClassLoader(oldCurrentClassLoader)
+      val s = System.currentTimeMillis()
+      cc.compile()
+      val e = System.currentTimeMillis()
+      logWarning("Compiling %s takes %s ms".format(cc.count, (e - s)))
+      
+      // sync up the classloader of generated classes across cluster 
+      terminalOp.broadcastClassloader(SharkEnv.sc.broadcast(cc.preCompiledClassLoader))
+      
+          // Set Spark's job description to be this query.
+      SharkEnv.sc.setJobDescription(work.pctx.getContext.getCmd)
+  
+      // Set the fair scheduler's pool using mapred.fairscheduler.pool if it is defined.
+      Option(conf.get("mapred.fairscheduler.pool")).foreach { pool =>
+        SharkEnv.sc.setLocalProperty("spark.scheduler.pool", pool)
       }
-    } else {
-      terminalOp.initializeMasterOnAll(null)
-    }
-
-    // Set Spark's job description to be this query.
-    SharkEnv.sc.setJobDescription(work.pctx.getContext.getCmd)
-
-    // Set the fair scheduler's pool using mapred.fairscheduler.pool if it is defined.
-    Option(conf.get("mapred.fairscheduler.pool")).foreach { pool =>
-      SharkEnv.sc.setLocalProperty("spark.scheduler.pool", pool)
-    }
-
-    val sinkRdd = terminalOp.execute().asInstanceOf[RDD[Any]]
-
-    val limit = terminalOp.parentOperators.head match {
-      case op: LimitOperator => op.limit
-      case _ => -1
-    }
-
-    if (terminalOp.isInstanceOf[TableRddSinkOperator]) {
-      _tableRdd = Some(new TableRDD(sinkRdd, work.resultSchema, terminalOp.objectInspector, limit))
+  
+      val sinkRdd = terminalOp.execute().asInstanceOf[RDD[Any]]
+  
+      val limit = terminalOp.parentOperators.head match {
+        case op: LimitOperator => op.limit
+        case _ => -1
+      }
+  
+      if (terminalOp.isInstanceOf[TableRddSinkOperator]) {
+        _tableRdd = Some(new TableRDD(sinkRdd, work.resultSchema, terminalOp.objectInspector, limit))
+      }
+    } catch {
+      case e: Throwable => logError("Exception in SparkTask:", e)
+    } finally {
+      Thread.currentThread().setContextClassLoader(oldCurrentClassLoader)
     }
 
     0
