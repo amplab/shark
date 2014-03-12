@@ -56,6 +56,9 @@ object SharkConfVars {
   
   // If true, then the query will use the code generation for query engine 
   val QUERY_CG = new ConfVar("shark.query.cg", true)
+  
+  // If true, then the query will use the code generation for output StructObjectInspector 
+  val QUERY_CG_OI = new ConfVar("shark.query.cg.oi", false)
 
   // Number of mappers to force for table scan jobs
   val NUM_MAPPERS = new ConfVar("shark.map.tasks", -1)
