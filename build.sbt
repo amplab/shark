@@ -3,8 +3,8 @@ import ScalateKeys._
 seq(scalateSettings:_*)
 
 // Scalate Precompilation and Bindings
-scalateTemplateConfig in Compile <<= (resourceDirectory in Compile) { base => 
-  println ("bbb:" + base)
+scalateTemplateConfig in Compile <<= (scalaSource in Compile) { base => 
+  println ("scan the source folder for templates:" + base)
   Seq(
     TemplateConfig(
       base / "shark" / "execution" / "cg" / "operator",
