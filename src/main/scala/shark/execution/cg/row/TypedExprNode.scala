@@ -241,7 +241,7 @@ case class TENAttribute(attr: String, expr: TypedExprNode) extends TypedExprNode
 //	override def simpleString = "alias: %s".format(expr.simpleString)
 //}
 
-case class TENUDF(bridge: GenericUDFBridge, exprs: Seq[TypedExprNode]) extends TypedExprNode {
+case class TENUDF(bridge: GenericUDFBridge, exprs: Seq[TypedExprNode], writable: Boolean) extends TypedExprNode {
 	self: Product =>
 	override def outputDT = {
 		// TODO need to think about how to convert the Struct / map / union / list to DataType
@@ -281,7 +281,8 @@ case class TENUDF(bridge: GenericUDFBridge, exprs: Seq[TypedExprNode]) extends T
 		} 
 	}
 	
-	override def toW: TypedExprNode = this
+	override def toR: TypedExprNode = if(writable) TENConvertW2R(this) else this
+	override def toW: TypedExprNode = if(writable) this else TENConvertR2W(this)
 }
 
 case class TENGUDF(genericUDF: GenericUDF, exprs: Seq[TypedExprNode]) extends TypedExprNode {
