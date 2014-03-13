@@ -435,7 +435,7 @@ object TENFactory {
 	  }
 	}
 
-	def literal(obj: AnyRef, dt: DataType, writable: Boolean) = TENLiteral(obj, dt, writable)
+	def literal(obj: AnyRef, dt: DataType, writable: Boolean) = TENLiteral(obj, if(dt != null) dt else TypeUtil.NullType, writable)
 
 	def attribute(attr: String, child: TypedExprNode) = TENAttribute(attr, child)
 
@@ -467,7 +467,7 @@ object TENFactory {
 		val rewriteChildren = if (expectType != null)
 			Seq.tabulate[TypedExprNode](children.length)(i => convert(expectType, children(i)))
 		else
-			Seq.tabulate[TypedExprNode](children.length)(i => literal(null, null, false))
+			Seq.tabulate[TypedExprNode](children.length)(i => literal(null, TypeUtil.NullType, false))
 
 		TENBuiltin(op, rewriteChildren, if (dt == null) expectType else dt)
 	}

@@ -72,8 +72,10 @@ trait CGObjectOperator extends LogHelper {
     try {
       // collect all of the input table schema
       cginputrows = analyzeInputs()
-      soi = createOutputStructObjectInspector(compileUnits, cc)
+      val oi = createOutputStructObjectInspector(compileUnits, cc)
       operatorClassName = operatorCode(compileUnits, cc)
+      // be sure operatorCode will not throw any exception, and then will replace the output soi
+      soi = oi
     } catch {
       case e: Throwable => {
         logWarning("Exception threw, will switch to Hive Evaluator, Msg:" + e.getMessage())

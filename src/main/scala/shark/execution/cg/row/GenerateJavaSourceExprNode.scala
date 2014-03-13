@@ -178,6 +178,7 @@ case class EENAttribute(expr: TENAttribute, sibling: ExecuteOrderedExprNode) ext
 case class EENLiteral(expr: TENLiteral, sibling: ExecuteOrderedExprNode) extends EENExpr(expr, sibling) {
 	override def initial(ctx: CGExprContext) {
 	  TypeUtil.assertDataType(expr.outputDT)
+	  if(expr.dt != TypeUtil.NullType) {
 		val variableName = expr.obj match {
 			case null => if(expr.writable) {
 			  ctx.property(expr.dt.writable, false, true, null, true)
@@ -186,21 +187,23 @@ case class EENLiteral(expr: TENLiteral, sibling: ExecuteOrderedExprNode) extends
 			}
 			case x: NullWritable => "null"
 			case x: Text => {
+			  val bytes = textConvert2ByteArrayInHex(x)
 			  val t = if(expr.writable) classOf[Text].getCanonicalName() else "String"
-			  val v: String = if(expr.writable) string2Text(x) else x
-			  
+			  val v: String = if(expr.writable) string2Text(bytes) else bytes
 			  ctx.property(t, true, true, v, true)
 			}
 			case x: String => {
+			  val bytes = textConvert2ByteArrayInHex(x)
 			  val t = if(expr.writable) classOf[Text].getCanonicalName() else "String"
-			  val v: String = if(expr.writable) { 
-			    string2Text(textConvert2ByteArrayInHex(x)) 
-			  } else {
-			    textConvert2ByteArrayInHex(x)
-			  }
+			  val v: String = if(expr.writable) string2Text(bytes) else bytes
 			  ctx.property(t, true, true, v, true)
 			}
 			case x: BytesWritable => {
+			  val t = if(expr.writable) classOf[BytesWritable].getCanonicalName() else "byte[]"
+			  val v: String = if(expr.writable) bytes2Writable(x) else x
+			  ctx.property(t, true, true, v, true)
+			}
+			case x: Array[Byte] => {
 			  val t = if(expr.writable) classOf[BytesWritable].getCanonicalName() else "byte[]"
 			  val v: String = if(expr.writable) bytes2Writable(x) else x
 			  ctx.property(t, true, true, v, true)
@@ -304,6 +307,15 @@ case class EENLiteral(expr: TENLiteral, sibling: ExecuteOrderedExprNode) extends
 		ctx.register(expr, ctx.CODE_VALUE_REPL, variableName)
 		ctx.register(expr, ctx.CODE_VALIDATE, "")
 		ctx.register(expr, ctx.CODE_IS_VALID, null)
+	  } else {
+	    // is constant null without type e.g: select key - null from src;
+	    ctx.register(expr, ctx.EXPR_VARIABLE_TYPE, null)
+		ctx.register(expr, ctx.EXPR_NULL_INDICATOR_NAME, null)
+		ctx.register(expr, ctx.EXPR_VARIABLE_NAME, null)
+		ctx.register(expr, ctx.CODE_VALUE_REPL, null)
+		ctx.register(expr, ctx.CODE_VALIDATE, "")
+		ctx.register(expr, ctx.CODE_IS_VALID, "false")
+	  }
 	}
 
 	override def exprCode(ctx: CGExprContext) = null
@@ -405,7 +417,7 @@ case class EENBuiltin(expr: TENBuiltin, sibling: ExecuteOrderedExprNode) extends
 	      case TypeUtil.TimestampType =>"%s.compareTo(%s) >= 0".format(ctx.exprName(expr.children(0)), ctx.exprName(expr.children(1)))
 	      case _ => defaultExpr(ctx)
 	    }
-		case "=" => expr.children(0).outputDT match {
+		case "==" => expr.children(0).outputDT match {
 	      case TypeUtil.StringType =>"%s.equals(%s)".format(ctx.exprName(expr.children(0)), ctx.exprName(expr.children(1)))
 	      case TypeUtil.BinaryType =>"org.apache.hadoop.io.WritableComparator.compareBytes(%1$s, 0, %1$s.length, %2$s, 0, %2$s.length).compareTo(%s) == 0".format(ctx.exprName(expr.children(0)), ctx.exprName(expr.children(1)))
 	      case TypeUtil.TimestampType =>"%s.equals(%s)".format(ctx.exprName(expr.children(0)), ctx.exprName(expr.children(1)))
