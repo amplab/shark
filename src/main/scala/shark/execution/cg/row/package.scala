@@ -33,7 +33,8 @@ package object row {
   implicit def textConvert2ByteArrayInHex(w: String): String =
     if (w != null)
       "new String(new byte[]{" +
-        w.map(b => "(byte)0x" + Integer.toHexString(0xFF & b)).reduce(_ + "," + _) +
+        w.getBytes(java.nio.charset.Charset.forName("utf-8")).map(b => 
+          "(byte)0x" + Integer.toHexString(0xFF & b)).reduce(_ + "," + _) +
         "}, java.nio.charset.Charset.forName(\"utf-8\"))"
     else
       "null"
@@ -103,7 +104,7 @@ package object row {
   
   implicit def doubleConvert2(w: java.lang.Double): String = 
     if(w != null) 
-      "%sd".format(w)
+      if(w.isInfinite()) "Double.POSITIVE_INFINITY" else if(w.isNaN()) "Double.NaN" else "%sd".format(w)
     else
       "0.0d"
   implicit def doubleConvert2(writable: DoubleWritable): String = 
@@ -115,7 +116,7 @@ package object row {
   
   implicit def floatConvert2(w: java.lang.Float): String = 
     if(w != null) 
-      "%sf".format(w)
+      if(w.isInfinite()) "Float.POSITIVE_INFINITY" else if(w.isNaN()) "Float.NaN" else "%sf".format(w)
     else
       "0.0f"
   implicit def floatConvert2(writable: FloatWritable): String = 
