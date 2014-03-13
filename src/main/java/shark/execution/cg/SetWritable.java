@@ -2,7 +2,7 @@ package shark.execution.cg;
 
 import java.sql.Timestamp;
 
-import org.apache.hadoop.hive.ql.exec.ByteWritable;
+import org.apache.hadoop.hive.serde2.io.ByteWritable;
 import org.apache.hadoop.hive.serde2.io.DoubleWritable;
 import org.apache.hadoop.hive.serde2.io.ShortWritable;
 import org.apache.hadoop.hive.serde2.io.TimestampWritable;

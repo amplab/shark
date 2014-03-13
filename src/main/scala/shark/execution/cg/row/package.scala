@@ -17,8 +17,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 package object row {
   type DataType = CGField[_<:ObjectInspector]
   
-//  import scala.language.implicitConversions
-      
   /**
    * Generate source code for initializing the constant Text value, as byte array
    */
@@ -28,7 +26,7 @@ package object row {
         (for (i <- 0 to writable.getLength() - 1)
           yield "(byte)0x" + Integer.toHexString(0xFF & writable.getBytes()(i))).
         reduce(_ + "," + _) +
-        "})"
+        "}, java.nio.charset.Charset.forName(\"utf-8\"))"
     else
       "null"
       
@@ -36,7 +34,7 @@ package object row {
     if (w != null)
       "new String(new byte[]{" +
         w.map(b => "(byte)0x" + Integer.toHexString(0xFF & b)).reduce(_ + "," + _) +
-        "})"
+        "}, java.nio.charset.Charset.forName(\"utf-8\"))"
     else
       "null"
 
