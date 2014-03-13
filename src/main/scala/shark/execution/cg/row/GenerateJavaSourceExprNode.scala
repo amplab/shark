@@ -328,11 +328,16 @@ case class EENUDF(expr: TENUDF, sibling: ExecuteOrderedExprNode) extends EENExpr
 	  TypeUtil.assertDataType(expr.outputDT)
 		udf = ctx.property(expr.bridge.getUdfClass().getCanonicalName())
 
-		ctx.register(expr, ctx.EXPR_NULL_INDICATOR_NAME, null)
-		ctx.register(expr, ctx.CODE_IS_VALID, "%s != null".format(ctx.exprName(expr)))
-		ctx.register(expr, ctx.CODE_VALIDATE, "")
-		ctx.register(expr, ctx.CODE_INVALIDATE, null)
-		ctx.register(expr, ctx.EXPR_VARIABLE_TYPE, expr.outputDT.writable)
+		if(expr.writable) {
+		  // if the output is writable
+		  ctx.register(expr, ctx.EXPR_NULL_INDICATOR_NAME, null)
+		  ctx.register(expr, ctx.CODE_IS_VALID, "%s != null".format(ctx.exprName(expr)))
+		  ctx.register(expr, ctx.CODE_VALIDATE, "")
+		  ctx.register(expr, ctx.CODE_INVALIDATE, null)
+		  ctx.register(expr, ctx.EXPR_VARIABLE_TYPE, expr.outputDT.writable)
+		} else {
+		  ctx.register(expr, ctx.EXPR_VARIABLE_TYPE, expr.outputDT.primitive)
+		}
 	}
 
 	override def exprCode(ctx: CGExprContext) = {

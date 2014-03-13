@@ -201,14 +201,21 @@ class TENFactory {
 			}
 			// un-recognized UDF will resort to the TENUDF, which generates code for UDF invoking 
 			case _ => {
-			  val standardTypes = TENFactory.expectedDataType(x, inputs).zip(inputs).map(pair => {
-			    (if(pair._1 == pair._2.outputDT) {
+			  val expectedDTs = TENFactory.expectedDataType(x, inputs)
+			  val outputWritable = expectedDTs._1
+			  val arguments = expectedDTs._2.zip(inputs).map(pair => {
+			    val expectedDT = pair._1._1
+			    val writable = pair._1._2
+			    
+			    val child = if(expectedDT == pair._2.outputDT) {
 			      pair._2
 			    } else {
-			      TENConvertR2R(pair._2.toR, pair._1)
-			    }).toW
+			      TENConvertR2R(pair._2.toR, expectedDT)
+			    }
+			    
+			    if(writable) child.toW else child.toR
 			  })
-			  TENFactory.udf(x, standardTypes) // still reusing the GenericUDF
+			  TENFactory.udf(x, arguments, outputWritable) // still reusing the UDF
 			}
 		}
 	}
@@ -369,10 +376,16 @@ object TENFactory {
 		}
 
 		def extractOutputObjectInspector(inputOI: DataType, outputType: Type) = {
-			TypeUtil.getDataType(if (outputType == classOf[Object])
-				ObjectInspectorUtils.getStandardObjectInspector(inputOI.oi.asInstanceOf[OI], ObjectInspectorCopyOption.JAVA)
+			if (outputType == classOf[Object])
+				(TypeUtil.getDataType(
+				  ObjectInspectorUtils.getStandardObjectInspector(
+				    inputOI.oi.asInstanceOf[OI], ObjectInspectorCopyOption.JAVA)), 
+				true)
 			else
-				OIF.getReflectionObjectInspector(outputType, OIF.ObjectInspectorOptions.JAVA))
+				(TypeUtil.getDataType(
+				   OIF.getReflectionObjectInspector(
+				     outputType, OIF.ObjectInspectorOptions.JAVA)), 
+				false)
 		}
 
 		// get the output data type array
@@ -382,9 +395,12 @@ object TENFactory {
 				lastParaElementType
 			else
 				methodParameterTypes(ele._2))
-		val outputDT = OIF.getReflectionObjectInspector(udfMethod.getGenericReturnType(), OIF.ObjectInspectorOptions.JAVA)
+		val outputType = udfMethod.getGenericReturnType()
+		val outputOI = OIF.getReflectionObjectInspector(outputType, OIF.ObjectInspectorOptions.JAVA)
 
-		(outputDT, inputDT)
+		import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitiveJavaObjectInspector
+		// outputWritable / inputs ==> (isWritable) / [(inputDT, isWritable) ... ]
+		(!outputOI.isInstanceOf[AbstractPrimitiveJavaObjectInspector], inputDT)
 	}
 
 	protected def commonType(inputTypes: Seq[DataType]): DataType = {
@@ -450,15 +466,15 @@ object TENFactory {
 	}
 	
 	def gudf(expr: GenericUDF, children: Seq[TypedExprNode]) = {
-	  TENGUDF(expr, children.map(node => TENConvertW2D(node)))
+	  TENGUDF(expr, children.map(node => TENConvertW2D(node.toW)))
 	}
 	
-	def expectedDataType(bridge: GenericUDFBridge, children: Seq[TypedExprNode]): Seq[DataType] = {
-	  udfParamTypes(bridge.getUdfClass(), children.map(_.outputDT))._2
+	def expectedDataType(bridge: GenericUDFBridge, children: Seq[TypedExprNode]) = {
+	  udfParamTypes(bridge.getUdfClass(), children.map(_.outputDT))
 	}
 	
-	def udf(bridge: GenericUDFBridge, children: Seq[TypedExprNode]) = {
-		TENUDF(bridge, children)
+	def udf(bridge: GenericUDFBridge, children: Seq[TypedExprNode], writable: Boolean) = {
+		TENUDF(bridge, children, writable)
 	}
 
 	def builtin(op: String, children: Seq[TypedExprNode], dt: DataType = null): TypedExprNode = {
