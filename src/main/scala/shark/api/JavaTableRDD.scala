@@ -54,7 +54,7 @@ class JavaTableRDD(val rdd: RDD[Row], val schema: Array[ColumnDesc])
    * Return a new RDD containing only the elements that satisfy a predicate.
    */
   def filter(f: JFunction[Row, java.lang.Boolean]): JavaTableRDD =
-    wrapRDD(rdd.filter((x => f(x).booleanValue())))
+    wrapRDD(rdd.filter((x => f.call(x).booleanValue())))
 
   /**
    * Return a sampled subset of this RDD.
