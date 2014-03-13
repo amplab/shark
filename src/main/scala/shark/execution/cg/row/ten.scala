@@ -525,7 +525,7 @@ object TENFactory {
 	 * a and c should be boolean
 	 */
 	def branch_case(children: Seq[TypedExprNode]) = children match {
-		case Case(a, b, c) => branch(b.map(p => { TENFactory.builtin("==", Seq(a, p._1)) }), b.map(_._2), c)
+		case Case(a, b, c) => branch(b.map(p => { TENFactory.builtin("==", Seq(a, p._1), TypeUtil.BooleanType)}), b.map(_._2), c)
 		case _ => throw new CGAssertRuntimeException("wrong number of parameters in Case")
 	}
 
