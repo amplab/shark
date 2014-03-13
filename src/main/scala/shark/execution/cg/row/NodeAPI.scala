@@ -78,6 +78,12 @@ object TypeUtil {
 		getDataType(getTypeInfo(oi))
 	else
 		CGField.create(oi, null)
+	
+	def isWritable(oi: OI): Boolean = {
+	  import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitiveJavaObjectInspector
+	  
+	  !oi.isInstanceOf[AbstractPrimitiveJavaObjectInspector]
+	}
 		
 	def standardize(dt: DataType) = getDataType(getTypeInfo(dt.oi))
     

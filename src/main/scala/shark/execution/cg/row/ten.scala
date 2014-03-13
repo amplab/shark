@@ -77,11 +77,11 @@ class TENFactory {
 	  val inputs = node.getChildren().asScala.map(create(_, input))
 	  val genericUDF = node.getGenericUDF()
 	  val folded = TENFactory.constantFolding(genericUDF, inputs)
-	  val children = TENFactory.w2r(inputs)
 	  
 	  if(folded != null) {
 	    folded
 	  } else {
+	    val children = TENFactory.w2r(inputs)
 		genericUDF match {
 			case x: GenericUDFOPAnd => {
 				TENFactory.and(children(0), children(1)) // AND (&&)
@@ -111,7 +111,7 @@ class TENFactory {
 				TENFactory.between(children) // between 
 			}
 			case x: GenericUDFOPNull => {
-				TENFactory.isnull(children(0)) // between // IS NULL
+				TENFactory.isnull(children(0)) // IS NULL
 			}
 			case x: GenericUDFOPNotNull => {
 				TENFactory.isnotnull(children(0)) // IS NOT NULL
@@ -381,11 +381,10 @@ object TENFactory {
 				  ObjectInspectorUtils.getStandardObjectInspector(
 				    inputOI.oi.asInstanceOf[OI], ObjectInspectorCopyOption.JAVA)), 
 				true)
-			else
-				(TypeUtil.getDataType(
-				   OIF.getReflectionObjectInspector(
-				     outputType, OIF.ObjectInspectorOptions.JAVA)), 
-				false)
+			else {
+			  val oi = OIF.getReflectionObjectInspector(outputType, OIF.ObjectInspectorOptions.JAVA)
+			  (TypeUtil.getDataType(oi), TypeUtil.isWritable(oi))
+			}
 		}
 
 		// get the output data type array
@@ -398,9 +397,8 @@ object TENFactory {
 		val outputType = udfMethod.getGenericReturnType()
 		val outputOI = OIF.getReflectionObjectInspector(outputType, OIF.ObjectInspectorOptions.JAVA)
 
-		import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitiveJavaObjectInspector
 		// outputWritable / inputs ==> (isWritable) / [(inputDT, isWritable) ... ]
-		(!outputOI.isInstanceOf[AbstractPrimitiveJavaObjectInspector], inputDT)
+		(TypeUtil.isWritable(outputOI), inputDT)
 	}
 
 	protected def commonType(inputTypes: Seq[DataType]): DataType = {
@@ -495,7 +493,14 @@ object TENFactory {
 	def and(n1: TypedExprNode, n2: TypedExprNode) = branch(isfalse(n1), constantFalse, istrue(n2))
 	def or(n1: TypedExprNode, n2: TypedExprNode) = branch(istrue(n1), constantTrue, istrue(n2))
 	def between(children: Seq[TypedExprNode]) = {
-		and(builtin(">=", Seq(children(0), children(1)), TypeUtil.BooleanType), builtin("<=", Seq(children(0), children(2)), TypeUtil.BooleanType))
+	  assert(children(0).isInstanceOf[TENLiteral])
+	  if(children(0).asInstanceOf[TENLiteral].obj == false) {
+	    // not invert
+		and(builtin(">=", Seq(children(1), children(2)), TypeUtil.BooleanType), builtin("<=", Seq(children(1), children(3)), TypeUtil.BooleanType))
+	  } else {
+	    // invert
+		or(builtin("<", Seq(children(1), children(2)), TypeUtil.BooleanType), builtin(">", Seq(children(1), children(3)), TypeUtil.BooleanType))
+	  }
 	}
 	def branch(branchIf: TypedExprNode, branchThen: TypedExprNode, branchElse: TypedExprNode): TypedExprNode = {
 		val expectType = commonType(branchThen.outputDT :: branchElse.outputDT :: Nil)
