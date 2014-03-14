@@ -202,8 +202,7 @@ class TENFactory {
 			// un-recognized UDF will resort to the TENUDF, which generates code for UDF invoking 
 			case _ => {
 			  val expectedDTs = TENFactory.expectedDataType(x, inputs)
-			  val outputWritable = expectedDTs._1
-			  val arguments = expectedDTs._2.zip(inputs).map(pair => {
+			  val arguments = expectedDTs.zip(inputs).map(pair => {
 			    val expectedDT = pair._1._1
 			    val writable = pair._1._2
 			    
@@ -215,7 +214,7 @@ class TENFactory {
 			    
 			    if(writable) child.toW else child.toR
 			  })
-			  TENFactory.udf(x, arguments, outputWritable) // still reusing the UDF
+			  TENFactory.udf(x, arguments) // still reusing the UDF
 			}
 		}
 	}
@@ -394,11 +393,8 @@ object TENFactory {
 				lastParaElementType
 			else
 				methodParameterTypes(ele._2))
-		val outputType = udfMethod.getGenericReturnType()
-		val outputOI = OIF.getReflectionObjectInspector(outputType, OIF.ObjectInspectorOptions.JAVA)
 
-		// outputWritable / inputs ==> (isWritable) / [(inputDT, isWritable) ... ]
-		(TypeUtil.isWritable(outputOI), inputDT)
+		inputDT
 	}
 
 	protected def commonType(inputTypes: Seq[DataType]): DataType = {
@@ -454,15 +450,16 @@ object TENFactory {
 	def attribute(attr: String, child: TypedExprNode) = TENAttribute(attr, child)
 
 	def constantFolding(genericUDF: GenericUDF, children: Seq[TypedExprNode]): TENLiteral = {
-	  val n = TENGUDF(genericUDF, r2w(children))
-	  val outputType = n.outputDT
-	  if (outputType.constant && n.isDeterministic && !n.isStateful) {
+		val outputType = TypeUtil.getDataType(TypedExprNode.initializeGUDF(genericUDF, children))
+		
+	    if (outputType.constant && TypedExprNode.deterministic(genericUDF, children) && !TypedExprNode.stateful(genericUDF)) {
 			literal(outputType.constantValue, TypeUtil.standardize(outputType), true)
 		} else {
 			null
 		}
 	}
 	
+
 	def gudf(expr: GenericUDF, children: Seq[TypedExprNode]) = {
 	  TENGUDF(expr, children.map(node => TENConvertW2D(node.toW)))
 	}
@@ -471,8 +468,8 @@ object TENFactory {
 	  udfParamTypes(bridge.getUdfClass(), children.map(_.outputDT))
 	}
 	
-	def udf(bridge: GenericUDFBridge, children: Seq[TypedExprNode], writable: Boolean) = {
-		TENUDF(bridge, children, writable)
+	def udf(bridge: GenericUDFBridge, children: Seq[TypedExprNode]) = {
+		TENUDF(bridge, children)
 	}
 
 	def builtin(op: String, children: Seq[TypedExprNode], dt: DataType = null): TypedExprNode = {

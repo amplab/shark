@@ -14,6 +14,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.HiveDecimalObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.UnionObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.{ ObjectInspector => OI }
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
@@ -84,40 +85,51 @@ object TypeUtil {
 	  
 	  !oi.isInstanceOf[AbstractPrimitiveJavaObjectInspector]
 	}
+	
+	def isWritable(dt: DataType): Boolean = isWritable(dt.oi)
 		
 	def standardize(dt: DataType) = getDataType(getTypeInfo(dt.oi))
     
 	def dtToString(dt: DataType): String = {
-		dt match {
-			case TypeUtil.BinaryType => "PrimitiveObjectInspectorFactory.writableBinaryObjectInspector"
-			case TypeUtil.BooleanType => "PrimitiveObjectInspectorFactory.writableBooleanObjectInspector"
-			case TypeUtil.ByteType => "PrimitiveObjectInspectorFactory.writableByteObjectInspector"
-			case TypeUtil.DoubleType => "PrimitiveObjectInspectorFactory.writableDoubleObjectInspector"
-			case TypeUtil.FloatType => "PrimitiveObjectInspectorFactory.writableFloatObjectInspector"
-			case TypeUtil.IntegerType => "PrimitiveObjectInspectorFactory.writableIntObjectInspector"
-			case TypeUtil.LongType => "PrimitiveObjectInspectorFactory.writableLongObjectInspector"
-			case TypeUtil.ShortType => "PrimitiveObjectInspectorFactory.writableShortObjectInspector"
-			case TypeUtil.StringType => "PrimitiveObjectInspectorFactory.writableStringObjectInspector"
-			case TypeUtil.TimestampType => "PrimitiveObjectInspectorFactory.writableTimestampObjectInspector"
-			case _ => throw new CGNotSupportDataTypeRuntimeException(dt)
-		}
+	  val oi = dt.oi
+	  if(oi.isInstanceOf[PrimitiveObjectInspector] && !oi.isInstanceOf[HiveDecimalObjectInspector]) {
+        oi.getClass().getCanonicalName()
+	  } else {
+	    throw new CGNotSupportDataTypeRuntimeException(dt)
+	  }
 	}
 	
-	def dtToTypeOIString(dt: DataType): String = {
-		dt match {
-			case TypeUtil.BinaryType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.BinaryObjectInspector"
-			case TypeUtil.BooleanType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.BooleanObjectInspector"
-			case TypeUtil.ByteType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.ByteObjectInspector"
-			case TypeUtil.DoubleType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.DoubleObjectInspector"
-			case TypeUtil.FloatType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.FloatObjectInspector"
-			case TypeUtil.IntegerType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.IntObjectInspector"
-			case TypeUtil.LongType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.LongObjectInspector"
-			case TypeUtil.ShortType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.ShortObjectInspector"
-			case TypeUtil.StringType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector"
-			case TypeUtil.TimestampType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector"
-			case _ => throw new CGNotSupportDataTypeRuntimeException(dt)
-		}
-	}
+//	def dtToString(dt: DataType): String = {
+//		dt match {
+//			case TypeUtil.BinaryType => "PrimitiveObjectInspectorFactory.writableBinaryObjectInspector"
+//			case TypeUtil.BooleanType => "PrimitiveObjectInspectorFactory.writableBooleanObjectInspector"
+//			case TypeUtil.ByteType => "PrimitiveObjectInspectorFactory.writableByteObjectInspector"
+//			case TypeUtil.DoubleType => "PrimitiveObjectInspectorFactory.writableDoubleObjectInspector"
+//			case TypeUtil.FloatType => "PrimitiveObjectInspectorFactory.writableFloatObjectInspector"
+//			case TypeUtil.IntegerType => "PrimitiveObjectInspectorFactory.writableIntObjectInspector"
+//			case TypeUtil.LongType => "PrimitiveObjectInspectorFactory.writableLongObjectInspector"
+//			case TypeUtil.ShortType => "PrimitiveObjectInspectorFactory.writableShortObjectInspector"
+//			case TypeUtil.StringType => "PrimitiveObjectInspectorFactory.writableStringObjectInspector"
+//			case TypeUtil.TimestampType => "PrimitiveObjectInspectorFactory.writableTimestampObjectInspector"
+//			case _ => throw new CGNotSupportDataTypeRuntimeException(dt)
+//		}
+//	}
+	
+//	def dtToTypeOIString(dt: DataType): String = {
+//		dt match {
+//			case TypeUtil.BinaryType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.BinaryObjectInspector"
+//			case TypeUtil.BooleanType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.BooleanObjectInspector"
+//			case TypeUtil.ByteType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.ByteObjectInspector"
+//			case TypeUtil.DoubleType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.DoubleObjectInspector"
+//			case TypeUtil.FloatType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.FloatObjectInspector"
+//			case TypeUtil.IntegerType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.IntObjectInspector"
+//			case TypeUtil.LongType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.LongObjectInspector"
+//			case TypeUtil.ShortType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.ShortObjectInspector"
+//			case TypeUtil.StringType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector"
+//			case TypeUtil.TimestampType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector"
+//			case _ => throw new CGNotSupportDataTypeRuntimeException(dt)
+//		}
+//	}
 	
 	def assertDataType(dt: DataType) {
 	  if(dt.isInstanceOf[CGUnion] || 

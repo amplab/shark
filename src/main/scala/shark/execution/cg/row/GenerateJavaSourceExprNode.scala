@@ -328,7 +328,7 @@ case class EENUDF(expr: TENUDF, sibling: ExecuteOrderedExprNode) extends EENExpr
 	  TypeUtil.assertDataType(expr.outputDT)
 		udf = ctx.property(expr.bridge.getUdfClass().getCanonicalName())
 
-		if(expr.writable) {
+		if(expr.outputWritable) {
 		  // if the output is writable
 		  ctx.register(expr, ctx.EXPR_NULL_INDICATOR_NAME, null)
 		  ctx.register(expr, ctx.CODE_IS_VALID, "%s != null".format(ctx.exprName(expr)))
