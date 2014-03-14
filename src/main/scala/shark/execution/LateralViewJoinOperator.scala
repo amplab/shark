@@ -88,29 +88,31 @@ class LateralViewJoinOperator extends NaryOperator[LateralViewJoinDesc] {
     // happens only on select *'s, which are not allowed within explode
     udtfEval = udtfSelOp.conf.getColList().map(ExprNodeEvaluatorFactory.get(_)).toArray
     udtfEval.foreach(_.initialize(udtfSelOp.objectInspectors.head))
-
+    
     // Get the Select-branch eval
-    if (lvjSelOp.conf.getColList() != null) {
-      lvjSelEval = lvjSelOp.conf.getColList().map(ExprNodeEvaluatorFactory.get(_)).toArray
-      lvjSelEval.foreach(_.initialize(lvjSelOp.objectInspectors.head))
-    }
+    initializeSelectEvalOutput
   }
 
-  protected override def createOutputObjectInspector() = {
+  private def initializeSelectEvalOutput: Array[ObjectInspector] = {
     val SELECT_TAG = 0
-    val UDTF_TAG = 1
+    if (lvjSelOp.conf.getColList() != null) {
+      lvjSelEval = lvjSelOp.conf.getColList().map(ExprNodeEvaluatorFactory.get(_)).toArray
+      lvjSelEval.map(_.initialize(lvjSelOp.objectInspectors.head))
+    } else {
+      objectInspectors(SELECT_TAG).asInstanceOf[StructObjectInspector]
+        .getAllStructFieldRefs().map(_.getFieldObjectInspector).toArray
+    }
+  }
   
+  protected override def createOutputObjectInspector() = {
+    val UDTF_TAG = 1
     val ois = new ArrayBuffer[ObjectInspector]()
     val fieldNames = desc.getOutputInternalColNames()
 
     // The output of the lateral view join will be the columns from the select
     // parent, followed by the column from the UDTF parent
-    var soi = objectInspectors(SELECT_TAG).asInstanceOf[StructObjectInspector]
-
-    for (sf <- soi.getAllStructFieldRefs()) {
-      ois.add(sf.getFieldObjectInspector());
-    }
-
+    ois ++= initializeSelectEvalOutput
+    
     soi = objectInspectors(UDTF_TAG).asInstanceOf[StructObjectInspector]
     for (sf <- soi.getAllStructFieldRefs()) {
       ois.add(sf.getFieldObjectInspector());
