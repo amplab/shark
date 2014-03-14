@@ -14,7 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+ 
 # (Required) Amount of memory used per slave node. This should be in the same
 # format as the JVM's -Xmx option, e.g. 300m or 1g.
 export SPARK_MEM=1g
@@ -45,6 +45,8 @@ export SHARK_MASTER_MEM=1g
 # On EC2, change the local.dir to /mnt/tmp
 SPARK_JAVA_OPTS=" -Dspark.local.dir=/tmp "
 SPARK_JAVA_OPTS+="-Dspark.kryoserializer.buffer.mb=10 "
+SPARK_JAVA_OPTS+="-Xmx2048m -XX:PermSize=512m "
+SPARK_JAVA_OPTS+="-XX:+CMSClassUnloadingEnabled -XX:+UseCodeCacheFlushing -XX:ReservedCodeCacheSize=256m "
 SPARK_JAVA_OPTS+="-verbose:gc -XX:-PrintGCDetails -XX:+PrintGCTimeStamps "
 export SPARK_JAVA_OPTS
 
