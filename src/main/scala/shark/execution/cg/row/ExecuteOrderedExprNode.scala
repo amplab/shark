@@ -59,8 +59,8 @@ case class EENInputRow(expr: TENInputRow, sibling: ExecuteOrderedExprNode) exten
     
 	override def initial(ctx: CGExprContext) {
 	  import org.apache.hadoop.hive.serde2.objectinspector.StructField
-	  
-	  val oiType = TypeUtil.dtToTypeOIString(expr.outputDT)
+//	  val oiType = TypeUtil.dtToTypeOIString(expr.outputDT)
+	  val oiType = TypeUtil.dtToString(expr.outputDT)
 	  
 	  oiName = ctx.property(oiType, false, false, null, false)
 	  sfName = ctx.property(classOf[StructField].getCanonicalName(), false, false, null, false)
@@ -69,20 +69,53 @@ case class EENInputRow(expr: TENInputRow, sibling: ExecuteOrderedExprNode) exten
 	    Constant.CG_EXPR_NAME_INPUT_SOI, expr.attr))
 	  ctx.addInitials("%s = (%s)(%s.getFieldObjectInspector());".format(oiName, oiType, sfName))
 	  
-	  ctx.register(expr, ctx.EXPR_VARIABLE_TYPE, expr.outputDT.writable)
-	  ctx.register(expr, ctx.EXPR_NULL_INDICATOR_NAME, null)
-      ctx.register(expr, ctx.CODE_IS_VALID, "%s != null".format(ctx.exprName(expr)))
 	  ctx.register(expr, ctx.CODE_VALUE_REPL, ctx.exprName(expr))
-	  ctx.register(expr, ctx.CODE_INVALIDATE, null)
-	  ctx.register(expr, ctx.CODE_VALIDATE, null)
-	  // TODO need to thing about the union / map / array / structure type 
-	  ctx.register(expr, ctx.EXPR_DEFAULT_VALUE, 
-	  "(%s)%s.getPrimitiveWritableObject(%s.getStructFieldData(%s, %s))".format(
+	    
+	  if(expr.outputWritable) {
+	    ctx.register(expr, ctx.CODE_INVALIDATE, null)
+	    ctx.register(expr, ctx.CODE_VALIDATE, null)
+	    ctx.register(expr, ctx.EXPR_VARIABLE_TYPE, expr.outputDT.writable)
+	    ctx.register(expr, ctx.EXPR_NULL_INDICATOR_NAME, null)
+        ctx.register(expr, ctx.CODE_IS_VALID, "%s != null".format(ctx.exprName(expr)))
+
+	    // TODO need to thing about the union / map / array / structure type 
+	    ctx.register(expr, ctx.EXPR_DEFAULT_VALUE, 
+	    "(%s)%s.getPrimitiveWritableObject(%s)".format(
 	      expr.outputDT.writable,
-	      oiName,
-	      Constant.CG_EXPR_NAME_INPUT_SOI, 
-	      Constant.CG_EXPR_NAME_INPUT, 
-	      sfName))
+	      oiName, exprData))
+	  } else {
+	    ctx.register(expr, ctx.EXPR_VARIABLE_TYPE, expr.outputDT.primitive)
+	  }
+	}
+
+	override def currCode(ctx: CGExprContext): String = {
+	  if(expr.outputWritable) {
+	    super.currCode(ctx)
+	  } else {
+	    """{
+	        Object tempobj = %s; 
+            if(tempobj != null) {
+	          %s = %s;
+	          %s
+            }
+           }""".format(exprData, ctx.exprName(expr), exprJavaData, ctx.codeValidate(ten))
+	  }
+	}
+	
+	private def exprData = {
+	  "%s.getStructFieldData(%s, %s)".format(
+	    Constant.CG_EXPR_NAME_INPUT_SOI, 
+	    Constant.CG_EXPR_NAME_INPUT, 
+	    sfName)
+	}
+	
+	private def exprJavaData: String = {
+	  expr.outputDT match {
+	    case x: CGPrimitiveString => "%s.getPrimitiveJavaObject(tempobj)".format(oiName)
+	    case x: CGPrimitiveTimestamp => "%s.getPrimitiveJavaObject(tempobj)".format(oiName)
+	    case x: CGPrimitiveBinary => "%s.getPrimitiveJavaObject(tempobj)".format(oiName)
+	    case _ => "%s.get(tempobj)".format(oiName)
+	  }
 	}
 }
 

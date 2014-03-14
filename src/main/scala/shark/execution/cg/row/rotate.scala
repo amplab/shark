@@ -177,7 +177,7 @@ class RuleValueGuard {
 	          }), sibling))
 	      	}
 	      }
-	      case x @ TENUDF(bridge, children, _) => {
+	      case x @ TENUDF(bridge, children) => {
 	      	if(nullCheck) {
 	          children.foldRight[ExecuteOrderedExprNode](EENDeclare(x, create(x, EENGuardNull(x, sibling))))((e1, e2) => {
 	            EENSequence(rotate(e1, null, false), e2)
