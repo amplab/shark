@@ -91,6 +91,9 @@ class CGFilterOperator(override val op: FilterOperator)
   }
 }
 
+/*
+ * Put all of the operator template here.
+ */
 object CGOperator {
   val CG_OPERATOR_SELECT = "shark/execution/cg/operator/cg_op_select.ssp"
   val CG_OPERATOR_SELECT2 = "shark/execution/cg/operator/cg_op_select2.ssp"

@@ -61,9 +61,9 @@ import scala.collection.mutable.Map
  * The leaf node represents the expression value, by default the expression value is null, only the
  * right most leaf node may change that. 
  * 
- * However, there still lots of duplicated computing in checking/declaring the node of value. We
- * need to eliminate the duplicated expression node / checking in the executing path.  
- * As result we will see a new executing order tree as:
+ * However, there are still lots of duplicated computing in checking/declaring the node value. We
+ * need to eliminate them in the executing path tree.  
+ * As result we will see a new executing order tree as: (a+b) is not shown up again.
  *               a(declare)
  *           /       \
  *        isnull(a)   b (declare)
@@ -79,7 +79,7 @@ import scala.collection.mutable.Map
  *                             *
  * The above demonstrates the basic idea on tree node "rotate" and "eos" (Executing Order Simplify).
  * Besides the algebraical expression, we also need to support logical and conditional expression, 
- * which may presents as UDF / GenericUDF and partial evaluating. Finding more in the code.
+ * which may presents as UDF / GenericUDF and partial evaluating. Finding more details in the code.
  */
 
 /**
