@@ -48,7 +48,7 @@ trait CGObjectOperator extends LogHelper {
   
   @transient lazy val outputObjectInspector = soi
   
-  @BeanProperty var useCG: Boolean = true
+  @BeanProperty var useCG: Boolean = true  // indicate if we will CG for the current operator
   @BeanProperty var operatorClassName: String = _
   @BeanProperty var soiClassName: String = _
   
@@ -87,6 +87,9 @@ trait CGObjectOperator extends LogHelper {
     }
   }
   
+  /**
+   * Analysis the input object inspectors, which will be used in CGing the current Operator
+   */
   private def analyzeInputs() = {
     self.parentOperators.toArray.map(op => {
       if(op.cgrow != null) {
@@ -122,36 +125,39 @@ trait CGObjectOperator extends LogHelper {
     cc: CompilationContext) = {
     cgrow = createOutputRow()
     
-	val oi: StructObjectInspector = if(cgrow != null) {
-	  if(useCGObjectInspector) {
-	    // if current operator will create the new schema as output
-	    var oiStruct = CGOIField.create(cgrow).asInstanceOf[CGOIStruct]
-	    soiClassName = oiStruct.fullClassName
-	  
-	    // compile the row and its OI object, which will be used in initializing the child Operators
-	    val objrow = time(()=>List(
-	      (cgrow.fullClassName, CGRow.generate(cgrow, true)), 
-	      (soiClassName, CGOI.generateOI(oiStruct, true))), "Generate CGOI/Row")
-	    time(()=>cc.compile(objrow), "Compiling CGRow/OI")
-	    compileUnits ++= objrow
-	  
-	    // override the existed output object inspector (StructObjectInspector)
-	    instance[StructObjectInspector](oiStruct.fullClassName)
-	  } else {
-	    import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
-        import scala.collection.JavaConversions._
-        import shark.execution.cg.row.TypeUtil
-        ObjectInspectorFactory.getStandardStructObjectInspector(
-          asJavaList(cgrow.fields.map(_.oiName)), 
-          asJavaList(cgrow.fields.map(f => TypeUtil.getDataType(f.typeInfo).oi)))
-	  }
-	} else {
-	  soi
-	}
-	
-	oi
+    val oi: StructObjectInspector = if(cgrow != null) {
+      if(useCGObjectInspector) {
+        // if current operator will create the new schema as output
+        var oiStruct = CGOIField.create(cgrow).asInstanceOf[CGOIStruct]
+        soiClassName = oiStruct.fullClassName
+      
+        // compile the row and its OI object, which will be used in initializing the child Operators
+        val objrow = time(()=>List(
+          (cgrow.fullClassName, CGRow.generate(cgrow, true)), 
+          (soiClassName, CGOI.generateOI(oiStruct, true))), "Generate CGOI/Row")
+        time(()=>cc.compile(objrow), "Compiling CGRow/OI")
+        compileUnits ++= objrow
+      
+        // override the existed output object inspector (StructObjectInspector)
+        instance[StructObjectInspector](oiStruct.fullClassName)
+      } else {
+        import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
+          import scala.collection.JavaConversions._
+          import shark.execution.cg.row.TypeUtil
+          ObjectInspectorFactory.getStandardStructObjectInspector(
+            asJavaList(cgrow.fields.map(_.oiName)), 
+            asJavaList(cgrow.fields.map(f => TypeUtil.getDataType(f.typeInfo).oi)))
+      }
+    } else {
+      soi
+    }
+    
+    oi
   }
   
+  /**
+   * Utilities for printing out the time in compiling / code generating
+   */
   private def time[T](func: () => T, msg: String) = {
     val s = System.currentTimeMillis()
     val result = func()

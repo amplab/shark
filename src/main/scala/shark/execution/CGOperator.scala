@@ -21,9 +21,9 @@ import shark.execution.cg.row.CGTE
 import shark.execution.cg.row.CGStruct
 import shark.execution.cg.row.CGExprContext
 import shark.execution.cg.row.TypeUtil
-
-import shark.execution.cg.CGUtil
 import shark.execution.cg.row.TENInstance
+import shark.execution.cg.row.HiveTENFactory
+import shark.execution.cg.CGUtil
 
 abstract class CGOperator(
     val path: String, 
@@ -34,13 +34,23 @@ abstract class CGOperator(
   def initial: Map[String, Any]
 }
 
+// TODO
+// CGSelectOperator & CGSelectOperator2 accomplish the same goal, 
+// the former output the object in generate class (which represented in CGStruct),
+// the later output the object in Writable array. Ideally, the former should be faster than the 
+// later in serialization / deserialization (less objects created), however, we found the former
+// is slower in checking the field whether it's null. Hence we keep the both implementation for
+// further improving.
+/**
+ * Generate the java source code for SelectOperator, the output object is the CGRow(generate class)
+ */
 class CGSelectOperator(override val op: SelectOperator) 
   extends CGOperator(CGOperator.CG_OPERATOR_SELECT, op) {
   override def initial: Map[String, Any] = {
     import scala.collection.JavaConversions._
     
     val ctx = new CGExprContext()
-    val ten = TENInstance.create(op.conf.getOutputColumnNames(), 
+    val ten = HiveTENFactory.create(op.conf.getOutputColumnNames(), 
       op.conf.getColList(), op.cginputrows(0), op.cgrow)
     val een = TENInstance.transform(ten, ctx)
     
@@ -48,26 +58,33 @@ class CGSelectOperator(override val op: SelectOperator)
   }
 }
 
+/**
+ * Generate the java source code for SelectOperator, the output object is Writable array.
+ */
 class CGSelectOperator2(override val op: SelectOperator) 
   extends CGOperator(CGOperator.CG_OPERATOR_SELECT2, op) {
   override def initial: Map[String, Any] = {
     import scala.collection.JavaConversions._
     
     val ctx = new CGExprContext()
-    val ten = TENInstance.create(op.conf.getColList(), op.cginputrows(0), op.cgrow)
+    val ten = HiveTENFactory.create(op.conf.getColList(), op.cginputrows(0), op.cgrow)
     val een = TENInstance.transform(ten, ctx)
     
     Map("ctx" -> ctx, "cs" -> een)
   }
 }
 
+/**
+ * Generate the java source code for FilterOperator
+ */
 class CGFilterOperator(override val op: FilterOperator) 
   extends CGOperator(CGOperator.CG_OPERATOR_FILTER, op) {
   override def initial: Map[String, Any] = {
     import scala.collection.JavaConversions._
     
     val ctx = new CGExprContext()
-    val ten = TENInstance.create(op.getConf.getPredicate(), TypeUtil.BooleanType, op.cginputrows(0))
+    val ten = HiveTENFactory.create(op.getConf.getPredicate(), 
+      TypeUtil.BooleanType, op.cginputrows(0))
     val een = TENInstance.transform(ten, ctx)
     
     Map("ctx" -> ctx, "cs" -> een)

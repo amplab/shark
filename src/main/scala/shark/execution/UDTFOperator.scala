@@ -29,6 +29,8 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.StandardStructObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.StructField
 
+import shark.execution.cg.CompilationContext
+
 
 class UDTFOperator extends UnaryOperator[UDTFDesc] {
 
@@ -39,6 +41,12 @@ class UDTFOperator extends UnaryOperator[UDTFDesc] {
   @transient var collector: UDTFCollector = _
   @transient var outputObjInspector: ObjectInspector = _
 
+  override def initializeMasterOnAll(cc: CompilationContext) {
+    // disable the CG for parent operators, TODO we may need to refactor the UDTF operator code
+    parentOperators.foreach(_.useCG = false)
+    super.initializeMasterOnAll(cc)
+  }
+  
   override def initializeOnMaster() {
     super.initializeOnMaster()
     

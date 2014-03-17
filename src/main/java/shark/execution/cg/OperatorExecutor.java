@@ -20,11 +20,14 @@ package shark.execution.cg;
 
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 
+/**
+ * Root class for code generated Operator
+ */
 public abstract class OperatorExecutor {
-	protected ObjectInspector inputOI = null;
-	public void init(ObjectInspector[] inputOIs) throws Exception {
-		inputOI = inputOIs[0];
-	}
-	
+    protected ObjectInspector inputOI = null;
+    public void init(ObjectInspector[] inputOIs) throws Exception {
+        inputOI = inputOIs[0];
+    }
+
     abstract public Object evaluate(Object obj) throws Exception;
 }
