@@ -60,7 +60,7 @@ class FilterOperator extends UnaryOperator[FilterDesc] {
       // the output object accordingly (as CGRow object)
       iter.filter { row => 
         cgexec.evaluate(row).asInstanceOf[Boolean]
-       }
+      }
     } else {
       iter.filter { row =>
         java.lang.Boolean.TRUE.equals(

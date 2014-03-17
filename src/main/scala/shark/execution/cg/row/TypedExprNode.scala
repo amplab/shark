@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2012 The Regents of The University California.
+ * All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package shark.execution.cg.row
 
 import java.util.concurrent.atomic.AtomicInteger
@@ -26,45 +43,55 @@ import org.apache.hadoop.io.BytesWritable
 import org.apache.spark.Logging
 
 import shark.execution.cg.CGAssertRuntimeException
+import shark.execution.cg.CGInvalidException
 import shark.execution.cg.CGUtil
 
+/**
+ * Expr tree node of representing the expression 
+ */
 abstract class TypedExprNode extends ExprNode[TypedExprNode] {
-	self: Product =>
+  self: Product =>
 
-	// Current node is deterministic, if current UDF and all children nodes are deterministic 
-	def isDeterministic = true
+  // Current node is deterministic, if current UDF and all children nodes are deterministic 
+  def isDeterministic = true
 
-	// Current node is stateful if current UDF or one of the child node is stateful
-	def isStateful = false
+  // Current node is stateful if current UDF or one of the child node is stateful
+  def isStateful = false
 
-	// output data type
-	def outputDT: DataType = null
+  // output data type
+  def outputDT: DataType = null
 
-	val exprId = TypedExprNode.randomName("__expr_")
+  val exprId = TypedExprNode.randomName("__expr_")
 
-	private lazy val hashcode: Int = children.foldLeft(this.getClass().hashCode())(_ + _.hashCode)
-	override def hashCode = hashcode
-	override def equals(ref: Any) = if (this eq ref.asInstanceOf[AnyRef]) {
-		true
-	} else if (ref == null || ref.getClass() != this.getClass()) {
-		false
-	} else {
-		// if it's the non-deterministic node, then will fail in equality comparison, unless 
-		// exactly the same instance
-		isDeterministic && 
-		(hashCode == ref.hashCode()) && ({
-		  val that = ref.asInstanceOf[this.type].productIterator.toList
-		  val thiz = productIterator.toList
-		  that == thiz
-		})
-	}
-	
-	def toR: TypedExprNode = if(outputWritable) TENConvertW2R(this) else this
-	def toW: TypedExprNode = if(outputWritable) this else TENConvertR2W(this)
-	
-	def outputWritable = false
+  private lazy val hashcode: Int = children.foldLeft(this.getClass().hashCode())(_ + _.hashCode)
+  override def hashCode = hashcode
+  override def equals(ref: Any) = if (this eq ref.asInstanceOf[AnyRef]) {
+    true
+  } else if (ref == null || ref.getClass() != this.getClass()) {
+    false
+  } else {
+    // if it's the non-deterministic node, then will fail in equality comparison, unless 
+    // exactly the same instance
+    isDeterministic && 
+    (hashCode == ref.hashCode()) && ({
+      val that = ref.asInstanceOf[this.type].productIterator.toList
+      val thiz = productIterator.toList
+      that == thiz
+    })
+  }
+  
+  // convert the current node to the one which output result is java object(primitive) 
+  def toR: TypedExprNode = if(outputWritable) TENConvertW2R(this) else this
+  
+  // convert the current node to the one which output result is Writable object
+  def toW: TypedExprNode = if(outputWritable) this else TENConvertR2W(this)
+  
+  def outputWritable = false
 }
 
+/**
+ * Common Utilities
+ */
 object TypedExprNode {
   val incr = new AtomicInteger()
   def randomName(prefix: String) = prefix + incr.getAndIncrement()
@@ -86,18 +113,23 @@ object TypedExprNode {
   }
   
   def initializeGUDF(genericUDF: GenericUDF, children: Seq[TypedExprNode]): OI = {
-	// TODO need to think about how to convert the Struct / map / union / list to DataType
-	genericUDF.initializeAndFoldConstants(TENFactory.r2w(children).map(node => {
-	  node match {
-	    case x: TENLiteral => x.constantOI
-	    case _ => node.outputDT.oi.asInstanceOf[OI]
-	  }
-	}).toArray)
+    // TODO need to think about how to convert the Struct / map / union / list to DataType
+    genericUDF.initializeAndFoldConstants(TENFactory.r2w(children).map(node => {
+      node match {
+        case x: TENLiteral => x.constantOI
+        case _ => node.outputDT.oi.asInstanceOf[OI]
+      }
+    }).toArray)
   }
 }
 
-case class TENLiteral(obj: Any, dt: DataType, writable: Boolean) extends TypedExprNode with LeafNode[TypedExprNode] {
-	self: Product =>
+/**
+ * Constant Value(writable and primitive)
+ */
+case class TENLiteral(obj: Any, dt: DataType, writable: Boolean) extends TypedExprNode 
+  with LeafNode[TypedExprNode] {
+  
+  self: Product =>
   override def outputDT = dt
 
   // TODO need to think about the array/map/list/struct type
@@ -107,16 +139,26 @@ case class TENLiteral(obj: Any, dt: DataType, writable: Boolean) extends TypedEx
       POIF.getPrimitiveWritableConstantObjectInspector(pc, obj)
     } else {
       POIF.getPrimitiveWritableConstantObjectInspector(pc, pc match {
-        case PrimitiveCategory.BOOLEAN => POIF.writableBooleanObjectInspector.create(obj.asInstanceOf[Boolean])
-        case PrimitiveCategory.BYTE => POIF.writableByteObjectInspector.create(obj.asInstanceOf[Byte])
-        case PrimitiveCategory.SHORT => POIF.writableShortObjectInspector.create(obj.asInstanceOf[Short])
-        case PrimitiveCategory.INT => POIF.writableIntObjectInspector.create(obj.asInstanceOf[Int])
-        case PrimitiveCategory.LONG => POIF.writableLongObjectInspector.create(obj.asInstanceOf[Long])
-        case PrimitiveCategory.FLOAT => POIF.writableFloatObjectInspector.create(obj.asInstanceOf[Float])
-        case PrimitiveCategory.DOUBLE => POIF.writableDoubleObjectInspector.create(obj.asInstanceOf[Double])
-        case PrimitiveCategory.STRING => POIF.writableStringObjectInspector.create(obj.asInstanceOf[String])
-        case PrimitiveCategory.TIMESTAMP => POIF.writableTimestampObjectInspector.create(obj.asInstanceOf[java.sql.Timestamp])
-        case PrimitiveCategory.BINARY => POIF.writableBinaryObjectInspector.create(obj.asInstanceOf[Array[Byte]])
+        case PrimitiveCategory.BOOLEAN => 
+          POIF.writableBooleanObjectInspector.create(obj.asInstanceOf[Boolean])
+        case PrimitiveCategory.BYTE => 
+          POIF.writableByteObjectInspector.create(obj.asInstanceOf[Byte])
+        case PrimitiveCategory.SHORT => 
+          POIF.writableShortObjectInspector.create(obj.asInstanceOf[Short])
+        case PrimitiveCategory.INT => 
+          POIF.writableIntObjectInspector.create(obj.asInstanceOf[Int])
+        case PrimitiveCategory.LONG => 
+          POIF.writableLongObjectInspector.create(obj.asInstanceOf[Long])
+        case PrimitiveCategory.FLOAT => 
+          POIF.writableFloatObjectInspector.create(obj.asInstanceOf[Float])
+        case PrimitiveCategory.DOUBLE => 
+          POIF.writableDoubleObjectInspector.create(obj.asInstanceOf[Double])
+        case PrimitiveCategory.STRING => 
+          POIF.writableStringObjectInspector.create(obj.asInstanceOf[String])
+        case PrimitiveCategory.TIMESTAMP => 
+          POIF.writableTimestampObjectInspector.create(obj.asInstanceOf[java.sql.Timestamp])
+        case PrimitiveCategory.BINARY => 
+          POIF.writableBinaryObjectInspector.create(obj.asInstanceOf[Array[Byte]])
       })
     }
   }
@@ -151,71 +193,80 @@ case class TENLiteral(obj: Any, dt: DataType, writable: Boolean) extends TypedEx
         case PrimitiveCategory.FLOAT => new FloatWritable(obj.asInstanceOf[Float])
         case PrimitiveCategory.DOUBLE => new DoubleWritable(obj.asInstanceOf[Double])
         case PrimitiveCategory.STRING => new Text(obj.asInstanceOf[String])
-        case PrimitiveCategory.TIMESTAMP => new TimestampWritable(obj.asInstanceOf[java.sql.Timestamp])
+        case PrimitiveCategory.TIMESTAMP => 
+          new TimestampWritable(obj.asInstanceOf[java.sql.Timestamp])
         case PrimitiveCategory.BINARY => new BytesWritable(obj.asInstanceOf[Array[Byte]])
       }
     }, dt, !writable)
   }
 }
 
-case class TENInputRow(struct: CGStruct, attr: String) extends TypedExprNode with LeafNode[TypedExprNode] {
-	self: Product =>
-	override def outputDT = field
+case class TENInputRow(struct: CGStruct, attr: String) extends TypedExprNode 
+  with LeafNode[TypedExprNode] {
+  self: Product =>
+    
+  override def outputDT = field
 
-	lazy val field = struct.getField(attr)
-	
-	def escapedName = CGUtil.makeCGFieldName(attr)
-	def maskBitName = CGField.getMaskBitVariableName(escapedName)
-	
-	override def outputWritable = TypeUtil.isWritable(field)
+  lazy val field = struct.getField(attr)
+  
+  def escapedName = CGUtil.makeCGFieldName(attr)
+  def maskBitName = CGField.getMaskBitVariableName(escapedName)
+  
+  override def outputWritable = TypeUtil.isWritable(field)
 }
 
-case class TENOutputField(attr: String, expr: TypedExprNode, dt: DataType) extends TypedExprNode with UnaryNode[TypedExprNode] {
-	self: Product =>
-	override def outputDT = dt
+case class TENOutputField(attr: String, expr: TypedExprNode, dt: DataType) extends TypedExprNode 
+  with UnaryNode[TypedExprNode] {
+  self: Product =>
+    
+  override def outputDT = dt
 
-	def child = expr
-	override val exprId = "__output__"
-	  
-	def escapedName = CGUtil.makeCGFieldName(attr)
-	def maskBitName = CGField.getMaskBitVariableName(escapedName)
-	
-	override def outputWritable = false
+  def child = expr
+  override val exprId = "__output__"
+    
+  def escapedName = CGUtil.makeCGFieldName(attr)
+  def maskBitName = CGField.getMaskBitVariableName(escapedName)
+  
+  override def outputWritable = false
 }
 
-case class TENOutputWritableField(fieldIdx: Int, expr: TypedExprNode, dt: DataType) extends TypedExprNode with UnaryNode[TypedExprNode] {
-	self: Product =>
-	override def outputDT = dt
+case class TENOutputWritableField(fieldIdx: Int, expr: TypedExprNode, dt: DataType) 
+  extends TypedExprNode with UnaryNode[TypedExprNode] {
+  self: Product =>
+    
+  override def outputDT = dt
 
-	def child = expr
-	override val exprId = "__output__"
-	  
-	override def outputWritable = true
+  def child = expr
+  override val exprId = "__output__"
+    
+  override def outputWritable = true
 }
 
 case class TENOutputExpr(expr: TypedExprNode) extends TypedExprNode with UnaryNode[TypedExprNode] {
-	self: Product =>
-	override def outputDT = expr.outputDT
+  self: Product =>
+  override def outputDT = expr.outputDT
 
-	def child = expr
-	override val exprId = "__filter__"
-	override def outputWritable = false
+  def child = expr
+  override val exprId = "__filter__"
+  override def outputWritable = false
 }
 
 case class TENOutputRow(fields: Seq[TypedExprNode], output: CGStruct) extends TypedExprNode {
-	self: Product =>
-	override def outputDT = output
+  self: Product =>
+    
+  override def outputDT = output
 
-	def children = fields
+  def children = fields
 }
 
-abstract class TENConvert(from: TypedExprNode, to: DataType) extends TypedExprNode with UnaryNode[TypedExprNode] {
-	self: Product =>
+abstract class TENConvert(from: TypedExprNode, to: DataType) extends TypedExprNode 
+  with UnaryNode[TypedExprNode] {
+  self: Product =>
 
-	override def child = from
-	override def outputDT = to
+  override def child = from
+  override def outputDT = to
 
-	override val isDeterministic = from.isDeterministic
+  override val isDeterministic = from.isDeterministic
 }
 
 /**
@@ -228,16 +279,19 @@ case class TENConvertR2R(from: TypedExprNode, to: DataType) extends TENConvert(f
  * Raw type to Writable
  */
 case class TENConvertR2W(from: TypedExprNode) extends TENConvert(from, from.outputDT) {
-	override def outputWritable = true
+  override def outputWritable = true
 }
 
 /**
  * Raw type to DeferredObject
  */
 case class TENConvertW2D(from: TypedExprNode) extends TENConvert(from, from.outputDT) {
-  override def toR: TypedExprNode = throw new CGAssertRuntimeException("shouldn't be called TENConvertW2D")
-  override def toW: TypedExprNode = throw new CGAssertRuntimeException("shouldn't be called TENConvertW2D")
-  override def outputWritable = throw new CGAssertRuntimeException("shouldn't be called TENConvertW2D")
+  override def toR: TypedExprNode = 
+    throw new CGInvalidException("shouldn't be called TENConvertW2D")
+  override def toW: TypedExprNode = 
+    throw new CGInvalidException("shouldn't be called TENConvertW2D")
+  override def outputWritable = 
+    throw new CGInvalidException("shouldn't be called TENConvertW2D")
 }
 
 /**
@@ -246,115 +300,160 @@ case class TENConvertW2D(from: TypedExprNode) extends TENConvert(from, from.outp
 case class TENConvertW2R(from: TypedExprNode) extends TENConvert(from, from.outputDT) {
 }
 
-// TODO need to consider about the union
-case class TENAttribute(attr: String, expr: TypedExprNode) extends TypedExprNode with UnaryNode[TypedExprNode] {
-	self: Product =>
-	override def outputDT = expr.outputDT.asInstanceOf[CGStruct].getField(attr)
-	override def child = expr
-	
+/**
+ * Attribute is currently not used, as the embeded struct are not support yet. 
+ */
+case class TENAttribute(attr: String, expr: TypedExprNode) extends TypedExprNode 
+  with UnaryNode[TypedExprNode] {
+  self: Product =>
+
+  override def outputDT = expr.outputDT.asInstanceOf[CGStruct].getField(attr)
+  override def child = expr
+  
     def escapedName = CGUtil.makeCGFieldName(attr)
-	def maskBitName = CGField.getMaskBitVariableName(escapedName)
+  def maskBitName = CGField.getMaskBitVariableName(escapedName)
 }
 
+// TODO will be used in the future
 //case class TENAlias(expr: TypedExprNode) extends TypedExprNode with UnaryNode[TypedExprNode] {
-//	self: Product =>
-//	override def child = expr
-//	outputDT = expr.outputDT
-//	
-//	override val isDeterministic = expr.isDeterministic
+//  self: Product =>
+//  override def child = expr
+//  outputDT = expr.outputDT
+//  
+//  override val isDeterministic = expr.isDeterministic
 //
-//	override val isStateful = expr.isStateful
-//		
-//	override def hashCode = expr.hashCode
-//	override def equals(ref: Any) = super.equals(ref) || expr.equals(ref)
-//	
-//	override def simpleString = "alias: %s".format(expr.simpleString)
+//  override val isStateful = expr.isStateful
+//    
+//  override def hashCode = expr.hashCode
+//  override def equals(ref: Any) = super.equals(ref) || expr.equals(ref)
+//  
+//  override def simpleString = "alias: %s".format(expr.simpleString)
 //}
 
+
 case class TENUDF(bridge: GenericUDFBridge, exprs: Seq[TypedExprNode]) extends TypedExprNode {
-	self: Product =>
-	private lazy val outputOI = TypedExprNode.initializeGUDF(bridge, exprs)
-	private lazy val dt = TypeUtil.getDataType(outputOI)
-	
-	override def outputDT = dt
+  self: Product =>
+  private lazy val outputOI = TypedExprNode.initializeGUDF(bridge, exprs)
+  private lazy val dt = TypeUtil.getDataType(outputOI)
+  
+  override def outputDT = dt
 
-	private lazy val udf = bridge.getUdfClass().newInstance()
+  private lazy val udf = bridge.getUdfClass().newInstance()
 
-	def children = exprs
+  def children = exprs
 
-	override val isDeterministic = TypedExprNode.deterministic(bridge, exprs)
+  override val isDeterministic = TypedExprNode.deterministic(bridge, exprs)
 
-	override val isStateful = TypedExprNode.stateful(bridge)
-	
-	override def equals(ref: Any) = if (this eq ref.asInstanceOf[AnyRef]) {
-		true
-	} else if (ref == null || ref.getClass() != this.getClass()) {
-		false
-	} else {
-		// if it's the non-deterministic node, then will fail in equality comparison, unless 
-		// exactly the same instance
-		if(isDeterministic && hashCode == ref.hashCode()) {
-		  val that = ref.asInstanceOf[TENUDF]
-		  bridge.getUdfClass().getCanonicalName().equals(that.bridge.getUdfClass().getCanonicalName()) && {
-		    exprs == that.exprs
-		  }
-		} else {
-		  false
-		} 
-	}
-	
-	override def outputWritable = TypeUtil.isWritable(outputOI)
+  override val isStateful = TypedExprNode.stateful(bridge)
+  
+  override def equals(ref: Any) = if (this eq ref.asInstanceOf[AnyRef]) {
+    true
+  } else if (ref == null || ref.getClass() != this.getClass()) {
+    false
+  } else {
+    // if it's the non-deterministic node, then will fail in equality comparison, unless 
+    // exactly the same instance
+    if(isDeterministic && hashCode == ref.hashCode()) {
+      val that = ref.asInstanceOf[TENUDF]
+      val thisUDFClassName = bridge.getUdfClass().getCanonicalName()
+      val thatUDFClassName = that.bridge.getUdfClass().getCanonicalName()
+      
+      thisUDFClassName.equals(thatUDFClassName) && (exprs == that.exprs)
+    } else {
+      false
+    } 
+  }
+  
+  override def outputWritable = TypeUtil.isWritable(outputOI)
 }
 
 case class TENGUDF(genericUDF: GenericUDF, exprs: Seq[TypedExprNode]) extends TypedExprNode {
-	self: Product =>
-	private lazy val outputOI = TypedExprNode.initializeGUDF(genericUDF, exprs)
-	private lazy val dt = TypeUtil.getDataType(outputOI)
-	
-	override def outputDT = dt
+  self: Product =>
+  private lazy val outputOI = TypedExprNode.initializeGUDF(genericUDF, exprs)
+  private lazy val dt = TypeUtil.getDataType(outputOI)
+  
+  override def outputDT = dt
 
-	def children = exprs
+  def children = exprs
 
-	override val isDeterministic = TypedExprNode.deterministic(genericUDF, exprs)
+  override val isDeterministic = TypedExprNode.deterministic(genericUDF, exprs)
 
-	override val isStateful = TypedExprNode.stateful(genericUDF)
-	
-	override def equals(ref: Any) = if (this eq ref.asInstanceOf[AnyRef]) {
-		true
-	} else if (ref == null || ref.getClass() != this.getClass()) {
-		false
-	} else {
-		// if it's the non-deterministic node, then will fail in equality comparison, unless 
-		// exactly the same instance
-		if(isDeterministic && hashCode == ref.hashCode()) {
-		  val that = ref.asInstanceOf[TENGUDF]
-		  genericUDF.getClass().equals(that.genericUDF.getClass()) && {
-		    exprs == that.exprs
-		  }
-		} else {
-		  false
-		} 
-	}	
-	
-	override def outputWritable = TypeUtil.isWritable(outputOI)
+  override val isStateful = TypedExprNode.stateful(genericUDF)
+  
+  override def equals(ref: Any) = if (this eq ref.asInstanceOf[AnyRef]) {
+    true
+  } else if (ref == null || ref.getClass() != this.getClass()) {
+    false
+  } else {
+    // if it's the non-deterministic node, then will fail in equality comparison, unless 
+    // exactly the same instance
+    if(isDeterministic && hashCode == ref.hashCode()) {
+      val that = ref.asInstanceOf[TENGUDF]
+      genericUDF.getClass().equals(that.genericUDF.getClass()) && {
+        exprs == that.exprs
+      }
+    } else {
+      false
+    } 
+  }  
+  
+  override def outputWritable = TypeUtil.isWritable(outputOI)
 }
 
-// TODO replace the nullCheckRequired with type Seq[Boolean] for indicating each of the child node if it's the require null check
-// just in case of the rewrite the GenericUDF like printf()
-case class TENBuiltin(op: String, exprs: Seq[TypedExprNode], dt: DataType, nullCheckRequired: Boolean = true) extends TypedExprNode {
-	self: Product =>
-	override def outputDT = dt
-	override val isDeterministic = children.foldLeft(true)((a, b) => { a && b.isDeterministic })
-	
-	def children = exprs
+/**
+ * Represent the expressions(UDF / generic UDF) that rewritten, will generate the code in java
+ * e.g. UDFAdd ==> java code "x + y"
+ * e.g. GenericUDFBetween => java code "if(x >= a && y <= b) true else false" 
+ * 
+ * Some case may not require the null check in the generated java code, but some does.
+ * a. without null checking
+ * e.g. isnull a => java code: "a==null"
+ * b. with null checking
+ * e.g. x + y => java code: "if(x != null) if(y != null) x + y else null else null"
+ */
+case class TENBuiltin(op: String, exprs: Seq[TypedExprNode], dt: DataType, 
+  nullCheckRequired: Boolean = true) extends TypedExprNode {
+  
+  self: Product =>
+
+  override def outputDT = dt
+  override val isDeterministic = children.foldLeft(true)((a, b) => { a && b.isDeterministic })
+  
+  def children = exprs
 }
 
-case class TENBranch(branchIf: TypedExprNode, branchThen: TypedExprNode, branchElse: TypedExprNode) extends TypedExprNode {
-	self: Product =>
-	override def outputDT = branchThen.outputDT
-
-	override def children = (branchIf :: branchThen :: branchElse :: Nil).filter(_ != null)
-
-	override val isDeterministic = children.foldLeft(true)((a, b) => { a && b.isDeterministic })
+object TENBuiltin {
+  val OP_PLUS = "+"
+  val OP_MINUS = "-"
+  val OP_MULTIPLY = "*"
+  val OP_DIVIDE = "/"
+  val OP_MOD = "%"
+  val OP_BIT_AND = "&"
+  val OP_BIT_OR = "|"
+  val OP_BIT_XOR = "^"
+  val OP_BIT_NOT = "~"
+  val OP_COND_ISNULL = "isnull"
+  val OP_COND_ISNOTNULL = "isnotnull"
+  val OP_COND_ISTRUE = "istrue"
+  val OP_COND_ISFALSE = "isfalse"
+  val OP_CMP_EQUAL = "=="
+  val OP_CMP_GREATE = ">"
+  val OP_CMP_GREATE_OR_EQUAL = ">="
+  val OP_CMP_LESS = "<"
+  val OP_CMP_LESS_OR_EQUAL = "<="
+  val OP_CMP_NOT_EQUAL = "!="
 }
 
+/**
+ * Represent the condition in Java
+ */
+case class TENBranch(branchIf: TypedExprNode, branchThen: TypedExprNode, branchElse: TypedExprNode)
+  extends TypedExprNode {
+  self: Product =>
+    
+  override def outputDT = branchThen.outputDT
+
+  override def children = (branchIf :: branchThen :: branchElse :: Nil).filter(_ != null)
+
+  override val isDeterministic = children.foldLeft(true)((a, b) => { a && b.isDeterministic })
+}

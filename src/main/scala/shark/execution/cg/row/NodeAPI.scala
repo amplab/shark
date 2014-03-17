@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2012 The Regents of The University California.
+ * All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package shark.execution.cg.row
 
 import org.apache.hadoop.io.Writable
@@ -15,6 +32,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.HiveDecimalObjectInspector
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitiveJavaObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.UnionObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.{ ObjectInspector => OI }
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory
@@ -30,115 +48,83 @@ import shark.execution.cg.SetRaw
 import shark.execution.cg.SetWritable
 import shark.execution.cg.CGNotSupportDataTypeRuntimeException
 
+/**
+ * Utilities about the DataType (which is about CGField and ObjectInspector)
+ */
 object TypeUtil {
-	private val map = scala.collection.mutable.Map[TypeInfo, DataType]()
+  private val map = scala.collection.mutable.Map[TypeInfo, DataType]()
 
-	val NullType = new CGNull(POIF.writableVoidObjectInspector, null, -1)
-	val StringType = new CGPrimitiveString(POIF.writableStringObjectInspector, null, -1)
-	val BinaryType = new CGPrimitiveBinary(POIF.writableBinaryObjectInspector, null, -1)
-	val IntegerType = new CGPrimitiveInt(POIF.writableIntObjectInspector, null, -1)
-	val BooleanType = new CGPrimitiveBoolean(POIF.writableBooleanObjectInspector, null, -1)
-	val FloatType = new CGPrimitiveFloat(POIF.writableFloatObjectInspector, null, -1)
-	val DoubleType = new CGPrimitiveDouble(POIF.writableDoubleObjectInspector, null, -1)
-	val LongType = new CGPrimitiveLong(POIF.writableLongObjectInspector, null, -1)
-	val ByteType = new CGPrimitiveByte(POIF.writableByteObjectInspector, null, -1)
-	val ShortType = new CGPrimitiveShort(POIF.writableShortObjectInspector, null, -1)
-	val TimestampType = new CGPrimitiveTimestamp(POIF.writableTimestampObjectInspector, null, -1)
+  val NullType = new CGNull(POIF.writableVoidObjectInspector, null, -1)
+  val StringType = new CGPrimitiveString(POIF.writableStringObjectInspector, null, -1)
+  val BinaryType = new CGPrimitiveBinary(POIF.writableBinaryObjectInspector, null, -1)
+  val IntegerType = new CGPrimitiveInt(POIF.writableIntObjectInspector, null, -1)
+  val BooleanType = new CGPrimitiveBoolean(POIF.writableBooleanObjectInspector, null, -1)
+  val FloatType = new CGPrimitiveFloat(POIF.writableFloatObjectInspector, null, -1)
+  val DoubleType = new CGPrimitiveDouble(POIF.writableDoubleObjectInspector, null, -1)
+  val LongType = new CGPrimitiveLong(POIF.writableLongObjectInspector, null, -1)
+  val ByteType = new CGPrimitiveByte(POIF.writableByteObjectInspector, null, -1)
+  val ShortType = new CGPrimitiveShort(POIF.writableShortObjectInspector, null, -1)
+  val TimestampType = new CGPrimitiveTimestamp(POIF.writableTimestampObjectInspector, null, -1)
 
-	register(NullType)
-	register(StringType)
-	register(BinaryType)
-	register(IntegerType)
-	register(BooleanType)
-	register(FloatType)
-	register(DoubleType)
-	register(LongType)
-	register(ByteType)
-	register(ShortType)
-	register(TimestampType)
+  register(NullType)
+  register(StringType)
+  register(BinaryType)
+  register(IntegerType)
+  register(BooleanType)
+  register(FloatType)
+  register(DoubleType)
+  register(LongType)
+  register(ByteType)
+  register(ShortType)
+  register(TimestampType)
 
-	// TODO need to support the non-primitive data type, which may require creating the new
-	// object inspector(union / struct)
-	def register(dt: DataType) {
-		map += (dt.typeInfo -> dt)
-	}
+  // TODO need to support the non-primitive data type, which may require creating the new
+  // object inspector(union / struct)
+  def register(dt: DataType) {
+    map += (dt.typeInfo -> dt)
+  }
 
-	def getSetWritableClass(): Class[_] = classOf[SetWritable]
-	def getDeferredObjectClass(): Class[_] = classOf[SetDeferred]
-	def getSetRawClass(): Class[_] = classOf[SetRaw]
+  def getSetWritableClass(): Class[_] = classOf[SetWritable]
+  def getDeferredObjectClass(): Class[_] = classOf[SetDeferred]
+  def getSetRawClass(): Class[_] = classOf[SetRaw]
 
-	def getDataType(ti: TypeInfo): DataType = map.get(ti) match {
-		case Some(x) => x
-		case None => throw new CGNotSupportDataTypeRuntimeException(ti)
-	}
+  def getDataType(ti: TypeInfo): DataType = map.get(ti) match {
+    case Some(x) => x
+    case None => throw new CGNotSupportDataTypeRuntimeException(ti)
+  }
 
-	def getTypeInfo(oi: OI): TypeInfo = TypeInfoUtils.getTypeInfoFromObjectInspector(oi)
+  def getTypeInfo(oi: OI): TypeInfo = TypeInfoUtils.getTypeInfoFromObjectInspector(oi)
 
-	def getDataType(oi: OI): DataType = if (oi.isInstanceOf[PrimitiveObjectInspector] && 
-	  !oi.isInstanceOf[ConstantObjectInspector])
-		getDataType(getTypeInfo(oi))
-	else
-		CGField.create(oi, null)
-	
-	def isWritable(oi: OI): Boolean = {
-	  import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitiveJavaObjectInspector
-	  
-	  !oi.isInstanceOf[AbstractPrimitiveJavaObjectInspector]
-	}
-	
-	def isWritable(dt: DataType): Boolean = isWritable(dt.oi)
-		
-	def standardize(dt: DataType) = getDataType(getTypeInfo(dt.oi))
-    
-	def dtToString(dt: DataType): String = {
-	  val oi = dt.oi
-	  if(oi.isInstanceOf[PrimitiveObjectInspector] && !oi.isInstanceOf[HiveDecimalObjectInspector]) {
-        oi.getClass().getCanonicalName()
-	  } else {
-	    throw new CGNotSupportDataTypeRuntimeException(dt)
-	  }
-	}
-	
-//	def dtToString(dt: DataType): String = {
-//		dt match {
-//			case TypeUtil.BinaryType => "PrimitiveObjectInspectorFactory.writableBinaryObjectInspector"
-//			case TypeUtil.BooleanType => "PrimitiveObjectInspectorFactory.writableBooleanObjectInspector"
-//			case TypeUtil.ByteType => "PrimitiveObjectInspectorFactory.writableByteObjectInspector"
-//			case TypeUtil.DoubleType => "PrimitiveObjectInspectorFactory.writableDoubleObjectInspector"
-//			case TypeUtil.FloatType => "PrimitiveObjectInspectorFactory.writableFloatObjectInspector"
-//			case TypeUtil.IntegerType => "PrimitiveObjectInspectorFactory.writableIntObjectInspector"
-//			case TypeUtil.LongType => "PrimitiveObjectInspectorFactory.writableLongObjectInspector"
-//			case TypeUtil.ShortType => "PrimitiveObjectInspectorFactory.writableShortObjectInspector"
-//			case TypeUtil.StringType => "PrimitiveObjectInspectorFactory.writableStringObjectInspector"
-//			case TypeUtil.TimestampType => "PrimitiveObjectInspectorFactory.writableTimestampObjectInspector"
-//			case _ => throw new CGNotSupportDataTypeRuntimeException(dt)
-//		}
-//	}
-	
-//	def dtToTypeOIString(dt: DataType): String = {
-//		dt match {
-//			case TypeUtil.BinaryType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.BinaryObjectInspector"
-//			case TypeUtil.BooleanType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.BooleanObjectInspector"
-//			case TypeUtil.ByteType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.ByteObjectInspector"
-//			case TypeUtil.DoubleType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.DoubleObjectInspector"
-//			case TypeUtil.FloatType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.FloatObjectInspector"
-//			case TypeUtil.IntegerType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.IntObjectInspector"
-//			case TypeUtil.LongType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.LongObjectInspector"
-//			case TypeUtil.ShortType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.ShortObjectInspector"
-//			case TypeUtil.StringType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector"
-//			case TypeUtil.TimestampType => "org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector"
-//			case _ => throw new CGNotSupportDataTypeRuntimeException(dt)
-//		}
-//	}
-	
-	def assertDataType(dt: DataType) {
-	  if(dt.isInstanceOf[CGUnion] || 
-		    dt.isInstanceOf[CGStruct] || 
-		    dt.isInstanceOf[CGMap] || 
-		    dt.isInstanceOf[CGList]) {
-		  throw new CGNotSupportDataTypeRuntimeException(dt)
-		}
-	}
+  def getDataType(oi: OI): DataType = if (oi.isInstanceOf[PrimitiveObjectInspector] &&
+    !oi.isInstanceOf[ConstantObjectInspector])
+    getDataType(getTypeInfo(oi))
+  else
+    CGField.create(oi, null)
+
+  def isWritable(oi: OI): Boolean = !oi.isInstanceOf[AbstractPrimitiveJavaObjectInspector]
+
+  def isWritable(dt: DataType): Boolean = isWritable(dt.oi)
+
+  def standardize(dt: DataType) = getDataType(getTypeInfo(dt.oi))
+
+  def dtToString(dt: DataType): String = {
+    // TODO, need to support the HiveDecimalObjectInspector
+    val oi = dt.oi
+    if (oi.isInstanceOf[PrimitiveObjectInspector] && !oi.isInstanceOf[HiveDecimalObjectInspector]) {
+      dt.typedOIClassName
+    } else {
+      throw new CGNotSupportDataTypeRuntimeException(dt)
+    }
+  }
+
+  def assertDataType(dt: DataType) {
+    if (dt.isInstanceOf[CGUnion] ||
+      dt.isInstanceOf[CGStruct] ||
+      dt.isInstanceOf[CGMap] ||
+      dt.isInstanceOf[CGList]) {
+      throw new CGNotSupportDataTypeRuntimeException(dt)
+    }
+  }
 }
 
 // TODO the TreeNode API was from catalyst, will merge catalyst in the near future
@@ -165,5 +151,5 @@ trait UnaryNode[BaseType <: TreeNode[BaseType]] {
 }
 
 abstract class ExprNode[NodeType <: TreeNode[NodeType]] extends TreeNode[NodeType] {
-	self: NodeType with Product =>
+  self: NodeType with Product =>
 }

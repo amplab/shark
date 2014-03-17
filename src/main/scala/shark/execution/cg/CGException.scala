@@ -17,7 +17,6 @@
 
 package shark.execution.cg
 
-
 class CGAssertRuntimeException(message: String = null, cause: Throwable = null) 
   extends RuntimeException(message, cause)
 
@@ -34,3 +33,6 @@ class CGNotSupportDataTypeRuntimeException(message: String = null)
     this("Not support the data type:" + t.getTypeName())
   }
 }
+
+class CGInvalidException(message: String = null, cause: Throwable = null) 
+  extends RuntimeException(message, cause)

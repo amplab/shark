@@ -581,7 +581,6 @@ object CGOIField {
 }
 
 object CGOI {
-  // TODO need to precompile those templates
   val CG_OI_TRANSFORM_MAP = "shark/execution/cg/row/oi/cg_oi_transform_map.ssp"
   val CG_OI_TRANSFORM_LIST = "shark/execution/cg/row/oi/cg_oi_transform_list.ssp"
   val CG_OI_STRUCT = "shark/execution/cg/row/oi/cg_oi_struct.ssp"

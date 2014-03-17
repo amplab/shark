@@ -452,6 +452,7 @@ abstract class CGField[+T <: ObjectInspector](
   var typeInfo: TypeInfo = TIF.voidTypeInfo
   var writable = clazz
   
+  lazy val typedOIClassName = CGField.typedOIClassName(this)
   lazy val maskBitName = CGField.getMaskBitVariableName(name)
   lazy val fieldValidity = CGField.getFieldValidity(name)
   // name is the escaped variable name
@@ -922,28 +923,17 @@ object CGField {
 
   private val DEF_EXTRACT_VALUE_VIA_OI = 
     Array[(String, String, String, CGField[_]) => String](
-    (obj, varoi, data, f) => { ("%s = ((org.apache.hadoop.hive.serde2.objectinspector.primitive." +
-      "BinaryObjectInspector)%s).getPrimitiveJavaObject(%s);").format(obj, varoi, data) },
-    (obj, varoi, data, f) => { ("%s = ((org.apache.hadoop.hive.serde2.objectinspector.primitive." +
-      "BooleanObjectInspector)%s).get(%s);").format(obj, varoi, data) },
-    (obj, varoi, data, f) => { ("%s = ((org.apache.hadoop.hive.serde2.objectinspector.primitive." +
-      "ByteObjectInspector)%s).get(%s);").format(obj, varoi, data) },
-//    (obj, varoi, data, f) => { ("%s = ((org.apache.hadoop.hive.serde2.objectinspector.primitive." +
-//      "DateObjectInspector)%s).getPrimitiveJavaObject(%s);").format(obj, varoi, data) },
-    (obj, varoi, data, f) => { ("%s = ((org.apache.hadoop.hive.serde2.objectinspector.primitive." +
-      "DoubleObjectInspector)%s).get(%s);").format(obj, varoi, data) },
-    (obj, varoi, data, f) => { ("%s = ((org.apache.hadoop.hive.serde2.objectinspector.primitive." +
-      "FloatObjectInspector)%s).get(%s);").format(obj, varoi, data) },
-    (obj, varoi, data, f) => { ("%s = ((org.apache.hadoop.hive.serde2.objectinspector.primitive." +
-      "IntObjectInspector)%s).get(%s);").format(obj, varoi, data) },
-    (obj, varoi, data, f) => { ("%s = ((org.apache.hadoop.hive.serde2.objectinspector.primitive." +
-      "LongObjectInspector)%s).get(%s);").format(obj, varoi, data) },
-    (obj, varoi, data, f) => { ("%s = ((org.apache.hadoop.hive.serde2.objectinspector.primitive." +
-      "ShortObjectInspector)%s).get(%s);").format(obj, varoi, data) },
-    (obj, varoi, data, f) => { ("%s = ((org.apache.hadoop.hive.serde2.objectinspector.primitive." +
-      "StringObjectInspector)%s).getPrimitiveJavaObject(%s);").format(obj, varoi, data) },
-    (obj, varoi, data, f) => { ("%s = ((org.apache.hadoop.hive.serde2.objectinspector.primitive." +
-      "TimestampObjectInspector)%s).getPrimitiveJavaObject(%s);").format(obj, varoi, data) },
+    (obj, varoi, data, f) => { ("%s = ((%s)%s).getPrimitiveJavaObject(%s);").format(obj, DEF_TYPED_OI_CLASS_NAME(0), varoi, data) },
+    (obj, varoi, data, f) => { ("%s = ((%s)%s).get(%s);").format(obj, DEF_TYPED_OI_CLASS_NAME(1), varoi, data) },
+    (obj, varoi, data, f) => { ("%s = ((%s)%s).get(%s);").format(obj, DEF_TYPED_OI_CLASS_NAME(2), varoi, data) },
+//    (obj, varoi, data, f) => { ("%s = ((%s)%s).getPrimitiveJavaObject(%s);").format(obj, DEF_ROOT_OI_CLASS_NAME(3),, varoi, data) },
+    (obj, varoi, data, f) => { ("%s = ((%s)%s).get(%s);").format(obj, DEF_TYPED_OI_CLASS_NAME(3), varoi, data) },
+    (obj, varoi, data, f) => { ("%s = ((%s)%s).get(%s);").format(obj, DEF_TYPED_OI_CLASS_NAME(4), varoi, data) },
+    (obj, varoi, data, f) => { ("%s = ((%s)%s).get(%s);").format(obj, DEF_TYPED_OI_CLASS_NAME(5), varoi, data) },
+    (obj, varoi, data, f) => { ("%s = ((%s)%s).get(%s);").format(obj, DEF_TYPED_OI_CLASS_NAME(6), varoi, data) },
+    (obj, varoi, data, f) => { ("%s = ((%s)%s).get(%s);").format(obj, DEF_TYPED_OI_CLASS_NAME(7), varoi, data) },
+    (obj, varoi, data, f) => { ("%s = ((%s)%s).getPrimitiveJavaObject(%s);").format(obj, DEF_TYPED_OI_CLASS_NAME(8), varoi, data) },
+    (obj, varoi, data, f) => { ("%s = ((%s)%s).getPrimitiveJavaObject(%s);").format(obj, DEF_TYPED_OI_CLASS_NAME(9), varoi, data) },
     (obj, varoi, data, f) => { 
       "%s = %s.BUILD_%s(%s, %s);".format(obj, f.fullClassName, f.name, varoi, data) },
     (obj, varoi, data, f) => { 
@@ -952,6 +942,24 @@ object CGField {
       "%s = %s.BUILD(%s, %s);".format(obj, f.fullClassName, varoi, data) },
     (obj, varoi, data, f) => { 
       "%s = %s.BUILD(%s, %s);".format(obj, f.fullClassName, varoi, data) }
+  )
+
+  private val DEF_TYPED_OI_CLASS_NAME = Array[String](
+    "org.apache.hadoop.hive.serde2.objectinspector.primitive.BinaryObjectInspector",
+    "org.apache.hadoop.hive.serde2.objectinspector.primitive.BooleanObjectInspector",
+    "org.apache.hadoop.hive.serde2.objectinspector.primitive.ByteObjectInspector",
+//    "org.apache.hadoop.hive.serde2.objectinspector.primitive.DateObjectInspector",
+    "org.apache.hadoop.hive.serde2.objectinspector.primitive.DoubleObjectInspector",
+    "org.apache.hadoop.hive.serde2.objectinspector.primitive.FloatObjectInspector",
+    "org.apache.hadoop.hive.serde2.objectinspector.primitive.IntObjectInspector",
+    "org.apache.hadoop.hive.serde2.objectinspector.primitive.LongObjectInspector",
+    "org.apache.hadoop.hive.serde2.objectinspector.primitive.ShortObjectInspector",
+    "org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector",
+    "org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector",
+    null,
+    null,
+    null,
+    null
   )
 
   private val FIELD_DEF_STATIC_NULL = "public static final transient %s %s;"
@@ -994,7 +1002,16 @@ object CGField {
     (f) => { CGTE.layout(CGRow.CG_ROW_CLASS_STRUCT, Map("isOutter" -> false, "struct" -> f)) },
     (f) => { CGTE.layout(CGRow.CG_ROW_CLASS_UNION, Map("obj" -> f)) }
   )
-
+  
+  def typedOIClassName(f: CGField[_]) = {
+    val clazz = DEF_TYPED_OI_CLASS_NAME(f.order)
+    if(clazz == null) {
+      f.fullClassName
+    } else {
+      clazz
+    }
+  }
+  
   def defReads(f: CGField[_]) = DEF_READS(f.order)(f)
   
   def defWrites(f: CGField[_]) = DEF_WRITES(f.order)(f)
