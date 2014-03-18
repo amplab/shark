@@ -120,22 +120,22 @@ class TENFactory {
           TENFactory.or(children(0), children(1)) // OR  (||)
         }
         case x: GenericUDFOPEqual => {
-          TENFactory.builtin("==", children, TypeUtil.BooleanType) // =
+          TENFactory.builtin(TENBuiltin.OP_CMP_EQUAL, children) // =
         }
         case x: GenericUDFOPNotEqual => {
-          TENFactory.builtin("!=", children, TypeUtil.BooleanType) // <> (!=)
+          TENFactory.builtin(TENBuiltin.OP_CMP_NOT_EQUAL, children) // <> (!=)
         }
         case x: GenericUDFOPLessThan => {
-          TENFactory.builtin("<", children, TypeUtil.BooleanType) // <
+          TENFactory.builtin(TENBuiltin.OP_CMP_LESS, children) // <
         }
         case x: GenericUDFOPEqualOrLessThan => {
-          TENFactory.builtin("<=", children, TypeUtil.BooleanType) // <=
+          TENFactory.builtin(TENBuiltin.OP_CMP_LESS_OR_EQUAL, children) // <=
         }
         case x: GenericUDFOPGreaterThan => {
-          TENFactory.builtin(">", children, TypeUtil.BooleanType) // >
+          TENFactory.builtin(TENBuiltin.OP_CMP_GREATE, children) // >
         }
         case x: GenericUDFOPEqualOrGreaterThan => {
-          TENFactory.builtin(">=", children, TypeUtil.BooleanType) // >=
+          TENFactory.builtin(TENBuiltin.OP_CMP_GREATE_OR_EQUAL, children) // >=
         }
         case x: GenericUDFBetween => {
           TENFactory.between(children) // between 
@@ -424,31 +424,29 @@ object TENFactory {
 
     inputDT
   }
-
-  protected def commonType(inputTypes: Seq[DataType]): DataType = {
-    assert(inputTypes.length > 0)
-    if (inputTypes.length == 1) {
-      inputTypes(0)
-    } else {
-      def commonTypeInfo(t1: TypeInfo, t2: TypeInfo) = {
-        // built-in binary udf requires all of the parameters to be in same type,
-        if (t1 != t2) {
-          if (t1 == TIF.stringTypeInfo ||
-            t2 == TIF.stringTypeInfo) {
-            // if not the same type, and one of the type is string, then convert them to double
-            TIF.doubleTypeInfo
-          } else {
-            var compareType = FunctionRegistry.getCommonClass(t1, t2)
-            // if can not find the common type, than default type info is double
-            if (compareType == null) TIF.doubleTypeInfo else compareType
-          }
+  
+  
+  protected def commonType(inputTypes: Seq[DataType]): DataType = if (inputTypes.length == 1) {
+    inputTypes(0)
+  } else {
+    def commonTypeInfo(t1: TypeInfo, t2: TypeInfo) = {
+      // built-in binary udf requires all of the parameters to be in same type,
+      if (t1 != t2) {
+        if (t1 == TIF.stringTypeInfo ||
+          t2 == TIF.stringTypeInfo) {
+          // if not the same type, and one of the type is string, then convert them to double
+          TIF.doubleTypeInfo
         } else {
-          t1
+          var compareType = FunctionRegistry.getCommonClass(t1, t2)
+          // if can not find the common type, than default type info is double
+          if (compareType == null) TIF.doubleTypeInfo else compareType
         }
+      } else {
+        t1
       }
-      val typeInfo = inputTypes.map(_.typeInfo).reduce((a, b) => { commonTypeInfo(a, b) })
-      TypeUtil.getDataType(typeInfo)
     }
+    val typeInfo = inputTypes.map(_.typeInfo).reduce((a, b) => { commonTypeInfo(a, b) })
+    TypeUtil.getDataType(typeInfo)
   }
 
   protected def convert(expectedTypes: Seq[DataType], nodes: Seq[TypedExprNode])
@@ -506,15 +504,15 @@ object TENFactory {
     TENUDF(bridge, children)
   }
 
-  def builtin(op: String, children: Seq[TypedExprNode], dt: DataType = null): TypedExprNode = {
+  def builtin(op: TENBuiltin.OP, children: Seq[TypedExprNode]): TypedExprNode = {
     val inputTypes = children.map(_.outputDT)
-    val expectType = commonType(inputTypes)
+    val expectType = op.parameterDataType(commonType(inputTypes))
     val rewriteChildren = if (expectType != null)
       Seq.tabulate[TypedExprNode](children.length)(i => convert(expectType, children(i)))
     else
       Seq.tabulate[TypedExprNode](children.length)(i => literal(null, TypeUtil.NullType, false))
 
-    TENBuiltin(op, rewriteChildren, if (dt == null) expectType else dt)
+    TENBuiltin(op, rewriteChildren, op.resultDataType(expectType))
   }
 
   def isnotnull(child: TypedExprNode) = 
@@ -544,12 +542,12 @@ object TENFactory {
     assert(children(0).isInstanceOf[TENLiteral])
     if(children(0).asInstanceOf[TENLiteral].obj == false) {
       // not invert
-      and(builtin(">=", Seq(children(1), children(2)), TypeUtil.BooleanType), 
-        builtin("<=", Seq(children(1), children(3)), TypeUtil.BooleanType))
+      and(builtin(TENBuiltin.OP_CMP_GREATE_OR_EQUAL, Seq(children(1), children(2))), 
+        builtin(TENBuiltin.OP_CMP_LESS_OR_EQUAL, Seq(children(1), children(3))))
     } else {
       // invert
-      or(builtin("<", Seq(children(1), children(2)), TypeUtil.BooleanType), 
-        builtin(">", Seq(children(1), children(3)), TypeUtil.BooleanType))
+      or(builtin(TENBuiltin.OP_CMP_LESS, Seq(children(1), children(2))), 
+        builtin(TENBuiltin.OP_CMP_GREATE, Seq(children(1), children(3))))
     }
   }
   def branch(branchIf: TypedExprNode, branchThen: TypedExprNode, branchElse: TypedExprNode)
@@ -589,7 +587,7 @@ object TENFactory {
    */
   def branch_case(children: Seq[TypedExprNode]) = children match {
     case Case(a, b, c) => branch(b.map(p => { 
-      TENFactory.builtin("==", Seq(a, p._1), TypeUtil.BooleanType)
+      TENFactory.builtin(TENBuiltin.OP_CMP_EQUAL, Seq(a, p._1))
     }), b.map(_._2), c)
     case _ => throw new CGAssertRuntimeException("wrong number of parameters in Case")
   }

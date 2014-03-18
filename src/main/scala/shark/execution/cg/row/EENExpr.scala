@@ -697,7 +697,7 @@ case class EENBuiltin(expr: TENBuiltin, sibling: ExecuteOrderedExprNode)
 
   private def defaultExpr(ctx: CGExprContext): String = {
     val snippet = expr.exprs.map(ctx.exprName(_)).reduce((a, b) => { 
-      "%s%s%s".format(a, expr.op, b) 
+      "%s%s%s".format(a, expr.op.symbol, b) 
     })
     expr.outputDT match {
       case TypeUtil.ByteType => "(byte)(%s)".format(snippet)
