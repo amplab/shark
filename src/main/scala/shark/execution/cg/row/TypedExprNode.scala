@@ -411,7 +411,7 @@ case class TENGUDF(genericUDF: GenericUDF, exprs: Seq[TypedExprNode]) extends Ty
  * b. with null checking
  * e.g. x + y => java code: "if(x != null) if(y != null) x + y else null else null"
  */
-case class TENBuiltin(op: String, exprs: Seq[TypedExprNode], dt: DataType, 
+case class TENBuiltin(op: TENBuiltin.OP, exprs: Seq[TypedExprNode], dt: DataType, 
   nullCheckRequired: Boolean = true) extends TypedExprNode {
   
   self: Product =>
@@ -423,25 +423,58 @@ case class TENBuiltin(op: String, exprs: Seq[TypedExprNode], dt: DataType,
 }
 
 object TENBuiltin {
-  val OP_PLUS = "+"
-  val OP_MINUS = "-"
-  val OP_MULTIPLY = "*"
-  val OP_DIVIDE = "/"
-  val OP_MOD = "%"
-  val OP_BIT_AND = "&"
-  val OP_BIT_OR = "|"
-  val OP_BIT_XOR = "^"
-  val OP_BIT_NOT = "~"
-  val OP_COND_ISNULL = "isnull"
-  val OP_COND_ISNOTNULL = "isnotnull"
-  val OP_COND_ISTRUE = "istrue"
-  val OP_COND_ISFALSE = "isfalse"
-  val OP_CMP_EQUAL = "=="
-  val OP_CMP_GREATE = ">"
-  val OP_CMP_GREATE_OR_EQUAL = ">="
-  val OP_CMP_LESS = "<"
-  val OP_CMP_LESS_OR_EQUAL = "<="
-  val OP_CMP_NOT_EQUAL = "!="
+  case class OP(symbol: String, resultType: Int) {
+    def parameterDataType(paramType: DataType): DataType = {
+      if(resultType == OP.RT_NUMERIC) {
+        if(paramType == TypeUtil.IntegerType ||
+          paramType == TypeUtil.BooleanType ||
+          paramType == TypeUtil.FloatType ||
+          paramType == TypeUtil.DoubleType ||
+          paramType == TypeUtil.LongType ||
+          paramType == TypeUtil.ByteType ||
+          paramType == TypeUtil.ShortType) {
+          paramType
+        } else {
+          TypeUtil.DoubleType
+        }
+      } else {
+        paramType
+      }
+    }
+    
+    def resultDataType(paramType: DataType): DataType = {
+      if(resultType == OP.RT_NUMERIC) {
+        paramType
+      } else {
+        TypeUtil.BooleanType
+      }
+    }
+  }
+  
+  object OP {
+    val RT_NUMERIC = 0
+    val RT_LOGICAL = 1
+  }
+
+  val OP_PLUS = OP("+", OP.RT_NUMERIC)
+  val OP_MINUS = OP("-", OP.RT_NUMERIC)
+  val OP_MULTIPLY = OP("*", OP.RT_NUMERIC)
+  val OP_DIVIDE = OP("/", OP.RT_NUMERIC)
+  val OP_MOD = OP("%", OP.RT_NUMERIC)
+  val OP_BIT_AND = OP("&", OP.RT_NUMERIC)
+  val OP_BIT_OR = OP("|", OP.RT_NUMERIC)
+  val OP_BIT_XOR = OP("^", OP.RT_NUMERIC)
+  val OP_BIT_NOT = OP("~", OP.RT_NUMERIC)
+  val OP_COND_ISNULL = OP("isnull", OP.RT_LOGICAL)
+  val OP_COND_ISNOTNULL = OP("isnotnull", OP.RT_LOGICAL)
+  val OP_COND_ISTRUE = OP("istrue", OP.RT_LOGICAL)
+  val OP_COND_ISFALSE = OP("isfalse", OP.RT_LOGICAL)
+  val OP_CMP_EQUAL = OP("==", OP.RT_LOGICAL)
+  val OP_CMP_GREATE = OP(">", OP.RT_LOGICAL)
+  val OP_CMP_GREATE_OR_EQUAL = OP(">=", OP.RT_LOGICAL)
+  val OP_CMP_LESS = OP("<", OP.RT_LOGICAL)
+  val OP_CMP_LESS_OR_EQUAL = OP("<=", OP.RT_LOGICAL)
+  val OP_CMP_NOT_EQUAL = OP("!=", OP.RT_LOGICAL)
 }
 
 /**
