@@ -180,7 +180,7 @@ object SharkBuild extends Build {
     fork := true,
     javaOptions += "-XX:MaxPermSize=512m",
     javaOptions += "-Xmx2g",
-    javaOptions += "-Dsun.io.serialization.extendedDebugInfo=true",
+    javaOptions += "-Dsun.io.serialization.extendedDebugInfo=true -Dsbt_unit_test_workaround=true",
 
     testOptions in Test += Tests.Argument("-oF"), // Full stack trace on test failures
 
