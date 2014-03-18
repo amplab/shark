@@ -53,16 +53,16 @@ class OperatorSerializationWrapper[T <: Operator[_ <: HiveDesc]]
       
       if(classloaderBDSerialized != null) {
         _value.classloaderBD = JavaSerializer.deserialize(classloaderBDSerialized)
-        val cl = _value.classloaderBD.value
-        if(Thread.currentThread().getContextClassLoader() != cl) {
-          Thread.currentThread().setContextClassLoader(cl)
-        }
-      } else {
-        null
       }
       
       _value.objectInspectors = KryoSerializer.deserialize(objectInspectorsSerialized)
     }
+    
+    if(_value.classloaderBD != null && 
+      _value.classloaderBD.value != Thread.currentThread().getContextClassLoader()) {
+      Thread.currentThread().setContextClassLoader(_value.classloaderBD.value)
+    }
+    
     _value
   }
 

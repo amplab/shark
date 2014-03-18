@@ -73,7 +73,8 @@ class JavaCompilerHelper extends LogHelper with DiagnosticListener[JavaFileObjec
    * get the class path paired with "-cp" from the context thread class loader,
    */
   private def compileOptions() = {
-    classPathOption(Thread.currentThread().getContextClassLoader())
+    classPathOption(Thread.currentThread().getContextClassLoader()) ++ 
+    classPathOption(classOf[ObjectInspector].getClassLoader())
     // TODO put more compiling options here.
   }
 
