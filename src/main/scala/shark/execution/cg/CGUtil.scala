@@ -56,7 +56,7 @@ object CGUtil {
     serializer.serialize(o)
   }
 
-  def deserialize[T](bytes: Array[Byte]): T = this.synchronized {
+  def deserialize(bytes: Array[Byte]): AnyRef = this.synchronized {
     serializer.deserialize(bytes)
   }
   
