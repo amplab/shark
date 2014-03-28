@@ -88,7 +88,7 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
       throw new SemanticException("""Table %s.%s's 'shark.cache' table property is %s. Only changes
         from "'MEMORY' and 'NONE' are supported. Tables stored in TACHYON and MEMORY_ONLY must be
         "dropped.""".format(databaseName, tableName, oldCacheMode))
-    } else if (newCacheMode == CacheType.MEMORY) {
+    } else if (newCacheMode == CacheType.MEMORY || newCacheMode == CacheType.OFF_HEAP) {
       // The table should be cached (and is not already cached).
       val partSpecsOpt = if (hiveTable.isPartitioned) {
         val columnNames = hiveTable.getPartCols.map(_.getName)
