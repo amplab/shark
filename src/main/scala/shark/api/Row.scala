@@ -136,7 +136,7 @@ class Row(val rawdata: Any, val colname2indexMap: Map[String, Int], val oi: Stru
     oi.getAllStructFieldRefs.map { structField =>
       val primitiveData = oi.getStructFieldData(rawdata, structField)
       structField.getFieldObjectInspector.asInstanceOf[PrimitiveObjectInspector]
-                                         .getPrimitiveJavaObject(primitiveData)
+        .getPrimitiveJavaObject(primitiveData)
     }
   }
 }

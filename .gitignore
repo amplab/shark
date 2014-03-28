@@ -52,3 +52,6 @@ test_warehouses
 .ensime_lucene
 /eclipse_bin
 /.scala_dependencies
+
+# Compiled Python Files
+*.pyc

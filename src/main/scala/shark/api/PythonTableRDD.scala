@@ -17,14 +17,15 @@
 
 package shark.api
 
-import net.razorvine.pickle.Pickler
-
 import scala.collection.JavaConversions._
+
+import net.razorvine.pickle.Pickler
 
 import org.apache.spark.api.java.JavaRDD
 
-class PythonTableRDD(tableRDD: JavaTableRDD)
-extends JavaRDD[Array[Byte]](tableRDD.rdd.mapPartitions(PythonTableRDD.pickle)) {
+class PythonTableRDD(
+    tableRDD: JavaTableRDD)
+  extends JavaRDD[Array[Byte]](tableRDD.rdd.mapPartitions(PythonTableRDD.pickle)) {
   val schema: java.util.Map[String, Int] = tableRDD.first.colname2indexMap
 }
 

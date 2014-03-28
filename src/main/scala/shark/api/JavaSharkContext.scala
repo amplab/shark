@@ -22,12 +22,18 @@ import java.util.{List => JList}
 
 import scala.collection.JavaConversions._
 
+import org.apache.spark.SparkConf
 import org.apache.spark.api.java.JavaSparkContext
 
 import shark.SharkContext
 
 
 class JavaSharkContext(val sharkCtx: SharkContext) extends JavaSparkContext(sharkCtx) {
+
+  /**
+   * @param conf a [[org.apache.spark.SparkConf]] object specifying Spark parameters
+   */
+  def this(conf: SparkConf) = this(new SharkContext(conf))
 
   /**
    * @param master Cluster URL to connect to (e.g. mesos://host:port, spark://host:port, local[4]).
