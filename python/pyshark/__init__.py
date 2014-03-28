@@ -22,11 +22,14 @@ Public Classes:
 
   - L{SharkContext<pyshark.context.SharkContext>}
       Main entrypoint for Shark functionality
+  - L{SparkConf<pyshark.conf.SjarkConf>}
+    For configuring Shark.
 """
 
 
 
 from pyshark.context import SharkContext
+from pyshark.conf import SharkConf
 
 
-__all__ = ["SharkContext"]
+__all__ = ["SharkContext", "SharkConf"]

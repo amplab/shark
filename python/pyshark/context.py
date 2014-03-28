@@ -33,14 +33,27 @@ class SharkContext(SparkContext):
     Main entry point for Shark functionality. A SharkContext represents the
     connection to a Spark cluster and the connection to a hive metastore. It
     can be used to run SQL queries, create RDDs from SQL queries, and perform
-    all functionality of the base SparkContext.
+    all functionality of the base SharkContext.
     """
 
-    def __init__(self, *args, **kwargs):
-        if 'gateway' not in kwargs:
-            # Create a gateway with shark classes added
-            kwargs['gateway'] = launch_shark_gateway()
-        super(SharkContext, self).__init__(*args, **kwargs)
+    @classmethod
+    def _ensure_initialized(cls, instance=None, gateway=None):
+        with SharkContext._lock:
+            if not SharkContext._gateway:
+                SharkContext._gateway = gateway or launch_shark_gateway()
+                SharkContext._jvm = SharkContext._gateway.jvm
+                SharkContext._writeToFile = SharkContext._jvm.PythonRDD.writeToFile
+            if instance:
+                if SharkContext._active_spark_context and SharkContext._active_spark_context != instance:
+                    currentMaster = SharkContext._active_spark_context.master
+                    currentAppName = SharkContext._active_spark_context.appName
+                    callsite = SharkContext._active_spark_context._callsite
+                    # Raise error if there is already a running Spark context
+                    raise ValueError("Cannot run multiple SharkContexts at once; existing SharkContext(app=%s, master=%s)" \
+                        " created by %s at %s:%s " \
+                        % (currentAppName, currentMaster, callsite.function, callsite.file, callsite.linenum))
+                else:
+                    SharkContext._active_spark_context = instance
 
     # Initialize SharkContext in function to allow subclass specific initialization
     def _initialize_context(self, jconf):
