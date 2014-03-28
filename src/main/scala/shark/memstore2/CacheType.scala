@@ -30,12 +30,12 @@ object CacheType extends Enumeration with LogHelper {
    * - MEMORY: Stored in memory and on disk (i.e., cache is write-through). Persistent across Shark
    *           sessions. By default, all such tables are reloaded into memory on restart.
    * - MEMORY_ONLY: Stored only in memory and dropped at the end of each Shark session.
-   * - TACHYON: A distributed storage system that manages an in-memory cache for sharing files and
-                RDDs across cluster frameworks.
+   * - OFF_HEAP: Stored in an off-heap data storage format, specified by the System property
+   *             'shark.offheap.clientFactory'. Defaults to Tachyon (if Tachyon is in the build).
    * - NONE: Stored on disk (e.g., HDFS) and managed by Hive.
    */
   type CacheType = Value
-  val MEMORY, MEMORY_ONLY, TACHYON, NONE = Value
+  val MEMORY, MEMORY_ONLY, OFF_HEAP, NONE = Value
 
   def shouldCache(c: CacheType): Boolean = (c != NONE)
 
@@ -45,16 +45,18 @@ object CacheType extends Enumeration with LogHelper {
       NONE
     } else if (name.toLowerCase == "true") {
       MEMORY
+    } else if (name.toUpperCase == "HEAP") {
+      // Interpret 'HEAP' as 'MEMORY' to ensure backwards compatibility with Shark 0.8.0.
+      logWarning("The 'HEAP' cache type name is deprecated. Use 'MEMORY' instead.")
+      MEMORY
+    } else if (name.toUpperCase == "TACHYON") {
+      // Interpret 'TACHYON' as 'OFF_HEAP' to ensure backwards compatibility with Shark 0.9.
+      logWarning("The 'TACHYON' cache type name is deprecated. Use 'OFF_HEAP' instead.")
+      OFF_HEAP
     } else {
       try {
-        if (name.toUpperCase == "HEAP") {
-          // Interpret 'HEAP' as 'MEMORY' to ensure backwards compatibility with Shark 0.8.0.
-          logWarning("The 'HEAP' cache type name is deprecated. Use 'MEMORY' instead.")
-          MEMORY
-        } else {
-          // Try to use Scala's Enumeration::withName() to interpret 'name'.
-          withName(name.toUpperCase)
-        }
+        // Try to use Scala's Enumeration::withName() to interpret 'name'.
+        withName(name.toUpperCase)
       } catch {
         case e: java.util.NoSuchElementException => throw new InvalidCacheTypeException(name)
       }

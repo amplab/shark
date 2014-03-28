@@ -28,7 +28,7 @@ object QueryRewriteUtils {
     val cmdSplit = cmd.split(' ')
     if (cmdSplit.size == 2) {
       val tableName = cmdSplit(1)
-      "ALTER TABLE %s SET TBLPROPERTIES ('shark.cache' = 'true')".format(tableName)
+      "ALTER TABLE %s SET TBLPROPERTIES ('shark.cache' = 'tachyon')".format(tableName)
     } else {
       throw new SemanticException(
         s"CACHE accepts a single table name: 'CACHE <table name>' (received command: '$cmd')")

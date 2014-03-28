@@ -83,7 +83,7 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
 
     val oldCacheMode = CacheType.fromString(oldTblProps.get(SharkTblProperties.CACHE_FLAG.varname))
     val newCacheMode = CacheType.fromString(newTblProps.get(SharkTblProperties.CACHE_FLAG.varname))
-    if ((oldCacheMode == CacheType.TACHYON && newCacheMode != CacheType.TACHYON) ||
+    if ((oldCacheMode == CacheType.OFF_HEAP && newCacheMode != CacheType.OFF_HEAP) ||
         (oldCacheMode == CacheType.MEMORY_ONLY && newCacheMode != CacheType.MEMORY_ONLY)) {
       throw new SemanticException("""Table %s.%s's 'shark.cache' table property is %s. Only changes
         from "'MEMORY' and 'NONE' are supported. Tables stored in TACHYON and MEMORY_ONLY must be

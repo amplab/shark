@@ -30,7 +30,6 @@ import org.apache.spark.storage.StorageLevel
 import shark.{SharkConfVars, SharkEnv}
 import shark.execution.serialization.{OperatorSerializationWrapper, JavaSerializer}
 import shark.memstore2._
-import shark.tachyon.TachyonTableWriter
 
 
 /**
@@ -67,7 +66,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
   @transient var isInsertInto: Boolean = _
 
   // The number of columns in the schema for the table corresponding to 'tableName'. Used only
-  // to create a TachyonTableWriter, if Tachyon is used.
+  // to create an OffHeapTableWriter, if off-heap storage is used.
   @transient var numColumns: Int = _
 
   override def initializeOnMaster() {
@@ -89,14 +88,15 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     val op = OperatorSerializationWrapper(this)
     val tableKey = MemoryMetadataManager.makeTableKey(databaseName, tableName)
 
-    val tachyonWriter: TachyonTableWriter =
-      if (cacheMode == CacheType.TACHYON) {
-        if (!isInsertInto && SharkEnv.tachyonUtil.tableExists(tableKey, hivePartitionKeyOpt)) {
+    val tachyonWriter: OffHeapTableWriter =
+      if (cacheMode == CacheType.OFF_HEAP) {
+        val offHeapClient = OffHeapStorageClient.client
+        if (!isInsertInto && offHeapClient.tablePartitionExists(tableKey, hivePartitionKeyOpt)) {
           // For INSERT OVERWRITE, delete the old table or Hive partition directory, if it exists.
-          SharkEnv.tachyonUtil.dropTable(tableKey, hivePartitionKeyOpt)
+          offHeapClient.dropTablePartition(tableKey, hivePartitionKeyOpt)
         }
         // Use an additional row to store metadata (e.g. number of rows in each partition).
-        SharkEnv.tachyonUtil.createTableWriter(tableKey, hivePartitionKeyOpt, numColumns + 1)
+        offHeapClient.createTablePartitionWriter(tableKey, hivePartitionKeyOpt, numColumns + 1)
       } else {
         null
       }
@@ -128,7 +128,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     if (tachyonWriter != null) {
       // Put the table in Tachyon.
       op.logInfo("Putting RDD for %s.%s in Tachyon".format(databaseName, tableName))
-      tachyonWriter.createTable(ByteBuffer.allocate(0))
+      tachyonWriter.createTable()
       outputRDD = outputRDD.mapPartitionsWithIndex { case(part, iter) =>
         val partition = iter.next()
         partition.toTachyon.zipWithIndex.foreach { case(buf, column) =>
@@ -159,8 +159,8 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       if (cacheMode == CacheType.NONE) "disk" else cacheMode.toString))
 
     val tableStats =
-      if (cacheMode == CacheType.TACHYON) {
-        tachyonWriter.updateMetadata(ByteBuffer.wrap(JavaSerializer.serialize(statsAcc.value.toMap)))
+      if (cacheMode == CacheType.OFF_HEAP) {
+        tachyonWriter.setStats(statsAcc.value.toMap)
         statsAcc.value.toMap
       } else {
         val isHivePartitioned = SharkEnv.memoryMetadataManager.isHivePartitioned(

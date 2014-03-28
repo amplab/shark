@@ -467,14 +467,14 @@ class SharkSemanticAnalyzer(conf: HiveConf) extends SemanticAnalyzer(conf) with 
         if (tableName.endsWith("_cached") && cacheMode == CacheType.NONE) {
           cacheMode = CacheType.MEMORY_ONLY
         } else if (tableName.endsWith("_tachyon")) {
-          cacheMode = CacheType.TACHYON
+          cacheMode = CacheType.OFF_HEAP
         }
       }
 
       // Continue planning based on the 'cacheMode' read.
       val shouldCache = CacheType.shouldCache(cacheMode)
       if (shouldCache) {
-        if (cacheMode == CacheType.MEMORY_ONLY || cacheMode == CacheType.TACHYON) {
+        if (cacheMode == CacheType.MEMORY_ONLY || cacheMode == CacheType.OFF_HEAP) {
           val serDeName = createTableDesc.getSerName
           if (serDeName == null || serDeName == classOf[LazySimpleSerDe].getName) {
             // Hive's SemanticAnalyzer optimizes based on checks for LazySimpleSerDe, which causes
