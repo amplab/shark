@@ -17,13 +17,15 @@
 
 package shark.tachyon
 
-import shark.memstore2.{OffHeapStorageClient, TablePartitionStats, OffHeapTableWriter}
-import shark.LogHelper
 import java.nio.ByteBuffer
-import shark.execution.serialization.JavaSerializer
+
 import tachyon.client.WriteType
 
-class TachyonNativeStorageWriter(@transient path: String, @transient numColumns: Int)
+import shark.LogHelper
+import shark.execution.serialization.JavaSerializer
+import shark.memstore2.{OffHeapStorageClient, OffHeapTableWriter, TablePartitionStats}
+
+class TachyonOffHeapTableWriter(@transient path: String, @transient numColumns: Int)
   extends OffHeapTableWriter with LogHelper {
 
   // Re-instantiated upon deserialization, the first time it's referenced.
@@ -32,7 +34,7 @@ class TachyonNativeStorageWriter(@transient path: String, @transient numColumns:
   var rawTableId: Int = -1
 
   override def createTable() {
-    val metadata = ByteBuffer.allocate(3)
+    val metadata = ByteBuffer.allocate(0)
     rawTableId = tfs.createRawTable(path, numColumns, metadata)
   }
 

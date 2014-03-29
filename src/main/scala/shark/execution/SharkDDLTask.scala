@@ -90,8 +90,8 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
     val tableName = createTblDesc.getTableName
     val tblProps = createTblDesc.getTblProps
 
-    if (cacheMode == CacheType.OFF_HEAP) {
-      // For Tachyon tables (partitioned or not), just create the parent directory.
+    if (cacheMode == CacheType.OFFHEAP) {
+      // For off-heap tables (partitioned or not), just create the parent directory.
       OffHeapStorageClient.client.createTablePartition(
         MemoryMetadataManager.makeTableKey(dbName, tableName), hivePartitionKeyOpt = None)
     } else {
@@ -129,7 +129,7 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
     val partColToValue: JavaMap[String, String] = addPartitionDesc.getPartSpec
     // String format for partition key: 'col1=value1/col2=value2/...'
     val partKeyStr: String = MemoryMetadataManager.makeHivePartitionKeyStr(partCols, partColToValue)
-    if (cacheMode == CacheType.OFF_HEAP) {
+    if (cacheMode == CacheType.OFFHEAP) {
       OffHeapStorageClient.client.createTablePartition(
         MemoryMetadataManager.makeTableKey(dbName, tableName), Some(partKeyStr))
     } else {
@@ -158,7 +158,7 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
 
     if (partSpecs == null) {
       // The command is a true DROP TABLE.
-      if (cacheMode == CacheType.OFF_HEAP) {
+      if (cacheMode == CacheType.OFFHEAP) {
         OffHeapStorageClient.client.dropTable(tableKey)
       } else {
         SharkEnv.memoryMetadataManager.removeTable(dbName, tableName)
@@ -171,7 +171,7 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
         val partColToValue: JavaMap[String, String] = partSpec.getPartSpecWithoutOperator
         // String format for partition key: 'col1=value1/col2=value2/...'
         val partKeyStr = MemoryMetadataManager.makeHivePartitionKeyStr(partCols, partColToValue)
-        if (cacheMode == CacheType.OFF_HEAP) {
+        if (cacheMode == CacheType.OFFHEAP) {
           OffHeapStorageClient.client.dropTablePartition(tableKey, Some(partKeyStr))
         } else {
           val partitionedTable = getPartitionedTableWithAssertions(dbName, tableName)
@@ -198,7 +198,7 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
       case AlterTableDesc.AlterTableTypes.RENAME => {
         val oldName = alterTableDesc.getOldName
         val newName = alterTableDesc.getNewName
-        if (cacheMode == CacheType.OFF_HEAP) {
+        if (cacheMode == CacheType.OFFHEAP) {
           val oldTableKey = MemoryMetadataManager.makeTableKey(dbName, oldName)
           val newTableKey = MemoryMetadataManager.makeTableKey(dbName, newName)
           OffHeapStorageClient.client.renameTable(oldTableKey, newTableKey)

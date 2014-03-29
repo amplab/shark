@@ -40,8 +40,10 @@ class TachyonStorageClientFactory extends OffHeapStorageClientFactory {
 class TachyonStorageClient(val master: String, val warehousePath: String)
   extends OffHeapStorageClient with LogHelper {
 
+  /** We create a new directory with a new RawTable for each independent insert. */
   private val INSERT_FILE_PREFIX = "insert_"
 
+  /** Non-partitioned tables use a default partition name for consistency. */
   private val DEFAULT_PARTITION = "_defaultkey"
 
   private val _fileNameMappings = new ConcurrentJavaHashMap[String, Int]()
@@ -102,9 +104,7 @@ class TachyonStorageClient(val master: String, val warehousePath: String)
       ): RDD[_] = {
 
     try {
-      logInfo("Yo!!")
-      // TODO: Check partition
-      if (!tableExists(tableKey)) {
+      if (!tablePartitionExists(tableKey, hivePartitionKey)) {
         throw new TachyonException("Table " + tableKey + " does not exist in Tachyon")
       }
 
@@ -115,16 +115,14 @@ class TachyonStorageClient(val master: String, val warehousePath: String)
       val rawTableFiles = files.subList(1, files.size)
       val prunedRDDs = rawTableFiles.map { filePath =>
         val serializedMetadata = tfs.getRawTable(tfs.getFileId(filePath)).getMetadata
-        println("Sermeta size = " + serializedMetadata.capacity() + " | " + filePath)
         val indexToStats = JavaSerializer.deserialize[collection.Map[Int, TablePartitionStats]](
           serializedMetadata.array())
        pruningFn(new TachyonTableRDD(filePath, columnsUsed, SharkEnv.sc), indexToStats)
       }
-      logInfo("Bye!!")
       new UnionRDD(SharkEnv.sc, prunedRDDs.toSeq.asInstanceOf[Seq[RDD[Any]]])
     } catch {
       case e: Exception =>
-        logError("Caught e", e)
+        logError("Exception while reading table partition", e)
         throw e
     }
   }
@@ -132,13 +130,13 @@ class TachyonStorageClient(val master: String, val warehousePath: String)
   override def createTablePartitionWriter(
       tableKey: String,
       hivePartitionKey: Option[String],
-      numColumns: Int): TachyonNativeStorageWriter = {
+      numColumns: Int): TachyonOffHeapTableWriter = {
     if (!tfs.exist(warehousePath)) {
       tfs.mkdir(warehousePath)
     }
     val parentDirectory = getPartitionPath(tableKey, hivePartitionKey.getOrElse(DEFAULT_PARTITION))
     val filePath = getUniqueFilePath(parentDirectory)
-    new TachyonNativeStorageWriter(filePath, numColumns)
+    new TachyonOffHeapTableWriter(filePath, numColumns)
   }
 
   override def createTablePartition(
@@ -158,4 +156,3 @@ class TachyonStorageClient(val master: String, val warehousePath: String)
     tfs.rename(oldPath, newPath)
   }
 }
-

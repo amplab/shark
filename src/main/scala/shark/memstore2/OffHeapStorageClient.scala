@@ -19,9 +19,7 @@ package shark.memstore2
 
 import java.util
 import java.nio.ByteBuffer
-import java.util.BitSet
 
-import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 
 import shark.LogHelper
@@ -32,7 +30,7 @@ import shark.execution.TableReader.PruningFunctionType
  *
  * To ease the distinction between partitioned and non-partitioned tables, we consider a
  * non-partitioned table as a special case of partitioned tables with the single hivePartitionKey
- * with value None.
+ * of value None.
  */
 abstract class OffHeapStorageClient {
 
@@ -70,16 +68,17 @@ abstract class OffHeapStorageClient {
 
 abstract class OffHeapTableWriter extends Serializable {
 
-  /** Create a table in Tachyon. Called only on the driver node. */
+  /** Creates this table. Called only on the driver node. */
   def createTable()
 
-  /** Update the metadata in Tachyon. Called only on the driver node. */
+  /** Sets stats on this table. Called only on the driver node. */
   def setStats(indexToStats: collection.Map[Int, TablePartitionStats])
 
-  /** Write the data of a partition of a given column to Tachyon. Called only on worker nodes. */
+  /** Write the data of a partition of a given column. Called only on worker nodes. */
   def writeColumnPartition(column: Int, part: Int, data: ByteBuffer)
 }
 
+/** Responsible for creating OffHeapStorageClients. Will be called on master and worker nodes. */
 trait OffHeapStorageClientFactory {
   def createClient(): OffHeapStorageClient
 }
@@ -90,22 +89,24 @@ object OffHeapStorageClient extends LogHelper {
     .orElse(sys.env.get("SHARK_OFFHEAP_CLIENT_FACTORY"))
     .getOrElse("shark.tachyon.TachyonStorageClientFactory")
 
+  /**
+   * Lazily initializes an OffHeapStorageClient, accessible on both the master and worker.
+   * This enables us to avoid serializing the client itself, as we will just create a new one on
+   * each node.
+   * An exception will be thrown if there is no valid shark.offheap.clientFactory specified.
+   */
   lazy val client: OffHeapStorageClient = {
-    val clientFactoryClass = Class.forName(clientFactoryClassName)
-    clientFactoryClass.getConstructors
-
-    // First try with the constructor that takes SparkConf. If we can't find one,
-    // use a no-arg constructor instead.
     try {
+      val clientFactoryClass = Class.forName(clientFactoryClassName)
       val constructor = clientFactoryClass.getConstructor()
       val clientFactory = constructor.newInstance().asInstanceOf[OffHeapStorageClientFactory]
-      logInfo("Creating client with factory: " + clientFactoryClassName)
+      logInfo("Creating off-heap storage client with factory: " + clientFactoryClassName)
       clientFactory.createClient()
     } catch {
-      case _: NoSuchMethodException => {
-        logInfo("No off-heap storage client loaded.")
-        null
-      }
+      case e: Exception =>
+        throw new RuntimeException("Failed to load an off-heap storage client." +
+          " Please set shark.offheap.clientFactory to a valid client before creating SharkContext.",
+          e)
     }
   }
 }

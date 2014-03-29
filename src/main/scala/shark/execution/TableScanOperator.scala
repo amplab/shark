@@ -78,7 +78,7 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
 
   override def outputObjectInspector() = {
     if (parts == null) {
-      val tableSerDe = if (isInMemoryTableScan || cacheMode == CacheType.OFF_HEAP) {
+      val tableSerDe = if (isInMemoryTableScan || cacheMode == CacheType.OFFHEAP) {
         new ColumnarSerDe
       } else {
         tableDesc.getDeserializerClass().newInstance()
@@ -87,7 +87,7 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
       tableSerDe.getObjectInspector()
     } else {
       val partProps = firstConfPartDesc.getProperties()
-      val tableSerDe = if (isInMemoryTableScan || cacheMode == CacheType.OFF_HEAP) {
+      val tableSerDe = if (isInMemoryTableScan || cacheMode == CacheType.OFFHEAP) {
         new ColumnarSerDe
       } else {
         tableDesc.getDeserializerClass().newInstance()
@@ -119,16 +119,16 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
 
     // There are three places we can load the table from.
     // 1. Spark heap (block manager), accessed through the Shark MemoryMetadataManager
-    // 2. Tachyon table
+    // 2. Off-heap table
     // 3. Hive table on HDFS (or other Hadoop storage)
     // TODO(harvey): Pruning Hive-partitioned, cached tables isn't supported yet.
-    if (isInMemoryTableScan || cacheMode == CacheType.OFF_HEAP) {
+    if (isInMemoryTableScan || cacheMode == CacheType.OFFHEAP) {
       if (isInMemoryTableScan) {
         assert(cacheMode == CacheType.MEMORY || cacheMode == CacheType.MEMORY_ONLY,
           "Table %s.%s is in Shark metastore, but its cacheMode (%s) indicates otherwise".
             format(databaseName, tableName, cacheMode))
       }
-      val tableReader = if (cacheMode == CacheType.OFF_HEAP) {
+      val tableReader = if (cacheMode == CacheType.OFFHEAP) {
         new OffHeapTableReader(tableDesc, OffHeapStorageClient.client)
       } else {
         new HeapTableReader(tableDesc)

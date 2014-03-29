@@ -17,5 +17,4 @@
 
 package shark.tachyon
 
-
 class TachyonException(msg: String) extends Exception(msg)

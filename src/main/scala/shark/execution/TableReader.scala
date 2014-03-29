@@ -32,7 +32,7 @@ import shark.execution.TableReader.PruningFunctionType
 /**
  * A trait for subclasses that handle table scans. In Shark, there is one subclass for each
  * type of table storage: HeapTableReader for Shark tables in Spark's block manager,
- * TachyonTableReader for tables in Tachyon, and HadoopTableReader for Hive tables in a filesystem.
+ * OffHeapTableReader for off-heap tables, and HadoopTableReader for Hive tables in a filesystem.
  */
 trait TableReader extends LogHelper {
   val NonPruningFunction: PruningFunctionType = (rdd, _) => rdd
@@ -94,9 +94,9 @@ class OffHeapTableReader(@transient _tableDesc: TableDesc, storageClient: OffHea
       } else {
         partCols.map(col => new String(partSpec.get(col))).toArray
       }
-      val partitionKey = MemoryMetadataManager.makeHivePartitionKeyStr(partCols, partSpec)
+      val partitionKeyStr = MemoryMetadataManager.makeHivePartitionKeyStr(partCols, partSpec)
       val hivePartitionRDD = storageClient.readTablePartition(
-        tableKey, Some(partitionKey), columnsUsed, pruningFn)
+        tableKey, Some(partitionKeyStr), columnsUsed, pruningFn)
       hivePartitionRDD.mapPartitions { iter =>
         if (iter.hasNext) {
           // Map each tuple to a row object

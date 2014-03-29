@@ -83,12 +83,12 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
 
     val oldCacheMode = CacheType.fromString(oldTblProps.get(SharkTblProperties.CACHE_FLAG.varname))
     val newCacheMode = CacheType.fromString(newTblProps.get(SharkTblProperties.CACHE_FLAG.varname))
-    if ((oldCacheMode == CacheType.OFF_HEAP && newCacheMode != CacheType.OFF_HEAP) ||
+    if ((oldCacheMode == CacheType.OFFHEAP && newCacheMode != CacheType.OFFHEAP) ||
         (oldCacheMode == CacheType.MEMORY_ONLY && newCacheMode != CacheType.MEMORY_ONLY)) {
       throw new SemanticException("""Table %s.%s's 'shark.cache' table property is %s. Only changes
-        from "'MEMORY' and 'NONE' are supported. Tables stored in TACHYON and MEMORY_ONLY must be
+        from "'MEMORY' and 'NONE' are supported. Tables stored in OFFHEAP and MEMORY_ONLY must be
         "dropped.""".format(databaseName, tableName, oldCacheMode))
-    } else if (newCacheMode == CacheType.MEMORY || newCacheMode == CacheType.OFF_HEAP) {
+    } else if (newCacheMode == CacheType.MEMORY || newCacheMode == CacheType.OFFHEAP) {
       // The table should be cached (and is not already cached).
       val partSpecsOpt = if (hiveTable.isPartitioned) {
         val columnNames = hiveTable.getPartCols.map(_.getName)

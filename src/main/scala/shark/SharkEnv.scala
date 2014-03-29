@@ -132,6 +132,9 @@ object SharkEnv extends LogHelper {
 
   val memoryMetadataManager = new MemoryMetadataManager
 
+  // The following line turns Kryo serialization debug log on. It is extremely chatty.
+  //com.esotericsoftware.minlog.Log.set(com.esotericsoftware.minlog.Log.LEVEL_DEBUG)
+
   // Keeps track of added JARs and files so that we don't add them twice in consecutive queries.
   val addedFiles = HashSet[String]()
   val addedJars = HashSet[String]()

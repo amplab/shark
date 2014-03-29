@@ -30,12 +30,12 @@ object CacheType extends Enumeration with LogHelper {
    * - MEMORY: Stored in memory and on disk (i.e., cache is write-through). Persistent across Shark
    *           sessions. By default, all such tables are reloaded into memory on restart.
    * - MEMORY_ONLY: Stored only in memory and dropped at the end of each Shark session.
-   * - OFF_HEAP: Stored in an off-heap data storage format, specified by the System property
-   *             'shark.offheap.clientFactory'. Defaults to Tachyon (if Tachyon is in the build).
+   * - OFFHEAP: Stored in an off-heap data storage format, specified by the System property
+   *            'shark.offheap.clientFactory'. Defaults to TachyonStorageClientFactory.
    * - NONE: Stored on disk (e.g., HDFS) and managed by Hive.
    */
   type CacheType = Value
-  val MEMORY, MEMORY_ONLY, OFF_HEAP, NONE = Value
+  val MEMORY, MEMORY_ONLY, OFFHEAP, NONE = Value
 
   def shouldCache(c: CacheType): Boolean = (c != NONE)
 
@@ -43,13 +43,12 @@ object CacheType extends Enumeration with LogHelper {
   def fromString(name: String): CacheType = Option(name).map(_.toUpperCase) match {
     case None | Some("") | Some("FALSE") => NONE
     case Some("TRUE") => MEMORY
-    case Some("OFFHEAP") => OFF_HEAP // be forgiving
     case Some("HEAP") =>
       logWarning("The 'HEAP' cache type name is deprecated. Use 'MEMORY' instead.")
       MEMORY
     case Some("TACHYON") =>
-      logWarning("The 'TACHYON' cache type name is deprecated. Use 'OFF_HEAP' instead.")
-      OFF_HEAP
+      logWarning("The 'TACHYON' cache type name is deprecated. Use 'OFFHEAP' instead.")
+      OFFHEAP
     case _ => {
       try {
         // Try to use Scala's Enumeration::withName() to interpret 'name'.
