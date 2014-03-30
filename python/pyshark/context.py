@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.join(os.path.abspath(os.environ["SPARK_HOME"]), "pyth
 
 
 from pyspark import SparkContext, RDD
-from pyspark.serializers import PickleSerializer, BatchedSerializer, UTF8Deserializer
+from pyspark.serializers import PickleSerializer
 
 
 from pyshark.java_gateway import launch_shark_gateway
