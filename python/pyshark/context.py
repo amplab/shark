@@ -36,6 +36,11 @@ class SharkContext(SparkContext):
     all functionality of the base SharkContext.
     """
 
+    def __init__(self, *args, **kwargs):
+        # call this here so we can start our enhanced py4j gateway
+        SharkContext._ensure_initialized(self, gateway=kwargs.get('gateway'))
+        super(SharkContext, self).__init__(*args, **kwargs 
+
     @classmethod
     def _ensure_initialized(cls, instance=None, gateway=None):
         with SharkContext._lock:
