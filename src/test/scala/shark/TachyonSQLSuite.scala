@@ -46,7 +46,6 @@ class TachyonSQLSuite extends FunSuite with BeforeAndAfterAll {
   // Determine if Tachyon enabled at runtime.
   val isTachyonEnabled = SharkEnv.tachyonUtil.tachyonEnabled()
 
-
   override def beforeAll() {
     if (isTachyonEnabled) {
       sc.runSql("create table test_tachyon as select * from test")

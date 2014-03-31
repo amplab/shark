@@ -97,13 +97,12 @@ object ASTRewriteUtil extends LogHelper {
     }
   }
 
-  private def hasGroupByInChildren(nodes: JavaList[ASTNode]): Boolean = {
-    for (node <- nodes) {
-      if (node.getToken.getType == HiveParser.TOK_GROUPBY) {
-        return true
-      }
-    }
-    false
+  /**
+   * Returns true if `hiveTokenId` exists in the list of `nodes` provided. See HiveParser for the
+   * map of ID to token type.
+   */
+  private def hasInChildren(nodes: JavaList[ASTNode], hiveTokenId: Int): Boolean = {
+    nodes.exists(_.getToken.getType == hiveTokenId)
   }
 
   /** Returns all TOK_QUERY nodes found using breadth-first traversal, including `rootAstNode`. */
@@ -165,7 +164,18 @@ object ASTRewriteUtil extends LogHelper {
         // TOK_QUERY always has two children, TOK_FROM and TOK_INSERT, in order.
         val (fromClause, insertStmt) = (rootQueryChildren.get(0), rootQueryChildren.get(1))
         val insertStmtChildren = getChildren(insertStmt)
-        if (insertStmtChildren.size >= 2 && !hasGroupByInChildren(insertStmtChildren)) {
+        val containsLimit = hasInChildren(insertStmtChildren, HiveParser.TOK_LIMIT)
+        if (containsLimit) {
+          logWarning("Query contains a LIMIT. Skipping applicable COUNT DISTINCT rewrites." +
+            "A LIMIT shouldn't be paired with an aggregation that only returns one line ...")
+        }
+        val continueRewrite = insertStmtChildren.size >= 2 &&
+          !containsLimit &&
+          !hasInChildren(insertStmtChildren, HiveParser.TOK_GROUPBY) &&
+          !hasInChildren(insertStmtChildren, HiveParser.TOK_ROLLUP_GROUPBY) &&
+          !hasInChildren(insertStmtChildren, HiveParser.TOK_CUBE_GROUPBY)
+
+        if (continueRewrite) {
           // The subtree starting at TOK_INSERT has this structure (parenthesis indicate children):
           // TOK_INSERT (TOK_DESTINATION ... ) (TOK_SELECT (TOK_SELEXPR (TOK_FUNCTIONDI ... )))
           // Note that at this point, the insert statement can have more than 2 children if there
@@ -175,8 +185,7 @@ object ASTRewriteUtil extends LogHelper {
           val selectStmt = destinationAndSelectStmt.get(1)
           val selectExprs = getChildren(selectStmt)
           // With respect to the select node's children list, find the index to the TOK_SELEXPR root
-          // for the subtree that contains the TOK_FUNCTIONDI parent of the distinct aggregate
-          // function node.
+          // for the subtree that contains the TOK_FUNCTIONDI parent of the distinct aggregate node.
           val distinctFunctionIndices = findIndicesForNodeTokenType(selectExprs,
             HiveParser.TOK_FUNCTIONDI)
           val functionIndices = findIndicesForNodeTokenType(selectExprs,

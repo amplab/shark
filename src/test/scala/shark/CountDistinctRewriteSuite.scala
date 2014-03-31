@@ -261,4 +261,23 @@ class CountDistinctRewriteSuite extends FunSuite with BeforeAndAfterAll {
     val rewrite = ASTRewriteUtil.countDistinctToGroupBy(command)
     checkEquals(command, rewrite)
   }
+
+  test("COUNT DISTINCT with LIMIT isn't rewritten") {
+    val command = genAST("select key, count(distinct value) from src limit 10")
+    val rewrite = ASTRewriteUtil.countDistinctToGroupBy(command)
+    checkEquals(command, rewrite)
+  }
+
+  test("COUNT DISTINCT with CUBE and GROUP BY isn't rewritten") {
+    val command = genAST("select key, count(distinct value) from src group by key with cube")
+    val rewrite = ASTRewriteUtil.countDistinctToGroupBy(command)
+    checkEquals(command, rewrite)
+  }
+
+  test("COUNT DISTINCT with ROLLUP and GROUP BY isn't rewritten") {
+    val command = genAST("select key, count(distinct value) from src group by key with rollup")
+    val rewrite = ASTRewriteUtil.countDistinctToGroupBy(command)
+    checkEquals(command, rewrite)
+  }
+
 }
