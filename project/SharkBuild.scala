@@ -55,7 +55,7 @@ object SharkBuild extends Build {
 
   // Whether to build Shark with Tachyon jar.
   val TACHYON_ENABLED = true
-  val TACHYON_VERSION = "0.4.0"
+  val TACHYON_VERSION = "0.4.1"
 
   lazy val root = Project(
     id = "root",
@@ -132,7 +132,7 @@ object SharkBuild extends Build {
       "Sonatype Testing" at "https://oss.sonatype.org/content/repositories/eduberkeleycs-1016",
       "Local Maven" at Path.userHome.asFile.toURI.toURL + ".m2/repository"
     ),
- 
+
     publishTo <<= version { (v: String) =>
       val nexus = "https://oss.sonatype.org/"
       if (v.trim.endsWith("SNAPSHOT"))
