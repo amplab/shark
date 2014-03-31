@@ -40,7 +40,7 @@ import shark.execution.{SharkExplainTask, SharkExplainWork}
 import shark.execution.{SparkLoadWork, SparkLoadTask}
 import shark.execution.{SparkTask, SparkWork}
 import shark.memstore2.ColumnarSerDe
-import shark.parse.{QueryContext, SharkSemanticAnalyzerFactory}
+import shark.parse.{QueryContext, SharkExplainSemanticAnalyzer, SharkSemanticAnalyzerFactory}
 import shark.util.QueryRewriteUtils
 
 
@@ -199,6 +199,11 @@ private[shark] class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHe
 
       val tree = ParseUtils.findRootNonNullToken((new ParseDriver()).parse(command, context))
       val sem = SharkSemanticAnalyzerFactory.get(conf, tree)
+      if (!sem.isInstanceOf[ExplainSemanticAnalyzer] ||
+          sem.isInstanceOf[SharkExplainSemanticAnalyzer]) {
+        // Don't include the rewritten AST tree for Hive EXPLAIN mode.
+        shark.parse.ASTRewriteUtil.countDistinctToGroupBy(tree)
+      }
 
       // Do semantic analysis and plan generation
       val saHooks = SharkDriver.saHooksMethod.invoke(this, HiveConf.ConfVars.SEMANTIC_ANALYZER_HOOK,
