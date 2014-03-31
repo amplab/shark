@@ -122,6 +122,8 @@ object SharkEnv extends LogHelper {
   executorEnvVars.put("MESOS_NATIVE_LIBRARY", getEnv("MESOS_NATIVE_LIBRARY"))
   executorEnvVars.put("TACHYON_MASTER", getEnv("TACHYON_MASTER"))
   executorEnvVars.put("TACHYON_WAREHOUSE_PATH", getEnv("TACHYON_WAREHOUSE_PATH"))
+
+  // Used to propagate the shark.offheap.clientFactory to executors
   executorEnvVars.put("SHARK_OFFHEAP_CLIENT_FACTORY", OffHeapStorageClient.clientFactoryClassName)
 
   val activeSessions = new HashSet[String]
