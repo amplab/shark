@@ -17,6 +17,8 @@
 
 package shark.execution
 
+import java.util.{BitSet => JBitSet}
+
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants.META_TABLE_PARTITION_COLUMNS
 import org.apache.hadoop.hive.ql.exec.Utilities
 import org.apache.hadoop.hive.ql.metadata.{Partition => HivePartition, Table => HiveTable}
@@ -25,9 +27,8 @@ import org.apache.spark.rdd.{EmptyRDD, RDD, UnionRDD}
 
 import shark.{LogHelper, SharkEnv}
 import shark.api.QueryExecutionException
-import shark.memstore2._
-import java.util
 import shark.execution.TableReader.PruningFunctionType
+import shark.memstore2._
 
 /**
  * A trait for subclasses that handle table scans. In Shark, there is one subclass for each
@@ -39,13 +40,13 @@ trait TableReader extends LogHelper {
 
   def makeRDDForTable(
       hiveTable: HiveTable,
-      columnsUsed: util.BitSet,
+      columnsUsed: JBitSet,
       pruningFn: PruningFunctionType = NonPruningFunction
     ): RDD[_]
 
   def makeRDDForPartitionedTable(
       partitions: Seq[HivePartition],
-      columnsUsed: util.BitSet,
+      columnsUsed: JBitSet,
       pruningFn: PruningFunctionType = NonPruningFunction
     ): RDD[_]
 }
@@ -66,7 +67,7 @@ class OffHeapTableReader(@transient _tableDesc: TableDesc, storageClient: OffHea
 
   override def makeRDDForTable(
       hiveTable: HiveTable,
-      columnsUsed: util.BitSet,
+      columnsUsed: JBitSet,
       pruningFn: PruningFunctionType = NonPruningFunction
     ): RDD[_] = {
     val tableKey = MemoryMetadataManager.makeTableKey(_databaseName, _tableName)
@@ -75,7 +76,7 @@ class OffHeapTableReader(@transient _tableDesc: TableDesc, storageClient: OffHea
 
   override def makeRDDForPartitionedTable(
       partitions: Seq[HivePartition],
-      columnsUsed: util.BitSet,
+      columnsUsed: JBitSet,
       pruningFn: PruningFunctionType = NonPruningFunction
     ): RDD[_] = {
     val tableKey = MemoryMetadataManager.makeTableKey(_databaseName, _tableName)
@@ -132,7 +133,7 @@ class HeapTableReader(@transient _tableDesc: TableDesc) extends TableReader {
   /** Fetches and optionally prunes the RDD for `_tableName` from the Shark metastore. */
   override def makeRDDForTable(
       hiveTable: HiveTable,
-      columnsUsed: util.BitSet,
+      columnsUsed: JBitSet,
       pruningFn: PruningFunctionType = NonPruningFunction
     ): RDD[_] = {
     logInfo("Loading table %s.%s from Spark block manager".format(_databaseName, _tableName))
@@ -157,7 +158,7 @@ class HeapTableReader(@transient _tableDesc: TableDesc) extends TableReader {
    */
   override def makeRDDForPartitionedTable(
       partitions: Seq[HivePartition],
-      columnsUsed: util.BitSet,
+      columnsUsed: JBitSet,
       pruningFn: PruningFunctionType = NonPruningFunction
     ): RDD[_] = {
     val hivePartitionRDDs = partitions.map { partition =>

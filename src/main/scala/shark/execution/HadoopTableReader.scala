@@ -17,7 +17,7 @@
 
 package shark.execution
 
-import java.util
+import java.util.{BitSet => JBitSet}
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{Path, PathFilter}
@@ -64,7 +64,7 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
 
   override def makeRDDForTable(
       hiveTable: HiveTable,
-      columnsUsed: util.BitSet,
+      columnsUsed: JBitSet,
       pruningFn: PruningFunctionType = NonPruningFunction
     ): RDD[_] =
     makeRDDForTable(
@@ -123,7 +123,7 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
 
   override def makeRDDForPartitionedTable(
       partitions: Seq[HivePartition],
-      columnsUsed: util.BitSet,
+      columnsUsed: JBitSet,
       pruningFn: PruningFunctionType = NonPruningFunction
     ): RDD[_] = {
     val partitionToDeserializer = partitions.map(part =>

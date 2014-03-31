@@ -103,7 +103,7 @@ object OffHeapStorageClient extends LogHelper {
       logInfo("Creating off-heap storage client with factory: " + clientFactoryClassName)
       clientFactory.createClient()
     } catch {
-      case e: Exception =>
+      case e: ClassNotFoundException =>
         throw new RuntimeException("Failed to load an off-heap storage client." +
           " Please set shark.offheap.clientFactory to a valid client before creating SharkContext.",
           e)

@@ -44,10 +44,7 @@ class TachyonSQLSuite extends FunSuite with BeforeAndAfterAll {
   var sharkMetastore: MemoryMetadataManager = SharkEnv.memoryMetadataManager
 
   // Determine if Tachyon enabled at runtime.
-  val isTachyonEnabled = {
-    val client = OffHeapStorageClient.client
-    client != null && client.getClass.getName == "shark.tachyon.TachyonStorageClient"
-  }
+  val isTachyonEnabled = sys.env.contains("TACHYON_MASTER")
 
   override def beforeAll() {
     if (isTachyonEnabled) {

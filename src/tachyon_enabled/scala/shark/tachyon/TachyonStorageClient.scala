@@ -17,6 +17,7 @@
 
 package shark.tachyon
 
+import java.util.{BitSet => JBitSet}
 import java.util.concurrent.{ConcurrentHashMap => ConcurrentJavaHashMap}
 
 import scala.collection.JavaConversions._
@@ -25,10 +26,9 @@ import org.apache.spark.rdd.{RDD, UnionRDD}
 import tachyon.client.TachyonFS
 
 import shark.{LogHelper, SharkEnv}
+import shark.execution.TableReader.PruningFunctionType
 import shark.execution.serialization.JavaSerializer
 import shark.memstore2.{OffHeapStorageClient, OffHeapStorageClientFactory, TablePartitionStats}
-import java.util
-import shark.execution.TableReader.PruningFunctionType
 
 class TachyonStorageClientFactory extends OffHeapStorageClientFactory {
   def createClient() = {
@@ -99,7 +99,7 @@ class TachyonStorageClient(val master: String, val warehousePath: String)
   override def readTablePartition(
       tableKey: String,
       hivePartitionKey: Option[String],
-      columnsUsed: util.BitSet,
+      columnsUsed: JBitSet,
       pruningFn: PruningFunctionType
       ): RDD[_] = {
 
