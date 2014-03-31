@@ -90,13 +90,14 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
     }
 
     // Un-cache the table if it's currently cached.
-    // TODO: Could use the cached copy to re-cache the table in a different storage engine.
+    // TODO(aarondav): Could use the cached copy to re-cache the table in a different storage engine
     oldCacheMode match {
       case CacheType.MEMORY | CacheType.MEMORY_ONLY =>
         SharkEnv.memoryMetadataManager.dropTableFromMemory(db, databaseName, tableName)
-      case CacheType.OFFHEAP =>
+      case CacheType.OFFHEAP => {
         val tableKey = MemoryMetadataManager.makeTableKey(databaseName, tableName)
         OffHeapStorageClient.client.dropTable(tableKey)
+      }
       case CacheType.NONE => // do nothing
     }
 

@@ -37,6 +37,21 @@ class TachyonStorageClientFactory extends OffHeapStorageClientFactory {
   }
 }
 
+/**
+ * Enables caching of Shark tables in native column-oriented format into Tachyon.
+ *
+ * The directory structure for a given table in Tachyon looks like:
+ * Data:     warehouse/database.table/_defaultkey/insert_#/col_#/part_#
+ * Metadata: warehouse/database.table/_defaultkey/insert_#/.meta
+ * where:
+ *   - insert_# is used to allow inserting data multiple times. Files cannot be appended to in
+ *     Tachyon, so we instead create a whole new directory and union them upon read.
+ *   - col_# is the folder for the particular column
+ *   - part_# is the Spark partition for the column
+ *
+ * Note that "_defaultkey" is the name of the Hive Partition for a non-partitioned table. If the
+ * table is partitioned, it will be replaced by each "hivePartitionKey".
+ */
 class TachyonStorageClient(val master: String, val warehousePath: String)
   extends OffHeapStorageClient with LogHelper {
 
@@ -48,7 +63,14 @@ class TachyonStorageClient(val master: String, val warehousePath: String)
 
   private val _fileNameMappings = new ConcurrentJavaHashMap[String, Int]()
 
-  val tfs = if (master != null && master != "") TachyonFS.get(master) else null
+  if (master == null || master == "") {
+    throw new TachyonException("TACHYON_MASTER is not set, cannot create TachyonStorageClient.")
+  }
+  if (warehousePath == null) {
+    throw new TachyonException("TACHYON_WAREHOUSE is not set, cannot create TachyonStorageClient.")
+  }
+
+  val tfs = TachyonFS.get(master)
 
   private def getUniqueFilePath(parentDirectory: String): String = {
     val parentDirectoryLower = parentDirectory.toLowerCase
@@ -66,10 +88,6 @@ class TachyonStorageClient(val master: String, val warehousePath: String)
     }
     _fileNameMappings.put(parentDirectoryLower, nextInsertNum)
     filePath + nextInsertNum
-  }
-
-  if (master != null && warehousePath == null) {
-    throw new TachyonException("TACHYON_MASTER is set. However, TACHYON_WAREHOUSE_PATH is not.")
   }
 
   private def getTablePath(tableKey: String): String = {
@@ -93,15 +111,25 @@ class TachyonStorageClient(val master: String, val warehousePath: String)
   }
 
   override def dropTablePartition(tableKey: String, hivePartitionKey: Option[String]): Boolean = {
-    tfs.delete(getPartitionPath(tableKey, hivePartitionKey.getOrElse(DEFAULT_PARTITION)), true)
+    tfs.delete(getPartitionPath(tableKey, hivePartitionKey.getOrElse(DEFAULT_PARTITION)),
+      true /* recursively */)
   }
 
+  /**
+   * Reads a particular Hive partition (or whole table if non-partitioned) into a single RDD.
+   * Since each insert is written to its own directory, we need to reconstruct this RDD by reading
+   * across all of these insert directories. We thus column- and row-prune our data before
+   * producing the union to avoid data transfer.
+   *
+   * @param columnsUsed Indicates which columns are needed, to avoid loading extra data.
+   * @param pruningFn Used for pruning rows.
+   */
   override def readTablePartition(
       tableKey: String,
       hivePartitionKey: Option[String],
       columnsUsed: JBitSet,
       pruningFn: PruningFunctionType
-      ): RDD[_] = {
+    ): RDD[_] = {
 
     try {
       if (!tablePartitionExists(tableKey, hivePartitionKey)) {

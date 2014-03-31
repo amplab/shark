@@ -18,7 +18,7 @@
 package shark.tachyon
 
 import java.nio.{ByteBuffer, ByteOrder}
-import java.util.BitSet
+import java.util.{BitSet => JBitSet}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
@@ -41,7 +41,7 @@ private class TachyonTablePartition(rddId: Int, idx: Int, val locations: Seq[Str
 /**
  * An RDD that reads a Tachyon Table.
  */
-class TachyonTableRDD(path: String, columnsUsed: java.util.BitSet, @transient sc: SparkContext)
+class TachyonTableRDD(path: String, columnsUsed: JBitSet, @transient sc: SparkContext)
   extends RDD[TablePartition](sc, Nil) with LogHelper {
 
   @transient lazy val tfs = OffHeapStorageClient.client.asInstanceOf[TachyonStorageClient].tfs

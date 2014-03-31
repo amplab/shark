@@ -57,7 +57,7 @@ object TableReader {
 }
 
 /** Helper class for scanning tables stored off-heap. */
-class OffHeapTableReader(@transient _tableDesc: TableDesc, storageClient: OffHeapStorageClient)
+class OffHeapTableReader(@transient _tableDesc: TableDesc, _storageClient: OffHeapStorageClient)
   extends TableReader {
 
   // Split from 'databaseName.tableName'
@@ -71,7 +71,7 @@ class OffHeapTableReader(@transient _tableDesc: TableDesc, storageClient: OffHea
       pruningFn: PruningFunctionType = NonPruningFunction
     ): RDD[_] = {
     val tableKey = MemoryMetadataManager.makeTableKey(_databaseName, _tableName)
-    storageClient.readTablePartition(tableKey, None, columnsUsed, pruningFn)
+    _storageClient.readTablePartition(tableKey, hivePartitionKeyOpt = None, columnsUsed, pruningFn)
   }
 
   override def makeRDDForPartitionedTable(
@@ -96,7 +96,7 @@ class OffHeapTableReader(@transient _tableDesc: TableDesc, storageClient: OffHea
         partCols.map(col => new String(partSpec.get(col))).toArray
       }
       val partitionKeyStr = MemoryMetadataManager.makeHivePartitionKeyStr(partCols, partSpec)
-      val hivePartitionRDD = storageClient.readTablePartition(
+      val hivePartitionRDD = _storageClient.readTablePartition(
         tableKey, Some(partitionKeyStr), columnsUsed, pruningFn)
       hivePartitionRDD.mapPartitions { iter =>
         if (iter.hasNext) {

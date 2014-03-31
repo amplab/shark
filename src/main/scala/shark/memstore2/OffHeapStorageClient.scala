@@ -30,7 +30,7 @@ import shark.execution.TableReader.PruningFunctionType
  *
  * To ease the distinction between partitioned and non-partitioned tables, we consider a
  * non-partitioned table as a special case of partitioned tables with the single hivePartitionKey
- * of value None.
+ * of value None. See TachyonStorageClient.DEFAULT_PARTITION for example usage.
  */
 abstract class OffHeapStorageClient {
 
@@ -93,7 +93,9 @@ object OffHeapStorageClient extends LogHelper {
    * Lazily initializes an OffHeapStorageClient, accessible on both the master and worker.
    * This enables us to avoid serializing the client itself, as we will just create a new one on
    * each node.
-   * An exception will be thrown if there is no valid shark.offheap.clientFactory specified.
+   *
+   * An exception will be thrown every time this is used if there is no valid
+   * shark.offheap.clientFactory specified.
    */
   lazy val client: OffHeapStorageClient = {
     try {
