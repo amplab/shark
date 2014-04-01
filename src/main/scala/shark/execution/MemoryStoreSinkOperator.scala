@@ -30,7 +30,6 @@ import org.apache.spark.storage.StorageLevel
 import shark.{SharkConfVars, SharkEnv}
 import shark.execution.serialization.{OperatorSerializationWrapper, JavaSerializer}
 import shark.memstore2._
-import shark.tachyon.TachyonTableWriter
 
 
 /**
@@ -67,7 +66,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
   @transient var isInsertInto: Boolean = _
 
   // The number of columns in the schema for the table corresponding to 'tableName'. Used only
-  // to create a TachyonTableWriter, if Tachyon is used.
+  // to create an OffHeapTableWriter, if off-heap storage is used.
   @transient var numColumns: Int = _
 
   override def initializeOnMaster() {
@@ -89,14 +88,15 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     val op = OperatorSerializationWrapper(this)
     val tableKey = MemoryMetadataManager.makeTableKey(databaseName, tableName)
 
-    val tachyonWriter: TachyonTableWriter =
-      if (cacheMode == CacheType.TACHYON) {
-        if (!isInsertInto && SharkEnv.tachyonUtil.tableExists(tableKey, hivePartitionKeyOpt)) {
+    val offHeapWriter: OffHeapTableWriter =
+      if (cacheMode == CacheType.OFFHEAP) {
+        val offHeapClient = OffHeapStorageClient.client
+        if (!isInsertInto && offHeapClient.tablePartitionExists(tableKey, hivePartitionKeyOpt)) {
           // For INSERT OVERWRITE, delete the old table or Hive partition directory, if it exists.
-          SharkEnv.tachyonUtil.dropTable(tableKey, hivePartitionKeyOpt)
+          offHeapClient.dropTablePartition(tableKey, hivePartitionKeyOpt)
         }
         // Use an additional row to store metadata (e.g. number of rows in each partition).
-        SharkEnv.tachyonUtil.createTableWriter(tableKey, hivePartitionKeyOpt, numColumns + 1)
+        offHeapClient.createTablePartitionWriter(tableKey, hivePartitionKeyOpt, numColumns + 1)
       } else {
         null
       }
@@ -125,18 +125,18 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       }
     }
 
-    if (tachyonWriter != null) {
-      // Put the table in Tachyon.
-      op.logInfo("Putting RDD for %s.%s in Tachyon".format(databaseName, tableName))
-      tachyonWriter.createTable(ByteBuffer.allocate(0))
+    if (offHeapWriter != null) {
+      // Put the table in off-heap storage.
+      op.logInfo("Putting RDD for %s.%s in off-heap storage".format(databaseName, tableName))
+      offHeapWriter.createTable()
       outputRDD = outputRDD.mapPartitionsWithIndex { case(part, iter) =>
         val partition = iter.next()
-        partition.toTachyon.zipWithIndex.foreach { case(buf, column) =>
-          tachyonWriter.writeColumnPartition(column, part, buf)
+        partition.toOffHeap.zipWithIndex.foreach { case(buf, column) =>
+          offHeapWriter.writeColumnPartition(column, part, buf)
         }
         Iterator(partition)
       }
-      // Force evaluate so the data gets put into Tachyon.
+      // Force evaluate so the data gets put into off-heap storage.
       outputRDD.context.runJob(
         outputRDD, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
     } else {
@@ -151,7 +151,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
         outputRDD, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
     }
 
-    // Put the table in Spark block manager or Tachyon.
+    // Put the table in Spark block manager or off-heap storage.
     op.logInfo("Putting %sRDD for %s.%s in %s store".format(
       if (isInsertInto) "Union" else "",
       databaseName,
@@ -159,8 +159,8 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       if (cacheMode == CacheType.NONE) "disk" else cacheMode.toString))
 
     val tableStats =
-      if (cacheMode == CacheType.TACHYON) {
-        tachyonWriter.updateMetadata(ByteBuffer.wrap(JavaSerializer.serialize(statsAcc.value.toMap)))
+      if (cacheMode == CacheType.OFFHEAP) {
+        offHeapWriter.setStats(statsAcc.value.toMap)
         statsAcc.value.toMap
       } else {
         val isHivePartitioned = SharkEnv.memoryMetadataManager.isHivePartitioned(
@@ -187,7 +187,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
             .getOrElse(SharkEnv.memoryMetadataManager.createMemoryTable(
               databaseName, tableName, cacheMode))
           if (isInsertInto) {
-            // Ok, a Tachyon table should manage stats for each rdd, and never union the maps.
+            // Ok, a off-heap table should manage stats for each rdd, and never union the maps.
             memoryTable.update(outputRDD, statsAcc.value)
           } else {
             memoryTable.put(outputRDD, statsAcc.value.toMap)
