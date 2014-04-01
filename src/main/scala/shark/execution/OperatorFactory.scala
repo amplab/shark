@@ -27,7 +27,6 @@ import org.apache.hadoop.hive.ql.metadata.HiveException
 import shark.LogHelper
 import shark.memstore2.CacheType._
 
-
 /**
  * Given a Hive plan, OperatorFactory creates the corresponding Shark plan.
  */

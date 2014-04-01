@@ -30,31 +30,29 @@ object CacheType extends Enumeration with LogHelper {
    * - MEMORY: Stored in memory and on disk (i.e., cache is write-through). Persistent across Shark
    *           sessions. By default, all such tables are reloaded into memory on restart.
    * - MEMORY_ONLY: Stored only in memory and dropped at the end of each Shark session.
-   * - TACHYON: A distributed storage system that manages an in-memory cache for sharing files and
-                RDDs across cluster frameworks.
+   * - OFFHEAP: Stored in an off-heap data storage format, specified by the System property
+   *            'shark.offheap.clientFactory'. Defaults to TachyonStorageClientFactory.
    * - NONE: Stored on disk (e.g., HDFS) and managed by Hive.
    */
   type CacheType = Value
-  val MEMORY, MEMORY_ONLY, TACHYON, NONE = Value
+  val MEMORY, MEMORY_ONLY, OFFHEAP, NONE = Value
 
   def shouldCache(c: CacheType): Boolean = (c != NONE)
 
   /** Get the cache type object from a string representation. */
-  def fromString(name: String): CacheType = {
-    if (name == null || name == "" || name.toLowerCase == "false") {
-      NONE
-    } else if (name.toLowerCase == "true") {
+  def fromString(name: String): CacheType = Option(name).map(_.toUpperCase) match {
+    case None | Some("") | Some("FALSE") => NONE
+    case Some("TRUE") => MEMORY
+    case Some("HEAP") =>
+      logWarning("The 'HEAP' cache type name is deprecated. Use 'MEMORY' instead.")
       MEMORY
-    } else {
+    case Some("TACHYON") =>
+      logWarning("The 'TACHYON' cache type name is deprecated. Use 'OFFHEAP' instead.")
+      OFFHEAP
+    case _ => {
       try {
-        if (name.toUpperCase == "HEAP") {
-          // Interpret 'HEAP' as 'MEMORY' to ensure backwards compatibility with Shark 0.8.0.
-          logWarning("The 'HEAP' cache type name is deprecated. Use 'MEMORY' instead.")
-          MEMORY
-        } else {
-          // Try to use Scala's Enumeration::withName() to interpret 'name'.
-          withName(name.toUpperCase)
-        }
+        // Try to use Scala's Enumeration::withName() to interpret 'name'.
+        withName(name.toUpperCase)
       } catch {
         case e: java.util.NoSuchElementException => throw new InvalidCacheTypeException(name)
       }

@@ -21,15 +21,12 @@ import scala.collection.mutable.{HashMap, HashSet}
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hive.shims.ShimLoader
-import org.apache.spark.rdd.RDD
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.SparkConf
 import org.apache.spark.scheduler.StatsReportListener
 
 import shark.api.JavaSharkContext
-import shark.execution.serialization.{KryoSerializer, ShuffleSerializer}
-import shark.memstore2.{MemoryMetadataManager, Table}
-import shark.tachyon.TachyonUtilImpl
-
+import shark.execution.serialization.ShuffleSerializer
+import shark.memstore2.{MemoryMetadataManager, OffHeapStorageClient}
 
 /** A singleton object for the master program. The slaves should not access this. */
 object SharkEnv extends LogHelper {
@@ -126,6 +123,9 @@ object SharkEnv extends LogHelper {
   executorEnvVars.put("TACHYON_MASTER", getEnv("TACHYON_MASTER"))
   executorEnvVars.put("TACHYON_WAREHOUSE_PATH", getEnv("TACHYON_WAREHOUSE_PATH"))
 
+  // Used to propagate the shark.offheap.clientFactory to executors
+  executorEnvVars.put("SHARK_OFFHEAP_CLIENT_FACTORY", OffHeapStorageClient.clientFactoryClassName)
+
   val activeSessions = new HashSet[String]
 
   var sc: SharkContext = _
@@ -133,9 +133,6 @@ object SharkEnv extends LogHelper {
   val shuffleSerializerName = classOf[ShuffleSerializer].getName
 
   val memoryMetadataManager = new MemoryMetadataManager
-
-  val tachyonUtil = new TachyonUtilImpl(
-    System.getenv("TACHYON_MASTER"), System.getenv("TACHYON_WAREHOUSE_PATH"))
 
   // The following line turns Kryo serialization debug log on. It is extremely chatty.
   //com.esotericsoftware.minlog.Log.set(com.esotericsoftware.minlog.Log.LEVEL_DEBUG)
@@ -158,12 +155,4 @@ object SharkEnv extends LogHelper {
   /** Return the value of an environmental variable as a string. */
   def getEnv(varname: String) = if (System.getenv(varname) == null) "" else System.getenv(varname)
 
-}
-
-
-/** A singleton object for the slaves. */
-object SharkEnvSlave {
-
-  val tachyonUtil = new TachyonUtilImpl(
-    System.getenv("TACHYON_MASTER"), System.getenv("TACHYON_WAREHOUSE_PATH"))
 }

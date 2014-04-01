@@ -17,22 +17,18 @@
 
 package shark.tachyon
 
-import java.io.EOFException
 import java.nio.{ByteBuffer, ByteOrder}
-import java.util.{BitSet, NoSuchElementException}
+import java.util.{BitSet => JBitSet}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 
-import org.apache.spark.{Dependency, Partition, SerializableWritable, SparkContext, TaskContext}
-import org.apache.spark.rdd.RDD
-
-import tachyon.client.{InStream, ReadType, TachyonFile, TachyonByteBuffer}
-import tachyon.client.table.RawTable
-
-import shark.{SharkEnv, SharkEnvSlave}
+import org.apache.spark.{Partition, SparkContext, TaskContext}
 import shark.memstore2._
-
+import tachyon.client.{ReadType, TachyonByteBuffer}
+import tachyon.client.table.RawTable
+import org.apache.spark.rdd.RDD
+import shark.LogHelper
 
 private class TachyonTablePartition(rddId: Int, idx: Int, val locations: Seq[String])
   extends Partition {
@@ -45,17 +41,13 @@ private class TachyonTablePartition(rddId: Int, idx: Int, val locations: Seq[Str
 /**
  * An RDD that reads a Tachyon Table.
  */
-class TachyonTableRDD(path: String, @transient sc: SparkContext)
-  extends RDD[TablePartition](sc, Nil) {
+class TachyonTableRDD(path: String, columnsUsed: JBitSet, @transient sc: SparkContext)
+  extends RDD[TablePartition](sc, Nil) with LogHelper {
 
-  var mColumnUsed: BitSet = null
-
-  def setColumnUsed(columnUsed: BitSet) {
-    mColumnUsed = columnUsed
-  }
+  @transient lazy val tfs = OffHeapStorageClient.client.asInstanceOf[TachyonStorageClient].tfs
 
   override def getPartitions: Array[Partition] = {
-    val rawTable: RawTable = SharkEnv.tachyonUtil.client.getRawTable(path)
+    val rawTable: RawTable = tfs.getRawTable(path)
     // Use the first column to get preferred locations for all partitions.
     val rawColumn = rawTable.getRawColumn(0)
     val numPartitions: Int = rawColumn.partitions()
@@ -66,10 +58,10 @@ class TachyonTableRDD(path: String, @transient sc: SparkContext)
   }
 
   override def compute(theSplit: Partition, context: TaskContext): Iterator[TablePartition] = {
-    val rawTable: RawTable = SharkEnvSlave.tachyonUtil.client.getRawTable(path)
+    val rawTable: RawTable = tfs.getRawTable(path)
     val activeBuffers = new ArrayBuffer[TachyonByteBuffer]()
     val buffers = Array.tabulate[ByteBuffer](rawTable.getColumns()) { columnIndex =>
-      if (columnIndex != 0 && mColumnUsed != null && !mColumnUsed.get(columnIndex - 1)) {
+      if (columnIndex != 0 && columnsUsed != null && !columnsUsed.get(columnIndex - 1)) {
         null
       } else {
         val fp = rawTable.getRawColumn(columnIndex).getPartition(theSplit.index, true)
