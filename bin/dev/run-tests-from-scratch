@@ -198,7 +198,7 @@ export HIVE_HOME="$HIVE_DEV_HOME/build/dist"
 
 if [ "x$SCALA_HOME" != "x" ] ; then
   # User already specified SCALA_HOME. Make sure the correct version of Scala installed.
-  SCALA_HOME_VERSION=`${SCALA_HOME}/bin/scala -version|awk '{print $5}'`
+  SCALA_HOME_VERSION=`${SCALA_HOME}/bin/scala -version 2>&1|awk '{print $5}'`
   if [ "$SCALA_HOME_VERSION" != "$SCALA_VERSION" ] ; then
     echo "Your SCALA_HOME is version ${SCALA_HOME_VERSION}, but ${SCALA_VERSION} is required."
     exit -1
