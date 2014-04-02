@@ -64,7 +64,7 @@ class RDDTableFunctions(self: RDD[Seq[_]], classTags: Seq[ClassTag[_]]) {
       tableName, fields, classTags, Hive.get().getConf())
 
     // Put the table in the metastore. Only proceed if the DDL statement is executed successfully.
-    val databaseName = Hive.get(SharkContext.hiveconf).getCurrentDatabase()
+    val databaseName = "default"//Hive.get(SharkContext.hiveconf).getCurrentDatabase()
     if (isSucessfulCreateTable) {
       // Create an entry in the MemoryMetadataManager.
       val newTable = SharkEnv.memoryMetadataManager.createMemoryTable(
