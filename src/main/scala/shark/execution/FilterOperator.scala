@@ -40,21 +40,34 @@ class FilterOperator extends UnaryOperator[FilterDesc] {
   }
 
   override def initializeOnSlave() {
-    try {
-      conditionEvaluator = ExprNodeEvaluatorFactory.get(conf.getPredicate())
-
-      conditionInspector = conditionEvaluator.initialize(objectInspector)
-        .asInstanceOf[PrimitiveObjectInspector]
-    } catch {
-      case e: Throwable => throw new HiveException(e)
+    if(useCG) {
+      cgOnSlave()
+    } else {
+	  try {
+	    conditionEvaluator = ExprNodeEvaluatorFactory.get(conf.getPredicate())
+	
+	    conditionInspector = conditionEvaluator.initialize(objectInspector)
+	      .asInstanceOf[PrimitiveObjectInspector]
+	  } catch {
+	    case e: Throwable => throw new HiveException(e)
+	  }
     }
   }
 
   override def processPartition(split: Int, iter: Iterator[_]) = {
-    iter.filter { row =>
-      java.lang.Boolean.TRUE.equals(
-        conditionInspector.getPrimitiveJavaObject(conditionEvaluator.evaluate(row)))
+    if(useCG) {
+      // we have updated the outputobject inspector already, hence we have to transform
+      // the output object accordingly (as CGRow object)
+      iter.filter { row => 
+        cgexec.evaluate(row).asInstanceOf[Boolean]
+      }
+    } else {
+      iter.filter { row =>
+        java.lang.Boolean.TRUE.equals(
+          conditionInspector.getPrimitiveJavaObject(conditionEvaluator.evaluate(row)))
+      }
     }
   }
 
+  protected override def createCGOperator(): CGOperator = new CGFilterOperator(this)
 }

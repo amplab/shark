@@ -33,9 +33,10 @@ import org.apache.spark.rdd.RDD
 
 import shark.LogHelper
 import shark.execution.serialization.OperatorSerializationWrapper
+import shark.execution.cg.CompilationContext
 
 
-abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
+abstract class Operator[+T <: HiveDesc] extends LogHelper with CGObjectOperator with Serializable {
 
   /**
    * Initialize the operator on master node. This can have dependency on other
@@ -62,10 +63,13 @@ abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
    * Recursively calls initializeOnMaster() for the entire query plan. Parent
    * operators are called before children.
    */
-  def initializeMasterOnAll() {
-    _parentOperators.foreach(_.initializeMasterOnAll())
+  def initializeMasterOnAll(cc: CompilationContext) {
+    _parentOperators.foreach(_.initializeMasterOnAll(cc))
     objectInspectors = inputObjectInspectors()
     initializeOnMaster()
+    
+    // gives the opportunity to collect the source code entries for every Operator
+    cgOnMaster(cc)
   }
 
   /**
@@ -132,7 +136,7 @@ abstract class Operator[+T <: HiveDesc] extends LogHelper with Serializable {
   }
   
   // derived classes can set this to different object if needed, default is the first input OI
-  def outputObjectInspector(): ObjectInspector = objectInspectors(0)
+  protected def createOutputObjectInspector(): ObjectInspector = objectInspectors(0)
   
   /**
    * Copy from the org.apache.hadoop.hive.ql.exec.ReduceSinkOperator

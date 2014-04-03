@@ -20,6 +20,8 @@ package shark.execution
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.mapred.{FileInputFormat, InputFormat, JobConf}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.{MapSplitPruning, TableScanOperator => HiveTableScanOperator, Utilities}
 import org.apache.hadoop.hive.ql.metadata.{Partition, Table}
@@ -76,7 +78,7 @@ class TableScanOperator extends TopOperator[TableScanDesc] {
       table.getDbName, table.getTableName)
   }
 
-  override def outputObjectInspector() = {
+  protected override def createOutputObjectInspector() = {
     if (parts == null) {
       val tableSerDe = if (isInMemoryTableScan || cacheMode == CacheType.OFFHEAP) {
         new ColumnarSerDe

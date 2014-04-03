@@ -54,17 +54,24 @@ class UnionOperator extends NaryOperator[UnionDesc] {
 
     // whether we need to do transformation for each parent
     var parents = parentOperators.length
-    var outputOI = outputObjectInspector()
+    outputObjInspector = createOutputObjectInspector()
     needsTransform = Array.tabulate[Boolean](objectInspectors.length) { i =>
-      // ObjectInspectors created by the ObjectInspectorFactory, 
-      // which take the same ref if equals
-      objectInspectors(i) != outputOI
+      val needs = objectInspectors(i) != outputObjInspector
+      // whether we need to do transformation for each parent
+      // We reuse needsTransform from Hive because the comparison of object
+      // inspectors are hard once we send object inspectors over the wire.
+      logDebug("Union Operator needs to transform row from parent[%d] from %s to %s".format(
+        i, objectInspectors(i), outputObjInspector))
+      
+      needs
     }
-    
-    initializeOnSlave()
+  }
+  
+  override def initializeOnSlave() {
+    outputObjInspector = createOutputObjectInspector()
   }
 
-  override def initializeOnSlave() {
+  protected override def createOutputObjectInspector() = {
     // Some how in union, it is possible for Hive to add an extra null object
     // inspectors. We need to work around that.
     parentObjInspectors = objectInspectors.filter(_ != null)
@@ -86,19 +93,8 @@ class UnionOperator extends NaryOperator[UnionDesc] {
     }
 
     val outputFieldOIs = columnTypeResolvers.map(_.get())
-    outputObjInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
-      columnNames, outputFieldOIs.toList)
-
-    // whether we need to do transformation for each parent
-    // We reuse needsTransform from Hive because the comparison of object
-    // inspectors are hard once we send object inspectors over the wire.
-    needsTransform.zipWithIndex.filter(_._1).foreach { case(transform, p) =>
-      logDebug("Union Operator needs to transform row from parent[%d] from %s to %s".format(
-        p, objectInspectors(p), outputObjInspector))
-    }
+    ObjectInspectorFactory.getStandardStructObjectInspector(columnNames, outputFieldOIs.toList)
   }
-
-  override def outputObjectInspector() = outputObjInspector
 
   /**
    * Override execute. The only thing we need to call is combineMultipleRdds().

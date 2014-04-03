@@ -1,0 +1,19 @@
+<% escapeMarkup = false %>
+#import(shark.execution.cg.row.CGOIList)
+<%@ import val obj: CGOIList %>
+#{
+   val transform = field.java2Writable("entry", null)
+}#
+public java.util.ArrayList<${field.dataWritableClass}> ${delegate.name}_transform(java.util.ArrayList<${field.dataJavaClass}> list) {
+  java.util.ArrayList<${field.dataWritableClass}> result = new java.util.ArrayList<${field.dataWritableClass}>(list.size());
+  for(${field.dataJavaClass} entry : list) {
+    if(entry == null) {
+        result.add(null);
+    } else {
+        result.add(${transform});
+    }
+  }
+
+  return result;
+}
+${field.defStructFieldTransform}

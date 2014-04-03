@@ -84,7 +84,7 @@ class ReduceSinkOperator extends UnaryOperator[ReduceSinkDesc] {
     }
   }
 
-  override def outputObjectInspector() = {
+  protected override def createOutputObjectInspector() = {
     initializeOisAndSers(conf, objectInspector)
     
     val ois = new ArrayList[ObjectInspector]
@@ -140,7 +140,6 @@ class ReduceSinkOperator extends UnaryOperator[ReduceSinkDesc] {
    * Process a partition when there is NO distinct key aggregations.
    */
   def processPartitionNoDistinct(iter: Iterator[_]) = {
-    val numDistributionKeys = conf.getNumDistributionKeys
     // Buffer for key, value evaluation to avoid frequent object allocation.
     val evaluatedKey = new Array[Object](keyEval.length)
     val evaluatedValue = new Array[Object](valueEval.length)
@@ -173,7 +172,7 @@ class ReduceSinkOperator extends UnaryOperator[ReduceSinkDesc] {
 
       // Evaluate the key columns.
       var i = 0
-      while (i < numDistributionKeys) {
+      while (i < keyEval.length) {
         evaluatedKey(i) = keyEval(i).evaluate(row)
         i += 1
       }

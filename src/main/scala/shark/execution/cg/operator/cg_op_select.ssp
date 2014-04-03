@@ -1,0 +1,49 @@
+<% escapeMarkup = false %>
+#import(shark.execution.cg.row.Constant)
+#import(shark.execution.cg.row.CGStruct)
+#import(shark.execution.cg.row.CGExprContext)
+#import(shark.execution.CGOperator)
+#import(shark.execution.CGObjectOperator)
+#import(shark.execution.SelectOperator)
+
+<%@ import val cgo: CGOperator %>
+<%@ import val op: SelectOperator %>
+<%@ import val ctx: CGExprContext %>
+<%@ import val cs: shark.execution.cg.row.ExecuteOrderedExprNode %>
+
+package ${packageName};
+
+import shark.execution.cg.OperatorExecutor;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
+import ${cgrow.fullClassName};
+
+#for(clazz <- ctx.imports)
+import ${clazz};
+#end
+public class ${className} extends OperatorExecutor {
+private final ${cgrow.clazz} ${Constant.CG_EXPR_NAME_OUTPUT} = new ${cgrow.clazz}();
+private StructObjectInspector ${Constant.CG_EXPR_NAME_INPUT_SOI} = null;
+  
+#for(property <- ctx.properties)
+${property.toString}
+#end
+
+   @Override
+   public void init(ObjectInspector[] inputOIs) throws Exception {
+   super.init(inputOIs);
+   this.${Constant.CG_EXPR_NAME_INPUT_SOI} = (StructObjectInspector)inputOIs[0];
+#for(init <- ctx.initials)
+${init.toString}
+#end   
+   }
+   
+  @Override
+  public Object evaluate(Object ${Constant.CG_EXPR_NAME_INPUT}) throws Exception {
+    ${Constant.CG_EXPR_NAME_OUTPUT}.reset();
+    
+    ${cs.code(ctx)}
+    
+    return ${Constant.CG_EXPR_NAME_OUTPUT};
+  }
+}
