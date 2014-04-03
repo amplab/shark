@@ -17,21 +17,23 @@
 
 package shark.util
 
-import org.apache.hadoop.hive.ql.parse.SemanticException 
-
-import shark.memstore2.SharkTblProperties
-
+import org.apache.hadoop.hive.ql.parse.SemanticException
 
 object QueryRewriteUtils {
 
   def cacheToAlterTable(cmd: String): String = {
-    val cmdSplit = cmd.split(' ')
-    if (cmdSplit.size == 2) {
-      val tableName = cmdSplit(1)
-      "ALTER TABLE %s SET TBLPROPERTIES ('shark.cache' = 'true')".format(tableName)
-    } else {
-      throw new SemanticException(
-        s"CACHE accepts a single table name: 'CACHE <table name>' (received command: '$cmd')")
+    val CACHE_TABLE_DEFAULT = "(?i)CACHE ([^ ]+)".r
+    val CACHE_TABLE_IN = "(?i)CACHE ([^ ]+) IN ([^ ]+)".r
+
+    cmd match {
+      case CACHE_TABLE_DEFAULT(tableName) =>
+        s"ALTER TABLE $tableName SET TBLPROPERTIES ('shark.cache' = 'memory')"
+      case CACHE_TABLE_IN(tableName, cacheType) =>
+        s"ALTER TABLE $tableName SET TBLPROPERTIES ('shark.cache' = '$cacheType')"
+      case _ =>
+        throw new SemanticException(
+          s"CACHE accepts a single table name: 'CACHE <table name> [IN <cache type>]'" +
+            s" (received command: '$cmd')")
     }
   }
 

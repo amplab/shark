@@ -45,7 +45,8 @@ class TablePartition(private var _numRows: Long, private var _columns: Array[Byt
 
   def columns: Array[ByteBuffer] = _columns
 
-  def toTachyon: Array[ByteBuffer] = {
+  /** We store our per-partition metadata in a fake "column 0" for off-heap storage. */
+  def toOffHeap: Array[ByteBuffer] = {
     val buffers = new Array[ByteBuffer](1 + _columns.size)
     buffers(0) = metadata
     System.arraycopy(_columns, 0, buffers, 1, _columns.size)
@@ -76,7 +77,7 @@ class TablePartition(private var _numRows: Long, private var _columns: Array[Byt
       case buffer: ByteBuffer =>
         ColumnIterator.newIterator(buffer)
       case _ =>
-        // The buffer might be null if it is pruned in Tachyon.
+        // The buffer might be null if it is pruned in off-heap storage.
         null
     }
     new TablePartitionIterator(_numRows, columnIterators, columnsUsed)

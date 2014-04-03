@@ -72,7 +72,7 @@ private[shark] class MemoryTable(
   	if (_rddValueOpt.isDefined) {
       val (prevRDD, prevStats) = (prevRDDAndStatsOpt.get._1, prevRDDAndStatsOpt.get._2)
       val updatedRDDValue = _rddValueOpt.get
-      updatedRDDValue.rdd = RDDUtils.unionAndFlatten(prevRDD, newRDD)
+      updatedRDDValue.rdd = RDDUtils.unionAndFlatten(newRDD, prevRDD)
       updatedRDDValue.stats = Table.mergeStats(newStats, prevStats).toMap
     } else {
       put(newRDD, newStats.toMap)

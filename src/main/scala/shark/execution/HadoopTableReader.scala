@@ -17,6 +17,8 @@
 
 package shark.execution
 
+import java.util.{BitSet => JBitSet}
+
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{Path, PathFilter}
 import org.apache.hadoop.hive.conf.HiveConf
@@ -37,7 +39,7 @@ import org.apache.spark.rdd.{EmptyRDD, HadoopRDD, RDD, UnionRDD}
 import org.apache.spark.SerializableWritable
 
 import shark.{SharkEnv, Utils}
-
+import shark.execution.TableReader.PruningFunctionType
 
 /**
  * Helper class for scanning tables stored in Hadoop - e.g., to read Hive tables that reside in the
@@ -62,7 +64,8 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
 
   override def makeRDDForTable(
       hiveTable: HiveTable,
-      pruningFnOpt: Option[PruningFunctionType] = None
+      columnsUsed: JBitSet,
+      pruningFn: PruningFunctionType = NonPruningFunction
     ): RDD[_] =
     makeRDDForTable(
       hiveTable,
@@ -120,7 +123,8 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
 
   override def makeRDDForPartitionedTable(
       partitions: Seq[HivePartition],
-      pruningFnOpt: Option[PruningFunctionType] = None
+      columnsUsed: JBitSet,
+      pruningFn: PruningFunctionType = NonPruningFunction
     ): RDD[_] = {
     val partitionToDeserializer = partitions.map(part =>
       (part, part.getDeserializer.getClass.asInstanceOf[Class[Deserializer]])).toMap

@@ -30,7 +30,7 @@ import org.apache.spark.rdd.UnionRDD
 import org.apache.spark.storage.StorageLevel
 
 import shark.api.QueryExecutionException
-import shark.memstore2.{CacheType, MemoryMetadataManager, PartitionedMemoryTable}
+import shark.memstore2.{OffHeapStorageClient, CacheType, MemoryMetadataManager, PartitionedMemoryTable}
 // import expectSql() shortcut methods
 import shark.SharkRunner._
 
@@ -44,8 +44,7 @@ class TachyonSQLSuite extends FunSuite with BeforeAndAfterAll {
   var sharkMetastore: MemoryMetadataManager = SharkEnv.memoryMetadataManager
 
   // Determine if Tachyon enabled at runtime.
-  val isTachyonEnabled = SharkEnv.tachyonUtil.tachyonEnabled()
-
+  val isTachyonEnabled = sys.env.contains("TACHYON_MASTER")
 
   override def beforeAll() {
     if (isTachyonEnabled) {
@@ -64,7 +63,7 @@ class TachyonSQLSuite extends FunSuite with BeforeAndAfterAll {
       tableName: String,
       hivePartitionKeyOpt: Option[String] = None): Boolean = {
     val tableKey = MemoryMetadataManager.makeTableKey(dbName, tableName)
-    SharkEnv.tachyonUtil.tableExists(tableKey, hivePartitionKeyOpt)
+    OffHeapStorageClient.client.tablePartitionExists(tableKey, hivePartitionKeyOpt)
   }
 
   private def createPartitionedTachyonTable(tableName: String, numPartitionsToCreate: Int) {

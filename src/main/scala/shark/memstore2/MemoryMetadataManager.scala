@@ -145,7 +145,7 @@ class MemoryMetadataManager extends LogHelper {
         }
         case CacheType.MEMORY_ONLY => HiveUtils.dropTableInHive(table.tableName, db.getConf)
         case _ => {
-          // No need to handle Hive or Tachyon tables, which are persistent and managed by their
+          // No need to handle Hive or off-heap tables, which are persistent and managed by their
           // respective systems.
           Unit
         }
@@ -195,7 +195,7 @@ object MemoryMetadataManager {
 
   // Returns a key of the form "databaseName.tableName" that uniquely identifies a Shark table.
   // For example, it's used to track a table's RDDs in MemoryMetadataManager and table paths in the
-  // Tachyon table warehouse.
+  // off-heap table warehouse.
   def makeTableKey(databaseName: String, tableName: String): String = {
     (databaseName + '.' + tableName).toLowerCase
   }

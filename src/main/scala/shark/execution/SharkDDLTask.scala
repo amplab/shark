@@ -30,10 +30,8 @@ import org.apache.hadoop.hive.ql.plan.api.StageType
 import org.apache.spark.rdd.EmptyRDD
 
 import shark.{LogHelper, SharkEnv}
-import shark.memstore2.{CacheType, MemoryTable, MemoryMetadataManager, PartitionedMemoryTable}
-import shark.memstore2.{SharkTblProperties, TablePartitionStats}
+import shark.memstore2._
 import shark.util.HiveUtils
-
 
 private[shark] class SharkDDLWork(val ddlDesc: DDLDesc) extends java.io.Serializable {
 
@@ -92,9 +90,9 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
     val tableName = createTblDesc.getTableName
     val tblProps = createTblDesc.getTblProps
 
-    if (cacheMode == CacheType.TACHYON) {
-      // For Tachyon tables (partitioned or not), just create the parent directory.
-      SharkEnv.tachyonUtil.createDirectory(
+    if (cacheMode == CacheType.OFFHEAP) {
+      // For off-heap tables (partitioned or not), just create the parent directory.
+      OffHeapStorageClient.client.createTablePartition(
         MemoryMetadataManager.makeTableKey(dbName, tableName), hivePartitionKeyOpt = None)
     } else {
       val isHivePartitioned = (createTblDesc.getPartCols.size > 0)
@@ -131,8 +129,8 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
     val partColToValue: JavaMap[String, String] = addPartitionDesc.getPartSpec
     // String format for partition key: 'col1=value1/col2=value2/...'
     val partKeyStr: String = MemoryMetadataManager.makeHivePartitionKeyStr(partCols, partColToValue)
-    if (cacheMode == CacheType.TACHYON) {
-      SharkEnv.tachyonUtil.createDirectory(
+    if (cacheMode == CacheType.OFFHEAP) {
+      OffHeapStorageClient.client.createTablePartition(
         MemoryMetadataManager.makeTableKey(dbName, tableName), Some(partKeyStr))
     } else {
       val partitionedTable = getPartitionedTableWithAssertions(dbName, tableName)
@@ -160,8 +158,8 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
 
     if (partSpecs == null) {
       // The command is a true DROP TABLE.
-      if (cacheMode == CacheType.TACHYON) {
-        SharkEnv.tachyonUtil.dropTable(tableKey, hivePartitionKeyOpt = None)
+      if (cacheMode == CacheType.OFFHEAP) {
+        OffHeapStorageClient.client.dropTable(tableKey)
       } else {
         SharkEnv.memoryMetadataManager.removeTable(dbName, tableName)
       }
@@ -173,8 +171,8 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
         val partColToValue: JavaMap[String, String] = partSpec.getPartSpecWithoutOperator
         // String format for partition key: 'col1=value1/col2=value2/...'
         val partKeyStr = MemoryMetadataManager.makeHivePartitionKeyStr(partCols, partColToValue)
-        if (cacheMode == CacheType.TACHYON) {
-          SharkEnv.tachyonUtil.dropTable(tableKey, Some(partKeyStr))
+        if (cacheMode == CacheType.OFFHEAP) {
+          OffHeapStorageClient.client.dropTablePartition(tableKey, Some(partKeyStr))
         } else {
           val partitionedTable = getPartitionedTableWithAssertions(dbName, tableName)
           getPartitionedTableWithAssertions(dbName, tableName).removePartition(partKeyStr)
@@ -200,10 +198,10 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
       case AlterTableDesc.AlterTableTypes.RENAME => {
         val oldName = alterTableDesc.getOldName
         val newName = alterTableDesc.getNewName
-        if (cacheMode == CacheType.TACHYON) {
+        if (cacheMode == CacheType.OFFHEAP) {
           val oldTableKey = MemoryMetadataManager.makeTableKey(dbName, oldName)
           val newTableKey = MemoryMetadataManager.makeTableKey(dbName, newName)
-          SharkEnv.tachyonUtil.renameDirectory(oldTableKey, newTableKey)
+          OffHeapStorageClient.client.renameTable(oldTableKey, newTableKey)
         } else {
           SharkEnv.memoryMetadataManager.renameTable(dbName, oldName, newName)
         }
