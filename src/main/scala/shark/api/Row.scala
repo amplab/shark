@@ -17,6 +17,8 @@
 
 package shark.api
 
+import scala.collection.JavaConversions._
+
 import org.apache.hadoop.io.Text
 import org.apache.hadoop.hive.serde2.ByteStream
 import org.apache.hadoop.hive.serde2.`lazy`.LazySimpleSerDe
@@ -129,6 +131,14 @@ class Row(val rawdata: Any, val colname2indexMap: Map[String, Int], val oi: Stru
   def getMap(field: Int): String = apply(field).asInstanceOf[String]
 
   def getStruct(field: Int): String = apply(field).asInstanceOf[String]
+
+  def toSeq: Seq[Any] = {
+    oi.getAllStructFieldRefs.map { structField =>
+      val primitiveData = oi.getStructFieldData(rawdata, structField)
+      structField.getFieldObjectInspector.asInstanceOf[PrimitiveObjectInspector]
+        .getPrimitiveJavaObject(primitiveData)
+    }
+  }
 }
 
 
