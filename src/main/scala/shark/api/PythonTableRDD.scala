@@ -17,24 +17,33 @@
 
 package shark.api
 
-import net.razorvine.pickle.Pickler
-
 import scala.collection.JavaConversions._
+
+import net.razorvine.pickle.Pickler
 
 import org.apache.spark.api.java.JavaRDD
 
-class PythonTableRDD(tableRDD: JavaTableRDD)
-extends JavaRDD[Array[Byte]](tableRDD.rdd.mapPartitions(PythonTableRDD.pickle)) {
+class PythonTableRDD(
+    tableRDD: JavaTableRDD)
+  extends JavaRDD[Array[Byte]](tableRDD.rdd.mapPartitions(PythonTableRDD.javaRowToPythonRow)) {
   val schema: java.util.Map[String, Int] = tableRDD.first.colname2indexMap
 }
 
+/*
+ *  These static methods are to be called by Python to run SQL queries. sql2rdd runs the query and
+ *  attempts to convert the JavaTableRDD to a Python compatible RDD (an RDD of ByteArrays
+ *  that are pickled Python objects). We map the pickle serializer per partition to convert the Java
+ *  objects to python objects, and we return the resulting PythonTableRDD to the caller (presumably
+ *  a Python process).
+ */
 object PythonTableRDD {
 
   def sql2rdd(sc: JavaSharkContext, cmd: String): PythonTableRDD = {
     new PythonTableRDD(sc.sql2rdd(cmd))
   }
 
-  def pickle(rows: Iterator[Row]): Iterator[Array[Byte]] = {
+  // Pickle a row of java objects to a row of pickled python objects (byte arrays)
+  def javaRowToPythonRow(rows: Iterator[Row]): Iterator[Array[Byte]] = {
     // Pickler is not threadsafe, so we use 1 per partition
     val pickle = new Pickler
     rows.map { r =>
