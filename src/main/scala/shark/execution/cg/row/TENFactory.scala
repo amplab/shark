@@ -109,7 +109,7 @@ class TENFactory {
     val folded = TENFactory.constantFolding(genericUDF, inputs)
     
     if(folded != null) {
-      folded
+      folded.toR
     } else {
       val children = TENFactory.w2r(inputs)
       genericUDF match {
