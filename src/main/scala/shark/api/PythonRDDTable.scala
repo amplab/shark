@@ -30,15 +30,24 @@ import org.apache.spark.rdd.RDD
 
 object PythonRDDTable {
 
-  private def f[T](v: T)(implicit ev: ClassTag[T]) = ev
-
-  def apply[T](rdd: T, tableName: String, cols: ArrayList[String]) = {
+  def apply[T](
+      rdd: T, 
+      tableName: String, 
+      cols: ArrayList[String]): Boolean = {
     val classTag = implicitly[ClassTag[Seq[Any]]]
     val rddSeq: RDD[Seq[_]] = rdd.asInstanceOf[RDD[Array[Byte]]].mapPartitions(PythonRDDTable.unpickle).flatMap(r => r.map(e => e.toSeq))(classTag)
     val first = rddSeq.first()
-    val classes: Seq[ClassTag[_]] = Seq(implicitly[ClassTag[Int]], implicitly[ClassTag[Int]])
+    val classes: Seq[ClassTag[_]] = first.map(getAnyType(_)).toSeq
     val rddTable = new RDDTableFunctions(rddSeq, classes)
     rddTable.saveAsTable(tableName, cols.toSeq)
+  }
+
+  private def getAnyType(x: Any): ClassTag[_] = x match {
+    case y: Int => implicitly[ClassTag[Int]]
+    case y: Long => implicitly[ClassTag[Long]]
+    case y: String => implicitly[ClassTag[String]]
+    case y: Float => implicitly[ClassTag[Float]]
+    case y: Boolean => implicitly[ClassTag[Boolean]]
   }
 
   private def unpickle(rows: Iterator[Array[Byte]]): Iterator[Seq[ArrayList[_]]] = {

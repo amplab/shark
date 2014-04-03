@@ -174,3 +174,11 @@ class SharkContext(SparkContext):
 
     def sql2console(self, query):
         return self._jsc.sql2console(query)
+
+    def saveAsTable(self, rdd, tableName, columnNames):
+        cols = self._jvm.java.util.ArrayList()
+        for columnName in columnNames:
+            cols.append(columnName)
+        # Guarantee we have a PythonRDD that contains lists
+        rdd = rdd.map(lambda x: list(x))
+        self._jvm.PythonRDDTable.apply(rdd._jrdd.rdd(), tableName, cols)
