@@ -129,7 +129,7 @@ object SharkBuild extends Build {
       "Cloudera Repository" at "https://repository.cloudera.com/artifactory/cloudera-repos/",
       "Sonatype Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/",
       "Sonatype Staging" at "https://oss.sonatype.org/service/local/staging/deploy/maven2/",
-      "Sonatype Shark Testing" at "https://oss.sonatype.org/content/repositories/eduberkeleycs-1041",
+      "Sonatype Hive Testing" at "https://oss.sonatype.org/content/repositories/eduberkeleycs-1042",
       "Sonatype Spark Testing" at "https://repository.apache.org/content/repositories/orgapachespark-1009/",
       "Local Maven" at Path.userHome.asFile.toURI.toURL + ".m2/repository"
     ),
