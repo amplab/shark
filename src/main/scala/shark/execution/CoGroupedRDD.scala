@@ -81,7 +81,7 @@ class CoGroupedRDD[K](@transient var rdds: Seq[RDD[(_, _)]], part: Partitioner)
         new OneToOneDependency(rdd)
       } else {
         logDebug("Adding shuffle dependency with " + rdd)
-        new ShuffleDependency[Any, Any](rdd, part, SharkEnv.shuffleSerializerName)
+        new ShuffleDependency[Any, Any](rdd, part, SharkEnv.shuffleSerializer)
       }
     }
   }
@@ -117,7 +117,7 @@ class CoGroupedRDD[K](@transient var rdds: Seq[RDD[(_, _)]], part: Partitioner)
       }
       values
     }
-    val serializer = SparkEnv.get.serializerManager.get(SharkEnv.shuffleSerializerName, SparkEnv.get.conf)
+    val serializer =SharkEnv.shuffleSerializer
     for ((dep, depNum) <- split.deps.zipWithIndex) dep match {
       case NarrowCoGroupSplitDep(rdd, itsSplitIndex, itsSplit) => {
         // Read them from the parent
