@@ -14,18 +14,6 @@ if [ -e $SHARK_HOME/conf/shark-env.sh ] ; then
   . $SHARK_HOME/conf/shark-env.sh
 fi
 
-if [ "x$SCALA_HOME" == "x" ] ; then
-  echo "No SCALA_HOME specified. Please set SCALA_HOME."
-  exit 1
-fi
-
-if [ ! -f "$SCALA_HOME/lib/scala-library.jar" ] ; then
-  echo "Cannot find $SCALA_HOME/lib/scala-library.jar."
-  echo "Are you sure your SCALA_HOME is set correctly?"
-  echo "SCALA_HOME = $SCALA_HOME"
-  exit 1
-fi
-
 if [ -n "$MASTER" ] ; then
   if [ -z $SPARK_HOME ] ; then
     echo "No SPARK_HOME specified. Please set SPARK_HOME for cluster mode."
@@ -136,9 +124,6 @@ export JAVA_OPTS
 export ANT_OPTS=$JAVA_OPTS
 
 if [ "x$RUNNER" == "x" ] ; then
-  CLASSPATH+=":$SCALA_HOME/lib/scala-library.jar"
-  CLASSPATH+=":$SCALA_HOME/lib/scala-compiler.jar"
-  CLASSPATH+=":$SCALA_HOME/lib/jline.jar"
   if [ -n "$JAVA_HOME" ]; then
     RUNNER="${JAVA_HOME}/bin/java"
   else

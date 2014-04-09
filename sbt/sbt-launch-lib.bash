@@ -18,6 +18,15 @@ declare -a scalac_args
 declare -a sbt_commands
 declare java_cmd=java
 
+if test -x "$JAVA_HOME/bin/java"; then
+    echo -e "Using $JAVA_HOME as default JAVA_HOME."
+    echo "Note, this will be overridden by -java-home if it is set."
+    declare java_cmd="$JAVA_HOME/bin/java"
+else
+    declare java_cmd=java
+fi
+
+
 echoerr () {
   echo 1>&2 "$@"
 }
@@ -33,12 +42,35 @@ jar_file () {
 }
 
 acquire_sbt_jar () {
-  sbt_jar="$(jar_file)"
+  SBT_VERSION=`awk -F "=" '/sbt\\.version/ {print $2}' ./project/build.properties`
+  URL1=http://typesafe.artifactoryonline.com/typesafe/ivy-releases/org.scala-sbt/sbt-launch/${SBT_VERSION}/sbt-launch.jar
+  URL2=http://repo.typesafe.com/typesafe/ivy-releases/org.scala-sbt/sbt-launch/${SBT_VERSION}/sbt-launch.jar
+  JAR=sbt/sbt-launch-${SBT_VERSION}.jar
+
+  sbt_jar=$JAR
 
   if [[ ! -f "$sbt_jar" ]]; then
-    echoerr "Could not find launcher jar: $sbt_jar"
-    exit 2
+    # Download sbt launch jar if it hasn't been downloaded yet
+    if [ ! -f ${JAR} ]; then
+    # Download
+    printf "Attempting to fetch sbt\n"
+    JAR_DL=${JAR}.part
+    if hash curl 2>/dev/null; then
+      (curl --progress-bar ${URL1} > ${JAR_DL} || curl --progress-bar ${URL2} > ${JAR_DL}) && mv ${JAR_DL} ${JAR}
+    elif hash wget 2>/dev/null; then
+      (wget --progress=bar ${URL1} -O ${JAR_DL} || wget --progress=bar ${URL2} -O ${JAR_DL}) && mv ${JAR_DL} ${JAR}
+    else
+      printf "You do not have curl or wget installed, please install sbt manually from http://www.scala-sbt.org/\n"
+      exit -1
+    fi
+    fi
+    if [ ! -f ${JAR} ]; then
+    # We failed to download
+    printf "Our attempt to download sbt locally to ${JAR} failed. Please install sbt manually from http://www.scala-sbt.org/\n"
+    exit -1
+    fi
   fi
+  printf "Launching sbt from ${JAR}\n"
 }
 
 execRunner () {

@@ -114,7 +114,6 @@ object SharkEnv extends LogHelper {
   logDebug("Initializing SharkEnv")
 
   val executorEnvVars = new HashMap[String, String]
-  executorEnvVars.put("SCALA_HOME", getEnv("SCALA_HOME"))
   executorEnvVars.put("SPARK_MEM", getEnv("SPARK_MEM"))
   executorEnvVars.put("SPARK_CLASSPATH", getEnv("SPARK_CLASSPATH"))
   executorEnvVars.put("HADOOP_HOME", getEnv("HADOOP_HOME"))

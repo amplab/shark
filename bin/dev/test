@@ -8,7 +8,7 @@
 # You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
-#
+
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -44,12 +44,6 @@ if [ -z $HADOOP_HOME ] ; then
   exit 1
 fi
 
-# Check for SCALA_HOME
-if [ -z $SCALA_HOME ] ; then
-  echo "No SCALA_HOME specified. Please set SCALA_HOME"
-  exit 1
-fi
-
 if [ -n "$TEST_FILE" ] ; then
   TEST_FILE=`get_abs_path $TEST_FILE`
   export TEST_FILE
@@ -81,9 +75,6 @@ export TEST_JAVA_OPTS
 cd ${HIVE_DEV_HOME}/ql
 
 if [ "$TEST_WITH_ANT" == "1" ] ; then
-  CLASSPATH+=":$SCALA_HOME/lib/scala-library.jar"
-  CLASSPATH+=":$SCALA_HOME/lib/scala-compiler.jar"
-  CLASSPATH+=":$SCALA_HOME/lib/jline.jar"
   export CLASSPATH
   export RUNNER="ant -noclasspath -nouserlib -f $FWDIR/bin/dev/build_test.xml test"
   exec $FWDIR/run "$@"

@@ -77,9 +77,12 @@ object SharkBuild extends Build {
   val excludeServlet = ExclusionRule(organization = "javax.servlet")
   val excludeXerces = ExclusionRule(organization = "xerces")
 
+  val scalaArtifacts = Seq("jline", "scala-compiler", "scala-library", "scala-reflect")
+  val scalaDependencies = scalaArtifacts.map ( artifactId =>
+    "org.scala-lang" % artifactId % SCALA_VERSION)
+
   // TODO(harvey): These should really be in a SharkHive project, but that requires re-organizing
-  //               all of our settings. Should be done for v0.9.1. Also, we might not need some
-  //               of these jars.
+  //               all of our settings. Also, we might not need some of these jars.
   val hiveArtifacts = Seq(
     "hive-anttasks",
     "hive-beeline",
@@ -189,7 +192,7 @@ object SharkBuild extends Build {
     unmanagedJars in Test ++= Seq(
       file(System.getenv("HIVE_DEV_HOME")) / "build" / "ql" / "test" / "classes"
     ),
-    libraryDependencies ++= hiveDependencies ++ tachyonDependency ++ yarnDependency,
+    libraryDependencies ++= hiveDependencies ++ scalaDependencies ++ tachyonDependency ++ yarnDependency,
     libraryDependencies ++= Seq(
       "org.apache.spark" %% "spark-core" % SPARK_VERSION,
       "org.apache.spark" %% "spark-repl" % SPARK_VERSION,
