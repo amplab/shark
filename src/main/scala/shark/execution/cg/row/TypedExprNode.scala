@@ -288,8 +288,7 @@ case class TENConvertR2W(from: TypedExprNode) extends TENConvert(from, from.outp
 case class TENConvertW2D(from: TypedExprNode) extends TENConvert(from, from.outputDT) {
   override def toR: TypedExprNode = 
     throw new CGInvalidException("shouldn't be called TENConvertW2D")
-  override def toW: TypedExprNode = 
-    throw new CGInvalidException("shouldn't be called TENConvertW2D")
+  override def toW: TypedExprNode = from
   override def outputWritable = 
     throw new CGInvalidException("shouldn't be called TENConvertW2D")
 }

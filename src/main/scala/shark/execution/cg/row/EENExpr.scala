@@ -587,7 +587,7 @@ case class EENGUDF(expr: TENGUDF, sibling: ExecuteOrderedExprNode) extends EENEx
     // TODO
     val inits = "%s.initialize(new ObjectInspector[]{%s});".format(
       gudf,
-      expr.children.map(x => TypeUtil.dtToString(x.outputDT)).reduce((a, b) => a + "," + b))
+      expr.children.map(x => TypeUtil.dtToOIString(x.outputDT)).reduce((a, b) => a + "," + b))
 
     ctx.addInitials(inits)
     ctx.register(expr, Constant.EXPR_NULL_INDICATOR_NAME, null)
