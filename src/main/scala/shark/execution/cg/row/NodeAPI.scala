@@ -116,6 +116,22 @@ object TypeUtil {
       throw new CGNotSupportDataTypeRuntimeException(dt)
     }
   }
+  
+  def dtToOIString(dt: DataType): String = {
+    dt match {
+      case TypeUtil.BinaryType => "PrimitivePrimitiveObjectInspectorFactory.writableBinaryObjectInspector"
+      case TypeUtil.BooleanType => "PrimitiveObjectInspectorFactory.writableBooleanObjectInspector"
+      case TypeUtil.ByteType => "PrimitiveObjectInspectorFactory.writableByteObjectInspector"
+      case TypeUtil.DoubleType => "PrimitiveObjectInspectorFactory.writableDoubleObjectInspector"
+      case TypeUtil.FloatType => "PrimitiveObjectInspectorFactory.writableFloatObjectInspector"
+      case TypeUtil.IntegerType => "PrimitiveObjectInspectorFactory.writableIntObjectInspector"
+      case TypeUtil.LongType => "PrimitiveObjectInspectorFactory.writableLongObjectInspector"
+      case TypeUtil.ShortType => "PrimitiveObjectInspectorFactory.writableShortObjectInspector"
+      case TypeUtil.StringType => "PrimitiveObjectInspectorFactory.writableStringObjectInspector"
+      case TypeUtil.TimestampType => "PrimitiveObjectInspectorFactory.writableTimestampObjectInspector"
+      case _ => throw new CGNotSupportDataTypeRuntimeException("couldn't support the data type:" + dt.clazz)
+    }
+  }
 
   def assertDataType(dt: DataType) {
     if (dt.isInstanceOf[CGUnion] ||

@@ -119,6 +119,9 @@ class TENFactory {
         case x: GenericUDFOPOr => {
           TENFactory.or(children(0), children(1)) // OR  (||)
         }
+        case x: GenericUDFOPNot => {
+          TENFactory.not(children(0)) // NOT  (!)
+        }
         case x: GenericUDFOPEqual => {
           TENFactory.builtin(TENBuiltin.OP_CMP_EQUAL, children) // =
         }
@@ -532,6 +535,8 @@ object TENFactory {
   def and(n1: TypedExprNode, n2: TypedExprNode) = branch(isfalse(n1), constantFalse, istrue(n2))
   
   def or(n1: TypedExprNode, n2: TypedExprNode) = branch(istrue(n1), constantTrue, istrue(n2))
+  
+  def not(n1: TypedExprNode) = isfalse(n1)
   
   def between(children: Seq[TypedExprNode]) = {
     // between contains 4 elements: for example: where a not between b and c
