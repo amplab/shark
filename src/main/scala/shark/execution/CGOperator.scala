@@ -24,6 +24,7 @@ import shark.execution.cg.row.TypeUtil
 import shark.execution.cg.row.TENInstance
 import shark.execution.cg.row.HiveTENFactory
 import shark.execution.cg.CGUtil
+import org.apache.hadoop.hive.ql.plan.ExprNodeDesc
 
 abstract class CGOperator(
     val path: String, 
@@ -91,12 +92,26 @@ class CGFilterOperator(override val op: FilterOperator)
   }
 }
 
+case class CGExecOperator(names: Seq[String], descs: Seq[ExprNodeDesc], input: CGStruct, output: CGStruct) 
+  extends CGOperator(CGOperator.CG_EXPRESSION, null) {
+  override def initial: Map[String, Any] = {
+    import scala.collection.JavaConversions._
+    
+    val ctx = new CGExprContext()
+    val ten = HiveTENFactory.create(descs, input, output)
+    val een = TENInstance.transform(ten, ctx)
+    
+    Map("ctx" -> ctx, "cs" -> een, "cgrow" -> input)
+  }
+}
+
 /*
  * Put all of the operator template here.
  */
 object CGOperator {
   val CG_OPERATOR_SELECT = "shark/execution/cg/operator/cg_op_select.ssp"
   val CG_OPERATOR_SELECT2 = "shark/execution/cg/operator/cg_op_select2.ssp"
+  val CG_EXPRESSION = "shark/execution/cg/operator/cg_expression.ssp"
   val CG_OPERATOR_FILTER = "shark/execution/cg/operator/cg_op_filter.ssp"
   
   def generate(cgo: CGOperator): String = {
