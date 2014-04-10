@@ -191,6 +191,7 @@ object SharkBuild extends Build {
 
     unmanagedJars in Test ++= Seq(
       file(System.getenv("HIVE_DEV_HOME")) / "build" / "ql" / "test" / "classes"
+      file(System.getenv("HIVE_DEV_HOME")) / "build/ivy/lib/test/hadoop-test-0.20.2.jar"
     ),
     libraryDependencies ++= hiveDependencies ++ scalaDependencies ++ tachyonDependency ++ yarnDependency,
     libraryDependencies ++= Seq(
@@ -207,7 +208,6 @@ object SharkBuild extends Build {
       "commons-httpclient" % "commons-httpclient" % "3.1" % "test",
 
       // Test infrastructure
-      "org.apache.hadoop" % "hadoop-test" % "0.20.2" % "test" excludeAll(excludeJackson, excludeNetty, excludeAsm) force(),
       "org.scalatest" %% "scalatest" % "1.9.1" % "test",
       "junit" % "junit" % "4.10" % "test",
       "net.java.dev.jets3t" % "jets3t" % "0.7.1",
