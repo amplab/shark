@@ -46,9 +46,10 @@ object SharkBuild extends Build {
   // "1.0.1" for Apache releases, or "0.20.2-cdh3u3" for Cloudera Hadoop.
   val DEFAULT_HADOOP_VERSION = "1.0.4"
 
-  lazy val hadoopVersion = env("SHARK_HADOOP_VERSION") orElse
-                           env("SPARK_HADOOP_VERSION") getOrElse
-                           DEFAULT_HADOOP_VERSION
+  lazy val sparkVersion = env("SPARK_VERSION").getOrElse(SPARK_VERSION)
+
+  lazy val hadoopVersion = env("SHARK_HADOOP_VERSION").getOrElse(
+    env("SPARK_HADOOP_VERSION").getOrElse(DEFAULT_HADOOP_VERSION))
 
   // Whether to build Shark with Yarn support
   val YARN_ENABLED = env("SHARK_YARN").getOrElse("false").toBoolean
@@ -109,7 +110,7 @@ object SharkBuild extends Build {
   }).toSeq
 
   val yarnDependency = (if (YARN_ENABLED) {
-    Some("org.apache.spark" %% "spark-yarn" % SPARK_VERSION)
+    Some("org.apache.spark" %% "spark-yarn" % sparkVersion)
   } else {
     None
   }).toSeq
@@ -190,13 +191,13 @@ object SharkBuild extends Build {
     },
 
     unmanagedJars in Test ++= Seq(
-      file(System.getenv("HIVE_DEV_HOME")) / "build" / "ql" / "test" / "classes"
+      file(System.getenv("HIVE_DEV_HOME")) / "build" / "ql" / "test" / "classes",
       file(System.getenv("HIVE_DEV_HOME")) / "build/ivy/lib/test/hadoop-test-0.20.2.jar"
     ),
     libraryDependencies ++= hiveDependencies ++ scalaDependencies ++ tachyonDependency ++ yarnDependency,
     libraryDependencies ++= Seq(
-      "org.apache.spark" %% "spark-core" % SPARK_VERSION,
-      "org.apache.spark" %% "spark-repl" % SPARK_VERSION,
+      "org.apache.spark" %% "spark-core" % sparkVersion,
+      "org.apache.spark" %% "spark-repl" % sparkVersion,
       "com.google.guava" % "guava" % "14.0.1",
       "org.apache.hadoop" % "hadoop-client" % hadoopVersion excludeAll(excludeJackson, excludeNetty, excludeAsm) force(),
       // See https://code.google.com/p/guava-libraries/issues/detail?id=1095
