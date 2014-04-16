@@ -39,6 +39,9 @@ object SharkTblProperties {
   // Default value for the "shark.cache" table property
   val CACHE_FLAG = new TableProperty("shark.cache", "true")
 
+  // Whether we are currently in the process of caching the table (meaning it cannot be accessed).
+  val CACHE_IN_PROGRESS_FLAG = new TableProperty("shark.cache.inProgress", "false")
+
   def getOrSetDefault(tblProps: JavaMap[String, String], variable: TableProperty): String = {
     if (!tblProps.containsKey(variable.varname)) {
       tblProps.put(variable.varname, variable.defaultVal)
@@ -54,6 +57,7 @@ object SharkTblProperties {
       tblProps: JavaMap[String, String],
       isPartitioned: Boolean = false): JavaMap[String, String] = {
     tblProps.put(CACHE_FLAG.varname, CACHE_FLAG.defaultVal)
+    tblProps.put(CACHE_IN_PROGRESS_FLAG.varname, CACHE_IN_PROGRESS_FLAG.defaultVal)
     if (isPartitioned) {
       tblProps.put(CACHE_POLICY.varname, CACHE_POLICY.defaultVal)
     }
@@ -62,6 +66,7 @@ object SharkTblProperties {
 
   def removeSharkProperties(tblProps: JavaMap[String, String]) {
     tblProps.remove(CACHE_FLAG.varname)
+    tblProps.remove(CACHE_IN_PROGRESS_FLAG.varname)
     tblProps.remove(CACHE_POLICY.varname)
     tblProps.remove(MAX_PARTITION_CACHE_SIZE.varname)
   }

@@ -17,25 +17,20 @@
 
 package shark.parse
 
-import java.util.{HashMap => JavaHashMap}
+import java.util.{HashMap => JavaHashMap, HashSet => JavaHashSet}
 
 import scala.collection.JavaConversions._
 
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.TaskFactory
-import org.apache.hadoop.hive.ql.parse.ASTNode
-import org.apache.hadoop.hive.ql.parse.BaseSemanticAnalyzer
-import org.apache.hadoop.hive.ql.parse.DDLSemanticAnalyzer
-import org.apache.hadoop.hive.ql.parse.HiveParser
-import org.apache.hadoop.hive.ql.parse.SemanticException
+import org.apache.hadoop.hive.ql.hooks.{ReadEntity, WriteEntity}
+import org.apache.hadoop.hive.ql.parse.{ASTNode, BaseSemanticAnalyzer, DDLSemanticAnalyzer, HiveParser}
 import org.apache.hadoop.hive.ql.plan.{AlterTableDesc, DDLWork}
-
-import org.apache.spark.rdd.{UnionRDD, RDD}
+import org.apache.hadoop.hive.ql.plan.AlterTableDesc.AlterTableTypes
 
 import shark.{LogHelper, SharkEnv}
 import shark.execution.{SharkDDLWork, SparkLoadWork}
-import shark.memstore2.{OffHeapStorageClient, CacheType, MemoryMetadataManager, SharkTblProperties}
-
+import shark.memstore2.{CacheType, MemoryMetadataManager, OffHeapStorageClient, SharkTblProperties}
 
 class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf) with LogHelper {
 
@@ -83,10 +78,21 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
 
     val oldCacheMode = CacheType.fromString(oldTblProps.get(SharkTblProperties.CACHE_FLAG.varname))
     val newCacheMode = CacheType.fromString(newTblProps.get(SharkTblProperties.CACHE_FLAG.varname))
+    val cacheInProgress = Option(oldTblProps.get(SharkTblProperties.CACHE_IN_PROGRESS_FLAG.varname))
+      .getOrElse("false").toBoolean
 
     if (oldCacheMode == newCacheMode) {
       logInfo(s"Table is already cached as '$newCacheMode', not changing.")
       return
+    }
+
+    if (cacheInProgress && newCacheMode != CacheType.NONE) {
+      logError("A cache command is currently in progress, cannot modify cache property.")
+      throw new RuntimeException("Cache command already in progress")
+    } else if (cacheInProgress) {
+      // Don't error when CacheType.NONE to allow recovery if Shark failed in the middle of caching.
+      logWarning("A cache command is currently in progress, uncache behavior may be undefined.")
+      newTblProps.put(SharkTblProperties.CACHE_IN_PROGRESS_FLAG.varname, false.toString)
     }
 
     // Un-cache the table if it's currently cached.
@@ -115,14 +121,29 @@ class SharkDDLSemanticAnalyzer(conf: HiveConf) extends DDLSemanticAnalyzer(conf)
       } else {
         None
       }
+
       newTblProps.put(SharkTblProperties.CACHE_FLAG.varname, newCacheMode.toString)
+      newTblProps.put(SharkTblProperties.CACHE_IN_PROGRESS_FLAG.varname, true.toString)
       val sparkLoadWork = new SparkLoadWork(
         databaseName,
         tableName,
         SparkLoadWork.CommandTypes.NEW_ENTRY,
         newCacheMode)
       partSpecsOpt.foreach(partSpecs => sparkLoadWork.partSpecs = partSpecs)
-      rootTasks.head.addDependentTask(TaskFactory.get(sparkLoadWork, conf))
+      val loadTask = TaskFactory.get(sparkLoadWork, conf)
+
+      // Create a task to set CACHE_IN_PROGRESS_FLAG to false once the load completes.
+      val markCachingCompleteDesc = new AlterTableDesc()
+      markCachingCompleteDesc.setOldName(tableName)
+      markCachingCompleteDesc.setOp(AlterTableTypes.ADDPROPS)
+      markCachingCompleteDesc.setProps(new JavaHashMap(Map(
+        SharkTblProperties.CACHE_IN_PROGRESS_FLAG.varname -> false.toString)))
+      val markCachingCompleteWork = new DDLWork(
+        new JavaHashSet[ReadEntity], new JavaHashSet[WriteEntity], markCachingCompleteDesc)
+      val markCachingCompleteTask = TaskFactory.get(markCachingCompleteWork, conf)
+
+      loadTask.addDependentTask(markCachingCompleteTask)
+      rootTasks.head.addDependentTask(loadTask)
     }
   }
 
