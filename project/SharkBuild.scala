@@ -140,7 +140,6 @@ object SharkBuild extends Build {
       "Sonatype Testing" at "https://oss.sonatype.org/content/repositories/eduberkeleycs-1016",
       "Local Maven" at Path.userHome.asFile.toURI.toURL + ".m2/repository",
       "Scalate Repository" at "http://repo.fusesource.com/nexus/content/repositories/public"
-      "Local Maven" at Path.userHome.asFile.toURI.toURL + ".m2/repository"
     ),
 
     publishTo <<= version { (v: String) =>
