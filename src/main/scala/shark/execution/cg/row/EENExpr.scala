@@ -584,7 +584,7 @@ case class EENGUDF(expr: TENGUDF, sibling: ExecuteOrderedExprNode) extends EENEx
 
     gudf = ctx.property(expr.genericUDF.getClass().getCanonicalName())
 
-    // TODO
+    // TODO doens't support the constant object inspector yet.
     val inits = "%s.initialize(new ObjectInspector[]{%s});".format(
       gudf,
       expr.children.map(x => TypeUtil.dtToOIString(x.outputDT)).reduce((a, b) => a + "," + b))
