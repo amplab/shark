@@ -61,7 +61,9 @@ public static class ${clazz} implements KryoSerializable {
     public void read(Kryo kryo, Input input) {
     // TODO need to figure out how to serialize the BitSet more efficiently
     // in Sun jdk 1.7 is quite easy, but not in jdk 1.6
-      ${CGField.STRUCT_MASK_VARIABLE_NAME} = kryo.readObject(input, BitSet.class);
+    //  ${CGField.STRUCT_MASK_VARIABLE_NAME} = kryo.readObject(input, BitSet.class);
+    // this is available from the JDK 1.7
+    ${CGField.STRUCT_MASK_VARIABLE_NAME} = BitSet.valueOf(input.readBytes(input.readInt()));
 #for(f <- fields; if (!f.constant))
 	   if (${f.fieldValidity}) { ${f.defRead} }
 #end
@@ -71,7 +73,10 @@ public static class ${clazz} implements KryoSerializable {
     public void write(Kryo kryo, Output output) {
     // TODO need to figure out how to serialize the BitSet more efficiently
     // in Sun jdk 1.7 is quite easy, but not in jdk 1.6
-      kryo.writeObject(output, ${CGField.STRUCT_MASK_VARIABLE_NAME});
+      //kryo.writeObject(output, ${CGField.STRUCT_MASK_VARIABLE_NAME});
+    byte[] bytes = ${CGField.STRUCT_MASK_VARIABLE_NAME}.toByteArray();
+    output.writeInt(bytes.length);
+    output.writeBytes(bytes);
 #for(f <- fields; if (!f.constant))
 	   if (${f.fieldValidity}) { ${f.defWrite} }
 #end
