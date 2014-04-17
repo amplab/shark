@@ -89,8 +89,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc] {
   // copied from the org.apache.hadoop.hive.ql.exec.AbstractMapJoinOperator
   protected override def createOutputObjectInspector() = {
     var outputObjInspector = super.createOutputObjectInspector()
-    val structFields = outputObjInspector.asInstanceOf[StructObjectInspector]
-      .getAllStructFieldRefs()
+    val structFields = outputObjInspector.asInstanceOf[StructObjectInspector].getAllStructFieldRefs
     if (conf.getOutputColumnNames().size() < structFields.size()) {
       val structFieldObjectInspectors = new ArrayList[ObjectInspector]
       for (alias <- order) {
