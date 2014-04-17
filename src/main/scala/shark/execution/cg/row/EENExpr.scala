@@ -590,18 +590,24 @@ case class EENGUDF(expr: TENGUDF, sibling: ExecuteOrderedExprNode) extends EENEx
       expr.children.map(x => TypeUtil.dtToOIString(x.outputDT)).reduce((a, b) => a + "," + b))
 
     ctx.addInitials(inits)
-    ctx.register(expr, Constant.EXPR_NULL_INDICATOR_NAME, null)
-    ctx.register(expr, Constant.CODE_IS_VALID, "%s != null".format(ctx.exprName(expr)))
-    ctx.register(expr, Constant.CODE_VALIDATE, "")
-    ctx.register(expr, Constant.CODE_INVALIDATE, null)
-    ctx.register(expr, Constant.EXPR_VARIABLE_TYPE, expr.outputDT.writable)
+
+    if (expr.outputWritable) {
+      // if the output is writable
+      ctx.register(expr, Constant.EXPR_NULL_INDICATOR_NAME, null)
+      ctx.register(expr, Constant.CODE_IS_VALID, "%s != null".format(ctx.exprName(expr)))
+      ctx.register(expr, Constant.CODE_VALIDATE, "")
+      ctx.register(expr, Constant.CODE_INVALIDATE, null)
+      ctx.register(expr, Constant.EXPR_VARIABLE_TYPE, expr.outputDT.writable)
+    } else {
+      ctx.register(expr, Constant.EXPR_VARIABLE_TYPE, expr.outputDT.primitive)
+    }    
   }
 
   override def exprCode(ctx: CGExprContext) = {
     // TODO should use the lazy computing for performance purpose, trigger the child node 
     // evaluating when it's called (properly we could do that in a coded DeferredObject)
     "(%s)%s.evaluate(new DeferredObject[]{%s})".format(
-      expr.outputDT.writable,
+      if (expr.outputWritable) expr.outputDT.writable else expr.outputDT.primitive,
       gudf,
       if (expr.children.length == 0)
         ""
