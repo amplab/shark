@@ -19,9 +19,11 @@ package shark.tachyon
 
 import java.nio.ByteBuffer
 
+import scala.reflect.BeanProperty
+
 import tachyon.client.WriteType
 
-import shark.LogHelper
+import shark.{LogHelper, SharkConfVars}
 import shark.execution.serialization.JavaSerializer
 import shark.memstore2.{OffHeapStorageClient, OffHeapTableWriter, TablePartitionStats}
 
@@ -51,7 +53,9 @@ class TachyonOffHeapTableWriter(@transient path: String, @transient numColumns: 
     val rawColumn = rawTable.getRawColumn(column)
     rawColumn.createPartition(part)
     val file = rawColumn.getPartition(part)
-    val outStream = file.getOutStream(WriteType.CACHE_THROUGH)
+    val writeType: WriteType = WriteType.valueOf(
+      SharkConfVars.getVar(localHconf, SharkConfVars.TACHYON_WRITER_WRITETYPE))
+    val outStream = file.getOutStream(writeType)
     outStream.write(data.array(), 0, data.limit())
     outStream.close()
   }

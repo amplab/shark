@@ -56,6 +56,8 @@ object SharkConfVars {
 
   // Number of mappers to force for table scan jobs
   val NUM_MAPPERS = new ConfVar("shark.map.tasks", -1)
+
+  val TACHYON_WRITER_WRITETYPE = new ConfVar("shark.tachyon.writetype", "CACHE_THROUGH")
   
   // Add Shark configuration variables and their default values to the given conf,
   // so default values show up in 'set'.
