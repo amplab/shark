@@ -29,17 +29,24 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.StandardStructObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.StructField
 
+import shark.execution.cg.CompilationContext
+
 
 class UDTFOperator extends UnaryOperator[UDTFDesc] {
 
   @BeanProperty var conf: UDTFDesc = _
 
   @transient var objToSendToUDTF: Array[java.lang.Object] = _
-  @transient var soi: StandardStructObjectInspector = _
   @transient var inputFields: JavaList[_ <: StructField] = _
   @transient var collector: UDTFCollector = _
   @transient var outputObjInspector: ObjectInspector = _
 
+  override def initializeMasterOnAll(cc: CompilationContext) {
+    // disable the CG for parent operators, TODO we may need to refactor the UDTF operator code
+    parentOperators.foreach(_.useCG = false)
+    super.initializeMasterOnAll(cc)
+  }
+  
   override def initializeOnMaster() {
     super.initializeOnMaster()
     
@@ -64,7 +71,7 @@ class UDTFOperator extends UnaryOperator[UDTFDesc] {
     outputObjInspector = conf.getGenericUDTF().initialize(udtfInputOIs)
   }
 
-  override def outputObjectInspector() = outputObjInspector
+  protected override def createOutputObjectInspector() = outputObjInspector
 
   override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
     iter.flatMap { row =>

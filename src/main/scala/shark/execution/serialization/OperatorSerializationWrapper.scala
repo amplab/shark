@@ -39,7 +39,10 @@ class OperatorSerializationWrapper[T <: Operator[_ <: HiveDesc]]
 
   /** The object inspectors, serialized by Kryo. */
   var objectInspectorsSerialized: Array[Byte] = _
-
+  
+  /** classloader in broad casted */
+  var classloaderBDSerialized: Array[Byte]  = _
+  
   def value: T = {
     if (_value == null) {
       assert(opSerialized != null)
@@ -47,15 +50,32 @@ class OperatorSerializationWrapper[T <: Operator[_ <: HiveDesc]]
       assert(objectInspectorsSerialized != null)
       assert(objectInspectorsSerialized.length > 0)
       _value = XmlSerializer.deserialize[T](opSerialized)
+      
+      if(classloaderBDSerialized != null) {
+        _value.classloaderBD = JavaSerializer.deserialize(classloaderBDSerialized)
+      }
+      
       _value.objectInspectors = KryoSerializer.deserialize(objectInspectorsSerialized)
     }
+    
+    if(_value.classloaderBD != null && 
+      _value.classloaderBD.value != Thread.currentThread().getContextClassLoader()) {
+      Thread.currentThread().setContextClassLoader(_value.classloaderBD.value)
+    }
+    
     _value
   }
 
   def value_= (v: T):Unit = {
     _value = v
+    
     opSerialized = XmlSerializer.serialize(value, v.hconf)
     objectInspectorsSerialized = KryoSerializer.serialize(value.objectInspectors)
+    classloaderBDSerialized = if(value.classloaderBD != null) {
+      JavaSerializer.serialize(value.classloaderBD)
+    } else {
+      null
+    }
   }
 
   override def toString(): String = {

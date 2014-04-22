@@ -72,7 +72,7 @@ class PartitionTableFunctionOperator extends UnaryOperator[PTFDesc] {
     dS.initializePTFChain(conf.getFuncDef)
   }
 
-  override def outputObjectInspector() = {
+  protected override def createOutputObjectInspector() = {
     initializePTFs(conf)
     if (conf.isMapSide) {
       val tDef = conf.getStartOfChain

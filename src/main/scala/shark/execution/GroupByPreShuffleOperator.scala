@@ -185,7 +185,7 @@ class GroupByPreShuffleOperator extends UnaryOperator[GroupByDesc] {
   }
 
   // copied from the org.apache.hadoop.hive.ql.exec.GroupByOperator 
-  override def outputObjectInspector() = {
+  protected override def createOutputObjectInspector() = {
     val totalFields = keyFields.length + aggregationEvals.length
         
     val ois = new ArrayBuffer[ObjectInspector](totalFields)

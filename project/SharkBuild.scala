@@ -29,7 +29,7 @@ import sbtassembly.Plugin.AssemblyKeys._
 object SharkBuild extends Build {
 
   // Shark version
-  val SHARK_VERSION = "0.9.1"
+  val SHARK_VERSION = "0.9.1-CodeGen-SNAPSHOT"
 
   val SHARK_ORGANIZATION = "edu.berkeley.cs.shark"
 
@@ -39,8 +39,9 @@ object SharkBuild extends Build {
 
   val SCALA_VERSION = "2.10.3"
 
-  val SCALAC_JVM_VERSION = "jvm-1.6"
-  val JAVAC_JVM_VERSION = "1.6"
+  val SCALAC_JVM_VERSION = "jvm-1.7"
+
+  val JAVAC_JVM_VERSION = "1.7"
 
   // Hadoop version to build against. For example, "0.20.2", "0.20.205.0", or
   // "1.0.1" for Apache releases, or "0.20.2-cdh3u3" for Cloudera Hadoop.
@@ -129,11 +130,16 @@ object SharkBuild extends Build {
     // Download managed jars into lib_managed.
     retrieveManaged := true,
     resolvers ++= Seq(
+      "MvnRepo" at "http://mvnrepository.com/artifact/",
+      "Maven2" at "http://repo1.maven.org/maven2/",
+      "Local Maven" at Path.userHome.asFile.toURI.toURL + ".m2/repository",
       "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
       "Cloudera Repository" at "https://repository.cloudera.com/artifactory/cloudera-repos/",
       "Sonatype Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/",
       "Sonatype Staging" at "https://oss.sonatype.org/service/local/staging/deploy/maven2/",
-      "Local Maven" at Path.userHome.asFile.toURI.toURL + ".m2/repository"
+      "Sonatype Testing" at "https://oss.sonatype.org/content/repositories/eduberkeleycs-1016",
+      "Local Maven" at Path.userHome.asFile.toURI.toURL + ".m2/repository",
+      "Scalate Repository" at "http://repo.fusesource.com/nexus/content/repositories/public"
     ),
 
     publishTo <<= version { (v: String) =>
@@ -175,7 +181,7 @@ object SharkBuild extends Build {
     fork := true,
     javaOptions += "-XX:MaxPermSize=512m",
     javaOptions += "-Xmx2g",
-    javaOptions += "-Dsun.io.serialization.extendedDebugInfo=true",
+    javaOptions += "-Dsun.io.serialization.extendedDebugInfo=true -Dsbt_unit_test_workaround=true",
 
     testOptions in Test += Tests.Argument("-oF"), // Full stack trace on test failures
 
@@ -203,6 +209,8 @@ object SharkBuild extends Build {
       // See https://code.google.com/p/guava-libraries/issues/detail?id=1095
       "com.google.code.findbugs" % "jsr305" % "1.3.+",
 
+	    // ScalaTE jars
+      "org.fusesource.scalate" % "scalate-core_2.10" % "1.6.1",
       // Hive unit test requirements. These are used by Hadoop to run the tests, but not necessary
       // in usual Shark runs.
       "commons-io" % "commons-io" % "2.1",
