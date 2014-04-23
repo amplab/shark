@@ -90,7 +90,7 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
 
     val fs = hiveTable.getPath().getFileSystem(hiveConf)
     if (!fs.exists(hiveTable.getPath()))
-      return new EmptyRDD(SharkEnv.sc)
+      return SharkEnv.sc.emptyRDD
 
     // Create local references to member variables, so that the entire `this` object won't be
     // serialized in the closure below.
@@ -150,7 +150,7 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
 
       val fs = partPath.getFileSystem(hiveConf)
       if (!fs.exists(partPath))
-        return new EmptyRDD(SharkEnv.sc)
+        return SharkEnv.sc.emptyRDD
 
       val inputPathStr = applyFilterIfNeeded(partPath, filterOpt)
       val ifc = partDesc.getInputFileFormatClass
@@ -223,7 +223,7 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
     }.toSeq
     // Even if we don't use any partitions, we still need an empty RDD
     if (hivePartitionRDDs.size == 0) {
-      new EmptyRDD[Object](SharkEnv.sc)
+      SharkEnv.sc.emptyRDD[Object]
     } else {
       new UnionRDD(hivePartitionRDDs(0).context, hivePartitionRDDs)
     }

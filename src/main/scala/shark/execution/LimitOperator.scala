@@ -38,7 +38,7 @@ class LimitOperator extends UnaryOperator[LimitDesc] {
       val inputRdd = executeParents().head._2
       inputRdd.mapPartitions({ iter => iter.take(limitNum) }, preservesPartitioning = true)
     } else {
-      new EmptyRDD(SharkEnv.sc)
+      SharkEnv.sc.emptyRDD
     }
   }
 
