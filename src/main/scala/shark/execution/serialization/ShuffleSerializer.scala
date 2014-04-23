@@ -49,7 +49,7 @@ import shark.execution.{ReduceKey, ReduceKeyReduceSide}
  * into a hash table. We want to reduce the size of the hash table. Having the BytesWritable wrapper
  * would increase the size of the hash table by another 16 bytes per key-value pair.
  */
-class ShuffleSerializer(conf: SparkConf) extends Serializer {
+class ShuffleSerializer(conf: SparkConf) extends Serializer with Serializable {
 
   // A no-arg constructor since conf is not needed in this serializer.
   def this() = this(null)
@@ -58,7 +58,7 @@ class ShuffleSerializer(conf: SparkConf) extends Serializer {
 }
 
 
-class ShuffleSerializerInstance extends SerializerInstance {
+class ShuffleSerializerInstance extends SerializerInstance with Serializable {
 
   override def serialize[T](t: T): ByteBuffer = throw new UnsupportedOperationException
 
@@ -77,7 +77,7 @@ class ShuffleSerializerInstance extends SerializerInstance {
 }
 
 
-class ShuffleSerializationStream(stream: OutputStream) extends SerializationStream {
+class ShuffleSerializationStream(stream: OutputStream) extends SerializationStream with Serializable {
 
   override def writeObject[T](t: T): SerializationStream = {
     // On the write-side, the ReduceKey should be of type ReduceKeyMapSide.
@@ -108,7 +108,7 @@ class ShuffleSerializationStream(stream: OutputStream) extends SerializationStre
 }
 
 
-class ShuffleDeserializationStream(stream: InputStream) extends DeserializationStream {
+class ShuffleDeserializationStream(stream: InputStream) extends DeserializationStream with Serializable {
 
   override def readObject[T](): T = {
     // Return type is (ReduceKeyReduceSide, Array[Byte])
