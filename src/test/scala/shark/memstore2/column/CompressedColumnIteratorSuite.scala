@@ -78,6 +78,7 @@ class CompressedColumnIteratorSuite extends FunSuite {
       }
 
       l.foreach { x =>
+        assert(iter.hasNext)
         iter.next()
         assert(t.get(iter.current, oi) === x)
       }

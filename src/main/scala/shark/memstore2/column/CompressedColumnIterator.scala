@@ -88,7 +88,7 @@ class RLDecoder[V](buffer: ByteBuffer, columnType: ColumnType[_, V]) extends Ite
   private var _count: Int = 0
   private val _current: V = columnType.newWritable()
 
-  override def hasNext = buffer.hasRemaining()
+  override def hasNext = _count < _run || buffer.hasRemaining()
 
   override def next(): V = {
     if (_count == _run) {
