@@ -33,6 +33,7 @@ import org.apache.hadoop.hive.serde2.`lazy`.LazyStruct
 import org.apache.hadoop.hive.serde2.objectinspector.{StructObjectInspector, ObjectInspectorConverters}
 import org.apache.hadoop.io.Writable
 import org.apache.hadoop.mapred.{FileInputFormat, InputFormat, JobConf}
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorConverters.IdentityConverter
 
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.{EmptyRDD, HadoopRDD, RDD, UnionRDD}
@@ -209,10 +210,14 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
               convertedRow match {
                 case _: LazyStruct => convertedRow
                 case _: HiveColumnarStruct => convertedRow
-                case _ => tableSerDe.deserialize(
-                  tableSerDe.asInstanceOf[Serializer].serialize(
-                    convertedRow, tblConvertedOI))
-              }
+                case _ => 
+		  if (partTblObjectInspectorConverter.isInstanceOf[IdentityConverter]) {
+                    convertedRow
+                  }
+                  else {
+		    tableSerDe.deserialize( tableSerDe.asInstanceOf[Serializer].serialize( convertedRow, tblConvertedOI))
+                  }
+	      }
             }
           }
           rowWithPartArr.update(0, deserializedRow)
