@@ -67,7 +67,7 @@ object MapSplitPruning {
                 true
               }
 
-            case _: GenericUDFIn =>
+            case _: GenericUDFIn if e.children(0).isInstanceOf[ExprNodeColumnEvaluator] =>
               testInPredicate(
                 s,
                 e.children(0).asInstanceOf[ExprNodeColumnEvaluator],
@@ -91,10 +91,13 @@ object MapSplitPruning {
     val columnStats = s.stats(field.fieldID)
 
     if (columnStats != null) {
-      expEvals.exists {
-        e =>
+      expEvals.exists { e =>
+        if (e.isInstanceOf[ExprNodeConstantEvaluator]) {
           val constEval = e.asInstanceOf[ExprNodeConstantEvaluator]
           columnStats := constEval.expr.getValue()
+        } else {
+          true
+        }
       }
     } else {
       // If there is no stats on the column, don't prune.
