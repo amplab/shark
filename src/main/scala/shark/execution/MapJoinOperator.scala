@@ -22,10 +22,6 @@ import java.util.{ArrayList, HashMap => JHashMap, List => JList}
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
-import org.apache.hadoop.io.Writable
-import org.apache.hadoop.io.BooleanWritable
-import org.apache.hadoop.io.NullWritable
-
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, JoinUtil => HiveJoinUtil}
 import org.apache.hadoop.hive.ql.plan.MapJoinDesc
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
@@ -174,9 +170,15 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc] {
       op.logDebug("Input object inspectors: " + op.objectInspectors)
 
       op.initializeOnSlave()
-      val newPart = op.joinOnPartition(partition, fetcher.value)
-      op.logDebug("Finished executing mapPartitions for operator: " + op)
 
+      val newPart =
+        if (op.numTables == 2) {
+          op.innerJoinTwoTablesOnPartition(partition, fetcher.value.head._2)
+        } else {
+          op.joinOnPartition(partition, fetcher.value)
+        }
+
+      op.logDebug("Finished executing mapPartitions for operator: " + op)
       newPart
     }
   }
@@ -267,7 +269,58 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc] {
       }
     }
 
-    jointRows.map(elems => generate(elems))
+    jointRows.map { elems =>
+      val out = generate(elems)
+      println(out.toSeq)
+      out
+    }
+  }
+
+  /** A binary inner join. */
+  def innerJoinTwoTablesOnPartition[T](
+      factTableIterator: Iterator[T], dimensionTable: JHashMap[Seq[AnyRef], Array[Array[AnyRef]]])
+    : Iterator[_] = {
+    assert(numTables == 2)
+
+    val joinKeyEval = joinKeys(bigTableAlias)
+    val joinValueEval = joinVals(bigTableAlias)
+    val outputRow = new Array[AnyRef](resultRowSize)
+    val nullSafes = conf.getNullSafes()
+
+    factTableIterator.flatMap { factTableRow =>
+      // Build the join key and value for the row in the large table.
+      val key = JoinUtil.computeJoinKey(
+        factTableRow,
+        joinKeyEval,
+        joinKeysObjectInspectors(bigTableAlias))
+      val value: Array[AnyRef] = JoinUtil.computeJoinValues(
+        factTableRow,
+        joinValueEval,
+        joinValuesObjectInspectors(bigTableAlias),
+        joinFilters(bigTableAlias),
+        joinFilterObjectInspectors(bigTableAlias),
+        filterMap == null)
+
+      if (nullCheck && JoinUtil.joinKeyHasAnyNulls(key, nullSafes)) {
+        Iterator.empty
+      } else {
+        val dimensionRows = dimensionTable.get(key)
+        dimensionRows.iterator.map { dimensionRow =>
+          // Copy the fact table row
+          System.arraycopy(value, 0, outputRow, 0, value.length - 1)
+
+          // Copy the dimension table row
+          var i = 0
+          val dimensionRowLength = dimensionRow.length - 1
+          while (i < dimensionRowLength) {
+            outputRow(i + value.length - 1) =
+              dimensionRow(i).asInstanceOf[SerializableWritable[_]].value.asInstanceOf[AnyRef]
+            i += 1
+          }
+          outputRow
+        }
+      }
+    }
   }
 
   override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
