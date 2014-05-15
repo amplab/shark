@@ -18,21 +18,23 @@
 package shark.execution
 
 import java.util.{ArrayList, HashMap => JHashMap, List => JList}
+import java.util.concurrent.TimeUnit
 
 import scala.collection.JavaConversions._
 import scala.reflect.BeanProperty
 
+import com.google.common.cache.{Cache, CacheBuilder}
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, JoinUtil => HiveJoinUtil}
 import org.apache.hadoop.hive.ql.plan.MapJoinDesc
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector
-import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector
 
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 
 import shark.SharkEnv
 import shark.execution.serialization.{OperatorSerializationWrapper, SerializableWritable}
-
 
 /**
  * A join operator optimized for joining a large table with a number of small
@@ -43,6 +45,8 @@ import shark.execution.serialization.{OperatorSerializationWrapper, Serializable
  * tables are too big to fit in memory, the normal join should be used anyway.
  */
 class MapJoinOperator extends CommonJoinOperator[MapJoinDesc] {
+
+  import MapJoinOperator._
 
   @BeanProperty var posBigTable: Int = _
   @BeanProperty var bigTableAlias: Int = _
@@ -150,7 +154,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc] {
       val startCollect = System.currentTimeMillis()
       val collectedRows: Array[(Seq[AnyRef], Seq[Array[AnyRef]])] = rddForHash.collect()
 
-      logDebug("collectedRows size:" + collectedRows.size)
+      logInfo("collectedRows size:" + collectedRows.size)
       val collectTime = System.currentTimeMillis() - startCollect
       logInfo("HashTable collect took " + collectTime + " ms")
 
@@ -163,7 +167,19 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc] {
       (pos, map)
     }.toMap
 
-    val fetcher = SharkEnv.sc.broadcast(hashtables)
+    val ser = shark.execution.serialization.JavaSerializer.serialize(hashtables).toSeq
+    val cachedBroadcast = broadcastCache.getIfPresent(ser)
+    val fetcher =
+      if (cachedBroadcast == null) {
+        logInfo("Broadcasting dimension tables")
+        val broadcast = SharkEnv.sc.broadcast(hashtables)
+        broadcastCache.put(ser, broadcast)
+        broadcast
+      } else {
+        logInfo("Reusing broadcasted dimension tables")
+        cachedBroadcast
+      }
+
     val op = op1
     rdds(bigTableAlias)._2.mapPartitions { partition =>
       op.logDebug("Started executing mapPartitions for operator: " + op)
@@ -269,11 +285,7 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc] {
       }
     }
 
-    jointRows.map { elems =>
-      val out = generate(elems)
-      println(out.toSeq)
-      out
-    }
+    jointRows.map { elems => generate(elems) }
   }
 
   /** A binary inner join. */
@@ -331,4 +343,16 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc] {
   override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] = {
     throw new UnsupportedOperationException("MapJoinOperator.processPartition()")
   }
+}
+
+
+object MapJoinOperator {
+
+  type DimensionTables = Map[Int, JHashMap[Seq[AnyRef], Array[Array[AnyRef]]]]
+
+  val broadcastCache: Cache[Object, Broadcast[DimensionTables]] = CacheBuilder
+    .newBuilder()
+    .maximumSize(20)
+    .expireAfterWrite(30, TimeUnit.MINUTES)
+    .build()
 }
