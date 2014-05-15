@@ -305,19 +305,24 @@ class MapJoinOperator extends CommonJoinOperator[MapJoinDesc] {
         Iterator.empty
       } else {
         val dimensionRows = dimensionTable.get(key)
-        dimensionRows.iterator.map { dimensionRow =>
-          // Copy the fact table row
-          System.arraycopy(value, 0, outputRow, 0, value.length - 1)
+        if (dimensionRows == null) {
+          Iterator.empty
+        } else {
+          dimensionRows.iterator.map {
+            dimensionRow =>
+              // Copy the fact table row
+              System.arraycopy(value, 0, outputRow, 0, value.length - 1)
 
-          // Copy the dimension table row
-          var i = 0
-          val dimensionRowLength = dimensionRow.length - 1
-          while (i < dimensionRowLength) {
-            outputRow(i + value.length - 1) =
-              dimensionRow(i).asInstanceOf[SerializableWritable[_]].value.asInstanceOf[AnyRef]
-            i += 1
+              // Copy the dimension table row
+              var i = 0
+              val dimensionRowLength = dimensionRow.length - 1
+              while (i < dimensionRowLength) {
+                outputRow(i + value.length - 1) =
+                  dimensionRow(i).asInstanceOf[SerializableWritable[_]].value.asInstanceOf[AnyRef]
+                i += 1
+              }
+              outputRow
           }
-          outputRow
         }
       }
     }
