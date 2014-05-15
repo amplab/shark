@@ -129,7 +129,7 @@ object SharkEnv extends LogHelper {
 
   var sc: SharkContext = _
 
-  val shuffleSerializerName = classOf[ShuffleSerializer].getName
+  val shuffleSerializer = new ShuffleSerializer(new SparkConf())
 
   val memoryMetadataManager = new MemoryMetadataManager
 

@@ -201,7 +201,7 @@ class GroupByPostShuffleOperator extends GroupByPreShuffleOperator
     val partitioner = new ReduceKeyPartitioner(numReduceTasks)
 
     val repartitionedRDD = new ShuffledRDD[Any, Any, (Any, Any)](inputRdd, partitioner)
-      .setSerializer(SharkEnv.shuffleSerializerName)
+      .setSerializer(SharkEnv.shuffleSerializer)
 
     if (distinctKeyAggrs.size > 0) {
       // If there are distinct aggregations, do sort-based aggregation.

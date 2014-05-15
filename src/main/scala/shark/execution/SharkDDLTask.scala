@@ -105,7 +105,7 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
         val memoryTable = SharkEnv.memoryMetadataManager.createMemoryTable(
           dbName, tableName, cacheMode)
         // An empty table has a MemoryTable table entry with 'tableRDD' referencing an EmptyRDD.
-        memoryTable.put(new EmptyRDD(SharkEnv.sc))
+        memoryTable.put(SharkEnv.sc.emptyRDD)
       }
     }
   }
@@ -134,7 +134,7 @@ private[shark] class SharkDDLTask extends HiveTask[SharkDDLWork]
         MemoryMetadataManager.makeTableKey(dbName, tableName), Some(partKeyStr))
     } else {
       val partitionedTable = getPartitionedTableWithAssertions(dbName, tableName)
-      partitionedTable.putPartition(partKeyStr, new EmptyRDD(SharkEnv.sc))
+      partitionedTable.putPartition(partKeyStr, SharkEnv.sc.emptyRDD)
     }
   }
 

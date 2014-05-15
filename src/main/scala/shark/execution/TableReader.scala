@@ -115,12 +115,10 @@ class OffHeapTableReader(@transient _tableDesc: TableDesc, _storageClient: OffHe
     if (hivePartitionRDDs.size > 0) {
       new UnionRDD(hivePartitionRDDs.head.context, hivePartitionRDDs)
     } else {
-      new EmptyRDD[Object](SharkEnv.sc)
+      SharkEnv.sc.emptyRDD[Object]
     }
   }
 }
-
-
 
 /** Helper class for scanning tables stored in Spark's block manager */
 class HeapTableReader(@transient _tableDesc: TableDesc) extends TableReader {
@@ -208,7 +206,7 @@ class HeapTableReader(@transient _tableDesc: TableDesc) extends TableReader {
     if (hivePartitionRDDs.size > 0) {
       new UnionRDD(hivePartitionRDDs.head.context, hivePartitionRDDs)
     } else {
-      new EmptyRDD[Object](SharkEnv.sc)
+      SharkEnv.sc.emptyRDD[Object]
     }
   }
 
