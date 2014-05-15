@@ -24,7 +24,7 @@ export SHARK_LAUNCH_WITH_JAVA=1
 
 sharkserver2() {
   echo "Starting the Shark Server"
-  exec $FWDIR/run shark.SharkServer2 "$@"
+  exec $FWDIR/sbt/sbt "run-main shark.SharkServer2" "$@"
 }
 
 sharkserver2_help() {

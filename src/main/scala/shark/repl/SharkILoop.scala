@@ -22,12 +22,9 @@ import java.io.PrintWriter
 import org.apache.spark.{SparkContext, SparkEnv}
 import org.apache.spark.repl.SparkILoop
 
-import shark.{SharkContext, SharkEnv}
-
-
 /**
  * Add more Shark specific initializations.
- */
+
 class SharkILoop extends SparkILoop(None, new PrintWriter(Console.out, true), None) {
 
   override def initializeSpark() {
@@ -54,4 +51,4 @@ class SharkILoop extends SparkILoop(None, new PrintWriter(Console.out, true), No
     Console.flush()
   }
 }
-
+*/

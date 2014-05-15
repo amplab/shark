@@ -7,14 +7,16 @@ import org.apache.hive.service.auth.HiveAuthFactory
 import java.io.IOException
 import org.apache.hive.service.ServiceException
 import javax.security.auth.login.LoginException
-import org.apache.spark.SparkEnv
-import shark.{SharkServer, Utils}
 
-class SharkCLIService extends CLIService {
+import org.apache.spark.sql.hive.HiveContext
+
+import shark.Utils
+
+class SharkCLIService(hiveContext: HiveContext) extends CLIService {
   override def init(hiveConf: HiveConf) {
     this.synchronized {
       Utils.setSuperField("hiveConf", hiveConf, this)
-      val sharkSM = new SharkSessionManager
+      val sharkSM = new SharkSessionManager(hiveContext)
       Utils.setSuperField("sessionManager", sharkSM, this)
       addService(sharkSM)
       try {
@@ -30,11 +32,7 @@ class SharkCLIService extends CLIService {
           throw new ServiceException("Unable to login to kerberos with given principal/keytab", e)
         }
       }
-      // Make sure the ThreadLocal SparkEnv reference is the same for all threads.
-      SparkEnv.set(SharkServer.sparkEnv)
       sharkInit(hiveConf)
     }
   }
 }
-
-

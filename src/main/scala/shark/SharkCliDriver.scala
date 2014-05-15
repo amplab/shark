@@ -45,9 +45,7 @@ import org.apache.hadoop.hive.shims.ShimLoader
 import org.apache.hadoop.io.IOUtils
 import org.apache.thrift.transport.TSocket
 
-
-import shark.memstore2.TableRecovery
-
+/** FIXME
 object SharkCliDriver {
   val SKIP_RDD_RELOAD_FLAG = "-skipRddReload"
 
@@ -404,3 +402,5 @@ class SharkCliDriver(reloadRdds: Boolean = true) extends CliDriver with LogHelpe
     }
   }
 }
+
+*/

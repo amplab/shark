@@ -115,4 +115,9 @@ object Utils {
     field.set(clazz, fieldValue)
   }
 
+  def getSuperField(fieldName: String, clazz: Object): Any = {
+    val field = clazz.getClass.getSuperclass.getDeclaredField(fieldName)
+    field.setAccessible(true)
+    field.get(clazz)
+  }
 }

@@ -2,7 +2,7 @@ package shark.util
 
 import org.scalatest.FunSuite
 
-class BloomFilterSuite extends FunSuite{
+class BloomFilterSuite extends FunSuite {
 
   test("Integer") {
     val bf = new BloomFilter(0.03, 1000000)

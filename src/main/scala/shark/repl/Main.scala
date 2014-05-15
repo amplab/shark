@@ -23,7 +23,7 @@ import org.apache.hadoop.hive.common.LogUtils.LogInitializationException
 
 /**
  * Shark's REPL entry point.
- */
+
 object Main {
 
   try {
@@ -50,3 +50,4 @@ object Main {
     _interp.process(args)
   }
 }
+ */
