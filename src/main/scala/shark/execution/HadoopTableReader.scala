@@ -195,34 +195,36 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
           partSerDe.getObjectInspector(), tblConvertedOI)
         val rowWithPartArr = new Array[Object](2)
         // Map each tuple to a row object
-        iter.map { value =>
-          val deserializedRow = {
+        
+        if ((tableSerDe.isInstanceOf[OrcSerde]) || (partTblObjectInspectorConverter.isInstanceOf[IdentityConverter])) {
+          iter.map { value =>
+            val deserializedRow = partTblObjectInspectorConverter.convert(partSerDe.deserialize(value))
+            rowWithPartArr.update(0, deserializedRow)
+            rowWithPartArr.update(1, partValues)
+            rowWithPartArr.asInstanceOf[Object]
+          }
+        }
+        else {
+          iter.map { value =>
+            val deserializedRow = {
 
-            // If partition schema does not match table schema, update the row to match
-            val convertedRow = partTblObjectInspectorConverter.convert(partSerDe.deserialize(value))
+              // If partition schema does not match table schema, update the row to match
+              val convertedRow = partTblObjectInspectorConverter.convert(partSerDe.deserialize(value))
 
-            // If conversion was performed, convertedRow will be a standard Object, but if
-            // conversion wasn't necessary, it will still be lazy. We can't have both across
-            // partitions, so we serialize and deserialize again to make it lazy.
-            if (tableSerDe.isInstanceOf[OrcSerde]) {
-              convertedRow
-            } else {
+              // If conversion was performed, convertedRow will be a standard Object, but if
+              // conversion wasn't necessary, it will still be lazy. We can't have both across
+              // partitions, so we serialize and deserialize again to make it lazy.
               convertedRow match {
                 case _: LazyStruct => convertedRow
                 case _: HiveColumnarStruct => convertedRow
-                case _ => 
-		  if (partTblObjectInspectorConverter.isInstanceOf[IdentityConverter]) {
-                    convertedRow
-                  }
-                  else {
-		    tableSerDe.deserialize( tableSerDe.asInstanceOf[Serializer].serialize( convertedRow, tblConvertedOI))
-                  }
-	      }
+                case _ =>
+                    tableSerDe.deserialize( tableSerDe.asInstanceOf[Serializer].serialize( convertedRow, tblConvertedOI))
+              }
             }
+            rowWithPartArr.update(0, deserializedRow)
+            rowWithPartArr.update(1, partValues)
+            rowWithPartArr.asInstanceOf[Object]
           }
-          rowWithPartArr.update(0, deserializedRow)
-          rowWithPartArr.update(1, partValues)
-          rowWithPartArr.asInstanceOf[Object]
         }
       }
     }.toSeq
