@@ -19,6 +19,8 @@ package shark.execution.serialization
 
 import java.nio.ByteBuffer
 
+import scala.reflect.ClassTag
+
 import org.apache.spark.SparkEnv
 import org.apache.spark.serializer.{JavaSerializer => SparkJavaSerializer}
 
@@ -26,11 +28,11 @@ import org.apache.spark.serializer.{JavaSerializer => SparkJavaSerializer}
 object JavaSerializer {
   @transient val ser = new SparkJavaSerializer(SparkEnv.get.conf)
 
-  def serialize[T](o: T): Array[Byte] = {
+  def serialize[T: ClassTag](o: T): Array[Byte] = {
     ser.newInstance().serialize(o).array()
   }
 
-  def deserialize[T](bytes: Array[Byte]): T  = {
+  def deserialize[T: ClassTag](bytes: Array[Byte]): T  = {
     ser.newInstance().deserialize[T](ByteBuffer.wrap(bytes))
   }
 }

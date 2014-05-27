@@ -21,7 +21,7 @@ import java.nio.ByteBuffer
 
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
-import scala.reflect.BeanProperty
+import scala.reflect.{BeanProperty, ClassTag}
 
 import org.apache.commons.codec.binary.Base64
 import org.apache.hadoop.hive.ql.exec.{ExprNodeEvaluator, ExprNodeEvaluatorFactory}
@@ -174,12 +174,12 @@ object KryoSerializerToString {
 
   @transient val kryoSer = new SparkKryoSerializer(SparkEnv.get.conf)
 
-  def serialize[T](o: T): String = {
+  def serialize[T: ClassTag](o: T): String = {
     val bytes = kryoSer.newInstance().serialize(o).array()
     new String(Base64.encodeBase64(bytes))
   }
 
-  def deserialize[T](byteString: String): T  = {
+  def deserialize[T: ClassTag](byteString: String): T  = {
     val bytes = Base64.decodeBase64(byteString.getBytes())
     kryoSer.newInstance().deserialize[T](ByteBuffer.wrap(bytes))
   }
