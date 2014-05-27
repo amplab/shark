@@ -58,6 +58,7 @@ object TableRecovery extends LogHelper {
           logInfo(logMessage)
         }
         val cmd = QueryRewriteUtils.cacheToAlterTable("CACHE %s".format(tableName))
+        cmdRunner(s"use $databaseName")
         cmdRunner(cmd)
       }
     }
