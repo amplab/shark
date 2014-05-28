@@ -203,6 +203,12 @@ object SharkBuild extends Build {
       // See https://code.google.com/p/guava-libraries/issues/detail?id=1095
       "com.google.code.findbugs" % "jsr305" % "1.3.+",
 
+      // sbt fails down download the javax.servlet artifacts from jetty 8.1:
+      // http://mvnrepository.com/artifact/org.eclipse.jetty.orbit/javax.servlet/3.0.0.v201112011016
+      // which may be due to the  use of the orbit extension.  So, we manually include servlet api
+      // from a separate source.
+      "org.mortbay.jetty" % "servlet-api" % "3.0.20100224",
+
       // Hive unit test requirements. These are used by Hadoop to run the tests, but not necessary
       // in usual Shark runs.
       "commons-io" % "commons-io" % "2.1",
