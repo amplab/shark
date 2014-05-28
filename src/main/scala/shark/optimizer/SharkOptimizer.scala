@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Regents of The University California. 
+ * Copyright (C) 2012 The Regents of The University California.
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,14 +15,15 @@
  * limitations under the License.
  */
 
-package shark
+package shark.optimizer
 
 import java.util.{List => JavaList}
 
 import org.apache.hadoop.hive.ql.optimizer.JoinReorder
 import org.apache.hadoop.hive.ql.optimizer.{Optimizer => HiveOptimizer, 
-  SimpleFetchOptimizer, Transform}
-import org.apache.hadoop.hive.ql.parse.{ParseContext}
+  SimpleFetchOptimizer, Transform, MapJoinProcessor => HiveMapJoinProcessor}
+import org.apache.hadoop.hive.ql.parse.ParseContext
+import shark.LogHelper
 
 class SharkOptimizer extends HiveOptimizer with LogHelper {
 
@@ -49,6 +50,13 @@ class SharkOptimizer extends HiveOptimizer with LogHelper {
       transformation match {
         case _: SimpleFetchOptimizer => {}
         case _: JoinReorder => {}
+        case _: HiveMapJoinProcessor => {
+          // Use SharkMapJoinProcessor to bypass the step of validating Map Join hints
+          // in Hive. So, we can use hints to mark tables that will be considered as small
+          // tables (like Hive 0.9).
+          val sharkMapJoinProcessor = new SharkMapJoinProcessor
+          pctx = sharkMapJoinProcessor.transform(pctx)
+        }
         case _ => {
           pctx = transformation.transform(pctx)
         }

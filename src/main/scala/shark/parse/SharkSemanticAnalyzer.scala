@@ -38,11 +38,12 @@ import org.apache.hadoop.hive.ql.parse._
 import org.apache.hadoop.hive.ql.plan._
 import org.apache.hadoop.hive.ql.session.SessionState
 
-import shark.{LogHelper, SharkConfVars, SharkOptimizer}
+import shark.{LogHelper, SharkConfVars}
 import shark.execution.{HiveDesc, Operator, OperatorFactory, ReduceSinkOperator}
 import shark.execution.{SharkDDLWork, SparkLoadWork, SparkWork, TerminalOperator}
 import shark.memstore2.{CacheType, LazySimpleSerDeWrapper, MemoryMetadataManager}
 import shark.memstore2.SharkTblProperties
+import shark.optimizer.SharkOptimizer
 
 
 /**

@@ -20,6 +20,8 @@ package shark.execution.serialization
 import java.io.{InputStream, OutputStream}
 import java.nio.ByteBuffer
 
+import scala.reflect.ClassTag
+
 import org.apache.hadoop.io.BytesWritable
 
 import org.apache.spark.SparkConf
@@ -60,11 +62,11 @@ class ShuffleSerializer(conf: SparkConf) extends Serializer with Serializable {
 
 class ShuffleSerializerInstance extends SerializerInstance with Serializable {
 
-  override def serialize[T](t: T): ByteBuffer = throw new UnsupportedOperationException
+  override def serialize[T: ClassTag](t: T): ByteBuffer = throw new UnsupportedOperationException
 
-  override def deserialize[T](bytes: ByteBuffer): T = throw new UnsupportedOperationException
+  override def deserialize[T: ClassTag](bytes: ByteBuffer): T = throw new UnsupportedOperationException
 
-  override def deserialize[T](bytes: ByteBuffer, loader: ClassLoader): T =
+  override def deserialize[T: ClassTag](bytes: ByteBuffer, loader: ClassLoader): T =
     throw new UnsupportedOperationException
 
   override def serializeStream(s: OutputStream): SerializationStream = {
@@ -79,7 +81,7 @@ class ShuffleSerializerInstance extends SerializerInstance with Serializable {
 
 class ShuffleSerializationStream(stream: OutputStream) extends SerializationStream with Serializable {
 
-  override def writeObject[T](t: T): SerializationStream = {
+  override def writeObject[T: ClassTag](t: T): SerializationStream = {
     // On the write-side, the ReduceKey should be of type ReduceKeyMapSide.
     val (key, value) = t.asInstanceOf[(ReduceKey, BytesWritable)]
     writeUnsignedVarInt(key.length)
@@ -110,7 +112,7 @@ class ShuffleSerializationStream(stream: OutputStream) extends SerializationStre
 
 class ShuffleDeserializationStream(stream: InputStream) extends DeserializationStream with Serializable {
 
-  override def readObject[T](): T = {
+  override def readObject[T: ClassTag](): T = {
     // Return type is (ReduceKeyReduceSide, Array[Byte])
     val keyLen = readUnsignedVarInt()
     if (keyLen < 0) {

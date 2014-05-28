@@ -718,6 +718,11 @@ class SQLSuite extends FunSuite {
       where year(from_unixtime(k)) between "2013" and "2014" """, Array[String]("0"))
   }
 
+  test("map pruning with functions in in clause") {
+    expectSql("""select count(*) from mapsplitfunc_cached
+      where year(from_unixtime(k)) in ("2013", concat("201", "4")) """, Array[String]("0"))
+  }
+
   //////////////////////////////////////////////////////////////////////////////
   // SharkContext APIs (e.g. sql2rdd, sql)
   //////////////////////////////////////////////////////////////////////////////
