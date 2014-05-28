@@ -2,7 +2,7 @@
 
 # This file is used to launch Shark on the master.
 export SCALA_VERSION=2.10
-SHARK_VERSION=0.9.1-SNAPSHOT
+SHARK_VERSION=0.9.2
 
 # Figure out where the framework is installed
 FWDIR="$(cd `dirname $0`; pwd)"
