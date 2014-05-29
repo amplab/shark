@@ -196,11 +196,11 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
         val rowWithPartArr = new Array[Object](2)
         // Map each tuple to a row object
         
+        // this is done per partition, and no necessary put it in the iterations (in iter.map).
+        rowWithPartArr.update(1, partValues)
         if (partTblObjectInspectorConverter.isInstanceOf[IdentityConverter]) {
           iter.map { value =>
-            val deserializedRow = partSerDe.deserialize(value)
-            rowWithPartArr.update(0, deserializedRow)
-            rowWithPartArr.update(1, partValues)
+            rowWithPartArr.update(0, partSerDe.deserialize(value))
             rowWithPartArr.asInstanceOf[Object]
           }
         }
@@ -226,7 +226,6 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
               }
             }
             rowWithPartArr.update(0, deserializedRow)
-            rowWithPartArr.update(1, partValues)
             rowWithPartArr.asInstanceOf[Object]
           }
         }
