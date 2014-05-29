@@ -196,9 +196,9 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
         val rowWithPartArr = new Array[Object](2)
         // Map each tuple to a row object
         
-        if ((tableSerDe.isInstanceOf[OrcSerde]) || (partTblObjectInspectorConverter.isInstanceOf[IdentityConverter])) {
+        if (partTblObjectInspectorConverter.isInstanceOf[IdentityConverter]) {
           iter.map { value =>
-            val deserializedRow = partTblObjectInspectorConverter.convert(partSerDe.deserialize(value))
+            val deserializedRow = partSerDe.deserialize(value)
             rowWithPartArr.update(0, deserializedRow)
             rowWithPartArr.update(1, partValues)
             rowWithPartArr.asInstanceOf[Object]
@@ -214,11 +214,15 @@ class HadoopTableReader(@transient _tableDesc: TableDesc, @transient _localHConf
               // If conversion was performed, convertedRow will be a standard Object, but if
               // conversion wasn't necessary, it will still be lazy. We can't have both across
               // partitions, so we serialize and deserialize again to make it lazy.
-              convertedRow match {
-                case _: LazyStruct => convertedRow
-                case _: HiveColumnarStruct => convertedRow
-                case _ =>
+              if (tableSerDe.isInstanceOf[OrcSerde]) {
+                convertedRow
+              } else {
+                convertedRow match {
+                  case _: LazyStruct => convertedRow
+                  case _: HiveColumnarStruct => convertedRow
+                  case _ =>
                     tableSerDe.deserialize( tableSerDe.asInstanceOf[Serializer].serialize( convertedRow, tblConvertedOI))
+                }
               }
             }
             rowWithPartArr.update(0, deserializedRow)
