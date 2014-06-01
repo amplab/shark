@@ -137,7 +137,7 @@ class LateralViewJoinOperator extends NaryOperator[LateralViewJoinDesc] {
     val lvjSelFields = lvjSelSoi.getAllStructFieldRefs()
 
     iter.flatMap { row =>
-      var arrToExplode = udtfEval.map(x => x.evaluate(row))
+      val arrToExplode = udtfEval.map(x => x.evaluate(row))
       val explodedRows = udtfOp.explode(arrToExplode)
 
       explodedRows.map { expRow =>
@@ -145,8 +145,9 @@ class LateralViewJoinOperator extends NaryOperator[LateralViewJoinDesc] {
         val joinedRow = new Array[java.lang.Object](lvjSelFields.size + expRowArray.length)
 
         // Add row fields from LateralViewForward
+        val lvjSelFieldsLen = lvjSelFields.size
         var i = 0
-        while (i < lvjSelFields.size) {
+        while (i < lvjSelFieldsLen) {
           if (lvjSelEval != null) {
             joinedRow(i) = lvjSelEval(i).evaluate(row)
           } else {
@@ -157,9 +158,10 @@ class LateralViewJoinOperator extends NaryOperator[LateralViewJoinDesc] {
         // Append element(s) from explode
         i = 0
         while (i < expRowArray.length) {
-          joinedRow(i + lvjSelFields.size) = expRowArray(i)
+          joinedRow(i + lvjSelFieldsLen) = expRowArray(i)
           i += 1
         }
+        println(joinedRow.toSeq)
         joinedRow
       }
     }

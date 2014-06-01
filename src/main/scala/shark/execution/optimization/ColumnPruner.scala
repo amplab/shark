@@ -65,29 +65,14 @@ class ColumnPruner(@transient op: TopOperator[_], @transient tbl: Table) extends
       cols: HashSet[String],
       parentOp: Operator[_] = null) {
 
-    def nullGuard[T](s: JList[T]): Seq[T] = {
-      if (s == null) Seq[T]() else s
-    }
+    println("operator to check is " + op)
 
     op match {
       case selOp: SelectOperator =>
-        val cnf: SelectDesc = selOp.getConf
-        //Select Descriptor contains SelectConf, which holds the list of columns
-        //referenced by the select op
-        if (cnf != null) {
-          if (cnf.isSelStarNoCompute) {
-            // For star, return immediately since there is no point doing any further pruning.
-            cols.clear()
-            cols += "*"
-            return cols
-          } else {
-            val evals = nullGuard(cnf.getColList)
-            cols ++= (HashSet() ++ evals).flatMap(x => nullGuard(x.getCols))
-          }
-        }
+        cols ++= getColumnsFromSelectOp(selOp)
 
       case filterOp: FilterOperator =>
-        val cnf:FilterDesc = filterOp.getConf
+        val cnf: FilterDesc = filterOp.getConf
         //FilterDesc has predicates, which are the columns involved in predicate operations
         if (cnf != null) {
           cols ++= (HashSet() ++ nullGuard(cnf.getPredicate.getCols))
@@ -120,6 +105,12 @@ class ColumnPruner(@transient op: TopOperator[_], @transient tbl: Table) extends
           cols ++= (HashSet() ++ keys).flatMap(x => nullGuard(x.getCols))
         }
 
+      case lvj: LateralViewJoinOperator =>
+        lvj.parentOperators.head match {
+          case selOp: SelectOperator => cols ++= getColumnsFromSelectOp(selOp)
+          case _ => // Do nothing
+        }
+
       case _ =>
     }
 
@@ -136,11 +127,31 @@ class ColumnPruner(@transient op: TopOperator[_], @transient tbl: Table) extends
         // Note that the actual Select Op in that branch only contains the Array evaluators, so we
         // can't column prune based on it.
         cols += "*"
-        return cols
       } else {
         computeColumnsToKeep(childOp, cols, op)
       }
       currentChildIndex = currentChildIndex + 1
+    }
+  }
+
+  private def nullGuard[T](s: JList[T]): Seq[T] = {
+    if (s == null) Seq[T]() else s
+  }
+
+  private def getColumnsFromSelectOp(selOp: SelectOperator): Set[String] = {
+    val cnf: SelectDesc = selOp.getConf
+    // Select Descriptor contains SelectConf, which holds the list of columns
+    // referenced by the select op
+    if (cnf != null) {
+      if (cnf.isSelStarNoCompute) {
+        // For star, return immediately since there is no point doing any further pruning.
+        Set("*")
+      } else {
+        val evals = nullGuard(cnf.getColList)
+        Set() ++ evals.flatMap(x => nullGuard(x.getCols))
+      }
+    } else {
+      Set.empty
     }
   }
 }
