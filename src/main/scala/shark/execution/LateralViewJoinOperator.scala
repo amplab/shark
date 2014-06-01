@@ -161,7 +161,6 @@ class LateralViewJoinOperator extends NaryOperator[LateralViewJoinDesc] {
           joinedRow(i + lvjSelFieldsLen) = expRowArray(i)
           i += 1
         }
-        println(joinedRow.toSeq)
         joinedRow
       }
     }

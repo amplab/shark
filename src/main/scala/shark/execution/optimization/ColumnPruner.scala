@@ -65,8 +65,6 @@ class ColumnPruner(@transient op: TopOperator[_], @transient tbl: Table) extends
       cols: HashSet[String],
       parentOp: Operator[_] = null) {
 
-    println("operator to check is " + op)
-
     op match {
       case selOp: SelectOperator =>
         cols ++= getColumnsFromSelectOp(selOp)
