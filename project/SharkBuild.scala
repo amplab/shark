@@ -38,6 +38,7 @@ object SharkBuild extends Build {
 
   val SCALAC_JVM_VERSION = "jvm-1.6"
   val JAVAC_JVM_VERSION = "1.6"
+  val JETTY_VERSION = "8.1.14.v20131031"
 
   // Hadoop version to build against. For example, "0.20.2", "0.20.205.0", or
   // "1.0.1" for Apache releases, or "0.20.2-cdh3u3" for Cloudera Hadoop.
@@ -100,6 +101,10 @@ object SharkBuild extends Build {
 
     libraryDependencies ++= hiveDependencies ++ yarnDependency,
     libraryDependencies ++= Seq(
+      "io.netty"          % "netty-all"      % "4.0.17.Final",
+      "org.eclipse.jetty" % "jetty-server"   % JETTY_VERSION,
+      "org.eclipse.jetty" % "jetty-util"     % JETTY_VERSION,
+      "javax.servlet"     % "javax.servlet-api" % "3.0.1",
       "org.apache.spark" %% "spark-hive" % SPARK_VERSION,
       "org.apache.spark" %% "spark-repl" % SPARK_VERSION,
       "com.typesafe" %% "scalalogging-slf4j" % "1.0.1",
@@ -110,6 +115,9 @@ object SharkBuild extends Build {
     retrieveManaged := true,
     resolvers ++= Seq(
       "Local Maven" at Path.userHome.asFile.toURI.toURL + ".m2/repository",
+      "Maven Repository"     at "http://repo.maven.apache.org/maven2",
+      "Apache Repository"    at "https://repository.apache.org/content/repositories/releases",
+      "JBoss Repository"     at "https://repository.jboss.org/nexus/content/repositories/releases/",
       "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
       "Cloudera Repository" at "https://repository.cloudera.com/artifactory/cloudera-repos/"
     ),

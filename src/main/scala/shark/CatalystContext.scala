@@ -86,8 +86,6 @@ case class CatalystContext(sc: SparkContext) extends HiveContext(sc) with LogHel
       val cmd_1: String = cmd_trimmed.substring(tokens(0).length()).trim()
       val proc: CommandProcessor = CommandProcessorFactory.get(tokens(0), hiveconf)
 
-      SessionState.start(sessionState)
-
       proc match {
         case driver: Driver =>
           driver.init()
@@ -104,7 +102,7 @@ case class CatalystContext(sc: SparkContext) extends HiveContext(sc) with LogHel
           driver.destroy()
           (0, results)
         case _ =>
-          sessionState.out.println(tokens(0) + " " + cmd_1)
+          SessionState.get().out.println(tokens(0) + " " + cmd_1)
           (proc.run(cmd_1).getResponseCode, Seq[String]())
       }
     } catch {
@@ -121,50 +119,5 @@ case class CatalystContext(sc: SparkContext) extends HiveContext(sc) with LogHel
           """.stripMargin)
         throw e
     }
-  }
-
-  override lazy val hiveconf = new HiveConf(classOf[SessionState])
-  override lazy val sessionState = new SessionState(hiveconf)
-}
-
-abstract class Launcher(cc: CatalystContext) {
-  def execute(hql: String): (Int, Seq[String]) = new cc.HiveQLQueryExecution(hql).result()
-}
-
-private[hive] case class HiveLauncher(cc: CatalystContext) extends Launcher(cc) {
-  override def execute(hql: String): (Int, Seq[String]) = cc.runOnHive(hql)
-}
-
-private[hive] case class SparkLauncher(cc: CatalystContext) extends Launcher(cc)
-
-object CatalystContextWrapper {
-  val EXEC_MODE = "catalyst.exec.mode"
-  val EXEC_MODE_SPARK = "spark"
-  val EXEC_MODE_HIVE  = "hive"
-}
-
-class CatalystContextWrapper(cc: CatalystContext) {
-  val candidates = (CatalystContextWrapper.EXEC_MODE_SPARK, SparkLauncher(cc)) :: 
-                   (CatalystContextWrapper.EXEC_MODE_HIVE, HiveLauncher(cc)) :: Nil
-  
-//  // Use reflection to get access to the two fields.
-//  val getFormattedDbMethod = classOf[CliDriver].getDeclaredMethod(
-//    "getFormattedDb", classOf[HiveConf], classOf[CliSessionState])
-//  getFormattedDbMethod.setAccessible(true)
-//
-//  val spacesForStringMethod = classOf[CliDriver].getDeclaredMethod(
-//    "spacesForString", classOf[String])
-//  spacesForStringMethod.setAccessible(true)
-
-  def env: (String, org.apache.spark.sql.hive.Launcher) = {
-    val conf: HiveConf = cc.sessionState.getConf()
-//    val db = getFormattedDbMethod.invoke(null, conf, ss).asInstanceOf[String]
-    val cli = conf.get(CatalystContextWrapper.EXEC_MODE, CatalystContextWrapper.EXEC_MODE_SPARK)
-
-    var launcher = candidates.find(_._1 == cli).getOrElse(candidates.head)
-
-//    val promptStr = if (db != null) launcher._1 + db else ""
-    
-    (launcher._1, launcher._2)
   }
 }

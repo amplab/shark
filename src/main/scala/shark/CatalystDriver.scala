@@ -38,6 +38,7 @@ class CatalystDriver(hconf: HiveConf) extends Driver {
       false
     } else {
       res.addAll(result._2)
+      result = null
       true
     }
   }

@@ -50,7 +50,7 @@ object SharkCliDriver {
 
   private var prompt  = "catalyst"
   private var prompt2 = "     " // when ';' is not yet seen.
-//  private var transport:TSocket = _
+  private var transport:TSocket = _
 
   installSignalHandler()
 
@@ -66,10 +66,10 @@ object SharkCliDriver {
         if (CatalystEnv.sc != null) {
           CatalystEnv.sc.cancelAllJobs()
         } else {
-//          if (transport != null) {
-//            // Force closing of TCP connection upon session termination
-//            transport.getSocket().close()
-//          }
+          if (transport != null) {
+            // Force closing of TCP connection upon session termination
+            transport.getSocket().close()
+          }
         }
       }
     })
@@ -213,7 +213,7 @@ object SharkCliDriver {
     val clientTransportTSocketField = classOf[CliSessionState].getDeclaredField("transport")
     clientTransportTSocketField.setAccessible(true)
 
-//    transport = clientTransportTSocketField.get(ss).asInstanceOf[TSocket]
+    transport = clientTransportTSocketField.get(ss).asInstanceOf[TSocket]
 
     var ret = 0
 
@@ -231,11 +231,11 @@ object SharkCliDriver {
         line = prefix + line
         ret = cli.processLine(line, true)
         prefix = ""
-        val sharkMode = SharkConfVars.getVar(conf, SharkConfVars.EXEC_MODE) == "shark"
+        val sharkMode = SharkConfVars.getVar(conf, SharkConfVars.EXEC_MODE) == "catalyst"
         curPrompt = if (sharkMode) SharkCliDriver.prompt else CliDriver.prompt
       } else {
         prefix = prefix + line
-        val sharkMode = SharkConfVars.getVar(conf, SharkConfVars.EXEC_MODE) == "shark"
+        val sharkMode = SharkConfVars.getVar(conf, SharkConfVars.EXEC_MODE) == "catalyst"
         curPrompt = if (sharkMode) SharkCliDriver.prompt2 else CliDriver.prompt2
         curPrompt += dbSpaces
       }
@@ -285,7 +285,7 @@ class SharkCliDriver(reloadRdds: Boolean = true) extends CliDriver with LogHelpe
       tokens(0).equalsIgnoreCase("source") ||
       cmd_trimmed.startsWith("!") ||
       tokens(0).toLowerCase().equals("list") ||
-      ss.asInstanceOf[CliSessionState].isRemoteMode()) {
+      ss.isRemoteMode()) {
       val start = System.currentTimeMillis()
       super.processCmd(cmd)
       val end = System.currentTimeMillis()
@@ -314,6 +314,9 @@ class SharkCliDriver(reloadRdds: Boolean = true) extends CliDriver with LogHelpe
               proc.asInstanceOf[Driver]
             }
 
+          // TODO HiveContext shouldn't call the SessionState.start(), which has a conflict
+          // with CliSessionState. Here is a work around to set it(CliSessionState) back.
+          SessionState.start(ss)
           logInfo("Execution Mode: " + SharkConfVars.getVar(conf, SharkConfVars.EXEC_MODE))
 
           qp.init()
