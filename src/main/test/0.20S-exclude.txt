@@ -1,0 +1,9 @@
+testCliDriver_archive_excludeHadoop20
+testCliDriver_auto_join14
+testCliDriver_combine2
+testCliDriver_ctas
+testCliDriver_input12
+testCliDriver_input39
+testCliDriver_join14
+testCliDriver_loadpart_err
+testCliDriver_sample_islocalmode_hook

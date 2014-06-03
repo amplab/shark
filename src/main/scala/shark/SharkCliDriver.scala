@@ -45,13 +45,12 @@ import org.apache.hadoop.hive.shims.ShimLoader
 import org.apache.hadoop.io.IOUtils
 import org.apache.thrift.transport.TSocket
 
-/** FIXME
 object SharkCliDriver {
   val SKIP_RDD_RELOAD_FLAG = "-skipRddReload"
 
-  private var prompt  = "shark"
+  private var prompt  = "catalyst"
   private var prompt2 = "     " // when ';' is not yet seen.
-  private var transport:TSocket = _
+//  private var transport:TSocket = _
 
   installSignalHandler()
 
@@ -64,13 +63,13 @@ object SharkCliDriver {
     HiveInterruptUtils.add(new HiveInterruptCallback {
       override def interrupt() {
         // Handle remote execution mode
-        if (SharkEnv.sc != null) {
-          SharkEnv.sc.cancelAllJobs()
+        if (CatalystEnv.sc != null) {
+          CatalystEnv.sc.cancelAllJobs()
         } else {
-          if (transport != null) {
-            // Force closing of TCP connection upon session termination
-            transport.getSocket().close()
-          }
+//          if (transport != null) {
+//            // Force closing of TCP connection upon session termination
+//            transport.getSocket().close()
+//          }
         }
       }
     })
@@ -129,7 +128,7 @@ object SharkCliDriver {
     Runtime.getRuntime().addShutdownHook(
       new Thread() {
         override def run() {
-          SharkEnv.stop()
+          CatalystEnv.stop()
         }
       }
     )
@@ -160,7 +159,7 @@ object SharkCliDriver {
     val cli = new SharkCliDriver(reloadRdds)
     cli.setHiveVariables(oproc.getHiveVariables())
 
-    SharkEnv.fixUncompatibleConf(conf)
+    CatalystEnv.fixUncompatibleConf(conf)
 
     // Execute -i init files (always in silent mode)
     cli.processInitFiles(ss)
@@ -214,7 +213,7 @@ object SharkCliDriver {
     val clientTransportTSocketField = classOf[CliSessionState].getDeclaredField("transport")
     clientTransportTSocketField.setAccessible(true)
 
-    transport = clientTransportTSocketField.get(ss).asInstanceOf[TSocket]
+//    transport = clientTransportTSocketField.get(ss).asInstanceOf[TSocket]
 
     var ret = 0
 
@@ -265,19 +264,18 @@ class SharkCliDriver(reloadRdds: Boolean = true) extends CliDriver with LogHelpe
   // Force initializing SharkEnv. This is put here but not object SharkCliDriver
   // because the Hive unit tests do not go through the main() code path.
   if (!ss.isRemoteMode()) {
-    SharkEnv.init()
-    if (reloadRdds) {
-      console.printInfo(
-        "Reloading cached RDDs from previous Shark sessions... (use %s flag to skip reloading)"
-        .format(SharkCliDriver.SKIP_RDD_RELOAD_FLAG))
-      TableRecovery.reloadRdds(processCmd(_), Some(console))
-    }
+    CatalystEnv.init()
+//    if (reloadRdds) {
+//      console.printInfo(
+//        "Reloading cached RDDs from previous Shark sessions... (use %s flag to skip reloading)"
+//        .format(SharkCliDriver.SKIP_RDD_RELOAD_FLAG))
+//      TableRecovery.reloadRdds(processCmd(_), Some(console))
+//    }
   }
 
   def this() = this(false)
 
   override def processCmd(cmd: String): Int = {
-    val ss: SessionState = SessionState.get()
     val cmd_trimmed: String = cmd.trim()
     val tokens: Array[String] = cmd_trimmed.split("\\s+")
     val cmd_1: String = cmd_trimmed.substring(tokens(0).length()).trim()
@@ -310,8 +308,8 @@ class SharkCliDriver(reloadRdds: Boolean = true) extends CliDriver with LogHelpe
           // SharkDriver for every command. But it saves us the hassle of
           // hacking CommandProcessorFactory.
           val qp: Driver =
-            if (SharkConfVars.getVar(conf, SharkConfVars.EXEC_MODE) == "shark") {
-              new SharkDriver(hconf)
+            if (SharkConfVars.getVar(conf, SharkConfVars.EXEC_MODE) == "catalyst") {
+              new CatalystDriver(hconf)
             } else {
               proc.asInstanceOf[Driver]
             }
@@ -365,7 +363,7 @@ class SharkCliDriver(reloadRdds: Boolean = true) extends CliDriver with LogHelpe
           }
 
           // Destroy the driver to release all the locks.
-          if (qp.isInstanceOf[SharkDriver]) {
+          if (qp.isInstanceOf[CatalystDriver]) {
             qp.destroy()
           }
 
@@ -403,4 +401,3 @@ class SharkCliDriver(reloadRdds: Boolean = true) extends CliDriver with LogHelpe
   }
 }
 
-*/
