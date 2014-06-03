@@ -77,10 +77,9 @@ object SharkBuild extends Build {
 
 
   /** Extra artifacts not included in Spark SQL's Hive support. */
-  val hiveArtifacts = Seq("hive-cli", "hive-jdbc")
+  val hiveArtifacts = Seq("hive-cli", "hive-jdbc", "hive-exec", "hive-service")
   val hiveDependencies = hiveArtifacts.map ( artifactId =>
-    "org.spark-project.hive" % artifactId % "0.12.0" excludeAll(
-      excludeGuava, excludeLog4j, excludeAsm, excludeNetty, excludeXerces, excludeServlet)
+    "org.spark-project.hive" % artifactId % "0.12.0" 
   )
 
   val yarnDependency = (if (YARN_ENABLED) {
@@ -110,9 +109,9 @@ object SharkBuild extends Build {
     // Download managed jars into lib_managed.
     retrieveManaged := true,
     resolvers ++= Seq(
+      "Local Maven" at Path.userHome.asFile.toURI.toURL + ".m2/repository",
       "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
-      "Cloudera Repository" at "https://repository.cloudera.com/artifactory/cloudera-repos/",
-      "Local Maven" at Path.userHome.asFile.toURI.toURL + ".m2/repository"
+      "Cloudera Repository" at "https://repository.cloudera.com/artifactory/cloudera-repos/"
     ),
  
     publishTo <<= version { (v: String) =>
