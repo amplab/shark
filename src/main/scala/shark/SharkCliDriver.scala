@@ -344,9 +344,16 @@ class SharkCliDriver(reloadRdds: Boolean = true) extends CliDriver with LogHelpe
 
           if (HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_CLI_PRINT_HEADER)) {
             // Print the column names.
-            val fieldSchemas = qp.getSchema.getFieldSchemas
-            if (fieldSchemas != null) {
-              out.println(fieldSchemas.map(_.getName).mkString("\t"))
+            if(qp.isInstanceOf[CatalystDriver]) {
+              val fieldDescs = qp.asInstanceOf[CatalystDriver].getTableSchema.getColumnDescriptors()
+              if (fieldDescs != null) {
+                out.println(fieldDescs.map(_.getName()).mkString("\t"))
+              }
+            } else {
+              val fieldSchemas = qp.getSchema.getFieldSchemas
+              if (fieldSchemas != null) {
+                out.println(fieldSchemas.map(_.getName).mkString("\t"))
+              }
             }
           }
 

@@ -42,44 +42,44 @@ import org.apache.spark.sql.execution.QueryExecutionException
 import shark.LogHelper
 
 case class CatalystContext(sc: SparkContext) extends HiveContext(sc) with LogHelper {
-  private var result: SchemaRDD = _
-
   class HiveQLQueryExecution(hql: String) extends QueryExecution {
     override def logical: LogicalPlan = HiveQl.parseSql(hql)
     override def toString = hql + "\n" + super.toString
     
-    def result(): (Int, Seq[String]) = analyzed match {
+    def result(): (Int, Seq[String], Throwable) = analyzed match {
       case NativeCommand(cmd) => runOnHive(cmd)
-      case ExplainCommand(plan) => (0, new QueryExecution { val logical = plan }.toString.split("\n"))
+      case ExplainCommand(plan) => 
+        (0, new QueryExecution { val logical = plan }.toString.split("\n"), null)
       case query =>
         try{
           val result: Seq[Seq[Any]] = toRdd.collect().toSeq
           // We need the types so we can output struct field names
           val types = analyzed.output.map(_.dataType)
           // Reformat to match hive tab delimited output.
-          (0, result.map(_.zip(types).map(toHiveString)).map(_.mkString("\t")).toSeq)
+          (0, result.map(_.zip(types).map(toHiveString)).map(_.mkString("\t")).toSeq, null)
         } catch {
           case e: Throwable => {
             logError("Error:\n $cmd\n", e)
-            (-1, Seq[String]())
+            (-1, Seq[String](), e)
           }
         }
     }
-  }
-  
-  def getResultSetSchema: TableSchema = {
-    logger.warn(s"Result Schema: ${result.queryExecution.analyzed.output}")
-    if (result.queryExecution.analyzed.output.size == 0) {
-      new TableSchema(new FieldSchema("Result", "string", "") :: Nil)
-    } else {
-      val schema = result.queryExecution.analyzed.output.map { attr =>
-        new FieldSchema(attr.name, org.apache.spark.sql.hive.HiveMetastoreTypes.toMetastoreType(attr.dataType), "")
+    
+    def getResultSetSchema: TableSchema = {
+      logger.warn(s"Result Schema: ${analyzed.output}")
+      if (analyzed.output.size == 0) {
+        new TableSchema(new FieldSchema("Result", "string", "") :: Nil)
+      } else {
+        val schema = analyzed.output.map { attr =>
+          new FieldSchema(attr.name, 
+            org.apache.spark.sql.hive.HiveMetastoreTypes.toMetastoreType(attr.dataType), "")
+        }
+        new TableSchema(schema)
       }
-      new TableSchema(schema)
     }
   }
 
-  def runOnHive(cmd: String, maxRows: Int = 1000): (Int, Seq[String]) = {
+  def runOnHive(cmd: String, maxRows: Int = 1000): (Int, Seq[String], Throwable) = {
     try {
       val cmd_trimmed: String = cmd.trim()
       val tokens: Array[String] = cmd_trimmed.split("\\s+")
@@ -100,13 +100,13 @@ case class CatalystContext(sc: SparkContext) extends HiveContext(sc) with LogHel
           driver.setMaxRows(maxRows)
           driver.getResults(results)
           driver.destroy()
-          (0, results)
+          (0, results, null)
         case _ =>
           SessionState.get().out.println(tokens(0) + " " + cmd_1)
-          (proc.run(cmd_1).getResponseCode, Seq[String]())
+          (proc.run(cmd_1).getResponseCode, Seq[String](), null)
       }
     } catch {
-      case e: Exception =>
+      case e: Throwable =>
         logger.error(
           s"""
             |======================
@@ -117,7 +117,7 @@ case class CatalystContext(sc: SparkContext) extends HiveContext(sc) with LogHel
             |END HIVE FAILURE OUTPUT
             |======================
           """.stripMargin)
-        throw e
+        (-2, Seq[String](), null)
     }
   }
 }

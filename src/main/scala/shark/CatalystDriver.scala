@@ -3,35 +3,42 @@ package shark
 import java.util.ArrayList
 import org.apache.hadoop.hive.ql.Driver
 import org.apache.hadoop.hive.metastore.api.Schema
+import org.apache.hive.service.cli.TableSchema
 import org.apache.hadoop.hive.ql.processors.CommandProcessorResponse
 import org.apache.hadoop.hive.conf.HiveConf
-
 import org.apache.spark.sql.hive.CatalystContext
-
 import scala.collection.JavaConversions._
+import org.apache.commons.lang.exception.ExceptionUtils
 
 class CatalystDriver(hconf: HiveConf) extends Driver {
   private val context: CatalystContext = CatalystEnv.cc
-  private var schema: Schema = _
-  private var result: (Int, Seq[String]) = _
+  private var tschema: TableSchema = _
+  private var result: (Int, Seq[String], Throwable) = _
   
   override def init(): Unit = {
   }
   
   override def run(command: String): CommandProcessorResponse = {
-    this.result = new context.HiveQLQueryExecution(command).result
+    val execution = new context.HiveQLQueryExecution(command)
+    result = execution.result
+    tschema = execution.getResultSetSchema
     
-    new CommandProcessorResponse(this.result._1)
+    if(result._1 != 0) {
+      new CommandProcessorResponse(result._1, ExceptionUtils.getStackTrace(result._3), null)
+    } else {
+      new CommandProcessorResponse(result._1)
+    }
   }
   
   override def close(): Int = {
     result = null
-    schema = null
+    tschema = null
     
     0
   }
   
-  override def getSchema(): Schema = schema
+  override def getSchema(): Schema = throw new UnsupportedOperationException("for getSchema")
+  def getTableSchema = tschema
   
   override def getResults(res: ArrayList[String]): Boolean = {
     if(result == null) {
@@ -45,6 +52,6 @@ class CatalystDriver(hconf: HiveConf) extends Driver {
   
   override def destroy() {
     result = null
-    schema = null
+    tschema = null
   }
 }
