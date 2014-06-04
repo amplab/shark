@@ -72,7 +72,6 @@ hive>show tables;
 But there is a bug, which require show tables before doing anything else.
 
 ## Known Missing Features
-* Restoring cached tables upon restart
 * Invalidation of cached tables when data is INSERTed
 * Off-heap storage using Tachyon
 * TGFs
