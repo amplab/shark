@@ -69,6 +69,7 @@ catalyst> show tables;
 catalyst> set shark.exec.mode=hive;
 hive>show tables;
 ```
+But there is a bug, which require show tables before doing anything else.
 
 ## Known Missing Features
 * Restoring cached tables upon restart
