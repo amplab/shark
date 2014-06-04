@@ -21,9 +21,6 @@ import java.io.{BufferedReader, File, InputStreamReader, PrintWriter}
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
 
-/**
- * Test the Shark CLI.
-FIX ME
 class CliSuite extends FunSuite with BeforeAndAfterAll with TestUtils {
 
   val WAREHOUSE_PATH = TestUtils.getWarehousePath("cli")
@@ -60,4 +57,3 @@ class CliSuite extends FunSuite with BeforeAndAfterAll with TestUtils {
   }
 
 }
- */
