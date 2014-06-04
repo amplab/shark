@@ -10,7 +10,7 @@ import org.apache.spark.sql.hive.CatalystContext
 import scala.collection.JavaConversions._
 import org.apache.commons.lang.exception.ExceptionUtils
 
-class CatalystDriver(hconf: HiveConf) extends Driver {
+class CatalystDriver(hconf: HiveConf) extends Driver with LogHelper {
   private val context: CatalystContext = CatalystEnv.cc
   private var tschema: TableSchema = _
   private var result: (Int, Seq[String], Throwable) = _
@@ -24,7 +24,8 @@ class CatalystDriver(hconf: HiveConf) extends Driver {
     tschema = execution.getResultSetSchema
     
     if(result._1 != 0) {
-      new CommandProcessorResponse(result._1, ExceptionUtils.getStackTrace(result._3), null)
+      logError(s"Failed in [$command]", result._3)
+      new CommandProcessorResponse(result._1, ExceptionUtils.getFullStackTrace(result._3), null)
     } else {
       new CommandProcessorResponse(result._1)
     }

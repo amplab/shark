@@ -24,6 +24,7 @@ import org.apache.spark.SparkConf
 import org.apache.spark.scheduler.StatsReportListener
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.hive.CatalystContext
+import org.apache.spark.scheduler.SplitInfo
 
 /** A singleton object for the master program. The slaves should not access this. */
 // TODO add tachyon / memory store based (Copied from SharkEnv.scala)
@@ -94,15 +95,31 @@ object CatalystEnv extends LogHelper {
     if (sc != null) {
       sc.stop()
     }
-    
+
     sc = new SparkContext(
-      if (master == null) "local" else master,
+      createSparkConf(if (master == null) "local" else master,
       jobName,
       System.getenv("SPARK_HOME"),
       Nil,
-      executorEnvVars)
+      executorEnvVars), Map[String, Set[SplitInfo]]())
 
     sc
+  }
+
+  private def createSparkConf(
+      master: String,
+      jobName: String,
+      sparkHome: String,
+      jars: Seq[String],
+      environment: HashMap[String, String]): SparkConf = {
+    val newConf = new SparkConf()
+      .setMaster(master)
+      .setAppName(jobName)
+      .setJars(jars)
+      .setExecutorEnv(environment.toSeq)
+    Option(sparkHome).foreach(newConf.setSparkHome(_))
+
+    newConf
   }
 
   logDebug("Initializing SharkEnv")

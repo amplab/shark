@@ -37,6 +37,7 @@ import org.apache.hadoop.hive.cli.{CliDriver, CliSessionState, OptionsProcessor}
 import org.apache.hadoop.hive.common.{HiveInterruptCallback, HiveInterruptUtils, LogUtils}
 import org.apache.hadoop.hive.common.LogUtils.LogInitializationException
 import org.apache.hadoop.hive.conf.HiveConf
+import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.hadoop.hive.ql.Driver
 import org.apache.hadoop.hive.ql.exec.Utilities
 import org.apache.hadoop.hive.ql.processors.{CommandProcessor, CommandProcessorFactory}
@@ -44,6 +45,8 @@ import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hadoop.hive.shims.ShimLoader
 import org.apache.hadoop.io.IOUtils
 import org.apache.thrift.transport.TSocket
+
+import shark.memstore2.TableRecovery
 
 object SharkCliDriver {
   val SKIP_RDD_RELOAD_FLAG = "-skipRddReload"
@@ -96,6 +99,7 @@ object SharkCliDriver {
     }
 
     val ss = new CliSessionState(new HiveConf(classOf[SessionState]))
+
     ss.in = System.in
     try {
       ss.out = new PrintStream(System.out, true, "UTF-8")
@@ -273,13 +277,12 @@ class SharkCliDriver(reloadRdds: Boolean = true) extends CliDriver with LogHelpe
   // because the Hive unit tests do not go through the main() code path.
   if (!ss.isRemoteMode()) {
     CatalystEnv.init()
-//  TODO reload the rdds
-//    if (reloadRdds) {
-//      console.printInfo(
-//        "Reloading cached RDDs from previous Shark sessions... (use %s flag to skip reloading)"
-//        .format(SharkCliDriver.SKIP_RDD_RELOAD_FLAG))
-//      TableRecovery.reloadRdds(processCmd(_), Some(console))
-//    }
+    if (reloadRdds) {
+      console.printInfo(
+        "Reloading cached RDDs from previous Shark sessions... (use %s flag to skip reloading)"
+        .format(SharkCliDriver.SKIP_RDD_RELOAD_FLAG))
+      TableRecovery.reloadRdds(processCmd(_), Some(console), ss)
+    }
   }
 
   def this() = this(false)

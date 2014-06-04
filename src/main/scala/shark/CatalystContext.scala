@@ -102,15 +102,21 @@ case class CatalystContext(sc: SparkContext) extends HiveContext(sc) with LogHel
           // Throw an exception if there is an error in query processing.
           if (response.getResponseCode != 0) {
             driver.destroy()
-            throw new QueryExecutionException(response.getErrorMessage)
+            (response.getResponseCode, Seq[String](response.getErrorMessage()), new Exception(cmd))
+          } else {
+            driver.setMaxRows(maxRows)
+            driver.getResults(results)
+            driver.destroy()
+            (0, results, null)
           }
-          driver.setMaxRows(maxRows)
-          driver.getResults(results)
-          driver.destroy()
-          (0, results, null)
         case _ =>
           SessionState.get().out.println(tokens(0) + " " + cmd_1)
-          (proc.run(cmd_1).getResponseCode, Seq[String](), null)
+          val res = proc.run(cmd_1)
+          if(res.getResponseCode == 0) {
+            (0, Seq[String](), null)
+          } else {
+            (res.getResponseCode, Seq[String](res.getErrorMessage()), new Exception(cmd_1))
+          }
       }
     } catch {
       case e: Throwable =>
@@ -124,7 +130,7 @@ case class CatalystContext(sc: SparkContext) extends HiveContext(sc) with LogHel
             |END HIVE FAILURE OUTPUT
             |======================
           """.stripMargin)
-        (-2, Seq[String](), null)
+        (-2, Seq[String](), e)
     }
   }
 }
