@@ -20,14 +20,22 @@ class CatalystDriver(hconf: HiveConf) extends Driver with LogHelper {
   
   override def run(command: String): CommandProcessorResponse = {
     val execution = new context.HiveQLQueryExecution(command)
-    result = execution.result
-    tschema = execution.getResultSetSchema
-    
-    if(result._1 != 0) {
-      logError(s"Failed in [$command]", result._3)
-      new CommandProcessorResponse(result._1, ExceptionUtils.getFullStackTrace(result._3), null)
-    } else {
-      new CommandProcessorResponse(result._1)
+
+    // TODO unify the error code
+    try {
+      result = execution.result
+      tschema = execution.getResultSetSchema
+      
+      if(result._1 != 0) {
+        logError(s"Failed in [$command]", result._3)
+        new CommandProcessorResponse(result._1, ExceptionUtils.getFullStackTrace(result._3), null)
+      } else {
+        new CommandProcessorResponse(result._1)
+      }
+    } catch {
+      case t: Throwable => 
+        logError(s"Failed in [$command]", t)
+        new CommandProcessorResponse(-3, ExceptionUtils.getFullStackTrace(t), null)
     }
   }
   
