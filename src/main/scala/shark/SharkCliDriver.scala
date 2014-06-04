@@ -232,11 +232,19 @@ object SharkCliDriver {
         ret = cli.processLine(line, true)
         prefix = ""
         val sharkMode = SharkConfVars.getVar(conf, SharkConfVars.EXEC_MODE) == "catalyst"
-        curPrompt = if (sharkMode) SharkCliDriver.prompt else CliDriver.prompt
+        curPrompt = if (sharkMode) {
+          SharkCliDriver.prompt
+        } else {
+          conf.getVar(HiveConf.ConfVars.CLIPROMPT)
+        }
       } else {
         prefix = prefix + line
-        val sharkMode = SharkConfVars.getVar(conf, SharkConfVars.EXEC_MODE) == "catalyst"
-        curPrompt = if (sharkMode) SharkCliDriver.prompt2 else CliDriver.prompt2
+        val mode = SharkConfVars.getVar(conf, SharkConfVars.EXEC_MODE)
+        curPrompt = if (mode == "catalyst") {
+          SharkCliDriver.prompt2
+        } else {
+          spacesForStringMethod.invoke(null, mode).asInstanceOf[String]
+        }
         curPrompt += dbSpaces
       }
       line = reader.readLine(curPrompt + "> ")
