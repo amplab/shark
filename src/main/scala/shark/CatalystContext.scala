@@ -45,7 +45,11 @@ case class CatalystContext(sc: SparkContext) extends HiveContext(sc) with LogHel
   class HiveQLQueryExecution(hql: String) extends QueryExecution {
     override def logical: LogicalPlan = HiveQl.parseSql(hql)
     override def toString = hql + "\n" + super.toString
-    
+
+    /**
+     * Query Result (errcode, result, exception if any)
+     * If error code equals 0 means got the result, otherwise failed due to some reason / exception
+     */
     def result(): (Int, Seq[String], Throwable) = analyzed match {
       case NativeCommand(cmd) => runOnHive(cmd)
       case ExplainCommand(plan) => 
@@ -64,7 +68,10 @@ case class CatalystContext(sc: SparkContext) extends HiveContext(sc) with LogHel
           }
         }
     }
-    
+
+    /**
+     * Get the result set table schema
+     */
     def getResultSetSchema: TableSchema = {
       logger.warn(s"Result Schema: ${analyzed.output}")
       if (analyzed.output.size == 0) {

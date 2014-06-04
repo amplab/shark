@@ -36,7 +36,13 @@ class CatalystDriver(hconf: HiveConf) extends Driver {
     
     0
   }
-  
+
+  /**
+   * Get the result schema, currently CatalystDriver doesn't support it yet.
+   * TODO: the TableSchema (org.apache.hive.service.cli.TableSchema) is returned by Catalyst, 
+   * however, the Driver requires the Schema (org.apache.hadoop.hive.metastore.api.Schema)
+   * Need to figure out how to convert the previous to later.
+   */
   override def getSchema(): Schema = throw new UnsupportedOperationException("for getSchema")
   def getTableSchema = tschema
   

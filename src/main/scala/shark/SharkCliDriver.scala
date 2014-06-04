@@ -273,6 +273,7 @@ class SharkCliDriver(reloadRdds: Boolean = true) extends CliDriver with LogHelpe
   // because the Hive unit tests do not go through the main() code path.
   if (!ss.isRemoteMode()) {
     CatalystEnv.init()
+//  TODO reload the rdds
 //    if (reloadRdds) {
 //      console.printInfo(
 //        "Reloading cached RDDs from previous Shark sessions... (use %s flag to skip reloading)"
@@ -344,6 +345,7 @@ class SharkCliDriver(reloadRdds: Boolean = true) extends CliDriver with LogHelpe
 
           if (HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_CLI_PRINT_HEADER)) {
             // Print the column names.
+            // TODO currently CatalystDriver returns the TableSchema instead of the Schema
             if(qp.isInstanceOf[CatalystDriver]) {
               val fieldDescs = qp.asInstanceOf[CatalystDriver].getTableSchema.getColumnDescriptors()
               if (fieldDescs != null) {

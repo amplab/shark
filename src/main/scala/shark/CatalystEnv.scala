@@ -26,6 +26,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.sql.hive.CatalystContext
 
 /** A singleton object for the master program. The slaves should not access this. */
+// TODO add tachyon / memory store based (Copied from SharkEnv.scala)
 object CatalystEnv extends LogHelper {
 
   def init(): CatalystContext = {
