@@ -32,13 +32,12 @@ object SharkBuild extends Build {
 
   val SHARK_ORGANIZATION = "edu.berkeley.cs.shark"
 
-  val SPARK_VERSION = "1.1.0-SNAPSHOT"
+  val SPARK_VERSION = "1.0.0-SNAPSHOT"
 
   val SCALA_VERSION = "2.10.4"
 
   val SCALAC_JVM_VERSION = "jvm-1.6"
   val JAVAC_JVM_VERSION = "1.6"
-  val JETTY_VERSION = "8.1.14.v20131031"
 
   // Hadoop version to build against. For example, "0.20.2", "0.20.205.0", or
   // "1.0.1" for Apache releases, or "0.20.2-cdh3u3" for Cloudera Hadoop.
@@ -72,7 +71,7 @@ object SharkBuild extends Build {
   // Exclusion rules for Hive artifacts
   val excludeGuava = ExclusionRule(organization = "com.google.guava")
   val excludeLog4j = ExclusionRule(organization = "log4j")
-  val excludeJetty = ExclusionRule(organization = "org.mortbay.jetty")
+  val excludeServlet = ExclusionRule(organization = "org.mortbay.jetty")
   val excludeXerces = ExclusionRule(organization = "xerces")
   val excludeHive = ExclusionRule(organization = "org.apache.hive")
 
@@ -81,7 +80,7 @@ object SharkBuild extends Build {
 
   val hiveDependencies = hiveArtifacts.map ( artifactId =>
     "org.spark-project.hive" % artifactId % "0.12.0" excludeAll(
-       excludeGuava, excludeLog4j, excludeAsm, excludeJetty, excludeNetty, excludeXerces)
+      excludeGuava, excludeLog4j, excludeAsm, excludeNetty, excludeXerces, excludeServlet)
   )
 
   val yarnDependency = (if (YARN_ENABLED) {
@@ -102,13 +101,11 @@ object SharkBuild extends Build {
 
     libraryDependencies ++= hiveDependencies ++ yarnDependency,
     libraryDependencies ++= Seq(
-      "org.apache.spark" %% "spark-hive" % SPARK_VERSION excludeAll(excludeHive, excludeJetty) force(),
+      "org.apache.spark" %% "spark-hive" % SPARK_VERSION excludeAll(excludeHive, excludeServlet) force(),
       "org.apache.spark" %% "spark-repl" % SPARK_VERSION,
       "org.apache.hadoop" % "hadoop-client" % hadoopVersion excludeAll(excludeJackson, excludeNetty, excludeAsm) force(),
       "org.mortbay.jetty" % "jetty" % "6.1.26" exclude ("org.mortbay.jetty", "servlet-api") force(),
       "org.eclipse.jetty.orbit" % "javax.servlet" % "3.0.0.v201112011016" artifacts ( Artifact("javax.servlet", "jar", "jar") ),
-      "com.google.guava" % "guava" % "14.0.1",
-      "commons-io" % "commons-io" % "2.1",
       "com.typesafe" %% "scalalogging-slf4j" % "1.0.1",
       "org.scalatest"    %% "scalatest"       % "1.9.1"  % "test"
     ),
