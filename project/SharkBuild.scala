@@ -32,7 +32,7 @@ object SharkBuild extends Build {
 
   val SHARK_ORGANIZATION = "edu.berkeley.cs.shark"
 
-  val SPARK_VERSION = "1.0.0-SNAPSHOT"
+  val SPARK_VERSION = "1.1.0-SNAPSHOT"
 
   val SCALA_VERSION = "2.10.4"
 
@@ -80,7 +80,8 @@ object SharkBuild extends Build {
   /** Extra artifacts not included in Spark SQL's Hive support. */
   val hiveArtifacts = Seq("hive-cli", "hive-jdbc", "hive-exec", "hive-service")
   val hiveDependencies = hiveArtifacts.map ( artifactId =>
-    "org.spark-project.hive" % artifactId % "0.12.0" 
+    "org.spark-project.hive" % artifactId % "0.12.0" excludeAll(
+       excludeGuava, excludeLog4j, excludeServlet, excludeAsm, excludeNetty, excludeXerces)
   )
 
   val yarnDependency = (if (YARN_ENABLED) {
@@ -101,12 +102,9 @@ object SharkBuild extends Build {
 
     libraryDependencies ++= hiveDependencies ++ yarnDependency,
     libraryDependencies ++= Seq(
-      "io.netty"          % "netty-all"      % "4.0.17.Final",
-      "org.eclipse.jetty" % "jetty-server"   % JETTY_VERSION,
-      "org.eclipse.jetty" % "jetty-util"     % JETTY_VERSION,
-      "javax.servlet"     % "javax.servlet-api" % "3.0.1",
       "org.apache.spark" %% "spark-hive" % SPARK_VERSION,
       "org.apache.spark" %% "spark-repl" % SPARK_VERSION,
+      "org.apache.hadoop" % "hadoop-client" % hadoopVersion excludeAll(excludeJackson, excludeNetty, excludeAsm) force(),
       "com.typesafe" %% "scalalogging-slf4j" % "1.0.1",
       "org.scalatest"    %% "scalatest"       % "1.9.1"  % "test"
     ),
