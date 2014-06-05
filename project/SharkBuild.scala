@@ -113,12 +113,12 @@ object SharkBuild extends Build {
     // Download managed jars into lib_managed.
     retrieveManaged := true,
     resolvers ++= Seq(
-      "Local Maven" at Path.userHome.asFile.toURI.toURL + ".m2/repository",
       "Maven Repository"     at "http://repo.maven.apache.org/maven2",
       "Apache Repository"    at "https://repository.apache.org/content/repositories/releases",
       "JBoss Repository"     at "https://repository.jboss.org/nexus/content/repositories/releases/",
       "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
-      "Cloudera Repository" at "https://repository.cloudera.com/artifactory/cloudera-repos/"
+      "Cloudera Repository" at "https://repository.cloudera.com/artifactory/cloudera-repos/",
+      "Local Maven" at Path.userHome.asFile.toURI.toURL + ".m2/repository"
     ),
  
     publishTo <<= version { (v: String) =>
