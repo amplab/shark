@@ -72,16 +72,16 @@ object SharkBuild extends Build {
   // Exclusion rules for Hive artifacts
   val excludeGuava = ExclusionRule(organization = "com.google.guava")
   val excludeLog4j = ExclusionRule(organization = "log4j")
-  val excludeServlet = ExclusionRule(organization = "org.mortbay.jetty")
+  val excludeJetty = ExclusionRule(organization = "org.mortbay.jetty")
   val excludeXerces = ExclusionRule(organization = "xerces")
   val excludeHive = ExclusionRule(organization = "org.apache.hive")
 
-
   /** Extra artifacts not included in Spark SQL's Hive support. */
   val hiveArtifacts = Seq("hive-cli", "hive-jdbc", "hive-exec", "hive-service")
+
   val hiveDependencies = hiveArtifacts.map ( artifactId =>
     "org.spark-project.hive" % artifactId % "0.12.0" excludeAll(
-       excludeGuava, excludeLog4j, excludeServlet, excludeAsm, excludeNetty, excludeXerces)
+       excludeGuava, excludeLog4j, excludeAsm, excludeJetty, excludeNetty, excludeXerces)
   )
 
   val yarnDependency = (if (YARN_ENABLED) {
@@ -102,9 +102,13 @@ object SharkBuild extends Build {
 
     libraryDependencies ++= hiveDependencies ++ yarnDependency,
     libraryDependencies ++= Seq(
-      "org.apache.spark" %% "spark-hive" % SPARK_VERSION,
+      "org.apache.spark" %% "spark-hive" % SPARK_VERSION excludeAll(excludeHive, excludeJetty) force(),
       "org.apache.spark" %% "spark-repl" % SPARK_VERSION,
       "org.apache.hadoop" % "hadoop-client" % hadoopVersion excludeAll(excludeJackson, excludeNetty, excludeAsm) force(),
+      "org.mortbay.jetty" % "jetty" % "6.1.26" exclude ("org.mortbay.jetty", "servlet-api") force(),
+      "org.eclipse.jetty.orbit" % "javax.servlet" % "3.0.0.v201112011016" artifacts ( Artifact("javax.servlet", "jar", "jar") ),
+      "com.google.guava" % "guava" % "14.0.1",
+      "commons-io" % "commons-io" % "2.1",
       "com.typesafe" %% "scalalogging-slf4j" % "1.0.1",
       "org.scalatest"    %% "scalatest"       % "1.9.1"  % "test"
     ),

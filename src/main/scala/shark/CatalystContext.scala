@@ -33,7 +33,6 @@ import org.apache.hadoop.hive.ql.processors.CommandProcessorResponse
 import org.apache.hadoop.hive.ql.Driver
 
 import org.apache.spark.SparkContext
-import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.sql.catalyst.plans.logical.NativeCommand
 import org.apache.spark.sql.catalyst.plans.logical.ExplainCommand
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
@@ -41,7 +40,11 @@ import org.apache.spark.sql.execution.QueryExecutionException
 
 import shark.LogHelper
 
+//TODO work around for HiveContext, need to update that in Spark project (sql/hive), not here.
 case class CatalystContext(sc: SparkContext) extends HiveContext(sc) with LogHelper {
+  @transient protected[hive] override lazy val hiveconf = sessionState.getConf()
+  @transient protected[hive] override lazy val sessionState = SessionState.get()
+
   class HiveQLQueryExecution(hql: String) extends QueryExecution {
     override def logical: LogicalPlan = HiveQl.parseSql(hql)
     override def toString = hql + "\n" + super.toString

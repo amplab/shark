@@ -108,7 +108,7 @@ object SharkCliDriver {
     } catch {
       case e: UnsupportedEncodingException => System.exit(3)
     }
-
+    
     if (!oproc.process_stage2(ss)) {
       System.exit(2)
     }
@@ -163,6 +163,17 @@ object SharkCliDriver {
     val cli = new SharkCliDriver(reloadRdds)
     cli.setHiveVariables(oproc.getHiveVariables())
 
+    // TODO work around for set the log output to console, because the HiveContext
+    // will set the output into an invalid buffer.
+    ss.in = System.in
+    try {
+      ss.out = new PrintStream(System.out, true, "UTF-8")
+      ss.info = new PrintStream(System.err, true, "UTF-8")
+      ss.err = new PrintStream(System.err, true, "UTF-8")
+    } catch {
+      case e: UnsupportedEncodingException => System.exit(3)
+    }
+    
     CatalystEnv.fixUncompatibleConf(conf)
 
     // Execute -i init files (always in silent mode)
@@ -223,7 +234,7 @@ object SharkCliDriver {
 
     var prefix = ""
     val curDB = getFormattedDbMethod.invoke(null, conf, ss).asInstanceOf[String]
-    var curPrompt = SharkCliDriver.prompt + curDB
+    var curPrompt = SharkConfVars.getVar(conf, SharkConfVars.EXEC_MODE) + curDB
     var dbSpaces = spacesForStringMethod.invoke(null, curDB).asInstanceOf[String]
 
     line = reader.readLine(curPrompt + "> ")
@@ -321,14 +332,11 @@ class SharkCliDriver(reloadRdds: Boolean = true) extends CliDriver with LogHelpe
           // hacking CommandProcessorFactory.
           val qp: Driver =
             if (SharkConfVars.getVar(conf, SharkConfVars.EXEC_MODE) == "catalyst") {
-              new CatalystDriver(hconf)
+              new CatalystDriver
             } else {
               proc.asInstanceOf[Driver]
             }
 
-          // TODO HiveContext shouldn't call the SessionState.start(), which has a conflict
-          // with CliSessionState. Here is a work around to set it(CliSessionState) back.
-          SessionState.start(ss)
           logInfo("Execution Mode: " + SharkConfVars.getVar(conf, SharkConfVars.EXEC_MODE))
 
           qp.init()

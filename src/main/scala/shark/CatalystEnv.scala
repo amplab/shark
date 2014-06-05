@@ -31,7 +31,7 @@ import org.apache.spark.scheduler.SplitInfo
 object CatalystEnv extends LogHelper {
 
   def init(): CatalystContext = {
-    if (sc == null) {
+    if (cc == null) {
       initWithCatalystContext()
     }
 
