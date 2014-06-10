@@ -20,7 +20,8 @@ package shark.tachyon
 import java.nio.ByteBuffer
 
 import tachyon.client.WriteType
-
+import tachyon.Constants
+import tachyon.master.MasterInfo
 import shark.LogHelper
 import shark.execution.serialization.JavaSerializer
 import shark.memstore2.{OffHeapStorageClient, OffHeapTableWriter, TablePartitionStats}
@@ -30,7 +31,7 @@ class TachyonOffHeapTableWriter(@transient path: String, @transient numColumns: 
 
   // Re-instantiated upon deserialization, the first time it's referenced.
   @transient lazy val tfs = OffHeapStorageClient.client.asInstanceOf[TachyonStorageClient].tfs
-
+  val TEMP = "_temperary"
   var rawTableId: Int = -1
 
   override def createTable() {
@@ -54,5 +55,30 @@ class TachyonOffHeapTableWriter(@transient path: String, @transient numColumns: 
     val outStream = file.getOutStream(WriteType.CACHE_THROUGH)
     outStream.write(data.array(), 0, data.limit())
     outStream.close()
+  }
+
+  override def writePartitionColumn(part: Int, column: Int, data: ByteBuffer, tempDir: String) {
+    val tmpPath = rawTable.getPath() + Constants.PATH_SEPARATOR + TEMP
+    val fid = tfs.createFile(tmpPath + Constants.PATH_SEPARATOR + tempDir + Constants.PATH_SEPARATOR 
+        + column + Constants.PATH_SEPARATOR + part)
+    val file = tfs.getFile(fid)
+    val outStream = file.getOutStream(WriteType.CACHE_THROUGH)
+    outStream.write(data.array(), 0, data.limit())
+    outStream.close()
+  }
+  
+  override def commitPartition(part: Int, tempDir: String) {
+    val tmpPath = rawTable.getPath() + Constants.PATH_SEPARATOR + TEMP
+    (0 until rawTable.getColumns()).foreach { column =>
+      tfs.rename(tmpPath + Constants.PATH_SEPARATOR + tempDir + Constants.PATH_SEPARATOR
+          + column + Constants.PATH_SEPARATOR + part, rawTable.getPath() + Constants.PATH_SEPARATOR 
+          + MasterInfo.COL + column + Constants.PATH_SEPARATOR + part)
+    }
+    tfs.delete(tmpPath + Constants.PATH_SEPARATOR + tempDir, true)
+  }
+  
+  override def cleanTmpPath() {
+    val tmpPath = rawTable.getPath() + Constants.PATH_SEPARATOR + TEMP
+    tfs.delete(tmpPath, true)
   }
 }

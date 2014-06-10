@@ -76,6 +76,12 @@ abstract class OffHeapTableWriter extends Serializable {
 
   /** Write the data of a partition of a given column. Called only on worker nodes. */
   def writeColumnPartition(column: Int, part: Int, data: ByteBuffer)
+  
+  def writePartitionColumn(part: Int, column: Int, data: ByteBuffer, tempDir: String)
+  
+  def commitPartition(part: Int, tempDir: String)
+
+  def cleanTmpPath()
 }
 
 /** Responsible for creating OffHeapStorageClients. Will be called on master and worker nodes. */

@@ -31,7 +31,7 @@ import shark.{SharkConfVars, SharkEnv}
 import shark.execution.serialization.{OperatorSerializationWrapper, JavaSerializer}
 import shark.memstore2._
 
-
+import org.apache.spark.TaskContext
 /**
  * Cache the RDD and force evaluate it (so the cache is filled).
  */
@@ -80,7 +80,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     localHconf.setInt(SharkConfVars.COLUMN_BUILDER_PARTITION_SIZE.varname, partitionSize)
     localHconf.setBoolean(SharkConfVars.COLUMNAR_COMPRESSION.varname, shouldCompress)
   }
-
+  
   override def execute(): RDD[_] = {
     val inputRdd = if (parentOperators.size == 1) executeParents().head._2 else null
 
@@ -129,16 +129,9 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       // Put the table in off-heap storage.
       op.logInfo("Putting RDD for %s.%s in off-heap storage".format(databaseName, tableName))
       offHeapWriter.createTable()
-      outputRDD = outputRDD.mapPartitionsWithIndex { case(part, iter) =>
-        val partition = iter.next()
-        partition.toOffHeap.zipWithIndex.foreach { case(buf, column) =>
-          offHeapWriter.writeColumnPartition(column, part, buf)
-        }
-        Iterator(partition)
-      }
-      // Force evaluate so the data gets put into off-heap storage.
       outputRDD.context.runJob(
-        outputRDD, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
+          outputRDD, MemoryStoreSinkOperator.processOffHeapSinkPartition(op, offHeapWriter))
+      offHeapWriter.cleanTmpPath()
     } else {
       // Run a job on the RDD that contains the query output to force the data into the memory
       // store. The statistics will also be collected by 'statsAcc' during job execution.
@@ -207,4 +200,25 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
   override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] =
     throw new UnsupportedOperationException("CacheSinkOperator.processPartition()")
+}
+
+object MemoryStoreSinkOperator {
+  def processOffHeapSinkPartition(op: OperatorSerializationWrapper[MemoryStoreSinkOperator], 
+      offHeapWriter: OffHeapTableWriter) = {
+    def writeFiles(context: TaskContext, iter: Iterator[_]): Long = {
+      op.logDebug("Started executing mapPartitions for operator: " + op)
+      val partId = context.partitionId
+      val partition = iter.next().asInstanceOf[TablePartition]
+      val taskTmpDir = context.stageId + "_" + context.partitionId + "_" + context.attemptId
+      var writeBytes: Long = 0
+      partition.toOffHeap.zipWithIndex.foreach { case(buf, column) =>
+        offHeapWriter.writePartitionColumn(partId, column, buf, taskTmpDir)
+        writeBytes += buf.limit 
+      }
+      offHeapWriter.commitPartition(partId, taskTmpDir)
+      op.logDebug("Finished executing mapPartitions for operator: " + op)
+      writeBytes
+    }
+    writeFiles _
+  }
 }
