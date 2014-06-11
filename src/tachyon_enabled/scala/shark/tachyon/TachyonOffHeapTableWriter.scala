@@ -69,7 +69,7 @@ class TachyonOffHeapTableWriter(@transient path: String, @transient numColumns: 
   
   override def commitPartition(part: Int, tempDir: String) {
     val tmpPath = rawTable.getPath() + Constants.PATH_SEPARATOR + TEMP
-    (0 until rawTable.getColumns()).foreach { column =>
+    (0 until rawTable.getColumns()).reverse.foreach { column =>
       tfs.rename(tmpPath + Constants.PATH_SEPARATOR + tempDir + Constants.PATH_SEPARATOR
           + column + Constants.PATH_SEPARATOR + part, rawTable.getPath() + Constants.PATH_SEPARATOR 
           + MasterInfo.COL + column + Constants.PATH_SEPARATOR + part)
