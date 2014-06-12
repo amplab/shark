@@ -10,7 +10,7 @@ Currently this preview release only supports the SharkServer2 JDBC server.  User
 
 ## Running SharkServer2
 
-SharkSever2 is a port of the [HiveSever2 JDBC server](https://cwiki.apache.org/confluence/display/Hive/Setting+Up+HiveServer2).  It can be started by running `bin/shark --service HiveServer2`.  By default, the server will create a local metastore and warehouse.  To connect to an existing Hive instalation, simply place your `hive-site.xml` file in the `conf/` directory before starting the server.  More information about Hive configuration can be found on the [Hive wiki](https://cwiki.apache.org/confluence/display/Hive/AdminManual+Configuration/)
+SharkSever2 is a port of the [HiveSever2 JDBC server](https://cwiki.apache.org/confluence/display/Hive/Setting+Up+HiveServer2).  It can be started by running `bin/shark --service SharkServer2`.  By default, the server will create a local metastore and warehouse.  To connect to an existing Hive instalation, simply place your `hive-site.xml` file in the `conf/` directory before starting the server.  More information about Hive configuration can be found on the [Hive wiki](https://cwiki.apache.org/confluence/display/Hive/AdminManual+Configuration/)
 
 ## Connecting to a SharkServer2 Instance
 
