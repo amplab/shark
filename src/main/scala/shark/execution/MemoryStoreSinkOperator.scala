@@ -206,7 +206,7 @@ object MemoryStoreSinkOperator {
   def processOffHeapSinkPartition(op: OperatorSerializationWrapper[MemoryStoreSinkOperator], 
       offHeapWriter: OffHeapTableWriter) = {
     def writeFiles(context: TaskContext, iter: Iterator[_]): Long = {
-      op.logDebug("Started executing mapPartitions for operator: " + op)
+      op.logDebug("Started executing writeFiles for operator: " + op)
       val partId = context.partitionId
       val partition = iter.next().asInstanceOf[TablePartition]
       val taskTmpDir = context.stageId + "_" + context.partitionId + "_" + context.attemptId
@@ -216,7 +216,7 @@ object MemoryStoreSinkOperator {
         writeBytes += buf.limit 
       }
       offHeapWriter.commitPartition(partId, taskTmpDir)
-      op.logDebug("Finished executing mapPartitions for operator: " + op)
+      op.logDebug("Finished executing writeFiles for operator: " + op)
       writeBytes
     }
     writeFiles _

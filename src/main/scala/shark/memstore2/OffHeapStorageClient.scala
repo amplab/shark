@@ -80,7 +80,7 @@ abstract class OffHeapTableWriter extends Serializable {
   def writePartitionColumn(part: Int, column: Int, data: ByteBuffer, tempDir: String)
   
   def commitPartition(part: Int, tempDir: String)
-
+  
   def cleanTmpPath()
 }
 
