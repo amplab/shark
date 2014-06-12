@@ -31,8 +31,7 @@ import org.apache.hadoop.hive.ql.processors.CommandProcessorResponse
 
 import org.apache.spark.sql.hive.CatalystContext
 
-class CatalystDriver extends Driver with LogHelper {
-  private val context: CatalystContext = CatalystEnv.cc
+class CatalystDriver(val context: CatalystContext = CatalystEnv.cc) extends Driver with LogHelper {
   private var tschema: TableSchema = _
   private var result: (Int, Seq[String], Throwable) = _
   

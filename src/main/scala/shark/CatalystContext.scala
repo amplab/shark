@@ -55,8 +55,7 @@ case class CatalystContext(sc: SparkContext) extends HiveContext(sc) with LogHel
      */
     def result(): (Int, Seq[String], Throwable) = analyzed match {
       case NativeCommand(cmd) => runOnHive(cmd)
-      case ExplainCommand(plan) => 
-        (0, new QueryExecution { val logical = plan }.toString.split("\n"), null)
+      case ExplainCommand(plan) => (0, executePlan(plan).toString.split("\n"), null)
       case query =>
         try{
           val result: Seq[Seq[Any]] = toRdd.collect().toSeq

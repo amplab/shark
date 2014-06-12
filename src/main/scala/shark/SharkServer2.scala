@@ -39,6 +39,7 @@ object SharkServer2 extends Logging {
     logger.info("Starting SparkContext")
     CatalystEnv.init()
     logger.info("Starting CatalystContext")
+    SessionState.start(ss)
 
     //server.SharkServer.hiveContext = hiveContext
 
