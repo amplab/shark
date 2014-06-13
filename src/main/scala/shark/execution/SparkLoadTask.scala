@@ -231,18 +231,13 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
         OffHeapStorageClient.client.dropTablePartition(tableKey, hivePartitionKeyOpt)
       }
       offHeapWriter.createTable()
-      transformedRdd = transformedRdd.mapPartitionsWithIndex { case(part, iter) =>
-        val partition = iter.next()
-        partition.toOffHeap.zipWithIndex.foreach { case(buf, column) =>
-          offHeapWriter.writeColumnPartition(column, part, buf)
-        }
-        Iterator(partition)
-      }
+      transformedRdd.context.runJob(
+        transformedRdd, MemoryStoreSinkOperator.processOffHeapSinkPartition(offHeapWriter))
     } else {
       transformedRdd.persist(StorageLevel.MEMORY_AND_DISK)
+      transformedRdd.context.runJob(
+        transformedRdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
     }
-    transformedRdd.context.runJob(
-      transformedRdd, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
     if (work.cacheMode == CacheType.OFFHEAP) {
       offHeapWriter.setStats(statsAcc.value.toMap)
     }

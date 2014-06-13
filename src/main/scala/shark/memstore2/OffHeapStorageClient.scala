@@ -74,9 +74,7 @@ abstract class OffHeapTableWriter extends Serializable {
   /** Sets stats on this table. Called only on the driver node. */
   def setStats(indexToStats: collection.Map[Int, TablePartitionStats])
 
-  /** Write the data of a partition of a given column. Called only on worker nodes. */
-  def writeColumnPartition(column: Int, part: Int, data: ByteBuffer)
-  
+  /** Write the data of a partition of a given column. Called only on worker nodes. */ 
   def writePartitionColumn(part: Int, column: Int, data: ByteBuffer, tempDir: String)
   
   def commitPartition(part: Int, numColumns: Int, tempDir: String)

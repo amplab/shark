@@ -48,15 +48,6 @@ class TachyonOffHeapTableWriter(@transient path: String, @transient numColumns: 
   // This is only used on worker nodes.
   @transient lazy val rawTable = tfs.getRawTable(rawTableId)
 
-  override def writeColumnPartition(column: Int, part: Int, data: ByteBuffer) {
-    val rawColumn = rawTable.getRawColumn(column)
-    rawColumn.createPartition(part)
-    val file = rawColumn.getPartition(part)
-    val outStream = file.getOutStream(WriteType.CACHE_THROUGH)
-    outStream.write(data.array(), 0, data.limit())
-    outStream.close()
-  }
-
   override def writePartitionColumn(part: Int, column: Int, data: ByteBuffer, tempDir: String) {
     val tmpPath = rawTable.getPath() + Constants.PATH_SEPARATOR + TEMP
     val fid = tfs.createFile(tmpPath + Constants.PATH_SEPARATOR + tempDir + Constants.PATH_SEPARATOR 
