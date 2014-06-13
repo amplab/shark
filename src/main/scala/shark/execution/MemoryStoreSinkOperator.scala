@@ -130,7 +130,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       op.logInfo("Putting RDD for %s.%s in off-heap storage".format(databaseName, tableName))
       offHeapWriter.createTable()
       outputRDD.context.runJob(
-          outputRDD, MemoryStoreSinkOperator.processOffHeapSinkPartition(op, offHeapWriter))
+          outputRDD, MemoryStoreSinkOperator.processOffHeapSinkPartition(offHeapWriter))
       offHeapWriter.cleanTmpPath()
     } else {
       // Run a job on the RDD that contains the query output to force the data into the memory
@@ -203,10 +203,8 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 }
 
 object MemoryStoreSinkOperator {
-  def processOffHeapSinkPartition(op: OperatorSerializationWrapper[MemoryStoreSinkOperator], 
-      offHeapWriter: OffHeapTableWriter) = {
+  def processOffHeapSinkPartition(offHeapWriter: OffHeapTableWriter) = {
     def writeFiles(context: TaskContext, iter: Iterator[_]): Long = {
-      op.logDebug("Started executing writeFiles for operator: " + op)
       val partId = context.partitionId
       val partition = iter.next().asInstanceOf[TablePartition]
       val taskTmpDir = context.stageId + "_" + context.partitionId + "_" + context.attemptId
@@ -215,8 +213,8 @@ object MemoryStoreSinkOperator {
         offHeapWriter.writePartitionColumn(partId, column, buf, taskTmpDir)
         writeBytes += buf.limit 
       }
-      offHeapWriter.commitPartition(partId, taskTmpDir)
-      op.logDebug("Finished executing writeFiles for operator: " + op)
+      val numColumns = partition.columns.size + 1
+      offHeapWriter.commitPartition(partId, numColumns, taskTmpDir)
       writeBytes
     }
     writeFiles _
