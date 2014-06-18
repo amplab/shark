@@ -4,6 +4,7 @@ import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.hive.common.LogUtils
 import org.apache.hadoop.hive.common.LogUtils.LogInitializationException
 import org.apache.hadoop.hive.conf.HiveConf
+import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hive.service.cli.thrift.ThriftBinaryCLIService
 import org.apache.hive.service.server.{HiveServer2, ServerOptionsProcessor}
 import org.apache.hive.service.CompositeService
@@ -12,11 +13,10 @@ import shark.server.SharkCLIService
 
 import scala.collection.JavaConversions._
 
-import org.apache.spark.SparkContext
-import org.apache.spark.sql.hive.HiveContext
+import org.apache.spark.sql.hive.CatalystContext
 
 /**
- * The main entry point for the Shark port of HiveServer2.  Starts up a HiveContext and a SharkServer2 thrift server.
+ * The main entry point for the Shark port of HiveServer2.  Starts up a CatalystContext and a SharkServer2 thrift server.
  */
 object SharkServer2 extends Logging {
   var LOG = LogFactory.getLog(classOf[SharkServer2])
@@ -29,24 +29,30 @@ object SharkServer2 extends Logging {
       System.exit(-1)
     }
 
+    val ss = new SessionState(new HiveConf(classOf[SessionState]))
+
+    // Set all properties specified via command line.
+    val hiveConf: HiveConf = ss.getConf()
+
+    SessionState.start(ss)
+    
     logger.info("Starting SparkContext")
-    val sparkContext = new SparkContext("local", "")
-    logger.info("Starting HiveContext")
-    val hiveContext = new HiveContext(sparkContext)
+    CatalystEnv.init()
+    logger.info("Starting CatalystContext")
+    SessionState.start(ss)
 
     //server.SharkServer.hiveContext = hiveContext
 
     Runtime.getRuntime.addShutdownHook(
       new Thread() {
         override def run() {
-          sparkContext.stop()
+          CatalystEnv.sc.stop()
         }
       }
     )
 
     try {
-      val hiveConf = new HiveConf
-      val server = new SharkServer2(hiveContext)
+      val server = new SharkServer2(CatalystEnv.cc)
       server.init(hiveConf)
       server.start()
       logger.info("SharkServer2 started")
@@ -59,9 +65,9 @@ object SharkServer2 extends Logging {
   }
 }
 
-private[shark] class SharkServer2(hiveContext: HiveContext) extends HiveServer2 {
+private[shark] class SharkServer2(catalystContext: CatalystContext) extends HiveServer2 {
   override def init(hiveConf: HiveConf): Unit = synchronized {
-    val sharkCLIService = new SharkCLIService(hiveContext)
+    val sharkCLIService = new SharkCLIService(catalystContext)
     Utils.setSuperField("cliService", sharkCLIService, this)
     addService(sharkCLIService)
     val sthriftCLIService = new ThriftBinaryCLIService(sharkCLIService)

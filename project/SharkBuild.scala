@@ -32,7 +32,7 @@ object SharkBuild extends Build {
 
   val SHARK_ORGANIZATION = "edu.berkeley.cs.shark"
 
-  val SPARK_VERSION = "1.0.0-SNAPSHOT"
+  val SPARK_VERSION = "1.1.0-SNAPSHOT"
 
   val SCALA_VERSION = "2.10.4"
 
@@ -75,9 +75,9 @@ object SharkBuild extends Build {
   val excludeXerces = ExclusionRule(organization = "xerces")
   val excludeHive = ExclusionRule(organization = "org.apache.hive")
 
-
   /** Extra artifacts not included in Spark SQL's Hive support. */
-  val hiveArtifacts = Seq("hive-cli", "hive-jdbc")
+  val hiveArtifacts = Seq("hive-cli", "hive-jdbc", "hive-exec", "hive-service")
+
   val hiveDependencies = hiveArtifacts.map ( artifactId =>
     "org.spark-project.hive" % artifactId % "0.12.0" excludeAll(
       excludeGuava, excludeLog4j, excludeAsm, excludeNetty, excludeXerces, excludeServlet)
@@ -101,8 +101,11 @@ object SharkBuild extends Build {
 
     libraryDependencies ++= hiveDependencies ++ yarnDependency,
     libraryDependencies ++= Seq(
-      "org.apache.spark" %% "spark-hive" % SPARK_VERSION,
+      "org.apache.spark" %% "spark-hive" % SPARK_VERSION excludeAll(excludeHive, excludeServlet) force(),
       "org.apache.spark" %% "spark-repl" % SPARK_VERSION,
+      "org.apache.hadoop" % "hadoop-client" % hadoopVersion excludeAll(excludeJackson, excludeNetty, excludeAsm) force(),
+      "org.mortbay.jetty" % "jetty" % "6.1.26" exclude ("org.mortbay.jetty", "servlet-api") force(),
+      "org.eclipse.jetty.orbit" % "javax.servlet" % "3.0.0.v201112011016" artifacts ( Artifact("javax.servlet", "jar", "jar") ),
       "com.typesafe" %% "scalalogging-slf4j" % "1.0.1",
       "org.scalatest"    %% "scalatest"       % "1.9.1"  % "test"
     ),
@@ -110,6 +113,9 @@ object SharkBuild extends Build {
     // Download managed jars into lib_managed.
     retrieveManaged := true,
     resolvers ++= Seq(
+      "Maven Repository"     at "http://repo.maven.apache.org/maven2",
+      "Apache Repository"    at "https://repository.apache.org/content/repositories/releases",
+      "JBoss Repository"     at "https://repository.jboss.org/nexus/content/repositories/releases/",
       "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
       "Cloudera Repository" at "https://repository.cloudera.com/artifactory/cloudera-repos/",
       "Local Maven" at Path.userHome.asFile.toURI.toURL + ".m2/repository"
