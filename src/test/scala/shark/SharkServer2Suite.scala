@@ -42,9 +42,6 @@ class SharkServer2Suite extends FunSuite with BeforeAndAfterAll with TestUtils w
     // hard to clean up Hive resources entirely, so we just start a new process and kill
     // that process for cleanup.
     val defaultArgs = Seq("./bin/shark", "--service", "sharkserver2",
-      "--verbose",
-      "-p",
-      PORT,
       "--hiveconf",
       "hive.root.logger=INFO,console",
       "--hiveconf",

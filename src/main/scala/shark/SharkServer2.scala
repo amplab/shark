@@ -1,19 +1,15 @@
 package shark
 
+import scala.collection.JavaConversions._
+
 import org.apache.commons.logging.LogFactory
-import org.apache.hadoop.hive.common.LogUtils
-import org.apache.hadoop.hive.common.LogUtils.LogInitializationException
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hive.service.cli.thrift.ThriftBinaryCLIService
 import org.apache.hive.service.server.{HiveServer2, ServerOptionsProcessor}
-import org.apache.hive.service.CompositeService
-import org.apache.spark.SparkEnv
-import shark.server.SharkCLIService
-
-import scala.collection.JavaConversions._
-
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.hive.HiveContext
+
+import shark.server.SharkCLIService
 
 /**
  * The main entry point for the Shark port of HiveServer2.  Starts up a HiveContext and a SharkServer2 thrift server.
@@ -70,5 +66,3 @@ private[shark] class SharkServer2(hiveContext: HiveContext) extends HiveServer2 
     sharkInit(hiveConf)
   }
 }
-
-
