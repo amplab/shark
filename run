@@ -62,19 +62,6 @@ if [ -f "${HIVE_CONF_DIR}/hive-env.sh" ]; then
   . "${HIVE_CONF_DIR}/hive-env.sh"
 fi
 
-# Add Shark jars.
-for jar in `find $SHARK_HOME/lib -name '*jar'`; do
-  SPARK_CLASSPATH+=:$jar
-done
-for jar in `find $SHARK_HOME/lib_managed/jars -name '*jar'`; do
-  SPARK_CLASSPATH+=:$jar
-done
-for jar in `find $SHARK_HOME/lib_managed/bundles -name '*jar'`; do
-  SPARK_CLASSPATH+=:$jar
-done
-
-SPARK_CLASSPATH+=:$HIVE_CONF_DIR
-
 # Build up Shark's jar or classes.
 SHARK_CLASSES="$SHARK_HOME/target/scala-$SCALA_VERSION/classes"
 SHARK_JAR="$SHARK_HOME/target/scala-$SCALA_VERSION/shark_$SCALA_VERSION-$SHARK_VERSION.jar"
@@ -91,6 +78,19 @@ else
 fi
 
 SPARK_CLASSPATH+=":$SHARK_HOME/target/scala-$SCALA_VERSION/test-classes"
+
+# Add Shark jars.
+for jar in `find $SHARK_HOME/lib_managed/jars -name '*jar'`; do
+  SPARK_CLASSPATH+=:$jar
+done
+for jar in `find $SHARK_HOME/lib_managed/bundles -name '*jar'`; do
+  SPARK_CLASSPATH+=:$jar
+done
+for jar in `find $SHARK_HOME/lib_managed/orbits -name '*jar'`; do
+  SPARK_CLASSPATH+=:$jar
+done
+
+SPARK_CLASSPATH+=:$HIVE_CONF_DIR
 
 
 SHARK_JAR="$SHARK_HOME/target/scala-$SCALA_VERSION/shark_$SCALA_VERSION-$SHARK_VERSION.jar"
