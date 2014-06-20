@@ -17,27 +17,20 @@
 
 package shark
 
-import java.io.BufferedReader
-import java.io.File
-import java.io.FileNotFoundException
-import java.io.IOException
-import java.io.PrintStream
-import java.io.UnsupportedEncodingException
+import scala.collection.JavaConversions._
+
+import java.io._
 import java.net.URLClassLoader
 import java.util.ArrayList
 
-import scala.collection.JavaConversions._
-
-import jline.{History, ConsoleReader}
-
+import jline.{ConsoleReader, History}
 import org.apache.commons.lang.StringUtils
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hive.cli.{CliDriver, CliSessionState, OptionsProcessor}
-import org.apache.hadoop.hive.common.{HiveInterruptCallback, HiveInterruptUtils, LogUtils}
 import org.apache.hadoop.hive.common.LogUtils.LogInitializationException
+import org.apache.hadoop.hive.common.{HiveInterruptCallback, HiveInterruptUtils, LogUtils}
 import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.hadoop.hive.ql.Driver
 import org.apache.hadoop.hive.ql.exec.Utilities
 import org.apache.hadoop.hive.ql.processors.{CommandProcessor, CommandProcessorFactory}
@@ -50,7 +43,7 @@ object SharkCliDriver {
   val SKIP_RDD_RELOAD_FLAG = "-skipRddReload"
 
   private var prompt  = "catalyst"
-  private var prompt2 = "     " // when ';' is not yet seen.
+  private var prompt2 = "".padTo(prompt.length, ' ')
   private var transport:TSocket = _
 
   installSignalHandler()
@@ -69,7 +62,7 @@ object SharkCliDriver {
         } else {
           if (transport != null) {
             // Force closing of TCP connection upon session termination
-            transport.getSocket().close()
+            transport.getSocket.close()
           }
         }
       }
@@ -93,7 +86,7 @@ object SharkCliDriver {
     } catch {
       case e: LogInitializationException =>
         logInitFailed = true
-        logInitDetailMessage = e.getMessage()
+        logInitDetailMessage = e.getMessage
     }
 
     val ss = new CliSessionState(new HiveConf(classOf[SessionState]))
@@ -106,28 +99,28 @@ object SharkCliDriver {
     } catch {
       case e: UnsupportedEncodingException => System.exit(3)
     }
-    
+
     if (!oproc.process_stage2(ss)) {
       System.exit(2)
     }
 
-    if (!ss.getIsSilent()) {
+    if (!ss.getIsSilent) {
       if (logInitFailed) System.err.println(logInitDetailMessage)
-      else SessionState.getConsole().printInfo(logInitDetailMessage)
+      else SessionState.getConsole.printInfo(logInitDetailMessage)
     }
 
     // Set all properties specified via command line.
-    val conf: HiveConf = ss.getConf()
+    val conf: HiveConf = ss.getConf
     ss.cmdProperties.entrySet().foreach { item: java.util.Map.Entry[Object, Object] =>
-      conf.set(item.getKey().asInstanceOf[String], item.getValue().asInstanceOf[String])
-      ss.getOverriddenConfigurations().put(
-        item.getKey().asInstanceOf[String], item.getValue().asInstanceOf[String])
+      conf.set(item.getKey.asInstanceOf[String], item.getValue.asInstanceOf[String])
+      ss.getOverriddenConfigurations.put(
+        item.getKey.asInstanceOf[String], item.getValue.asInstanceOf[String])
     }
 
     SessionState.start(ss)
 
     // Clean up after we exit
-    Runtime.getRuntime().addShutdownHook(
+    Runtime.getRuntime.addShutdownHook(
       new Thread() {
         override def run() {
           CatalystEnv.stop()
@@ -136,20 +129,20 @@ object SharkCliDriver {
     )
 
     // "-h" option has been passed, so connect to Shark Server.
-    if (ss.getHost() != null) {
+    if (ss.getHost != null) {
       ss.connect()
-      if (ss.isRemoteMode()) {
+      if (ss.isRemoteMode) {
         prompt = "[" + ss.getHost + ':' + ss.getPort + "] " + prompt
         val spaces = Array.tabulate(prompt.length)(_ => ' ')
         prompt2 = new String(spaces)
       }
     }
 
-    if (!ss.isRemoteMode() && !ShimLoader.getHadoopShims().usesJobShell()) {
+    if (!ss.isRemoteMode && !ShimLoader.getHadoopShims.usesJobShell()) {
       // Hadoop-20 and above - we need to augment classpath using hiveconf
       // components.
       // See also: code in ExecDriver.java
-      var loader = conf.getClassLoader()
+      var loader = conf.getClassLoader
       val auxJars = HiveConf.getVar(conf, HiveConf.ConfVars.HIVEAUXJARS)
       if (StringUtils.isNotBlank(auxJars)) {
         loader = Utilities.addToClassPath(loader, StringUtils.split(auxJars, ","))
@@ -159,7 +152,7 @@ object SharkCliDriver {
     }
 
     val cli = new SharkCliDriver(reloadRdds)
-    cli.setHiveVariables(oproc.getHiveVariables())
+    cli.setHiveVariables(oproc.getHiveVariables)
 
     // TODO work around for set the log output to console, because the HiveContext
     // will set the output into an invalid buffer.
@@ -171,7 +164,7 @@ object SharkCliDriver {
     } catch {
       case e: UnsupportedEncodingException => System.exit(3)
     }
-    
+
     CatalystEnv.fixUncompatibleConf(conf)
 
     // Execute -i init files (always in silent mode)
@@ -187,16 +180,15 @@ object SharkCliDriver {
       }
     } catch {
       case e: FileNotFoundException =>
-        System.err.println("Could not open input file for reading. (" + e.getMessage() + ")")
+        System.err.println(s"Could not open input file for reading. (${e.getMessage})")
         System.exit(3)
     }
 
     val reader = new ConsoleReader()
     reader.setBellEnabled(false)
     // reader.setDebug(new PrintWriter(new FileWriter("writer.debug", true)))
-    CliDriver.getCommandCompletor().foreach((e) => reader.addCompletor(e))
+    CliDriver.getCommandCompletor.foreach((e) => reader.addCompletor(e))
 
-    var line: String = null
     val HISTORYFILE = ".hivehistory"
     val historyDirectory = System.getProperty("user.home")
     try {
@@ -211,7 +203,7 @@ object SharkCliDriver {
       case e: Exception =>
         System.err.println("WARNING: Encountered an error while trying to initialize Hive's " +
                            "history file.  History will not be available during this session.")
-        System.err.println(e.getMessage())
+        System.err.println(e.getMessage)
     }
 
     // Use reflection to get access to the two fields.
@@ -235,9 +227,9 @@ object SharkCliDriver {
     var curPrompt = SharkConfVars.getVar(conf, SharkConfVars.EXEC_MODE) + curDB
     var dbSpaces = spacesForStringMethod.invoke(null, curDB).asInstanceOf[String]
 
-    line = reader.readLine(curPrompt + "> ")
+    var line = reader.readLine(curPrompt + "> ")
     while (line != null) {
-      if (!prefix.equals("")) {
+      if (prefix.nonEmpty) {
         prefix += '\n'
       }
       if (line.trim().endsWith(";") && !line.trim().endsWith("\\;")) {
@@ -266,25 +258,26 @@ object SharkCliDriver {
     ss.close()
 
     System.exit(ret)
-  } // end of main
+  }
 }
 
 
 class SharkCliDriver(reloadRdds: Boolean = true) extends CliDriver with LogHelper {
 
-  private val ss = SessionState.get().asInstanceOf[CliSessionState]
+  private val sessionState = SessionState.get().asInstanceOf[CliSessionState]
 
   private val LOG = LogFactory.getLog("CliDriver")
 
   private val console = new SessionState.LogHelper(LOG)
 
-  private val conf: Configuration = if (ss != null) ss.getConf() else new Configuration()
+  private val conf: Configuration =
+    if (sessionState != null) sessionState.getConf else new Configuration()
 
   SharkConfVars.initializeWithDefaults(conf)
 
   // Force initializing SharkEnv. This is put here but not object SharkCliDriver
   // because the Hive unit tests do not go through the main() code path.
-  if (!ss.isRemoteMode()) {
+  if (!sessionState.isRemoteMode) {
     CatalystEnv.init()
     if (reloadRdds) {
       console.printInfo(
@@ -296,23 +289,26 @@ class SharkCliDriver(reloadRdds: Boolean = true) extends CliDriver with LogHelpe
 
   def this() = this(false)
 
+  private def executionMode = SharkConfVars.getVar(conf, SharkConfVars.EXEC_MODE)
+
   override def processCmd(cmd: String): Int = {
     val cmd_trimmed: String = cmd.trim()
     val tokens: Array[String] = cmd_trimmed.split("\\s+")
     val cmd_1: String = cmd_trimmed.substring(tokens(0).length()).trim()
-    var ret = 0
-    if (cmd_trimmed.toLowerCase().equals("quit") ||
-      cmd_trimmed.toLowerCase().equals("exit") ||
+    if (cmd_trimmed.toLowerCase.equals("quit") ||
+      cmd_trimmed.toLowerCase.equals("exit") ||
       tokens(0).equalsIgnoreCase("source") ||
       cmd_trimmed.startsWith("!") ||
-      tokens(0).toLowerCase().equals("list") ||
-      ss.isRemoteMode()) {
+      tokens(0).toLowerCase.equals("list") ||
+      sessionState.isRemoteMode) {
       val start = System.currentTimeMillis()
       super.processCmd(cmd)
       val end = System.currentTimeMillis()
       val timeTaken: Double = (end - start) / 1000.0
       console.printInfo("Time taken (including network latency): " + timeTaken + " seconds")
+      0
     } else {
+      var ret = 0
       val hconf = conf.asInstanceOf[HiveConf]
       val proc: CommandProcessor = CommandProcessorFactory.get(tokens(0), hconf)
       if (proc != null) {
@@ -320,33 +316,32 @@ class SharkCliDriver(reloadRdds: Boolean = true) extends CliDriver with LogHelpe
         // Spark expects the ClassLoader to be an URLClassLoader.
         // In case we're using something else here, wrap it into an URLCLassLaoder.
         if (System.getenv("TEST_WITH_ANT") == "1") {
-          val cl = Thread.currentThread.getContextClassLoader()
-          Thread.currentThread.setContextClassLoader(new URLClassLoader(Array(), cl))
+          val loader = Thread.currentThread.getContextClassLoader
+          Thread.currentThread.setContextClassLoader(new URLClassLoader(Array(), loader))
         }
 
         if (proc.isInstanceOf[Driver]) {
           // There is a small overhead here to create a new instance of
           // SharkDriver for every command. But it saves us the hassle of
           // hacking CommandProcessorFactory.
-          val qp: Driver =
-            if (SharkConfVars.getVar(conf, SharkConfVars.EXEC_MODE) == "catalyst") {
-              new CatalystDriver
-            } else {
-              proc.asInstanceOf[Driver]
-            }
+          val driver = if (executionMode == "catalyst") {
+            new CatalystDriver
+          } else {
+            proc.asInstanceOf[Driver]
+          }
 
-          logInfo("Execution Mode: " + SharkConfVars.getVar(conf, SharkConfVars.EXEC_MODE))
+          logInfo(s"Execution Mode: $executionMode")
 
-          qp.init()
-          val out = ss.out
+          driver.init()
+          val out = sessionState.out
           val start:Long = System.currentTimeMillis()
-          if (ss.getIsVerbose()) {
+          if (sessionState.getIsVerbose) {
             out.println(cmd)
           }
 
-          ret = qp.run(cmd).getResponseCode()
+          ret = driver.run(cmd).getResponseCode
           if (ret != 0) {
-            qp.close()
+            driver.close()
             return ret
           }
 
@@ -354,63 +349,55 @@ class SharkCliDriver(reloadRdds: Boolean = true) extends CliDriver with LogHelpe
 
           if (HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_CLI_PRINT_HEADER)) {
             // Print the column names.
-            // TODO currently CatalystDriver returns the TableSchema instead of the Schema
-            if(qp.isInstanceOf[CatalystDriver]) {
-              val fieldDescs = qp.asInstanceOf[CatalystDriver].getTableSchema.getColumnDescriptors()
-              if (fieldDescs != null) {
-                out.println(fieldDescs.map(_.getName()).mkString("\t"))
-              }
-            } else {
-              val fieldSchemas = qp.getSchema.getFieldSchemas
-              if (fieldSchemas != null) {
-                out.println(fieldSchemas.map(_.getName).mkString("\t"))
-              }
+            Option(driver.getSchema.getFieldSchemas).map { fields =>
+              out.println(fields.map(_.getName).mkString("\t"))
             }
           }
 
           try {
-            while (!out.checkError() && qp.getResults(res)) {
-              res.foreach(line => out.println(line))
+            while (!out.checkError() && driver.getResults(res)) {
+              res.foreach(out.println)
               res.clear()
             }
           } catch {
             case e:IOException =>
-              console.printError("Failed with exception " + e.getClass().getName() + ":" +
-                e.getMessage(), "\n" + org.apache.hadoop.util.StringUtils.stringifyException(e))
+              console.printError(
+                s"""Failed with exception ${e.getClass.getName}: ${e.getMessage}
+                   |${org.apache.hadoop.util.StringUtils.stringifyException(e)}
+                 """.stripMargin)
               ret = 1
           }
 
-          val cret = qp.close()
+          val cret = driver.close()
           if (ret == 0) {
             ret = cret
           }
 
-          val end:Long = System.currentTimeMillis()
+          val end = System.currentTimeMillis()
           if (end > start) {
             val timeTaken:Double = (end - start) / 1000.0
-            console.printInfo("Time taken: " + timeTaken + " seconds", null)
+            console.printInfo(s"Time taken: $timeTaken seconds", null)
           }
 
           // Destroy the driver to release all the locks.
-          if (qp.isInstanceOf[CatalystDriver]) {
-            qp.destroy()
+          if (driver.isInstanceOf[CatalystDriver]) {
+            driver.destroy()
           }
-
         } else {
-          if (ss.getIsVerbose()) {
-            ss.out.println(tokens(0) + " " + cmd_1)
+          if (sessionState.getIsVerbose) {
+            sessionState.out.println(tokens(0) + " " + cmd_1)
           }
-          ret = proc.run(cmd_1).getResponseCode()
+          ret = proc.run(cmd_1).getResponseCode
         }
       }
+      ret
     }
-    ret
   }
 
   override def processFile(fileName: String): Int = {
     if (Utils.isS3File(fileName)) {
       // For S3 file, fetch it from S3 and pass it to Hive.
-      val conf = ss.getConf()
+      val conf = sessionState.getConf
       Utils.setAwsCredentials(conf)
       var bufferReader: BufferedReader = null
       var rc: Int = 0

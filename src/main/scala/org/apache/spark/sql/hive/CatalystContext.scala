@@ -15,30 +15,20 @@
  * limitations under the License.
  */
 
-package org.apache.spark.sql
-package hive
+package org.apache.spark.sql.hive
 
-import java.util.{ArrayList => JArrayList}
 import scala.collection.JavaConversions._
 
-import org.apache.hive.service.cli.TableSchema
-import org.apache.hadoop.hive.metastore.api.FieldSchema
-import org.apache.hadoop.hive.cli.CliSessionState
-import org.apache.hadoop.hive.cli.CliDriver
-import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.hadoop.hive.ql.session.SessionState
-import org.apache.hadoop.hive.ql.processors.CommandProcessor
-import org.apache.hadoop.hive.ql.processors.CommandProcessorFactory
-import org.apache.hadoop.hive.ql.processors.CommandProcessorResponse
+import java.util.{ArrayList => JArrayList}
+
 import org.apache.hadoop.hive.ql.Driver
-
+import org.apache.hadoop.hive.ql.processors._
+import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.spark.SparkContext
-import org.apache.spark.sql.catalyst.plans.logical.NativeCommand
-import org.apache.spark.sql.catalyst.plans.logical.ExplainCommand
-import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.execution.QueryExecutionException
-
+import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, NativeCommand}
 import shark.LogHelper
+
+case class HiveResponse(responseCode: Int, result: Seq[String], exception: Option[Throwable])
 
 //TODO work around for HiveContext, need to update that in Spark project (sql/hive), not here.
 case class CatalystContext(sc: SparkContext) extends HiveContext(sc) with LogHelper {
@@ -50,45 +40,30 @@ case class CatalystContext(sc: SparkContext) extends HiveContext(sc) with LogHel
     override def toString = hql + "\n" + super.toString
 
     /**
-     * Query Result (errcode, result, exception if any)
-     * If error code equals 0 means got the result, otherwise failed due to some reason / exception
+     * Query Result (responseCode, result, exception if any)
+     * If response code equals 0 means got the result, otherwise failed due to some reason/exception
      */
-    def result(): (Int, Seq[String], Throwable) = analyzed match {
+    def result(): HiveResponse = analyzed match {
       case NativeCommand(cmd) => runOnHive(cmd)
-      case ExplainCommand(plan) => (0, executePlan(plan).toString.split("\n"), null)
       case query =>
-        try{
-          val result: Seq[Seq[Any]] = toRdd.collect().toSeq
+        try {
           // We need the types so we can output struct field names
           val types = analyzed.output.map(_.dataType)
           // Reformat to match hive tab delimited output.
-          (0, result.map(_.zip(types).map(toHiveString)).map(_.mkString("\t")).toSeq, null)
+          val result = toRdd.collect().map(_.zip(types).map(toHiveString).mkString("\t"))
+          HiveResponse(0, result, None)
         } catch {
-          case e: Throwable => {
-            logError("Error:\n $cmd\n", e)
-            (-1, Seq[String](), e)
+          case cause: Throwable => {
+            logError("Error:\n $cmd\n", cause)
+            HiveResponse(-1, Seq.empty[String], Some(cause))
           }
         }
     }
-
-    /**
-     * Get the result set table schema
-     */
-    def getResultSetSchema: TableSchema = {
-      logger.warn(s"Result Schema: ${analyzed.output}")
-      if (analyzed.output.size == 0) {
-        new TableSchema(new FieldSchema("Result", "string", "") :: Nil)
-      } else {
-        val schema = analyzed.output.map { attr =>
-          new FieldSchema(attr.name, 
-            org.apache.spark.sql.hive.HiveMetastoreTypes.toMetastoreType(attr.dataType), "")
-        }
-        new TableSchema(schema)
-      }
-    }
   }
 
-  def runOnHive(cmd: String, maxRows: Int = 1000): (Int, Seq[String], Throwable) = {
+  // TODO (lian) We should make HiveContext.runHive behave similarly to remove CatalystContext
+  // See: https://issues.apache.org/jira/browse/SPARK-2106
+  def runOnHive(cmd: String, maxRows: Int = 1000): HiveResponse = {
     try {
       val cmd_trimmed: String = cmd.trim()
       val tokens: Array[String] = cmd_trimmed.split("\\s+")
@@ -104,20 +79,23 @@ case class CatalystContext(sc: SparkContext) extends HiveContext(sc) with LogHel
           // Throw an exception if there is an error in query processing.
           if (response.getResponseCode != 0) {
             driver.destroy()
-            (response.getResponseCode, Seq[String](response.getErrorMessage()), new Exception(cmd))
+            HiveResponse(
+              response.getResponseCode,
+              Seq[String](response.getErrorMessage()),
+              Some(new Exception(cmd)))
           } else {
             driver.setMaxRows(maxRows)
             driver.getResults(results)
             driver.destroy()
-            (0, results, null)
+            HiveResponse(0, results, None)
           }
         case _ =>
           SessionState.get().out.println(tokens(0) + " " + cmd_1)
           val res = proc.run(cmd_1)
           if(res.getResponseCode == 0) {
-            (0, Seq[String](), null)
+            HiveResponse(0, Seq.empty[String], None)
           } else {
-            (res.getResponseCode, Seq[String](res.getErrorMessage()), new Exception(cmd_1))
+            HiveResponse(res.getResponseCode, Seq(res.getErrorMessage), Some(new Exception(cmd_1)))
           }
       }
     } catch {
@@ -132,7 +110,7 @@ case class CatalystContext(sc: SparkContext) extends HiveContext(sc) with LogHel
             |END HIVE FAILURE OUTPUT
             |======================
           """.stripMargin)
-        (-2, Seq[String](), e)
+        HiveResponse(-2, Seq[String](), Some(e))
     }
   }
 }
