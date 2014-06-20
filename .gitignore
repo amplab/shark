@@ -1,3 +1,4 @@
+sbt/sbt-launch-*.jar
 target/
 build/
 metastore_db/
@@ -8,6 +9,7 @@ work/
 run-tests-from-scratch-workspace/
 
 conf/shark-env.sh
+conf/hive-site.xml
 
 # Compiled Source
 *.class

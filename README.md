@@ -59,9 +59,19 @@ resultSet.next()
 println(resultSet.getInt(1))
 ```
 
+## Running Shark CLI
+* Configure the shark_home/conf/shark-env.sh
+* Configure the shark_home/conf/hive-site.xml
+* Start the Shark CLI
+```
+$ bin/shark
+catalyst> show tables;
+catalyst> set shark.exec.mode=hive;
+hive>show tables;
+```
+But there is a bug, which require show tables before doing anything else.
+
 ## Known Missing Features
-* Shark CLI
-* Restoring cached tables upon restart
 * Invalidation of cached tables when data is INSERTed
 * Off-heap storage using Tachyon
 * TGFs
