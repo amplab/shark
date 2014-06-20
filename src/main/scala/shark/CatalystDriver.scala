@@ -19,22 +19,22 @@ package shark
 
 import scala.collection.JavaConversions._
 
-import java.util.ArrayList
+import java.util.{ArrayList => JArrayList}
 
 import org.apache.commons.lang.exception.ExceptionUtils
 import org.apache.hadoop.hive.metastore.api.{FieldSchema, Schema}
 import org.apache.hadoop.hive.ql.Driver
 import org.apache.hadoop.hive.ql.processors.CommandProcessorResponse
-import org.apache.spark.sql.hive.{CatalystContext, HiveMetastoreTypes, HiveResponse}
+import org.apache.spark.sql.hive.{CatalystContext, HiveMetastoreTypes}
 
-class CatalystDriver(val context: CatalystContext = CatalystEnv.cc) extends Driver with LogHelper {
+class CatalystDriver(val context: CatalystContext = CatalystEnv.catalystContext) extends Driver with LogHelper {
   private var tableSchema: Schema = _
-  private var hiveResponse: HiveResponse = _
+  private var hiveResponse: Seq[String] = _
 
   override def init(): Unit = {
   }
 
-  private def getResultSetSchema(query: context.HiveQLQueryExecution): Schema = {
+  private def getResultSetSchema(query: context.QueryExecution): Schema = {
     val analyzed = query.analyzed
     logger.debug(s"Result Schema: ${analyzed.output}")
     if (analyzed.output.size == 0) {
@@ -49,21 +49,13 @@ class CatalystDriver(val context: CatalystContext = CatalystEnv.cc) extends Driv
   }
 
   override def run(command: String): CommandProcessorResponse = {
-    val execution = new context.HiveQLQueryExecution(command)
+    val execution = context.executeHiveQL(command)
 
     // TODO unify the error code
     try {
-      hiveResponse = execution.result()
+      hiveResponse = execution.stringResult()
       tableSchema = getResultSetSchema(execution)
-
-      hiveResponse match {
-        case HiveResponse(responseCode, results, Some(cause)) if responseCode != 0 =>
-          logError(s"Failed in [$command]", cause)
-          new CommandProcessorResponse(responseCode, ExceptionUtils.getFullStackTrace(cause), null)
-
-        case HiveResponse(responseCode, _, _) =>
-          new CommandProcessorResponse(responseCode)
-      }
+      new CommandProcessorResponse(0)
     } catch {
       case cause: Throwable =>
         logError(s"Failed in [$command]", cause)
@@ -79,11 +71,11 @@ class CatalystDriver(val context: CatalystContext = CatalystEnv.cc) extends Driv
 
   override def getSchema: Schema = tableSchema
 
-  override def getResults(res: ArrayList[String]): Boolean = {
+  override def getResults(res: JArrayList[String]): Boolean = {
     if(hiveResponse == null) {
       false
     } else {
-      res.addAll(hiveResponse.result)
+      res.addAll(hiveResponse)
       hiveResponse = null
       true
     }

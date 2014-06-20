@@ -31,20 +31,20 @@ import org.apache.spark.scheduler.SplitInfo
 object CatalystEnv extends LogHelper {
 
   def init(): CatalystContext = {
-    if (cc == null) {
+    if (catalystContext == null) {
       initWithCatalystContext()
     }
 
-    cc
+    catalystContext
   }
 
   def fixUncompatibleConf(conf: Configuration) {
-    if (sc == null) {
+    if (sparkContext == null) {
       init()
     }
 
     val hiveIslocal = ShimLoader.getHadoopShims.isLocalMode(conf)
-    if (!sc.isLocal && hiveIslocal) {
+    if (!sparkContext.isLocal && hiveIslocal) {
       val warnMessage = "Hive Hadoop shims detected local mode, but Shark is not running locally."
       logWarning(warnMessage)
 
@@ -69,41 +69,30 @@ object CatalystEnv extends LogHelper {
       jobName: String = "Shark::" + java.net.InetAddress.getLocalHost.getHostName,
       master: String = System.getenv("MASTER"))
     : CatalystContext = {
-    sc = initSparkContext(jobName, master)
+    sparkContext = initSparkContext(jobName, master)
 
-    sc.addSparkListener(new StatsReportListener())
-    
-    cc = CatalystContext(sc)
-    
-    cc
-  }
+    sparkContext.addSparkListener(new StatsReportListener())
 
-  private def initSparkContext(conf: SparkConf): SparkContext = {
-    if (sc != null) {
-      sc.stop()
-    }
+    catalystContext = new CatalystContext(sparkContext)
 
-    sc = new SparkContext(conf)
-    sc.addSparkListener(new StatsReportListener())
-
-    sc
+    catalystContext
   }
 
   private def initSparkContext(
       jobName: String = "Shark::" + java.net.InetAddress.getLocalHost.getHostName,
       master: String = System.getenv("MASTER")): SparkContext = {
-    if (sc != null) {
-      sc.stop()
+    if (sparkContext != null) {
+      sparkContext.stop()
     }
 
-    sc = new SparkContext(
+    sparkContext = new SparkContext(
       createSparkConf(if (master == null) "local" else master,
       jobName,
       System.getenv("SPARK_HOME"),
       Nil,
       executorEnvVars), Map[String, Set[SplitInfo]]())
 
-    sc
+    sparkContext
   }
 
   private def createSparkConf(
@@ -117,7 +106,7 @@ object CatalystEnv extends LogHelper {
       .setAppName(jobName)
       .setJars(jars)
       .setExecutorEnv(environment.toSeq)
-    Option(sparkHome).foreach(newConf.setSparkHome(_))
+    Option(sparkHome).foreach(newConf.setSparkHome)
 
     newConf
   }
@@ -135,8 +124,8 @@ object CatalystEnv extends LogHelper {
 
   val activeSessions = new HashSet[String]
 
-  var cc: CatalystContext = _
-  var sc: SparkContext = _
+  var catalystContext: CatalystContext = _
+  var sparkContext: SparkContext = _
 
   // The following line turns Kryo serialization debug log on. It is extremely chatty.
   //com.esotericsoftware.minlog.Log.set(com.esotericsoftware.minlog.Log.LEVEL_DEBUG)
@@ -149,14 +138,13 @@ object CatalystEnv extends LogHelper {
   def stop() {
     logDebug("Shutting down Shark Environment")
     // Stop the SparkContext
-    if (CatalystEnv.sc != null) {
-      sc.stop()
-      sc = null
-      cc = null
+    if (CatalystEnv.sparkContext != null) {
+      sparkContext.stop()
+      sparkContext = null
+      catalystContext = null
     }
   }
 
   /** Return the value of an environmental variable as a string. */
   def getEnv(varname: String) = if (System.getenv(varname) == null) "" else System.getenv(varname)
-
 }

@@ -1,13 +1,13 @@
 package shark.server
 
-import org.apache.hive.service.cli.CLIService
-import org.apache.hadoop.hive.conf.HiveConf
-import org.apache.hadoop.hive.shims.ShimLoader
-import org.apache.hive.service.auth.HiveAuthFactory
 import java.io.IOException
-import org.apache.hive.service.ServiceException
 import javax.security.auth.login.LoginException
 
+import org.apache.hadoop.hive.conf.HiveConf
+import org.apache.hadoop.hive.shims.ShimLoader
+import org.apache.hive.service.ServiceException
+import org.apache.hive.service.auth.HiveAuthFactory
+import org.apache.hive.service.cli.CLIService
 import org.apache.spark.sql.hive.CatalystContext
 
 import shark.Utils

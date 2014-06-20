@@ -57,8 +57,8 @@ object SharkCliDriver {
     HiveInterruptUtils.add(new HiveInterruptCallback {
       override def interrupt() {
         // Handle remote execution mode
-        if (CatalystEnv.sc != null) {
-          CatalystEnv.sc.cancelAllJobs()
+        if (CatalystEnv.sparkContext != null) {
+          CatalystEnv.sparkContext.cancelAllJobs()
         } else {
           if (transport != null) {
             // Force closing of TCP connection upon session termination
