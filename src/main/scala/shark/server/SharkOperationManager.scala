@@ -104,12 +104,7 @@ class SharkOperationManager(hiveContext: HiveContext) extends OperationManager w
           logger.debug(result.queryExecution.toString())
           iter = result.queryExecution.toRdd.toLocalIterator
           dataTypes = result.queryExecution.analyzed.output.map(_.dataType).toArray
-
-          // Native Commands (such as DDL) run in Hive and do not return results.
-          if (!result.queryExecution.logical.isInstanceOf[NativeCommand])
-            setHasResultSet(true)
-          else
-            setHasResultSet(false)
+          setHasResultSet(true)
         } catch {
           // Actually do need to catch Throwable as some failures don't inherit from Exception and HiveServer will
           // silently swallow them.

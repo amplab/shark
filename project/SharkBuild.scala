@@ -32,7 +32,7 @@ object SharkBuild extends Build {
 
   val SHARK_ORGANIZATION = "edu.berkeley.cs.shark"
 
-  val SPARK_VERSION = "1.0.0-SNAPSHOT"
+  val SPARK_VERSION = "1.0.1-SNAPSHOT"
 
   val SCALA_VERSION = "2.10.4"
 
@@ -77,7 +77,7 @@ object SharkBuild extends Build {
 
 
   /** Extra artifacts not included in Spark SQL's Hive support. */
-  val hiveArtifacts = Seq("hive-cli", "hive-jdbc")
+  val hiveArtifacts = Seq("hive-cli", "hive-jdbc", "hive-beeline")
   val hiveDependencies = hiveArtifacts.map ( artifactId =>
     "org.spark-project.hive" % artifactId % "0.12.0" excludeAll(
       excludeGuava, excludeLog4j, excludeAsm, excludeNetty, excludeXerces, excludeServlet)
@@ -114,7 +114,7 @@ object SharkBuild extends Build {
       "Cloudera Repository" at "https://repository.cloudera.com/artifactory/cloudera-repos/",
       "Local Maven" at Path.userHome.asFile.toURI.toURL + ".m2/repository"
     ),
- 
+
     publishTo <<= version { (v: String) =>
       val nexus = "https://oss.sonatype.org/"
       if (v.trim.endsWith("SNAPSHOT"))
