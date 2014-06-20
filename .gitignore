@@ -1,3 +1,4 @@
+sbt/sbt-launch-*.jar
 target/
 build/
 metastore_db/
