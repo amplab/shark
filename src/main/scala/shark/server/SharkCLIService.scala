@@ -25,12 +25,8 @@ class SharkCLIService(catalystContext: CatalystContext) extends CLIService {
           .getShortUserName(ShimLoader.getHadoopShims.getUGIForConf(hiveConf))
         Utils.setSuperField("serverUserName", serverUserName, this)
       } catch {
-        case e: IOException => {
+        case e @ (_: IOException | _: LoginException) =>
           throw new ServiceException("Unable to login to kerberos with given principal/keytab", e)
-        }
-        case e: LoginException => {
-          throw new ServiceException("Unable to login to kerberos with given principal/keytab", e)
-        }
       }
       sharkInit(hiveConf)
     }

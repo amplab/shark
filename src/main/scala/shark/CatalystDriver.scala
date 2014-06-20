@@ -72,7 +72,7 @@ class CatalystDriver(val context: CatalystContext = CatalystEnv.catalystContext)
   override def getSchema: Schema = tableSchema
 
   override def getResults(res: JArrayList[String]): Boolean = {
-    if(hiveResponse == null) {
+    if (hiveResponse == null) {
       false
     } else {
       res.addAll(hiveResponse)

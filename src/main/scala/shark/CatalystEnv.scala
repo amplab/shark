@@ -17,6 +17,7 @@
 
 package shark
 
+import scala.collection.mutable
 import scala.collection.mutable.{HashMap, HashSet}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hive.shims.ShimLoader
@@ -38,13 +39,13 @@ object CatalystEnv extends LogHelper {
     catalystContext
   }
 
-  def fixUncompatibleConf(conf: Configuration) {
+  def fixIncompatibleConf(conf: Configuration) {
     if (sparkContext == null) {
       init()
     }
 
-    val hiveIslocal = ShimLoader.getHadoopShims.isLocalMode(conf)
-    if (!sparkContext.isLocal && hiveIslocal) {
+    val hiveIsLocal = ShimLoader.getHadoopShims.isLocalMode(conf)
+    if (!sparkContext.isLocal && hiveIsLocal) {
       val warnMessage = "Hive Hadoop shims detected local mode, but Shark is not running locally."
       logWarning(warnMessage)
 
@@ -67,20 +68,19 @@ object CatalystEnv extends LogHelper {
 
   def initWithCatalystContext(
       jobName: String = "Shark::" + java.net.InetAddress.getLocalHost.getHostName,
-      master: String = System.getenv("MASTER"))
-    : CatalystContext = {
-    sparkContext = initSparkContext(jobName, master)
+      master: String = System.getenv("MASTER")): CatalystContext = {
 
+    sparkContext = initSparkContext(jobName, master)
     sparkContext.addSparkListener(new StatsReportListener())
 
     catalystContext = new CatalystContext(sparkContext)
-
     catalystContext
   }
 
   private def initSparkContext(
       jobName: String = "Shark::" + java.net.InetAddress.getLocalHost.getHostName,
       master: String = System.getenv("MASTER")): SparkContext = {
+
     if (sparkContext != null) {
       sparkContext.stop()
     }
@@ -101,38 +101,36 @@ object CatalystEnv extends LogHelper {
       sparkHome: String,
       jars: Seq[String],
       environment: HashMap[String, String]): SparkConf = {
+
     val newConf = new SparkConf()
       .setMaster(master)
       .setAppName(jobName)
       .setJars(jars)
       .setExecutorEnv(environment.toSeq)
-    Option(sparkHome).foreach(newConf.setSparkHome)
 
+    Option(sparkHome).foreach(newConf.setSparkHome)
     newConf
   }
 
   logDebug("Initializing SharkEnv")
 
-  val executorEnvVars = new HashMap[String, String]
-  executorEnvVars.put("SPARK_MEM", getEnv("SPARK_MEM"))
-  executorEnvVars.put("SPARK_CLASSPATH", getEnv("SPARK_CLASSPATH"))
-  executorEnvVars.put("HADOOP_HOME", getEnv("HADOOP_HOME"))
-  executorEnvVars.put("JAVA_HOME", getEnv("JAVA_HOME"))
-  executorEnvVars.put("MESOS_NATIVE_LIBRARY", getEnv("MESOS_NATIVE_LIBRARY"))
-  executorEnvVars.put("TACHYON_MASTER", getEnv("TACHYON_MASTER"))
-  executorEnvVars.put("TACHYON_WAREHOUSE_PATH", getEnv("TACHYON_WAREHOUSE_PATH"))
-
-  val activeSessions = new HashSet[String]
+  val executorEnvVars = {
+    val envVars = Set(
+      "SPARK_MEM",
+      "SPARK_CLASSPATH",
+      "HADOOP_HOME",
+      "JAVA_HOME",
+      "MESOS_NATIVE_LIBRARY",
+      "TACHYON_MASTER",
+      "TACHYON_WAREHOUSE_PATH")
+    HashMap.empty ++= envVars.map { key =>
+      key -> Option(System.getenv(key)).getOrElse("")
+    }.toMap
+  }
 
   var catalystContext: CatalystContext = _
+
   var sparkContext: SparkContext = _
-
-  // The following line turns Kryo serialization debug log on. It is extremely chatty.
-  //com.esotericsoftware.minlog.Log.set(com.esotericsoftware.minlog.Log.LEVEL_DEBUG)
-
-  // Keeps track of added JARs and files so that we don't add them twice in consecutive queries.
-  val addedFiles = HashSet[String]()
-  val addedJars = HashSet[String]()
 
   /** Cleans up and shuts down the Shark environments. */
   def stop() {
@@ -144,7 +142,4 @@ object CatalystEnv extends LogHelper {
       catalystContext = null
     }
   }
-
-  /** Return the value of an environmental variable as a string. */
-  def getEnv(varname: String) = if (System.getenv(varname) == null) "" else System.getenv(varname)
 }

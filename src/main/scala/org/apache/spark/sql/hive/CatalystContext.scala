@@ -28,5 +28,5 @@ class CatalystContext(sc: SparkContext) extends HiveContext(sc) with LogHelper {
   @transient protected[hive] override lazy val sessionState = SessionState.get()
   @transient protected[hive] override lazy val hiveconf = sessionState.getConf
 
-  def executeHiveQL(statement: String) = executePlan(hql(statement).logicalPlan)
+  def executeHiveQL(statement: String): this.QueryExecution = executePlan(hql(statement).logicalPlan)
 }
