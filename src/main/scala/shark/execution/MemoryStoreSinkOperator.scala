@@ -132,6 +132,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       outputRDD = outputRDD.mapPartitionsWithIndex { case(part, iter) =>
         val partition = iter.next()
         partition.toOffHeap.zipWithIndex.foreach { case(buf, column) =>
+          offHeapWriter.setLocalHconf(op.getLocalHconf)
           offHeapWriter.writeColumnPartition(column, part, buf)
         }
         Iterator(partition)

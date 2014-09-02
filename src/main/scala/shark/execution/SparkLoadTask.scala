@@ -234,6 +234,7 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
       transformedRdd = transformedRdd.mapPartitionsWithIndex { case(part, iter) =>
         val partition = iter.next()
         partition.toOffHeap.zipWithIndex.foreach { case(buf, column) =>
+          offHeapWriter.setLocalHconf(broadcastedHiveConf.value.value)
           offHeapWriter.writeColumnPartition(column, part, buf)
         }
         Iterator(partition)

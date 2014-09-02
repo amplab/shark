@@ -20,6 +20,9 @@ package shark.memstore2
 import java.util
 import java.nio.ByteBuffer
 
+import scala.reflect.BeanProperty
+
+import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.spark.rdd.RDD
 
 import shark.LogHelper
@@ -67,6 +70,7 @@ abstract class OffHeapStorageClient {
 }
 
 abstract class OffHeapTableWriter extends Serializable {
+  @transient @BeanProperty var localHconf: HiveConf = _
 
   /** Creates this table. Called only on the driver node. */
   def createTable()
