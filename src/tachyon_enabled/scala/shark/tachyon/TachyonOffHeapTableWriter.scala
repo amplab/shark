@@ -26,8 +26,8 @@ import shark.execution.serialization.JavaSerializer
 import shark.memstore2.{OffHeapStorageClient, OffHeapTableWriter, TablePartitionStats}
 
 import tachyon.client.WriteType
-import tachyon.Constants
 import tachyon.master.MasterInfo
+import tachyon.util.CommonUtils
 
 class TachyonOffHeapTableWriter(@transient path: String, @transient numColumns: Int)
   extends OffHeapTableWriter with LogHelper {
@@ -52,9 +52,8 @@ class TachyonOffHeapTableWriter(@transient path: String, @transient numColumns: 
   @transient lazy val rawTable = tfs.getRawTable(rawTableId)
 
   override def writePartitionColumn(part: Int, column: Int, data: ByteBuffer, tempDir: String) {
-    val tmpPath = rawTable.getPath() + Constants.PATH_SEPARATOR + TEMP
-    val fid = tfs.createFile(tmpPath + Constants.PATH_SEPARATOR + tempDir + Constants.PATH_SEPARATOR 
-        + column + Constants.PATH_SEPARATOR + part)
+    val tmpPath = CommonUtils.concat(rawTable.getPath(), TEMP)
+    val fid = tfs.createFile(CommonUtils.concat(tmpPath, tempDir, column + "", part + ""))
     val file = tfs.getFile(fid)
     val writeType: WriteType = WriteType.valueOf(
         SharkConfVars.getVar(localHconf, SharkConfVars.TACHYON_WRITER_WRITETYPE))
@@ -62,21 +61,19 @@ class TachyonOffHeapTableWriter(@transient path: String, @transient numColumns: 
     outStream.write(data.array(), 0, data.limit())
     outStream.close()
   }
-  
+
   override def commitPartition(part: Int, numColumns: Int, tempDir: String) {
-    val tmpPath = rawTable.getPath() + Constants.PATH_SEPARATOR + TEMP
+    val tmpPath = CommonUtils.concat(rawTable.getPath(), TEMP)
     (0 until numColumns).reverse.foreach { column =>
-      val srcPath = tmpPath + Constants.PATH_SEPARATOR + tempDir + Constants.PATH_SEPARATOR +
-          column + Constants.PATH_SEPARATOR + part
-      val destPath = rawTable.getPath() + Constants.PATH_SEPARATOR +
-          MasterInfo.COL + column + Constants.PATH_SEPARATOR + part
+      val srcPath = CommonUtils.concat(tmpPath, tempDir, column + "", part + "")
+      val destPath = CommonUtils.concat(rawTable.getPath(), MasterInfo.COL, column + "", part + "")
       tfs.rename(srcPath, destPath)
     }
-    tfs.delete(tmpPath + Constants.PATH_SEPARATOR + tempDir, true)
+    tfs.delete(CommonUtils.concat(tmpPath, tempDir), true)
   }
-  
+
   override def cleanTmpPath() {
-    val tmpPath = rawTable.getPath() + Constants.PATH_SEPARATOR + TEMP
+    val tmpPath = CommonUtils.concat(rawTable.getPath(), TEMP)
     tfs.delete(tmpPath, true)
   }
 }

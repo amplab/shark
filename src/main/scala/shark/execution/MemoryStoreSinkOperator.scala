@@ -18,18 +18,22 @@
 package shark.execution
 
 import java.nio.ByteBuffer
+
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.BeanProperty
+
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.io.Writable
-import org.apache.spark.rdd.{RDD, UnionRDD}
+
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.storage.StorageLevel
+import org.apache.spark.rdd.{RDD, UnionRDD}
+import org.apache.spark.{TaskContext, SerializableWritable}
+
 import shark.{SharkConfVars, SharkEnv}
 import shark.execution.serialization.{OperatorSerializationWrapper, JavaSerializer}
 import shark.memstore2._
-import org.apache.spark.TaskContext
-import org.apache.spark.SerializableWritable
-import org.apache.spark.broadcast.Broadcast
+
 /**
  * Cache the RDD and force evaluate it (so the cache is filled).
  */
@@ -78,7 +82,7 @@ class MemoryStoreSinkOperator extends TerminalOperator {
     localHconf.setInt(SharkConfVars.COLUMN_BUILDER_PARTITION_SIZE.varname, partitionSize)
     localHconf.setBoolean(SharkConfVars.COLUMNAR_COMPRESSION.varname, shouldCompress)
   }
-  
+
   override def execute(): RDD[_] = {
     val inputRdd = if (parentOperators.size == 1) executeParents().head._2 else null
 
