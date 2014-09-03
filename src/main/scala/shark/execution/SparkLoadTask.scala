@@ -232,7 +232,8 @@ class SparkLoadTask extends HiveTask[SparkLoadWork] with Serializable with LogHe
       }
       offHeapWriter.createTable()
       transformedRdd.context.runJob(
-        transformedRdd, MemoryStoreSinkOperator.processOffHeapSinkPartition(offHeapWriter))
+        transformedRdd, MemoryStoreSinkOperator.processOffHeapSinkPartition(offHeapWriter,
+          broadcastedHiveConf))
     } else {
       transformedRdd.persist(StorageLevel.MEMORY_AND_DISK)
       transformedRdd.context.runJob(
