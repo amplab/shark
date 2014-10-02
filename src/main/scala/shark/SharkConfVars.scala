@@ -57,6 +57,16 @@ object SharkConfVars {
   // Number of mappers to force for table scan jobs
   val NUM_MAPPERS = new ConfVar("shark.map.tasks", -1)
   
+  // WriteType for Tachyon off-heap table writer,e.g., "TRY_CACHE", "MUST_CACHE",
+  // "CACHE_THROUGH", "THROUGH".
+  // For the reliability concern, we strongly recommend to use the default "CACHE_THROUGH",
+  // which means to write the table synchronously to the under fs, and cache the host columns.
+  // Both "TRY_CACHE" and "MUST_CACHE" options only cache the table with better write
+  // performance. However be careful to use those two options! If the entire table
+  // cannot be fully cached, some data part will be evicted and lost forever.
+  // "THROUGH" only writes the table to under fs and with no cache at all.
+  val TACHYON_WRITER_WRITETYPE = new ConfVar("shark.tachyon.writetype", "CACHE_THROUGH")
+
   // Add Shark configuration variables and their default values to the given conf,
   // so default values show up in 'set'.
   def initializeWithDefaults(conf: Configuration) {

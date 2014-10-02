@@ -22,15 +22,17 @@ import java.nio.ByteBuffer
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.BeanProperty
 
+import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.io.Writable
 
-import org.apache.spark.rdd.{RDD, UnionRDD}
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.storage.StorageLevel
+import org.apache.spark.rdd.{RDD, UnionRDD}
+import org.apache.spark.{TaskContext, SerializableWritable}
 
 import shark.{SharkConfVars, SharkEnv}
 import shark.execution.serialization.{OperatorSerializationWrapper, JavaSerializer}
 import shark.memstore2._
-
 
 /**
  * Cache the RDD and force evaluate it (so the cache is filled).
@@ -129,16 +131,12 @@ class MemoryStoreSinkOperator extends TerminalOperator {
       // Put the table in off-heap storage.
       op.logInfo("Putting RDD for %s.%s in off-heap storage".format(databaseName, tableName))
       offHeapWriter.createTable()
-      outputRDD = outputRDD.mapPartitionsWithIndex { case(part, iter) =>
-        val partition = iter.next()
-        partition.toOffHeap.zipWithIndex.foreach { case(buf, column) =>
-          offHeapWriter.writeColumnPartition(column, part, buf)
-        }
-        Iterator(partition)
-      }
-      // Force evaluate so the data gets put into off-heap storage.
+      val broadcastedHiveConf
+        = outputRDD.context.broadcast(new SerializableWritable(op.getLocalHconf))
       outputRDD.context.runJob(
-        outputRDD, (iter: Iterator[TablePartition]) => iter.foreach(_ => Unit))
+          outputRDD,
+          MemoryStoreSinkOperator.processOffHeapSinkPartition(offHeapWriter, broadcastedHiveConf))
+      offHeapWriter.cleanTmpPath()
     } else {
       // Run a job on the RDD that contains the query output to force the data into the memory
       // store. The statistics will also be collected by 'statsAcc' during job execution.
@@ -207,4 +205,25 @@ class MemoryStoreSinkOperator extends TerminalOperator {
 
   override def processPartition(split: Int, iter: Iterator[_]): Iterator[_] =
     throw new UnsupportedOperationException("CacheSinkOperator.processPartition()")
+}
+
+object MemoryStoreSinkOperator {
+  def processOffHeapSinkPartition(offHeapWriter: OffHeapTableWriter,
+    broadcastedHiveConf: Broadcast[SerializableWritable[HiveConf]]) = {
+    def writeFiles(context: TaskContext, iter: Iterator[_]): Long = {
+      val partId = context.partitionId
+      val partition = iter.next().asInstanceOf[TablePartition]
+      val taskTmpDir = context.stageId + "_" + context.partitionId + "_" + context.attemptId
+      var writeBytes: Long = 0
+      partition.toOffHeap.zipWithIndex.foreach { case(buf, column) =>
+        offHeapWriter.setLocalHconf(broadcastedHiveConf.value.value)
+        offHeapWriter.writePartitionColumn(partId, column, buf, taskTmpDir)
+        writeBytes += buf.limit 
+      }
+      val numColumns = partition.columns.size + 1
+      offHeapWriter.commitPartition(partId, numColumns, taskTmpDir)
+      writeBytes
+    }
+    writeFiles _
+  }
 }

@@ -20,6 +20,9 @@ package shark.memstore2
 import java.util
 import java.nio.ByteBuffer
 
+import scala.reflect.BeanProperty
+
+import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.spark.rdd.RDD
 
 import shark.LogHelper
@@ -67,6 +70,7 @@ abstract class OffHeapStorageClient {
 }
 
 abstract class OffHeapTableWriter extends Serializable {
+  @transient @BeanProperty var localHconf: HiveConf = _
 
   /** Creates this table. Called only on the driver node. */
   def createTable()
@@ -74,8 +78,12 @@ abstract class OffHeapTableWriter extends Serializable {
   /** Sets stats on this table. Called only on the driver node. */
   def setStats(indexToStats: collection.Map[Int, TablePartitionStats])
 
-  /** Write the data of a partition of a given column. Called only on worker nodes. */
-  def writeColumnPartition(column: Int, part: Int, data: ByteBuffer)
+  /** Write the data of a partition of a given column. Called only on worker nodes. */ 
+  def writePartitionColumn(part: Int, column: Int, data: ByteBuffer, tempDir: String)
+
+  def commitPartition(part: Int, numColumns: Int, tempDir: String)
+
+  def cleanTmpPath()
 }
 
 /** Responsible for creating OffHeapStorageClients. Will be called on master and worker nodes. */
