@@ -146,6 +146,24 @@ private[shark] class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHe
     // Init Hive Driver.
     super.init()
   }
+  //overide the close() 
+    override def close(): Int = {
+   
+   try {
+    
+    super.close()
+    
+    }catch{
+     case e: Exception => {
+
+        //logDebug(errorMessage, "\n" + StringUtils.stringifyException(e))
+      
+      }
+    }finally {
+        //perfLogger.PerfLogEnd(LOG, PerfLogger.DO_AUTHORIZATION)
+    }
+    return 0
+  }
 
   def tableRdd(cmd: String): Option[TableRDD] = {
     useTableRddSink = true
@@ -165,6 +183,18 @@ private[shark] class SharkDriver(conf: HiveConf) extends Driver(conf) with LogHe
    * Overload compile to use Shark's semantic analyzers.
    */
   override def compile(cmd: String, resetTaskIds: Boolean): Int = {
+    
+      //The select privilege is not work when we set metastore pression,
+      //so we may run the super method by hive first to check whether pass the validation.
+   
+   val reCode= super.compile(cmd,resetTaskIds)
+    
+     if ( reCode != 0 ) {
+     	return reCode
+     
+    } 
+    
+    
     val perfLogger: PerfLogger = PerfLogger.getPerfLogger()
     perfLogger.PerfLogBegin(LOG, PerfLogger.COMPILE)
 
