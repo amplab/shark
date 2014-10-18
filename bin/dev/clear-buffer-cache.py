@@ -20,8 +20,23 @@
 import os
 import thread
 import time
+import sys
 
-machinesFile = "/root/spark-ec2/slaves"
+EC2_MACHINES_FILE = "/root/spark-ec2/slaves"
+
+sparkHome = os.getenv("SPARK_HOME")
+
+machinesFile = None
+if os.path.exists(EC2_MACHINES_FILE):
+  machinesFile = EC2_MACHINES_FILE
+elif sparkHome is not None and os.path.exists(sparkHome + "/conf/slaves"):
+  machinesFile = sparkHome + "/conf/slaves"
+
+if machinesFile is None:
+  print "Could not find Spark slaves file."
+  sys.exit(1)
+
+    
 machs = open(machinesFile).readlines()
 machs = map(lambda s: s.strip(),machs)
 machCount = len(machs)
